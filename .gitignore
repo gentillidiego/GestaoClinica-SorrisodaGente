@@ -1,0 +1,47 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+
+# Bancos de dados locais
+*.db
+*.db-wal
+*.db-shm
+*.backup_*
+
+# Logs
+logs/
+*.log
+
+# Artefatos de build
+instance/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# PDFs e uploads gerados
+pdf_temp/
+uploads/
+
+# Resultados de carga/teste
+locust_results_*.csv
+locust_results_*.html
+
+# Cookies e sessões locais
+cookies.txt
+
+# Backups e dumps
+*.tar.gz
+*.sql
+*.dump
+
+# Diretórios restaurados (artefato de ferramentas de backup)
+*.restored1/
+__pycache__.restored1/
+blueprints.restored1/
+docs.restored1/
+static.restored1/
+templates.restored1/

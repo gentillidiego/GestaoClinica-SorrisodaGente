@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Novo Exame - {{ anamnesis.patient_name }}{% endblock %}
+
+{% block content %}
+<div class="animate-fade" style="max-width: 1000px; margin: 2rem auto;">
+    <div style="margin-bottom: 2rem;">
+        <a href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}"
+            style="display: inline-flex; align-items: center; gap: 0.5rem; color: hsl(var(--text-muted)); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.2s;"
+            onmouseover="this.style.color='hsl(var(--primary))'" onmouseout="this.style.color='hsl(var(--text-muted))'">
+            <span>⬅️</span> Voltar para o Prontuário
+        </a>
+    </div>
+    <div style="margin-bottom: 3rem; text-align: center;">
+        <h1 style="font-family: var(--font-heading); font-size: 2.5rem; font-weight: 800; color: hsl(var(--primary));">
+            🧬 Exames Complementares
+        </h1>
+        <p style="color: hsl(var(--text-muted)); font-size: 1.1rem; margin-top: 0.5rem;">
+            Selecione o tipo de exame para o paciente: <strong>{{ anamnesis.patient_name }}</strong>
+        </p>
+    </div>
+
+    <div
+        style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; padding: 0 1rem;">
+        <!-- Exame Físico -->
+        <a href="{{ url_for('exams.fisico', anamnesis_id=anamnesis.id) }}" class="card stat-card"
+            style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 1.5rem; border-bottom: 4px solid hsl(var(--primary)); transition: all 0.3s; background: white; min-height: 320px;">
+            <div
+                style="font-size: 4rem; margin-bottom: 1.5rem; height: 80px; display: flex; align-items: center; justify-content: center;">
+                🩺</div>
+            <h3
+                style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 800; color: hsl(var(--primary)); margin: 0;">
+                Exame Físico</h3>
+            <p
+                style="font-size: 0.95rem; color: hsl(var(--text-muted)); margin-top: 1rem; text-align: center; font-weight: 500; line-height: 1.4;">
+                Avaliação clínica direta e sinais vitais.</p>
+        </a>
+
+        <!-- Odontograma -->
+        <a href="{{ url_for('exams.odontograma', anamnesis_id=anamnesis.id) }}" class="card stat-card"
+            style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 1.5rem; border-bottom: 4px solid hsl(var(--success)); transition: all 0.3s; background: white; min-height: 320px;">
+            <div
+                style="font-size: 4rem; margin-bottom: 1.5rem; height: 80px; display: flex; align-items: center; justify-content: center;">
+                🦷</div>
+            <h3
+                style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 800; color: hsl(var(--success)); margin: 0;">
+                Odontograma</h3>
+            <p
+                style="font-size: 0.95rem; color: hsl(var(--text-muted)); margin-top: 1rem; text-align: center; font-weight: 500; line-height: 1.4;">
+                Mapeamento gráfico da condição dentária.</p>
+        </a>
+
+        <!-- Periograma -->
+        <a href="{{ url_for('exams.periograma', anamnesis_id=anamnesis.id) }}" class="card stat-card"
+            style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 1.5rem; border-bottom: 4px solid hsl(var(--primary)); transition: all 0.3s; background: white; min-height: 320px;">
+            <div
+                style="font-size: 4rem; margin-bottom: 1.5rem; height: 80px; display: flex; align-items: center; justify-content: center;">
+                📏</div>
+            <h3
+                style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 800; color: hsl(var(--primary)); margin: 0;">
+                Periograma</h3>
+            <p
+                style="font-size: 0.95rem; color: hsl(var(--text-muted)); margin-top: 1rem; text-align: center; font-weight: 500; line-height: 1.4;">
+                Avaliação detalhada dos tecidos de suporte.</p>
+        </a>
+
+        <!-- Controle de Placa -->
+        <a href="{{ url_for('exams.controle_placa', anamnesis_id=anamnesis.id) }}" class="card stat-card"
+            style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 1.5rem; border-bottom: 4px solid hsl(var(--warning)); transition: all 0.3s; background: white; min-height: 320px;">
+            <div
+                style="font-size: 4rem; margin-bottom: 1.5rem; height: 80px; display: flex; align-items: center; justify-content: center;">
+                📊</div>
+            <h3
+                style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 800; color: hsl(var(--warning)); margin: 0;">
+                Controle de Placa</h3>
+            <p
+                style="font-size: 0.95rem; color: hsl(var(--text-muted)); margin-top: 1rem; text-align: center; font-weight: 500; line-height: 1.4;">
+                Índices de placa e sangramento (IG/IP).</p>
+        </a>
+
+        <!-- Exame de Imagem -->
+        <a href="{{ url_for('exams.imagem', anamnesis_id=anamnesis.id) }}" class="card stat-card"
+            style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 1.5rem; border-bottom: 4px solid hsl(280, 70%, 50%); transition: all 0.3s; background: white; min-height: 320px;">
+            <div
+                style="font-size: 4rem; margin-bottom: 1.5rem; height: 80px; display: flex; align-items: center; justify-content: center;">
+                🖼️</div>
+            <h3
+                style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 800; color: hsl(280, 70%, 50%); margin: 0;">
+                Imagem</h3>
+            <p
+                style="font-size: 0.95rem; color: hsl(var(--text-muted)); margin-top: 1rem; text-align: center; font-weight: 500; line-height: 1.4;">
+                Radiografias, tomografias e fotos.</p>
+        </a>
+    </div>
+
+    <div style="margin-top: 4rem; text-align: center;">
+        <a href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}" class="btn btn-outline">
+            ⬅️ Voltar para o Prontuário
+        </a>
+    </div>
+</div>
+{% endblock %}

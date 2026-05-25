@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Exames - {{ anamnesis.patient_name }}{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="margin-bottom: 2rem;">
+        <a href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}"
+            style="display: inline-flex; align-items: center; gap: 0.5rem; color: hsl(var(--text-muted)); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.2s;"
+            onmouseover="this.style.color='hsl(var(--primary))'" onmouseout="this.style.color='hsl(var(--text-muted))'">
+            <span>⬅️</span> Voltar ao Prontuário
+        </a>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 3rem;">
+        <div>
+            <h1
+                style="font-family: var(--font-heading); font-size: 2rem; font-weight: 800; color: hsl(var(--primary));">
+                Exames de {{ anamnesis.patient_name }}
+            </h1>
+            <p style="color: hsl(var(--text-muted)); margin-top: 0.5rem;">
+                Vinculados à Anamnese de {{ anamnesis.data_anamnese }}
+            </p>
+        </div>
+        <a href="{{ url_for('exams.select_type', anamnesis_id=anamnesis.id) }}" class="btn btn-primary">
+            <span>➕</span> Novo Exame
+        </a>
+    </div>
+
+    <div class="card" style="padding: 0; overflow: hidden;">
+        {% if exams %}
+        <div class="table-container">
+            <table style="width: 100%; border-collapse: collapse; background: white;">
+                <thead>
+                    <tr style="background: hsl(var(--bg-main)); text-align: left;">
+                        <th
+                            style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted));">
+                            TIPO</th>
+                        <th
+                            style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted));">
+                            DATA</th>
+                        <th
+                            style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted)); text-align: right;">
+                            AÇÕES</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for exam in exams %}
+                    <tr style="border-bottom: 1px solid hsl(var(--border)); transition: background 0.2s;"
+                        onmouseover="this.style.background='hsl(var(--primary-soft))'"
+                        onmouseout="this.style.background='transparent'">
+                        <td style="padding: 1.25rem;">
+                            {% if exam.tipo == 'fisico' %}
+                            <span class="badge"
+                                style="background: hsl(var(--primary-soft)); color: hsl(var(--primary));">🩺
+                                Físico</span>
+                            {% elif exam.tipo == 'odontograma' %}
+                            <span class="badge"
+                                style="background: hsl(var(--success) / 0.15); color: hsl(var(--success));">🦷
+                                Odontograma</span>
+                            {% elif exam.tipo == 'periograma' %}
+                            <span class="badge"
+                                style="background: hsl(var(--warning) / 0.15); color: hsl(var(--warning));">📏
+                                Periograma</span>
+                            {% elif exam.tipo == 'imagem' %}
+                            <span class="badge" style="background: hsl(280, 70%, 95%); color: hsl(280, 70%, 40%);">🖼️
+                                Imagem</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 1.25rem; color: hsl(var(--text-muted));">{{ exam.data_criacao }}</td>
+                        <td style="padding: 1.25rem; text-align: right;">
+                            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                                <a href="{{ url_for('exams.' + exam.tipo, anamnesis_id=anamnesis.id, exam_id=exam.id) }}"
+                                    class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                                    Visualizar 👁️
+                                </a>
+                                <button onclick="openDeleteExamModal('{{ url_for('exams.delete_exam', exam_id=exam.id) }}')" 
+                                    class="btn btn-outline btn-danger-soft" 
+                                    style="padding: 0.4rem 0.8rem; font-size: 0.8rem; color: hsl(var(--danger)); border-color: hsl(var(--danger)/0.2); background: hsl(var(--danger)/0.05);">
+                                    Excluir 🗑️
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="padding: 4rem; text-align: center; color: hsl(var(--text-muted));">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">📂</div>
+            <p>Nenhum exame complementar registrado para esta anamnese.</p>
+            <a href="{{ url_for('exams.select_type', anamnesis_id=anamnesis.id) }}" class="btn btn-primary"
+                style="margin-top: 1.5rem;">
+                Criar Primeiro Exame
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modais e Scripts necessários para exclusão -->
+{% include 'patients/includes/_modals.html' %}
+{% include 'patients/includes/_scripts.html' %}
+{% endblock %}

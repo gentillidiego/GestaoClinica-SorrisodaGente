@@ -1,0 +1,296 @@
+<!-- Modal Assinatura Responsável (Genérico) -->
+<div id="signModal" class="modal">
+    <div class="modal-content" style="max-width: 450px;">
+        <h3
+            style="font-family: var(--font-heading); color: hsl(var(--primary)); margin-bottom: 1.5rem; text-align: center;">
+            Validação do Dentista Responsável</h3>
+        <form id="signForm" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="margin-bottom: 1.5rem;">
+                <label class="form-label" style="font-size: 0.9rem;">Usuário do Dentista</label>
+                <input type="text" name="prof_username" class="form-control" placeholder="Usuário do dentista..."
+                    required autofocus>
+            </div>
+            <div style="margin-bottom: 1.5rem;">
+                <label class="form-label" style="font-size: 0.9rem;">Senha</label>
+                <input type="password" name="prof_password" class="form-control" placeholder="Senha..." required>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button type="button" class="btn btn-outline" style="flex: 1;"
+                    onclick="closeSignModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="flex: 1;">Confirmar Validação</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Assinatura Aluno (Para Atendimento) -->
+<div id="studentSignModal" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+        <h3
+            style="font-family: var(--font-heading); color: hsl(var(--primary)); margin-bottom: 1.5rem; text-align: center;">
+            Confirmação do Profissional Executor</h3>
+        <p style="text-align: center; font-size: 0.85rem; color: hsl(var(--text-muted)); margin-bottom: 1.5rem;">
+            Confirme suas credenciais para registrar-se como o <strong>profissional executor</strong> deste atendimento.</p>
+        <form id="studentSignForm" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="margin-bottom: 1.5rem;">
+                <label class="form-label">Usuário</label>
+                <input type="text" name="student_username" class="form-control" placeholder="Seu usuário de acesso..." required>
+            </div>
+            <div style="margin-bottom: 1.5rem;">
+                <label class="form-label">Senha</label>
+                <input type="password" name="student_password" class="form-control" placeholder="Sua senha..." required>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button type="button" class="btn btn-outline" style="flex: 1;"
+                    onclick="closeStudentSignModal()">Sair</button>
+                <button type="submit" class="btn btn-primary" style="flex: 1;">Registrar-se</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Assinatura Paciente (Canvas) -->
+<div id="patientSignModal" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+        <h3
+            style="font-family: var(--font-heading); color: hsl(var(--primary)); margin-bottom: 0.5rem; text-align: center;">
+            Assinatura do Paciente</h3>
+        <p style="text-align: center; font-size: 0.85rem; color: hsl(var(--text-muted)); margin-bottom: 1rem;">O
+            paciente deve assinar no quadro abaixo.</p>
+        <form id="patientSignForm" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="assinatura_base64" id="assinatura_base64_patient">
+
+            <div
+                style="background: #f8f9fa; border: 2px dashed hsl(var(--border)); border-radius: var(--radius-md); margin-bottom: 1rem; position: relative;">
+                <canvas id="signature-pad-patient" style="width: 100%; height: 200px; cursor: crosshair;"></canvas>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; margin-bottom: 1.5rem;">
+                <button type="button" id="clear-signature-patient" class="btn btn-outline"
+                    style="padding: 0.3rem 0.8rem; font-size: 0.8rem;">Limpar Quadro</button>
+                <span style="font-size: 0.75rem; color: hsl(var(--text-muted));">Toque/Mouse para assinar</span>
+            </div>
+
+            <div style="display: flex; gap: 1rem;">
+                <button type="button" class="btn btn-outline" style="flex: 1;"
+                    onclick="closePatientSignModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="flex: 1; font-weight: 700;">SALVAR
+                    ASSINATURA</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Registrar Pagamento -->
+<div id="paymentModal" class="modal">
+    <div class="modal-content" style="max-width: 550px;">
+        <h3
+            style="font-family: var(--font-heading); color: hsl(var(--primary)); margin-bottom: 0.5rem; text-align: center;">
+            Registrar Pagamento</h3>
+        <p style="text-align: center; font-size: 0.85rem; color: hsl(var(--text-muted)); margin-bottom: 1.5rem;">
+            Informe o valor recebido e solicite a assinatura do paciente.</p>
+
+        <form id="paymentForm" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="assinatura_base64" id="assinatura_base64_payment">
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                <div>
+                    <label class="form-label" style="font-size: 0.8rem;">Valor Recebido (R$)</label>
+                    <input type="number" step="0.01" name="valor" class="form-control" placeholder="0,00" required>
+                </div>
+                <div>
+                    <label class="form-label" style="font-size: 0.8rem;">Data</label>
+                    <input type="date" name="data_pagamento" class="form-control"
+                        value="{{ now.strftime('%Y-%m-%d') if now else '' }}" required>
+                </div>
+            </div>
+
+            <label class="form-label" style="font-size: 0.85rem; font-weight: 700;">Assinatura do Paciente
+                (Recibo)</label>
+            <div
+                style="background: #f8f9fa; border: 2px dashed hsl(var(--border)); border-radius: var(--radius-md); margin-bottom: 0.5rem; position: relative;">
+                <canvas id="signature-pad-payment" style="width: 100%; height: 150px; cursor: crosshair;"></canvas>
+            </div>
+            <div style="text-align: right; margin-bottom: 1.5rem;">
+                <button type="button" id="clear-signature-payment"
+                    style="background: none; border: none; color: hsl(var(--primary)); font-size: 0.75rem; cursor: pointer; text-decoration: underline;">Limpar
+                    Quadro</button>
+            </div>
+
+            <div style="display: flex; gap: 1rem;">
+                <button type="button" class="btn btn-outline" style="flex: 1;"
+                    onclick="closeAddPaymentModal()">Cancelar</button>
+                <button type="submit" class="btn btn-success" style="flex: 1; font-weight: 700;">CONFIRMAR
+                    RECEBIMENTO</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Editar Valor Acordado -->
+<div id="agreementModal" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+        <h3 style="font-family: var(--font-heading); color: hsl(var(--primary)); margin-bottom: 1.5rem;">Editar Valor
+            Acordado</h3>
+        <form id="editAgreementForm" action="{{ url_for('prosthesis.update_agreement', prosthesis_id=prosthesis_active.id if prosthesis_active else 0) }}"
+            method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="patient_id" value="{{ patient.id }}">
+            {% if prosthesis_active %}
+            <input type="hidden" name="prosthesis_id" value="{{ prosthesis_active.id }}">
+            {% endif %}
+            <div style="margin-bottom: 1.5rem;">
+                <label class="form-label">Novo Valor do Tratamento (R$)</label>
+                <input type="number" step="0.01" name="valor_acordado" id="edit_agreement_valor" class="form-control"
+                    required>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button type="button" class="btn btn-outline" style="flex: 1;"
+                    onclick="closeEditAgreementModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="flex: 1;">Salvar Valor</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Editar Atendimento/Evolução -->
+<div id="editAtendimentoModal" class="modal">
+    <div class="modal-content" style="max-width: 600px;">
+        <h3 style="font-family: var(--font-heading); color: hsl(var(--primary)); margin-bottom: 1.5rem;">Editar
+            Evolução</h3>
+        <form id="editAtendimentoForm" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="margin-bottom: 1rem;">
+                <label class="form-label">Data</label>
+                <input type="date" name="data" id="edit_atend_data" class="form-control" required>
+            </div>
+            <div style="margin-bottom: 1.5rem;">
+                <label class="form-label">Descrição da Evolução</label>
+                <textarea name="observacoes" id="edit_atend_observacoes" class="form-control" rows="5"
+                    required></textarea>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button type="button" class="btn btn-outline" style="flex: 1;"
+                    onclick="closeEditAtendimentoModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="flex: 1;">Salvar Alterações</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Editar Procedimento (Plano de Tratamento) -->
+<div id="editTreatmentModal" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+        <h3 style="font-family: var(--font-heading); color: hsl(var(--primary)); margin-bottom: 1.5rem;">Editar
+            Procedimento</h3>
+        <form id="editTreatmentForm" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="margin-bottom: 1rem;">
+                <label class="form-label">Dente</label>
+                <input type="text" name="dente" id="edit_proc_dente" class="form-control">
+            </div>
+            <div style="margin-bottom: 1.5rem;">
+                <label class="form-label">Procedimento</label>
+                <input type="text" name="descricao" id="edit_proc_desc" class="form-control" required>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button type="button" class="btn btn-outline" style="flex: 1;"
+                    onclick="closeEditTreatmentModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="flex: 1;">Salvar Alterações</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Nova Receita -->
+<div id="novaReceitaModal" class="modal">
+    <div class="modal-content" style="max-width: 600px;">
+        <h3 style="font-family: var(--font-heading); color: hsl(var(--primary)); margin-bottom: 1.5rem; text-align: center;">
+            ➕ Nova Receita
+        </h3>
+        <form id="novaReceitaForm" method="POST" action="{{ url_for('documents.add_receituario', patient_id=patient.id) if patient else '#' }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="margin-bottom: 1.5rem;">
+                <label class="form-label">Uso</label>
+                <select name="uso" class="form-control" required>
+                    <option value="Interno">Uso Interno</option>
+                    <option value="Externo">Uso Externo</option>
+                    <option value="Tópico">Uso Tópico</option>
+                    <option value="Contínuo">Uso Contínuo</option>
+                </select>
+            </div>
+            
+            <div id="medicamentos-container">
+                <div class="medicamento-row" style="background: hsl(var(--bg-main)); padding: 1rem; border-radius: var(--radius-sm); margin-bottom: 1rem; position: relative;">
+                    <button type="button" class="btn btn-danger" style="position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.2rem 0.5rem; font-size: 0.8rem;" onclick="this.closest('.medicamento-row').remove()" title="Remover">-</button>
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 1rem; margin-top: 0.5rem;">
+                        <div>
+                            <label class="form-label" style="font-size: 0.8rem;">Medicamento</label>
+                            <input type="text" name="medicamento[]" class="form-control" placeholder="Ex: Amoxicilina 500mg" required>
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 0.8rem;">Quantidade</label>
+                            <input type="text" name="quantidade[]" class="form-control" placeholder="Ex: 1 cx" required>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size: 0.8rem;">Posologia (Como tomar)</label>
+                        <input type="text" name="uso_med[]" class="form-control" placeholder="Ex: Tomar 1 comprimido de 8 em 8 horas por 7 dias" required>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-bottom: 1.5rem;">
+                <button type="button" class="btn btn-outline" style="font-size: 0.85rem;" onclick="addMedicamentoRow()">➕ Adicionar Medicamento</button>
+            </div>
+
+            <div style="display: flex; gap: 1rem;">
+                <button type="button" class="btn btn-outline" style="flex: 1;" onclick="closeNovaReceitaModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="flex: 1;">Salvar Receita</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Novo Atestado -->
+<div id="novoAtestadoModal" class="modal">
+    <div class="modal-content" style="max-width: 600px;">
+        <h3 style="font-family: var(--font-heading); color: hsl(var(--primary)); margin-bottom: 1.5rem; text-align: center;">
+            ➕ Novo Atestado
+        </h3>
+        <form id="novoAtestadoForm" method="POST" action="{{ url_for('documents.add_atestado', patient_id=patient.id) if patient else '#' }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <div style="margin-bottom: 1.5rem;">
+                <label class="form-label">Motivo do Atestado</label>
+                <input type="text" name="motivo" class="form-control" placeholder="Ex: Comparecimento à consulta odontológica, Repouso por extração..." required>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                <div>
+                    <label class="form-label">Dias de Repouso</label>
+                    <input type="number" name="dias_repouso" class="form-control" min="0" placeholder="Ex: 2 (opcional)">
+                    <span style="font-size: 0.75rem; color: hsl(var(--text-muted));">Deixe em branco se for apenas comparecimento.</span>
+                </div>
+                <div>
+                    <label class="form-label">CID (Opcional)</label>
+                    <input type="text" name="cid" class="form-control" placeholder="Ex: K04.0">
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 1.5rem;">
+                <label class="form-label">Observações Adicionais (Opcional)</label>
+                <textarea name="observacao" class="form-control" rows="3" placeholder="Informações extras a constarem no atestado..."></textarea>
+            </div>
+
+            <div style="display: flex; gap: 1rem;">
+                <button type="button" class="btn btn-outline" style="flex: 1;" onclick="closeNovoAtestadoModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="flex: 1;">Salvar Atestado</button>
+            </div>
+        </form>
+    </div>
+</div>

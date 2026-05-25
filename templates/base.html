@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Gestão Clínica{% endblock %}</title>
+    <!-- CSS Moderno e Variáveis -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.2">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200;0,300;0,400;0,500;0,600;0,700;0,800;1,200;1,300;1,400;1,500;1,600;1,700;1,800&display=swap"
+        rel="stylesheet">
+    <!-- Signature Pad -->
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+    <!-- IMask.js -->
+    <script src="https://unpkg.com/imask"></script>
+    <!-- Custom Validations -->
+    <script src="{{ url_for('static', filename='js/validation.js') }}"></script>
+    <style>
+        .spinner-inline {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+
+<body class="layout-wrapper {% if not current_user.is_authenticated %}not-logged{% endif %}">
+    {% if current_user.is_authenticated %}
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header" style="justify-content: center; padding: 1.5rem;">
+            <a href="{{ url_for('main.dashboard') }}" class="logo">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="Sorriso da Gente" style="height: 100px; width: auto; max-width: 100%;">
+            </a>
+        </div>
+        <nav class="sidebar-nav">
+            <!-- Item Principal Ativo -->
+            <a href="{{ url_for('main.dashboard') }}"
+                class="nav-item {% if request.endpoint == 'main.dashboard' %}active{% endif %}">
+                <span class="nav-icon">🏠</span> Início
+            </a>
+
+            <div class="nav-divider">MÓDULOS</div>
+            <a href="{{ url_for('patients.list_patients') }}"
+                class="nav-item {% if 'patients' in request.endpoint or 'anamnesis' in request.endpoint or 'exams' in request.endpoint %}active{% endif %}">
+                <span class="nav-icon">👥</span> Gestão de Pacientes
+            </a>
+            <a href="{{ url_for('agenda.agenda_index') }}"
+                class="nav-item {% if 'agenda' in request.endpoint %}active{% endif %}">
+                <span class="nav-icon">📅</span> Agenda
+            </a>
+
+            {% if current_user.role in ['admin', 'atendente'] %}
+            <div class="nav-divider">ADMINISTRAÇÃO</div>
+            <a href="{{ url_for('admin.list_users') }}" class="nav-item">
+                <span class="nav-icon">⚙️</span> Usuários
+            </a>
+            {% endif %}
+            
+            {% if current_user.role == 'admin' %}
+            <a href="{{ url_for('reports.index') }}" class="nav-item {% if 'reports' in request.endpoint %}active{% endif %}">
+                <span class="nav-icon">📊</span> Relatórios Gerenciais
+            </a>
+            {% endif %}
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-card">
+                <div class="user-avatar">{{ current_user.username[0]|upper }}</div>
+                <div class="user-info">
+                    <span class="user-name">{{ current_user.username|capitalize }}</span>
+                    <span class="user-role">
+                    {% if current_user.role == 'admin' %}Administrador
+                    {% elif current_user.role == 'dentista' %}Cir.-Dentista
+                    {% elif current_user.role == 'tsb' %}TSB / ASB
+                    {% elif current_user.role == 'atendente' %}Atendente
+                    {% else %}Usuário{% endif %}
+                </span>
+                </div>
+            </div>
+            <a href="{{ url_for('auth.logout') }}" class="logout-btn">
+                Sair 🚪
+            </a>
+        </div>
+    </aside>
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+    {% endif %}
+    <div class="main-wrapper">
+        {% if current_user.is_authenticated %}
+        <header class="top-nav">
+            <button class="menu-toggle" id="menu-toggle" aria-label="Abrir Menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <a href="{{ url_for('main.dashboard') }}" class="mobile-logo">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="Sorriso da Gente" style="height: 50px; width: auto;">
+            </a>
+            <div class="search-bar">
+                <!-- Espaço para busca global se necessário -->
+            </div>
+            <div class="top-nav-actions">
+            <div class="date-display">
+                    <span id="current-date"></span>
+                </div>
+            </div>
+        </header>
+        {% endif %}
+        <main class="content-area">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="flash flash-{{ category }} animate-fade">
+                <span class="flash-icon">
+                    {% if category == 'success' %}✅{% elif category == 'error' %}❌{% else %}ℹ️{% endif %}
+                </span>
+                {{ message }}
+                <button class="flash-close" onclick="this.parentElement.remove()">✕</button>
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    <script>
+        // Atualizar data no topo
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        const dateEl = document.getElementById('current-date');
+        if (dateEl) dateEl.textContent = new Date().toLocaleDateString('pt-BR', options);
+
+        // Mobile Menu Toggle
+        const menuToggle = document.getElementById('menu-toggle');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+
+        if (menuToggle && sidebar && overlay) {
+            menuToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('active');
+                overlay.classList.toggle('active');
+                menuToggle.classList.toggle('active');
+            });
+
+            overlay.addEventListener('click', () => {
+                sidebar.classList.remove('active');
+                overlay.classList.remove('active');
+                menuToggle.classList.remove('active');
+            });
+        }
+
+        // Auto-hide flash messages
+        setTimeout(() => {
+            const flashes = document.querySelectorAll('.flash');
+            flashes.forEach(f => {
+                f.style.opacity = '0';
+                setTimeout(() => f.remove(), 500);
+            });
+        }, 5000);
+    </script>
+</body>
+
+</html>

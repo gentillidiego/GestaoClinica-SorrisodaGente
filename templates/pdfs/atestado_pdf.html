@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Atestado Odontológico - {{ patient.nome }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 20mm 20mm 25mm 20mm;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            color: #333;
+            line-height: 1.8;
+            margin: 0;
+            padding: 0;
+            font-size: 14pt;
+        }
+
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #0056b3;
+            padding-bottom: 20px;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            color: #0056b3;
+            margin: 0 0 5px 0;
+            font-size: 24pt;
+        }
+
+        .header p {
+            margin: 0;
+            color: #666;
+            font-size: 12pt;
+        }
+
+        .content {
+            text-align: justify;
+            min-height: 400px;
+        }
+
+        .footer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            text-align: center;
+            padding-top: 20px;
+        }
+
+        .signature-line {
+            width: 300px;
+            border-top: 1px solid #333;
+            margin: 0 auto;
+            margin-bottom: 10px;
+        }
+
+        .date {
+            text-align: right;
+            margin-top: 60px;
+            margin-bottom: 80px;
+            font-size: 13pt;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>ATESTADO ODONTOLÓGICO</h1>
+        <p>Clínica Odontológica Gestão Clínica</p>
+    </div>
+
+    <div class="content">
+        <p>
+            Atesto para os devidos fins que o(a) paciente <strong>{{ patient.nome }}</strong>
+            {% if patient.rg %}, portador(a) do RG n° {{ patient.rg }}{% endif %}
+            {% if patient.cpf %}, e CPF n° {{ patient.cpf }}{% endif %},
+            esteve sob meus cuidados profissionais na data de hoje,
+            sendo submetido(a) a {{ doc.motivo|lower }}.
+        </p>
+
+        {% if doc.dias_repouso and doc.dias_repouso > 0 %}
+        <p>
+            Por motivo de ordem estritamente odontológica, necessita de
+            <strong>{{ doc.dias_repouso }} dia(s)</strong> de repouso para sua recuperação.
+        </p>
+        {% endif %}
+
+        {% if doc.observacao %}
+        <p>
+            <strong>Observações adicionais:</strong><br>
+            {{ doc.observacao }}
+        </p>
+        {% endif %}
+
+        {% if doc.cid %}
+        <p>
+            <strong>CID-10:</strong> {{ doc.cid }} (Anotação autorizada pelo paciente).
+        </p>
+        {% endif %}
+    </div>
+
+    <div class="date">
+        Data: {{ (doc.data|string).split(' ')[0] if doc.data else '' }}
+    </div>
+
+    <div class="footer">
+        <div class="signature-line"></div>
+        <strong>{{ prof.username }}</strong><br>
+        AC Odontologia<br>
+        {% if prof.cro %}CRO: {{ prof.cro }}{% endif %}
+    </div>
+</body>
+
+</html>

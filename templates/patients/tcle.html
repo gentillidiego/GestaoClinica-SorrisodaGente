@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}Termo de Consentimento - {{ patient.nome }}{% endblock %}
+
+{% block content %}
+<div class="animate-fade"
+    style="max-width: 900px; margin: 2rem auto; padding: 3rem; background: white; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); border: 1px solid hsl(var(--border));">
+
+    <div style="text-align: center; margin-bottom: 3rem;">
+        <h2
+            style="font-family: var(--font-heading); font-size: 1.8rem; font-weight: 800; color: hsl(var(--primary)); text-transform: uppercase; margin-bottom: 0.5rem;">
+            TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE) – ATENDIMENTO ODONTOLÓGICO</h2>
+        <p style="color: hsl(var(--text-muted)); font-weight: 600;">GESTÃO SAÚDE ORAL</p>
+    </div>
+
+    <form method="POST" id="tcle-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="assinatura_base64" id="assinatura_base64">
+
+        <div style="line-height: 1.6; color: hsl(var(--text-main)); font-size: 1rem; text-align: justify; margin-bottom: 3rem;">
+            <h3 style="font-size: 1.1rem; font-weight: 800; border-bottom: 2px solid hsl(var(--primary)/0.2); padding-bottom: 0.5rem; margin-bottom: 1rem; color: hsl(var(--primary));">1. IDENTIFICAÇÃO DAS PARTES</h3>
+            <p style="margin-bottom: 1.5rem;">
+                <strong>PACIENTE/RESPONSÁVEL:</strong> {{ patient.nome }}, {{ patient.nacionalidade or 'Brasileiro(a)' }}, {{ patient.estado_civil or '---' }}, {{ patient.profissao or '---' }}, RG nº {{ patient.rg or '---' }}, CPF nº {{ patient.cpf or '---' }}, residente em {{ patient.endereco_residencial or '---' }}.
+            </p>
+            <p style="margin-bottom: 2.5rem;">
+                <strong>PROFISSIONAL/CLÍNICA:</strong> {{ current_user.full_name or current_user.username|capitalize }}, inscrito(a) no CRO-{{ current_user.cro_uf or '---' }} sob nº {{ current_user.cro or '---' }}.
+            </p>
+
+            <h3 style="font-size: 1.1rem; font-weight: 800; border-bottom: 2px solid hsl(var(--primary)/0.2); padding-bottom: 0.5rem; margin-bottom: 1rem; color: hsl(var(--primary));">2. DECLARAÇÃO DE ESCLARECIMENTO E CONSENTIMENTO</h3>
+            <p>Declaro que fui devidamente informado(a) pelo profissional acima identificado sobre o diagnóstico do meu quadro clínico e as opções de tratamento propostas. Fui esclarecido(a) de forma clara e acessível sobre:</p>
+            <ul style="margin-bottom: 1.5rem; padding-left: 1.5rem;">
+                <li>A natureza e o objetivo do tratamento proposto;</li>
+                <li>Os riscos e benefícios inerentes aos procedimentos (incluindo riscos anestésicos, hemorrágicos, infecciosos e de sensibilidade);</li>
+                <li>As alternativas de tratamento existentes, bem como as consequências da não realização do procedimento;</li>
+                <li>Os custos envolvidos e a necessidade de exames complementares para a continuidade do plano terapêutico.</li>
+            </ul>
+
+            <h3 style="font-size: 1.1rem; font-weight: 800; border-bottom: 2px solid hsl(var(--primary)/0.2); padding-bottom: 0.5rem; margin-bottom: 1rem; color: hsl(var(--primary));">3. NATUREZA DA ATIVIDADE ODONTOLÓGICA (OBRIGAÇÃO DE MEIO)</h3>
+            <p style="margin-bottom: 1.5rem;">Estou ciente de que a Odontologia não é uma ciência exata e que o sucesso do tratamento depende da resposta biológica individual do meu organismo, de fatores sistêmicos e de hábitos parafuncionais. Portanto, o profissional compromete-se com a utilização das melhores técnicas e materiais disponíveis (obrigação de meio), não podendo garantir um resultado estético ou funcional específico em decorrência das limitações biológicas.</p>
+
+            <h3 style="font-size: 1.1rem; font-weight: 800; border-bottom: 2px solid hsl(var(--primary)/0.2); padding-bottom: 0.5rem; margin-bottom: 1rem; color: hsl(var(--primary));">4. DEVERES E COLABORAÇÃO DO PACIENTE</h3>
+            <p>Comprometo-me a:</p>
+            <ul style="margin-bottom: 1.5rem; padding-left: 1.5rem;">
+                <li>Prestar informações fidedignas sobre meu histórico de saúde (anamnese), alergias e uso de medicações.</li>
+                <li>Seguir rigorosamente as prescrições medicamentosas e orientações pós-operatórias/pós-procedimento.</li>
+                <li>Comparecer às consultas agendadas, ciente de que faltas injustificadas interrompem o ciclo terapêutico e comprometem o prognóstico.</li>
+                <li>Comunicar imediatamente ao profissional qualquer intercorrência ou sintoma atípico.</li>
+            </ul>
+
+            <h3 style="font-size: 1.1rem; font-weight: 800; border-bottom: 2px solid hsl(var(--primary)/0.2); padding-bottom: 0.5rem; margin-bottom: 1rem; color: hsl(var(--primary));">5. ALTERAÇÕES NO PLANO DE TRATAMENTO</h3>
+            <p style="margin-bottom: 1.5rem;">Compreendo que, durante a execução dos procedimentos, podem surgir fatos novos que exijam a alteração da técnica ou do plano original. Nesses casos, o profissional deverá me informar sobre a necessidade da mudança e eventuais ajustes orçamentários, salvo em situações de urgência onde a interrupção possa gerar dano à minha saúde.</p>
+
+            <h3 style="font-size: 1.1rem; font-weight: 800; border-bottom: 2px solid hsl(var(--primary)/0.2); padding-bottom: 0.5rem; margin-bottom: 1rem; color: hsl(var(--primary));">6. PROTEÇÃO DE DADOS E REGISTROS (LGPD)</h3>
+            <p style="margin-bottom: 1.5rem;">Autorizo a coleta e o tratamento de meus dados pessoais e sensíveis (prontuário, exames, fotografias e radiografias) para fins estritamente clínicos, acadêmicos ou de registro legal, conforme a Lei 13.709/2018 (LGPD), garantido o sigilo profissional.</p>
+
+            <h3 style="font-size: 1.1rem; font-weight: 800; border-bottom: 2px solid hsl(var(--primary)/0.2); padding-bottom: 0.5rem; margin-bottom: 1rem; color: hsl(var(--primary));">7. DISPOSIÇÕES FINAL</h3>
+            <p>Confirmo que tive a oportunidade de sanar todas as minhas dúvidas e que assino este termo de forma livre, consciente e sem qualquer coação. Este consentimento pode ser revogado por mim a qualquer momento, por escrito, desde que não haja risco iminente à minha saúde pela interrupção imediata.</p>
+        </div>
+
+        <div style="margin-bottom: 3rem; font-weight: 600;">
+            Maceió, <span id="current-day"></span> de <span id="current-month"></span> de <span
+                id="current-year"></span>
+        </div>
+
+        <div style="display: grid; gap: 2rem; margin-bottom: 3rem;">
+            <div class="signature-section">
+                <label
+                    style="display: block; font-weight: 700; color: hsl(var(--primary)); margin-bottom: 1rem; text-transform: uppercase; font-size: 0.85rem;">Assinatura
+                    do Paciente (ou Responsável)</label>
+                <div class="signature-container"
+                    style="border: 2px dashed hsl(var(--border)); border-radius: var(--radius-md); background: hsl(var(--bg-main)/0.3); padding: 10px; position: relative;">
+                    <canvas id="signature-pad"
+                        style="width: 100%; height: 200px; touch-action: none; background: white;"></canvas>
+                    <button type="button" id="clear-signature"
+                        style="position: absolute; top: 10px; right: 10px; padding: 0.5rem 1rem; font-size: 0.75rem; background: hsl(var(--bg-main)); border: 1px solid hsl(var(--border)); border-radius: var(--radius-sm); cursor: pointer; font-weight: 700; color: hsl(var(--text-muted));">LIMPAR
+                        🔄</button>
+                </div>
+                <p style="font-size: 0.85rem; color: hsl(var(--text-muted)); margin-top: 0.5rem; text-align: center;">
+                    Clique e arraste acima para assinar digitalmente</p>
+            </div>
+
+            <div style="padding-top: 1rem; border-top: 1px solid hsl(var(--border));">
+                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                    <div style="text-align: center; flex: 1;">
+                        <div
+                            style="height: 1px; background: hsl(var(--text-main)); margin-bottom: 0.5rem; width: 80%; margin-left: auto; margin-right: auto;">
+                        </div>
+                        <span style="font-size: 0.85rem; font-weight: 700; color: hsl(var(--text-muted));">Assinatura do
+                            Profissional Responsável: {{ current_user.full_name or current_user.username|capitalize }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 1.5rem; justify-content: flex-end; margin-top: 2rem;">
+            <a href="{{ url_for('patients.view_patient', id=patient.id) }}" class="btn btn-outline"
+                style="padding: 1rem 2rem;">CANCELAR</a>
+            <button type="submit" class="btn btn-primary"
+                style="padding: 1rem 3rem; font-weight: 800; font-size: 1.1rem; letter-spacing: 0.05em;">💾 SALVAR E
+                CONFIRMAR TERMO</button>
+        </div>
+    </form>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const canvas = document.getElementById('signature-pad');
+        const signaturePad = new SignaturePad(canvas, {
+            backgroundColor: 'rgb(255, 255, 255)'
+        });
+
+        const clearButton = document.getElementById('clear-signature');
+        const form = document.getElementById('tcle-form');
+        const hiddenInput = document.getElementById('assinatura_base64');
+
+        // Preencher data
+        const date = new Date();
+        const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+        document.getElementById('current-day').textContent = date.getDate();
+        document.getElementById('current-month').textContent = months[date.getMonth()];
+        document.getElementById('current-year').textContent = date.getFullYear();
+
+        clearButton.addEventListener('click', function () {
+            signaturePad.clear();
+        });
+
+        form.addEventListener('submit', function (e) {
+            if (signaturePad.isEmpty()) {
+                alert('A assinatura do paciente é obrigatória para prosseguir.');
+                e.preventDefault();
+                return;
+            }
+            hiddenInput.value = signaturePad.toDataURL();
+        });
+
+        function resizeCanvas() {
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            const parent = canvas.parentElement;
+            canvas.width = parent.offsetWidth - 24; // compensar padding
+            canvas.height = 200;
+            const context = canvas.getContext("2d");
+            context.scale(1, 1); // Simples para esse caso
+            signaturePad.clear();
+        }
+
+        window.onresize = resizeCanvas;
+        resizeCanvas();
+    });
+</script>
+{% endblock %}

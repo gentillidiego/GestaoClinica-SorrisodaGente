@@ -1,0 +1,412 @@
+{% extends "base.html" %}
+
+{% block title %}Anamnese - {{ patient.nome }}{% endblock %}
+
+{% block content %}
+<div class="document-container animate-fade">
+    <div style="margin-bottom: 2rem;">
+        <a href="{{ url_for('patients.view_patient', id=patient.id) }}"
+            style="display: inline-flex; align-items: center; gap: 0.5rem; color: hsl(var(--text-muted)); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.2s;"
+            onmouseover="this.style.color='hsl(var(--primary))'" onmouseout="this.style.color='hsl(var(--text-muted))'">
+            <span>⬅️</span> Voltar ao Prontuário
+        </a>
+    </div>
+
+    <div class="document-header">
+        <h1>PRONTUÁRIO ODONTOLÓGICO</h1>
+        <h2>ANAMNESE - {{ patient.nome }}</h2>
+    </div>
+
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <!-- 1. Identificação Inicial e Queixa -->
+        <div class="form-section-title">1. Identificação Inicial e Queixa</div>
+        <div style="margin-bottom: 2rem;">
+            <label for="queixa_principal" class="form-label">Queixa Principal:</label>
+            <textarea name="queixa_principal" id="queixa_principal" class="form-control" rows="3"
+                placeholder="Qual o motivo da consulta?"></textarea>
+        </div>
+        <div style="margin-bottom: 3rem;">
+            <label for="historia_doenca_atual" class="form-label">História da Doença Atual:</label>
+            <textarea name="historia_doenca_atual" id="historia_doenca_atual" class="form-control" rows="3"
+                placeholder="Relato cronológico e detalhado do problema..."></textarea>
+        </div>
+
+        <!-- 2. História Médica -->
+        <div class="form-section-title">2. História Médica</div>
+
+        <div class="form-grid" style="gap: 4rem;">
+            <div class="form-column">
+                {% set perguntas = [
+                ('sofre_doenca', 'Sofre de alguma doença?'),
+                ('tratamento_medico', 'Está sob tratamento médico?'),
+                ('tomando_medicamento', 'Está tomando algum medicamento?'),
+                ('tem_alergia', 'Tem algum tipo de alergia?'),
+                ('desmaios_convulsoes', 'Já teve desmaios ou convulsões?'),
+                ('tem_cancer', 'Já teve câncer?'),
+                ('radioterapia_quimioterapia', 'Já fez radioterapia ou quimioterapia?'),
+                ('falta_ar', 'Sente falta de ar com frequência?')
+                ] %}
+
+                {% for name, label in perguntas %}
+                <div
+                    style="margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid hsl(var(--border) / 0.5);">
+                    <label class="form-label">{{ label }}</label>
+                    <div style="display: flex; align-items: center; gap: 1.5rem;">
+                        <div class="radio-group">
+                            <label class="radio-option"><input type="radio" name="{{ name }}" value="Sim"> Sim</label>
+                            <label class="radio-option"><input type="radio" name="{{ name }}" value="Não"> Não</label>
+                        </div>
+                        <input type="text" name="{{ name }}_explica" class="form-control"
+                            placeholder="Se sim, especifique..." style="flex: 1; height: 38px; font-size: 0.85rem;">
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="form-column">
+                <div class="form-group-inline">
+                    <label class="form-label">Pressão Arterial:</label>
+                    <select name="pressao_arterial" class="form-control">
+                        <option value="Normal">Normal</option>
+                        <option value="Alta">Alta</option>
+                        <option value="Baixa">Baixa</option>
+                        <option value="Controlada com medicamento">Controlada com medicamento</option>
+                    </select>
+                </div>
+
+                <div
+                    style="margin-top: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid hsl(var(--border) / 0.5);">
+                    <label class="form-label">Já fez alguma cirurgia?</label>
+                    <div style="display: flex; align-items: center; gap: 1.5rem;">
+                        <div class="radio-group">
+                            <label class="radio-option"><input type="radio" name="fez_cirurgia" value="Sim"> Sim</label>
+                            <label class="radio-option"><input type="radio" name="fez_cirurgia" value="Não"> Não</label>
+                        </div>
+                        <input type="text" name="fez_cirurgia_explica" class="form-control" placeholder="Qual?"
+                            style="flex: 1; height: 38px; font-size: 0.85rem;">
+                    </div>
+                </div>
+
+                <div class="form-group-inline" style="margin-top: 1.5rem;">
+                    <label class="form-label">Sangramento ao cortar-se:</label>
+                    <select name="sangramento_cortar" class="form-control">
+                        <option value="Normal">Normal</option>
+                        <option value="Excessivo">Excessivo</option>
+                    </select>
+                </div>
+
+                <div class="form-group-inline">
+                    <label class="form-label">Cicatrização:</label>
+                    <select name="cicatrizacao" class="form-control">
+                        <option value="Normal">Normal</option>
+                        <option value="Complicada">Complicada</option>
+                    </select>
+                </div>
+
+                <div
+                    style="margin-top: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid hsl(var(--border) / 0.5);">
+                    <label class="form-label">Já foi hospitalizado?</label>
+                    <div style="display: flex; align-items: center; gap: 1.5rem;">
+                        <div class="radio-group">
+                            <label class="radio-option"><input type="radio" name="foi_hospitalizado" value="Sim">
+                                Sim</label>
+                            <label class="radio-option"><input type="radio" name="foi_hospitalizado" value="Não">
+                                Não</label>
+                        </div>
+                        <input type="text" name="foi_hospitalizado_explica" class="form-control" placeholder="Por que?"
+                            style="flex: 1; height: 38px; font-size: 0.85rem;">
+                    </div>
+                </div>
+
+                <div style="margin-top: 1.5rem;">
+                    <label class="form-label">Alergia a medicamentos ou alimentos?</label>
+                    <input type="text" name="alergia_medicamento_alimento" class="form-control"
+                        placeholder="Especifique as alergias...">
+                </div>
+
+                <div
+                    style="margin-top: 2rem; padding: 1.25rem; background: hsl(var(--bg-main)); border-radius: var(--radius-md); border-left: 4px solid hsl(var(--primary));">
+                    <label class="form-label" style="margin-bottom: 1rem;">Gestante?</label>
+                    <div style="display: flex; align-items: center; gap: 1.5rem;">
+                        <div class="radio-group">
+                            <label class="radio-option"><input type="radio" name="gestante" value="Sim"> Sim</label>
+                            <label class="radio-option"><input type="radio" name="gestante" value="Não"> Não</label>
+                            <label class="radio-option"><input type="radio" name="gestante" value="Não Sei"> ?</label>
+                        </div>
+                        <input type="text" name="gestante_semanas" class="form-control" placeholder="Semanas"
+                            style="width: 100px; height: 38px;">
+                    </div>
+                </div>
+
+                <div style="margin-top: 1.5rem;">
+                    <label class="form-label">Outros problemas de saúde:</label>
+                    <input type="text" name="problemas_saude_ja_teve" class="form-control"
+                        placeholder="Histórico adicional...">
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Histórico Odontológico -->
+        <div class="form-section-title" style="margin-top: 4rem;">3. Histórico Odontológico Específico</div>
+        <div class="form-grid" style="gap: 4rem;">
+            <div class="form-column">
+                <div
+                    style="margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid hsl(var(--border) / 0.5);">
+                    <label class="form-label">Já teve alguma reação com anestesia odontológica?</label>
+                    <div style="display: flex; align-items: center; gap: 1.5rem;">
+                        <div class="radio-group">
+                            <label class="radio-option"><input type="radio" name="reacao_anestesia" value="Sim">
+                                Sim</label>
+                            <label class="radio-option"><input type="radio" name="reacao_anestesia" value="Não">
+                                Não</label>
+                        </div>
+                        <input type="text" name="reacao_anestesia_explica" class="form-control"
+                            placeholder="Se sim, como foi?" style="flex: 1; height: 38px; font-size: 0.85rem;">
+                    </div>
+                </div>
+
+                <div class="form-group-inline">
+                    <label class="form-label">Último tratamento dentário:</label>
+                    <input type="text" name="ultimo_tratamento_dentario" class="form-control"
+                        placeholder="Ex: Há 6 meses">
+                </div>
+
+                <div style="margin-top: 2rem;">
+                    <label class="form-label">Tem sentido alguma dor nos dentes ou na gengiva?</label>
+                    <input type="text" name="dor_dentes_gengiva" class="form-control"
+                        placeholder="Especifique a dor ou desconforto...">
+                </div>
+            </div>
+
+            <div class="form-column">
+                <div class="form-group-inline">
+                    <label class="form-label">Sua gengiva sangra?</label>
+                    <select name="gengiva_sangra" class="form-control">
+                        <option value="Sim">Sim</option>
+                        <option value="Não">Não</option>
+                        <option value="Durante a higiene">Durante a higiene</option>
+                        <option value="Às vezes">Às vezes</option>
+                    </select>
+                </div>
+
+                <div class="form-group-inline" style="margin-top: 1.5rem;">
+                    <label class="form-label">Usa fio dental?</label>
+                    <select name="fio_dental" class="form-control">
+                        <option value="Diariamente">Diariamente</option>
+                        <option value="Às vezes">Às vezes</option>
+                        <option value="Não">Não</option>
+                    </select>
+                </div>
+
+                <div style="margin-top: 2rem;">
+                    <label class="form-label">Sente dores ou estalos no maxilar ou no ouvido?</label>
+                    <input type="text" name="dores_estalos_maxilar" class="form-control"
+                        placeholder="Especifique se houver...">
+                </div>
+
+                <div style="margin-top: 1.5rem;">
+                    <label class="form-label">Range os dentes de dia ou de noite?</label>
+                    <input type="text" name="range_dentes" class="form-control"
+                        placeholder="Ex: Bruxismo, Apertamento...">
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Antecedentes e Hábitos -->
+        <div class="form-section-title" style="margin-top: 4rem;">4. Antecedentes Familiares e Hábitos</div>
+        <div class="form-grid" style="gap: 4rem;">
+            <div class="form-column">
+                <div style="margin-bottom: 2rem;">
+                    <label class="form-label">Antecedentes Familiares Importantes:</label>
+                    <input type="text" name="antecedentes_familiares" class="form-control"
+                        placeholder="Diabetes, Cardiopatias, etc.">
+                </div>
+                <div style="margin-bottom: 2rem;">
+                    <label class="form-label">Causas de óbitos nos familiares próximos:</label>
+                    <textarea name="causas_obitos_familiares" class="form-control" rows="3"
+                        placeholder="Relate se houver ocorrências relevantes..."></textarea>
+                </div>
+            </div>
+
+            <div class="form-column">
+                <div
+                    style="margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid hsl(var(--border) / 0.5);">
+                    <label class="form-label">Hábito de Fumar?</label>
+                    <div style="display: flex; align-items: center; gap: 1.5rem;">
+                        <div class="radio-group">
+                            <label class="radio-option"><input type="radio" name="fuma" value="Sim"> Sim</label>
+                            <label class="radio-option"><input type="radio" name="fuma" value="Não"> Não</label>
+                        </div>
+                        <input type="text" name="fuma_quantidade" class="form-control" placeholder="Qtd p/ dia"
+                            style="flex: 1; height: 38px; font-size: 0.85rem;">
+                    </div>
+                </div>
+
+                <div
+                    style="margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid hsl(var(--border) / 0.5);">
+                    <label class="form-label">Ingestão de Bebidas Alcoólicas?</label>
+                    <div style="display: flex; align-items: center; gap: 1.5rem;">
+                        <div class="radio-group">
+                            <label class="radio-option"><input type="radio" name="ingere_alcool" value="Sim">
+                                Sim</label>
+                            <label class="radio-option"><input type="radio" name="ingere_alcool" value="Não">
+                                Não</label>
+                        </div>
+                        <input type="text" name="ingere_alcool_frequencia" class="form-control" placeholder="Frequência"
+                            style="flex: 1; height: 38px; font-size: 0.85rem;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label class="form-label">Pratica Exercícios Físicos?</label>
+                    <div style="display: flex; align-items: center; gap: 1.5rem;">
+                        <div class="radio-group">
+                            <label class="radio-option"><input type="radio" name="exercicios_fisicos" value="Sim">
+                                Sim</label>
+                            <label class="radio-option"><input type="radio" name="exercicios_fisicos" value="Não">
+                                Não</label>
+                        </div>
+                        <input type="text" name="exercicios_fisicos_frequencia" class="form-control"
+                            placeholder="Modalidade/Frequência" style="flex: 1; height: 38px; font-size: 0.85rem;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. Finalização -->
+        <div class="form-section-title" style="margin-top: 4rem;">5. Finalização e Assinatura</div>
+        <div
+            style="background: hsl(var(--bg-main)); padding: 2.5rem; border-radius: var(--radius-lg); border: 2px dashed hsl(var(--border)); text-align: center;">
+            <p
+                style="font-weight: 700; font-family: var(--font-heading); font-size: 1.15rem; color: hsl(var(--primary)); margin-bottom: 2.5rem;">
+                "Declaro para fins de direito que as informações acima prestadas são verdadeiras."
+            </p>
+
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 1.5rem;">
+                <p style="font-weight: 600; color: hsl(var(--text-muted));">Maceió-AL, {{ now.day }} de {{
+                    now.strftime('%B') }} de {{ now.year }}.</p>
+
+                <div class="signature-container"
+                    style="background: white; border: 1px solid hsl(var(--border)); border-radius: var(--radius-md); position: relative; width: fit-content; box-shadow: var(--shadow-md);">
+                    <canvas id="signature-pad" width="500" height="200"
+                        style="touch-action: none; cursor: crosshair; max-width: 100%;"></canvas>
+                    <button type="button" id="clear-signature" class="btn btn-outline"
+                        style="position: absolute; top: 1rem; right: 1rem; padding: 6px 12px; font-size: 0.8rem; background: rgba(255,255,255,0.9); border-width: 1px;">
+                        🗑️ Limpar
+                    </button>
+                    <input type="hidden" name="assinatura_base64" id="assinatura_base64">
+                </div>
+                <label style="color: hsl(var(--text-muted)); font-size: 0.95rem; font-weight: 500;">Assinatura do
+                    Paciente ou Responsável</label>
+            </div>
+        </div>
+
+        <div class="form-actions"
+            style="border-top: 1px solid hsl(var(--border)); padding-top: 3rem; margin-top: 5rem;">
+            <button type="submit" class="btn btn-primary" id="submit-btn"
+                style="padding: 1.25rem 4rem; font-size: 1.1rem; letter-spacing: 0.05em;">
+                💾 FINALIZAR E SALVAR PRONTUÁRIO
+            </button>
+            <button type="button" class="btn btn-outline" style="padding: 1.25rem 2rem;"
+                onclick="window.history.back()">CANCELAR</button>
+            <a href="#" class="link-limpar" style="color: hsl(var(--text-muted));"
+                onclick="document.querySelector('form').reset(); return false;">LIMPAR FORMULÁRIO</a>
+        </div>
+    </form>
+</div>
+
+<style>
+    @media (max-width: 768px) {
+        .form-grid {
+            gap: 2rem !important;
+        }
+
+        .form-group-inline {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .form-group-inline .form-label {
+            width: 100%;
+        }
+
+        .radio-group {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        div[style*="display: flex; align-items: center; gap: 1.5rem;"] {
+            flex-direction: column;
+            align-items: flex-start !important;
+            gap: 1rem !important;
+            width: 100%;
+        }
+
+        div[style*="display: flex; align-items: center; gap: 1.5rem;"] .form-control {
+            width: 100% !important;
+        }
+
+        .signature-container {
+            width: 100% !important;
+        }
+
+        #signature-pad {
+            width: 100% !important;
+            height: 150px !important;
+        }
+
+        .form-actions {
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .form-actions button,
+        .form-actions a {
+            width: 100%;
+            text-align: center;
+        }
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const canvas = document.getElementById('signature-pad');
+        const signaturePad = new SignaturePad(canvas, {
+            backgroundColor: 'rgb(255, 255, 255)'
+        });
+
+        const clearButton = document.getElementById('clear-signature');
+        const form = document.querySelector('form');
+        const hiddenInput = document.getElementById('assinatura_base64');
+
+        clearButton.addEventListener('click', function () {
+            signaturePad.clear();
+        });
+
+        form.addEventListener('submit', function (e) {
+            if (signaturePad.isEmpty()) {
+                if (!confirm('A ficha está sem assinatura. Deseja salvar mesmo assim?')) {
+                    e.preventDefault();
+                    return;
+                }
+            } else {
+                hiddenInput.value = signaturePad.toDataURL();
+            }
+        });
+
+        function resizeCanvas() {
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            canvas.width = canvas.offsetWidth * ratio;
+            canvas.height = canvas.offsetHeight * ratio;
+            canvas.getContext("2d").scale(ratio, ratio);
+            signaturePad.clear();
+        }
+
+        window.onresize = resizeCanvas;
+        resizeCanvas();
+    });
+</script>
+{% endblock %}

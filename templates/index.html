@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Gestão Saúde Oral{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+
+  <!-- ═══ HEADER ═════════════════════════════════════════════════════════ -->
+  <div style="margin-bottom:2.5rem; display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
+    <div>
+      <h1 class="page-title">Bem-vindo, {{ user.full_name or user.username }}! 👋</h1>
+      <p class="page-subtitle">Aqui está um resumo do que acontece hoje na clínica.</p>
+    </div>
+    <div style="display:flex; gap:0.75rem; align-items:center; flex-shrink:0;">
+      {% if current_user.role in ['admin','atendimento','professor'] %}
+      <a href="{{ url_for('agenda.agenda_index') }}" class="btn btn-outline" style="height:40px; font-size:0.85rem;">
+        📅 Ver Agenda
+      </a>
+      <a href="{{ url_for('patients.register') }}" class="btn btn-primary" style="height:40px; font-size:0.85rem;">
+        ➕ Novo Paciente
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ═══ LINHA 1: PACIENTES ═══════════════════════════════════════════ -->
+  <p class="dash-section-label">PACIENTES</p>
+  <div class="stat-grid" style="margin-bottom:0.5rem;">
+
+    <div class="stat-card" style="border-bottom:4px solid hsl(var(--primary));">
+      <div class="stat-icon" style="background:hsl(var(--primary-soft));">👥</div>
+      <div class="stat-info">
+        <span class="stat-value">{{ stats.total_patients }}</span>
+        <span class="stat-label">Total de Pacientes</span>
+      </div>
+    </div>
+
+    <div class="stat-card" style="border-bottom:4px solid hsl(var(--success));">
+      <div class="stat-icon" style="background:hsl(var(--success)/0.15);">🗓️</div>
+      <div class="stat-info">
+        <span class="stat-value">{{ stats.patients_month }}</span>
+        <span class="stat-label">Novos Este Mês</span>
+      </div>
+    </div>
+
+    <div class="stat-card" style="border-bottom:4px solid hsl(var(--warning));">
+      <div class="stat-icon" style="background:hsl(var(--warning)/0.15);">📋</div>
+      <div class="stat-info">
+        <span class="stat-value">{{ stats.pending_treatments }}</span>
+        <span class="stat-label">Planos Pendentes</span>
+      </div>
+      <a href="{{ url_for('patients.pending_treatments') }}" class="stat-link">Ver →</a>
+    </div>
+
+    <div class="stat-card" style="border-bottom:4px solid #8b5cf6;">
+      <div class="stat-icon" style="background:#ede9fe;">🦷</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#7c3aed;">{{ stats.procedimentos_hoje }}</span>
+        <span class="stat-label">Procedimentos Hoje</span>
+      </div>
+    </div>
+
+    <div class="stat-card" style="border-bottom:4px solid #0ea5e9;">
+      <div class="stat-icon" style="background:#e0f2fe;">📈</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#0284c7;">{{ stats.procedimentos_mes }}</span>
+        <span class="stat-label">Procedimentos no Mês</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══ LINHA 2: AGENDA ════════════════════════════════════════════════ -->
+  <p class="dash-section-label" style="margin-top:1.75rem;">AGENDA</p>
+  <div class="stat-grid" style="margin-bottom:2.5rem;">
+
+    <div class="stat-card stat-card-agenda" style="border-bottom:4px solid #6366f1;">
+      <div class="stat-icon" style="background:#eef2ff;">📆</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#4f46e5;">{{ stats.agenda_planejadas }}</span>
+        <span class="stat-label">Planejadas</span>
+      </div>
+      <a href="{{ url_for('agenda.agenda_index', status='Pendente') }}" class="stat-link" style="color:#6366f1;">Ver →</a>
+    </div>
+
+    <div class="stat-card stat-card-agenda" style="border-bottom:4px solid #10b981;">
+      <div class="stat-icon" style="background:#d1fae5;">✅</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#059669;">{{ stats.agenda_concluidas }}</span>
+        <span class="stat-label">Concluídas</span>
+      </div>
+    </div>
+
+    <div class="stat-card stat-card-agenda" style="border-bottom:4px solid #f59e0b;">
+      <div class="stat-icon" style="background:#fef3c7;">🔄</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#d97706;">{{ stats.agenda_confirmadas }}</span>
+        <span class="stat-label">Confirmadas</span>
+      </div>
+    </div>
+
+    <div class="stat-card stat-card-agenda" style="border-bottom:4px solid #ef4444;">
+      <div class="stat-icon" style="background:#fee2e2;">❌</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#dc2626;">{{ stats.agenda_canceladas }}</span>
+        <span class="stat-label">Canceladas</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══ BARRA DE TAXA DE CONCLUSÃO ════════════════════════════════════ -->
+  {% if stats.agenda_total > 0 %}
+  <div class="card" style="padding:1.25rem 1.5rem; margin-bottom:2rem; background: linear-gradient(135deg, #f8faff 0%, #eef2ff 100%); border:1px solid #c7d2fe;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.6rem; flex-wrap:wrap; gap:0.5rem;">
+      <span style="font-weight:700; font-size:0.9rem; color:#4338ca;">📊 Taxa de Conclusão de Consultas</span>
+      <div style="display:flex; gap:1.5rem;">
+        <span style="font-size:0.8rem; color:hsl(var(--text-muted));">Total: <strong style="color:hsl(var(--text-main));">{{ stats.agenda_total }}</strong></span>
+        <span style="font-size:0.8rem; color:hsl(var(--text-muted));">Realizadas: <strong style="color:#059669;">{{ stats.agenda_concluidas }}</strong></span>
+        <span style="font-size:1rem; font-weight:800; color:#4338ca;">{{ stats.taxa_conclusao }}%</span>
+      </div>
+    </div>
+    <div style="background:#e0e7ff; border-radius:999px; height:10px; overflow:hidden;">
+      <div style="background:linear-gradient(90deg,#6366f1,#818cf8); height:100%; border-radius:999px; width:{{ stats.taxa_conclusao }}%; transition:width 1s ease;"></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ═══ GRADE PRINCIPAL ════════════════════════════════════════════════ -->
+  <div class="dashboard-actions-grid">
+
+    <!-- Coluna esquerda -->
+    <div style="display:flex; flex-direction:column; gap:1.5rem;">
+
+      <!-- Consultas de Hoje -->
+      <div class="card" style="margin-bottom:0;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+          <h2 class="section-header" style="margin:0;">🗓️ Consultas de Hoje</h2>
+          <a href="{{ url_for('agenda.agenda_index') }}" style="font-size:0.8rem; color:hsl(var(--primary)); font-weight:600; text-decoration:none;">Agenda completa →</a>
+        </div>
+
+        {% if consultas_hoje %}
+        <div style="display:flex; flex-direction:column; gap:0.5rem;">
+          {% for c in consultas_hoje %}
+          <div style="display:flex; align-items:center; gap:0.75rem; padding:0.75rem 1rem;
+                      border-radius:var(--radius-md); border:1px solid hsl(var(--border));
+                      background:hsl(var(--bg-main)); transition:border-color 0.2s;"
+               onmouseover="this.style.borderColor='hsl(var(--primary))'"
+               onmouseout="this.style.borderColor='hsl(var(--border))'">
+            <!-- Hora -->
+            <div style="flex-shrink:0; text-align:center; min-width:44px;">
+              <div style="font-weight:800; font-size:0.95rem; color:hsl(var(--primary));">{{ c.data_consulta.strftime('%H:%M') }}</div>
+              <div style="font-size:0.68rem; color:hsl(var(--text-muted));">{{ c.duracao_minutos }}min</div>
+            </div>
+            <!-- Separador -->
+            <div style="width:1px; height:36px; background:hsl(var(--border)); flex-shrink:0;"></div>
+            <!-- Info -->
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:600; font-size:0.9rem; color:hsl(var(--text-main)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                <a href="{{ url_for('patients.view_patient', id=c.patient_id) }}" style="color:inherit; text-decoration:none;">{{ c.patient_nome }}</a>
+              </div>
+              <div style="font-size:0.78rem; color:hsl(var(--text-muted));">{{ c.dentista_nome or '—' }}</div>
+            </div>
+            <!-- Badge -->
+            <span class="badge-status badge-{{ c.status|lower }}" style="flex-shrink:0;">{{ c.status }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align:center; padding:2rem; color:hsl(var(--text-muted));">
+          <div style="font-size:2.5rem; margin-bottom:0.5rem;">📅</div>
+          <p style="font-size:0.9rem;">Nenhuma consulta agendada para hoje.</p>
+          {% if current_user.role in ['admin','atendimento','professor'] %}
+          <a href="{{ url_for('agenda.agenda_index') }}" class="btn btn-primary" style="margin-top:1rem; font-size:0.85rem;">
+            ➕ Agendar Consulta
+          </a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Alertas Operacionais -->
+      <div class="card" style="margin-bottom:0;">
+        <h2 class="section-header">🔔 Alertas Operacionais</h2>
+        <div style="display:flex; flex-direction:column; gap:0.75rem;">
+
+          {% if stats.pending_treatments > 0 %}
+          <div class="alert-row alert-danger">
+            <span style="font-size:1.2rem;">📋</span>
+            <span>{{ stats.pending_treatments }} procedimento(s) aguardando execução</span>
+            <a href="{{ url_for('patients.pending_treatments') }}" class="alert-link">Ver →</a>
+          </div>
+          {% endif %}
+
+          {% if stats.agenda_canceladas > 0 %}
+          <div class="alert-row" style="background:#fff7ed; border-left:4px solid #f97316;">
+            <span style="font-size:1.2rem;">❌</span>
+            <span>{{ stats.agenda_canceladas }} consulta(s) cancelada(s) no histórico</span>
+            <a href="{{ url_for('agenda.agenda_index', status='Cancelado') }}" class="alert-link" style="color:#ea580c;">Ver →</a>
+          </div>
+          {% endif %}
+
+          {% if stats.pending_signatures == 0 and stats.pending_treatments == 0 and stats.agenda_canceladas == 0 %}
+          <div style="text-align:center; padding:1.5rem; color:hsl(var(--text-muted)); font-size:0.9rem;">
+            ✅ Nenhum alerta no momento. Tudo em dia!
+          </div>
+          {% endif %}
+
+        </div>
+      </div>
+
+      <!-- Ações Rápidas -->
+      <div class="card" style="margin-bottom:0;">
+        <h2 class="section-header">⚡ Ações Rápidas</h2>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+          <a href="{{ url_for('patients.register') }}" class="btn btn-primary" style="justify-content:center; padding:0.9rem; font-size:0.875rem;">
+            ➕ Novo Paciente
+          </a>
+          <a href="{{ url_for('agenda.agenda_index') }}" class="btn btn-outline" style="justify-content:center; padding:0.9rem; font-size:0.875rem; background:white;">
+            📅 Agenda
+          </a>
+          <a href="{{ url_for('patients.list_patients') }}" class="btn btn-outline" style="justify-content:center; padding:0.9rem; font-size:0.875rem; background:white;">
+            🔍 Prontuários
+          </a>
+          <a href="{{ url_for('patients.pending_treatments') }}" class="btn btn-outline" style="justify-content:center; padding:0.9rem; font-size:0.875rem; background:white;">
+            📋 Tratamentos
+          </a>
+        </div>
+      </div>
+
+    </div><!-- /coluna esquerda -->
+
+    <!-- Coluna direita -->
+    <div style="display:flex; flex-direction:column; gap:1.5rem;">
+
+      <!-- Últimos Pacientes -->
+      <div class="card" style="margin-bottom:0;">
+        <h2 class="section-header">🕐 Últimos Pacientes Cadastrados</h2>
+        {% if recent_patients %}
+        <div style="display:flex; flex-direction:column; gap:0.6rem;">
+          {% for p in recent_patients %}
+          <a href="{{ url_for('patients.view_patient', id=p.id) }}"
+             style="text-decoration:none; display:flex; align-items:center; justify-content:space-between;
+                    padding:0.85rem 1rem; border-radius:var(--radius-md);
+                    border:1px solid hsl(var(--border)); background:hsl(var(--bg-main));
+                    transition:border-color 0.2s, background 0.2s;"
+             onmouseover="this.style.borderColor='hsl(var(--primary))'; this.style.background='hsl(var(--primary-soft))';"
+             onmouseout="this.style.borderColor='hsl(var(--border))'; this.style.background='hsl(var(--bg-main))';">
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+              <div style="width:36px; height:36px; border-radius:50%; background:hsl(var(--primary-soft));
+                          display:flex; align-items:center; justify-content:center;
+                          font-weight:700; font-size:0.9rem; color:hsl(var(--primary)); flex-shrink:0;">
+                {{ p.nome[0]|upper }}
+              </div>
+              <span style="font-weight:600; font-size:0.95rem; color:hsl(var(--text-main));">{{ p.nome }}</span>
+            </div>
+            <span style="font-size:0.78rem; color:hsl(var(--text-muted)); white-space:nowrap;">
+              {% if p.criado_em %}{{ (p.criado_em|string)[:10] }}{% endif %}
+            </span>
+          </a>
+          {% endfor %}
+        </div>
+        <div style="margin-top:1.25rem; text-align:center;">
+          <a href="{{ url_for('patients.list_patients') }}"
+             style="font-size:0.875rem; color:hsl(var(--primary)); font-weight:600; text-decoration:none;">
+            Ver todos os pacientes →
+          </a>
+        </div>
+        {% else %}
+        <div style="text-align:center; padding:2rem; color:hsl(var(--text-muted));">
+          <div style="font-size:2.5rem; margin-bottom:0.75rem;">👥</div>
+          <p>Nenhum paciente cadastrado ainda.</p>
+          <a href="{{ url_for('patients.register') }}" class="btn btn-primary" style="margin-top:1rem;">
+            Cadastrar primeiro paciente
+          </a>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Mini calendário / contexto da semana -->
+      <div class="card" style="margin-bottom:0; background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%); border:none; color:white;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.25rem;">
+          <h2 style="font-family:var(--font-heading); font-size:1rem; font-weight:700; color:white; margin:0;">
+            📊 Resumo da Agenda
+          </h2>
+          <a href="{{ url_for('agenda.agenda_index') }}" style="font-size:0.78rem; color:#a5b4fc; font-weight:600; text-decoration:none;">Abrir →</a>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+          {% set agenda_items = [
+            ('📆', stats.agenda_planejadas,  'Planejadas',  '#818cf8'),
+            ('✅', stats.agenda_concluidas,  'Concluídas',  '#34d399'),
+            ('🔄', stats.agenda_confirmadas, 'Confirmadas', '#fbbf24'),
+            ('❌', stats.agenda_canceladas,  'Canceladas',  '#f87171'),
+          ] %}
+          {% for icon, val, label, color in agenda_items %}
+          <div style="background:rgba(255,255,255,0.08); border-radius:12px; padding:0.9rem; text-align:center; backdrop-filter:blur(4px);">
+            <div style="font-size:1.4rem; margin-bottom:0.25rem;">{{ icon }}</div>
+            <div style="font-size:1.5rem; font-weight:800; color:{{ color }}; font-family:var(--font-heading);">{{ val }}</div>
+            <div style="font-size:0.72rem; color:rgba(255,255,255,0.6); margin-top:0.1rem;">{{ label }}</div>
+          </div>
+          {% endfor %}
+        </div>
+
+        {% if stats.agenda_total > 0 %}
+        <div style="margin-top:1.25rem;">
+          <div style="display:flex; justify-content:space-between; font-size:0.78rem; color:rgba(255,255,255,0.6); margin-bottom:0.4rem;">
+            <span>Taxa de conclusão</span>
+            <span style="color:#a5b4fc; font-weight:700;">{{ stats.taxa_conclusao }}%</span>
+          </div>
+          <div style="background:rgba(255,255,255,0.15); border-radius:999px; height:6px; overflow:hidden;">
+            <div style="background:linear-gradient(90deg,#818cf8,#34d399); height:100%; border-radius:999px; width:{{ stats.taxa_conclusao }}%;"></div>
+          </div>
+        </div>
+        {% else %}
+        <div style="margin-top:1.25rem; text-align:center; padding:1rem; color:rgba(255,255,255,0.5); font-size:0.85rem;">
+          Nenhuma consulta cadastrada ainda.
+        </div>
+        {% endif %}
+
+      </div>
+
+    </div><!-- /coluna direita -->
+
+  </div><!-- /dashboard-actions-grid -->
+
+</div><!-- /animate-fade -->
+
+<style>
+/* Dashboard extras */
+.dash-section-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: hsl(var(--text-muted));
+  margin: 0 0 0.65rem 0.1rem;
+}
+.stat-card { position: relative; }
+.stat-link {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: hsl(var(--primary));
+  text-decoration: none;
+}
+.stat-badge-alert {
+  position: absolute;
+  top: 0.8rem;
+  right: 0.8rem;
+  background: hsl(var(--danger)/0.15);
+  color: hsl(var(--danger));
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--danger)/0.3);
+}
+.alert-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-md);
+}
+.alert-warning { background: hsl(var(--warning)/0.1); border-left: 4px solid hsl(var(--warning)); }
+.alert-danger  { background: hsl(var(--danger)/0.07); border-left: 4px solid hsl(var(--danger)/0.6); }
+.alert-row span:nth-child(2) { flex: 1; font-size: 0.9rem; font-weight: 600; color: hsl(var(--text-main)); }
+.alert-link {
+  font-size: 0.8rem;
+  color: hsl(var(--primary));
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+</style>
+{% endblock %}

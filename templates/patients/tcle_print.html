@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Termo de Consentimento - {{ patient.nome }}{% endblock %}
+
+{% block content %}
+<style>
+    @media print {
+        body {
+            background: white !important;
+            margin: 0;
+            padding: 0;
+        }
+
+        .sidebar,
+        .top-nav,
+        .btn,
+        .flash,
+        .print-btn {
+            display: none !important;
+        }
+
+        .main-wrapper {
+            margin-left: 0 !important;
+            width: 100% !important;
+        }
+
+        .content-area {
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .print-container {
+            box-shadow: none !important;
+            border: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        @page {
+            margin: 2cm;
+        }
+    }
+</style>
+
+<div class="animate-fade print-container"
+    style="max-width: 900px; margin: 2rem auto; padding: 3rem; background: white; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); border: 1px solid hsl(var(--border)); position: relative;">
+
+    <button onclick="window.print()" class="btn btn-primary print-btn"
+        style="position: absolute; top: 1rem; right: 1rem; font-weight: 700;">
+        🖨️ Imprimir
+    </button>
+    <a href="{{ url_for('patients.view_patient', id=patient.id) }}" class="btn btn-outline print-btn"
+        style="position: absolute; top: 1rem; left: 1rem; border-color: #cbd5e1; color: #475569;">
+        ⬅️ Voltar
+    </a>
+
+    <div style="text-align: center; margin-top: 2rem; margin-bottom: 3rem;">
+        <h2
+            style="font-family: var(--font-heading); font-size: 1.8rem; font-weight: 800; color: hsl(var(--primary)); text-transform: uppercase; margin-bottom: 0.5rem;">
+            TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE) – ATENDIMENTO ODONTOLÓGICO</h2>
+        <p style="color: hsl(var(--text-muted)); font-weight: 600;">GESTÃO SAÚDE ORAL</p>
+    </div>
+
+    <div style="line-height: 1.6; color: hsl(var(--text-main)); font-size: 1rem; text-align: justify; margin-bottom: 3rem;">
+        <h3 style="font-size: 1.1rem; font-weight: 800; border-bottom: 2px solid hsl(var(--primary)/0.2); padding-bottom: 0.5rem; margin-bottom: 1rem; color: hsl(var(--primary));">1. IDENTIFICAÇÃO DAS PARTES</h3>
+        <p style="margin-bottom: 1.5rem;">
+            <strong>PACIENTE/RESPONSÁVEL:</strong> {{ patient.nome }}, {{ patient.nacionalidade or 'Brasileiro(a)' }}, {{ patient.estado_civil or '---' }}, {{ patient.profissao or '---' }}, RG nº {{ patient.rg or '---' }}, CPF nº {{ patient.cpf or '---' }}, residente em {{ patient.endereco_residencial or '---' }}.
+        </p>
+        <p style="margin-bottom: 2.5rem;">
+            <strong>PROFISSIONAL/CLÍNICA:</strong> {{ tcle.full_name or tcle.username|capitalize }}, inscrito(a) no CRO-{{ tcle.cro_uf or '---' }} sob nº {{ tcle.cro or '---' }}.
+        </p>
+
+        <h3 style="font-size: 1.1rem; font-weight: 800; border-bottom: 2px solid hsl(var(--primary)/0.2); padding-bottom: 0.5rem; margin-bottom: 1rem; color: hsl(var(--primary));">2. DECLARAÇÃO DE ESCLARECIMENTO E CONSENTIMENTO</h3>
+        <p>Declaro que fui devidamente informado(a) pelo profissional acima identificado sobre o diagnóstico do meu quadro clínico e as opções de tratamento propostas. Fui esclarecido(a) de forma clara e acessível sobre:</p>
+        <ul style="margin-bottom: 1.5rem; padding-left: 1.5rem;">
+            <li>A natureza e o objetivo do tratamento proposto;</li>
+            <li>Os riscos e benefícios inerentes aos procedimentos (incluindo riscos anestésicos, hemorrágicos, infecciosos e de sensibilidade);</li>
+            <li>As alternativas de tratamento existentes, bem como as consequências da não realização do procedimento;</li>
+            <li>Os custos envolvidos e a necessidade de exames complementares para a continuidade do plano terapêutico.</li>
+        </ul>
+
+        <h3 style="font-size: 1.1rem; font-weight: 800; border-bottom: 2px solid hsl(var(--primary)/0.2); padding-bottom: 0.5rem; margin-bottom: 1rem; color: hsl(var(--primary));">3. NATUREZA DA ATIVIDADE ODONTOLÓGICA (OBRIGAÇÃO DE MEIO)</h3>
+        <p style="margin-bottom: 1.5rem;">Estou ciente de que a Odontologia não é uma ciência exata e que o sucesso do tratamento depende da resposta biológica individual do meu organismo, de fatores sistêmicos e de hábitos parafuncionais. Portanto, o profissional compromete-se com a utilização das melhores técnicas e materiais disponíveis (obrigação de meio), não podendo garantir um resultado estético ou funcional específico em decorrência das limitações biológicas.</p>
+
+        <h3 style="font-size: 1.1rem; font-weight: 800; border-bottom: 2px solid hsl(var(--primary)/0.2); padding-bottom: 0.5rem; margin-bottom: 1rem; color: hsl(var(--primary));">4. DEVERES E COLABORAÇÃO DO PACIENTE</h3>
+        <p>Comprometo-me a:</p>
+        <ul style="margin-bottom: 1.5rem; padding-left: 1.5rem;">
+            <li>Prestar informações fidedignas sobre meu histórico de saúde (anamnese), alergias e uso de medicações.</li>
+            <li>Seguir rigorosamente as prescrições medicamentosas e orientações pós-operatórias/pós-procedimento.</li>
+            <li>Comparecer às consultas agendadas, ciente de que faltas injustificadas interrompem o ciclo terapêutico e comprometem o prognóstico.</li>
+            <li>Comunicar imediatamente ao profissional qualquer intercorrência ou sintoma atípico.</li>
+        </ul>
+
+        <h3 style="font-size: 1.1rem; font-weight: 800; border-bottom: 2px solid hsl(var(--primary)/0.2); padding-bottom: 0.5rem; margin-bottom: 1rem; color: hsl(var(--primary));">5. ALTERAÇÕES NO PLANO DE TRATAMENTO</h3>
+        <p style="margin-bottom: 1.5rem;">Compreendo que, durante a execução dos procedimentos, podem surgir fatos novos que exijam a alteração da técnica ou do plano original. Nesses casos, o profissional deverá me informar sobre a necessidade da mudança e eventuais ajustes orçamentários, salvo em situações de urgência onde a interrupção possa gerar dano à minha saúde.</p>
+
+        <h3 style="font-size: 1.1rem; font-weight: 800; border-bottom: 2px solid hsl(var(--primary)/0.2); padding-bottom: 0.5rem; margin-bottom: 1rem; color: hsl(var(--primary));">6. PROTEÇÃO DE DADOS E REGISTROS (LGPD)</h3>
+        <p style="margin-bottom: 1.5rem;">Autorizo a coleta e o tratamento de meus dados pessoais e sensíveis (prontuário, exames, fotografias e radiografias) para fins estritamente clínicos, acadêmicos ou de registro legal, conforme a Lei 13.709/2018 (LGPD), garantido o sigilo profissional.</p>
+
+        <h3 style="font-size: 1.1rem; font-weight: 800; border-bottom: 2px solid hsl(var(--primary)/0.2); padding-bottom: 0.5rem; margin-bottom: 1rem; color: hsl(var(--primary));">7. DISPOSIÇÕES FINAL</h3>
+        <p>Confirmo que tive a oportunidade de sanar todas as minhas dúvidas e que assino este termo de forma livre, consciente e sem qualquer coação. Este consentimento pode ser revogado por mim a qualquer momento, por escrito, desde que não haja risco iminente à minha saúde pela interrupção imediata.</p>
+    </div>
+
+    <div style="margin-bottom: 3rem; font-weight: 600;">
+        Maceió, {{ (tcle.data_assinatura|string)[:10].split('-')[2] }} de
+        {% set months = ['Jan','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'] %}
+        {{ months[(tcle.data_assinatura|string)[:10].split('-')[1]|int] }} de
+        {{ (tcle.data_assinatura|string)[:4] }}
+    </div>
+
+    <div style="display: grid; gap: 2rem; margin-bottom: 3rem;">
+        <div class="signature-section" style="text-align: center;">
+            <label
+                style="display: block; font-weight: 700; color: hsl(var(--primary)); margin-bottom: 1rem; text-transform: uppercase; font-size: 0.85rem;">Assinatura
+                do Paciente (ou Responsável)</label>
+            <div
+                style="border-bottom: 1px solid hsl(var(--text-main)); width: 80%; margin: 0 auto; display: flex; justify-content: center;">
+                <img src="{{ tcle.assinatura_base64 }}" alt="Assinatura do Paciente"
+                    style="max-height: 120px; max-width: 100%;">
+            </div>
+            <p style="font-size: 0.95rem; font-weight: 600; margin-top: 0.5rem; color: hsl(var(--text-main));">{{
+                patient.nome }}</p>
+        </div>
+
+        <div style="padding-top: 1rem; border-top: 1px solid hsl(var(--border)); margin-top: 2rem;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                <div style="text-align: center; flex: 1;">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: hsl(var(--text-muted));">Termo Registrado
+                        pelo Profissional Responsável: {{ tcle.full_name or tcle.username|capitalize }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

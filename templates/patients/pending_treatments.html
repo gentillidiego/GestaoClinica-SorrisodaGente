@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Planos Pendentes - Gestão Clínica{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div
+        style="margin-bottom: 2.5rem; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <h1
+                style="font-family: var(--font-heading); font-size: 2.2rem; font-weight: 800; color: hsl(var(--primary)); letter-spacing: -0.02em; margin-bottom: 0.5rem;">
+                📝 Planos Pendentes
+            </h1>
+            <p style="color: hsl(var(--text-muted)); font-size: 1rem;">
+                Acompanhamento de procedimentos aguardando assinatura do professor.
+            </p>
+        </div>
+
+        <form action="{{ url_for('patients.pending_treatments') }}" method="GET"
+            style="display: flex; gap: 0.5rem; width: 100%; max-width: 400px;">
+            <input type="text" name="q" class="form-control" placeholder="Buscar por paciente ou CPF..."
+                value="{{ query }}"
+                style="border-radius: var(--radius-sm); border: 2px solid hsl(var(--border)); padding: 0.75rem 1rem;">
+            <button type="submit" class="btn btn-primary" style="padding: 0 1.5rem; border-radius: var(--radius-sm);">
+                🔍 Buscar
+            </button>
+        </form>
+    </div>
+
+    {% if query %}
+    <div
+        style="margin-bottom: 2rem; padding: 1rem 1.5rem; background: hsl(var(--primary-soft)); border-radius: var(--radius-sm); border-left: 4px solid hsl(var(--primary)); display: flex; justify-content: space-between; align-items: center;">
+        <span style="color: hsl(var(--primary)); font-weight: 600;">Resultados para: "{{ query }}"</span>
+        <a href="{{ url_for('patients.pending_treatments') }}"
+            style="color: hsl(var(--primary)); text-decoration: none; font-size: 0.9rem; font-weight: 700;">✕ Limpar</a>
+    </div>
+    {% endif %}
+
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        {% if grouped_patients %}
+        {% for patient in grouped_patients %}
+        <a href="{{ url_for('patients.view_patient', id=patient.id) }}#tab-tratamento"
+            style="text-decoration: none; color: inherit; display: block;">
+            <div class="card"
+                style="margin-bottom: 0; padding: 1.5rem; border-left: 5px solid hsl(var(--warning)); cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;"
+                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-md)';"
+                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='var(--shadow-sm)';">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h2
+                            style="font-family: var(--font-heading); font-size: 1.4rem; color: hsl(var(--text-main)); margin-bottom: 0.25rem;">
+                            {{ patient.name }}
+                        </h2>
+                        <span style="font-size: 0.85rem; color: hsl(var(--text-muted)); font-weight: 600;">
+                            CPF: {{ patient.cpf or 'N/A' }} | Celular: {{ patient.phone or 'N/A' }}
+                        </span>
+                    </div>
+                    <span
+                        style="background: hsl(var(--warning)/0.15); color: hsl(var(--warning)); padding: 0.4rem 0.8rem; border-radius: 20px; font-weight: 700; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.4rem;">
+                        <span style="font-size: 1.1rem; line-height: 1;">📝</span>
+                        {{ patient.procedures|length }} Procedimento(s) Pendente(s)
+                    </span>
+                </div>
+
+                <div
+                    style="background: hsl(var(--bg-main)); border-radius: var(--radius-sm); border: 1px solid hsl(var(--border)/0.5); overflow: hidden;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+                        <thead style="background: hsl(var(--surface)); border-bottom: 1px solid hsl(var(--border));">
+                            <tr>
+                                <th
+                                    style="padding: 0.75rem 1rem; color: hsl(var(--text-muted)); font-weight: 600; width: 15%;">
+                                    Sessão</th>
+                                <th
+                                    style="padding: 0.75rem 1rem; color: hsl(var(--text-muted)); font-weight: 600; width: 10%;">
+                                    Dente</th>
+                                <th style="padding: 0.75rem 1rem; color: hsl(var(--text-muted)); font-weight: 600;">
+                                    Procedimento</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for proc in patient.procedures %}
+                            <tr style="border-bottom: 1px solid hsl(var(--border)/0.5);">
+                                <td style="padding: 0.75rem 1rem;">{{ proc.data_sessao }}</td>
+                                <td style="padding: 0.75rem 1rem; font-weight: 600;">{{ proc.dente }}</td>
+                                <td style="padding: 0.75rem 1rem;">{{ proc.descricao }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+        {% else %}
+        <div
+            style="text-align: center; padding: 4rem 2rem; background: var(--surface); border-radius: var(--radius-lg); border: 1px dashed hsl(var(--border));">
+            <span style="font-size: 3rem; display: block; margin-bottom: 1rem;">🎉</span>
+            <h3
+                style="font-family: var(--font-heading); color: hsl(var(--text-main)); margin-bottom: 0.5rem; font-size: 1.4rem;">
+                Tudo em dia!</h3>
+            <p style="color: hsl(var(--text-muted)); font-size: 1.05rem;">
+                Nenhum paciente possui planos de tratamento com assinatura pendente do professor.
+            </p>
+            {% if query %}
+            <a href="{{ url_for('patients.pending_treatments') }}" class="btn btn-outline"
+                style="margin-top: 1.5rem; display: inline-flex;">Ver todos os registros</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

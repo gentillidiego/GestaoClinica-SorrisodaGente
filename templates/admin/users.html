@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Usuários - Administração{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="margin-bottom: 2rem;">
+        <a href="{{ url_for('main.dashboard') }}"
+            style="display: inline-flex; align-items: center; gap: 0.5rem; color: hsl(var(--text-muted)); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.2s;"
+            onmouseover="this.style.color='hsl(var(--primary))'" onmouseout="this.style.color='hsl(var(--text-muted))'">
+            <span>⬅️</span> Voltar ao Início
+        </a>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 3rem;">
+        <div>
+            <h1
+                style="font-family: var(--font-heading); font-size: 2rem; font-weight: 800; color: hsl(var(--primary));">
+                Gestão de Equipe</h1>
+            <p style="color: hsl(var(--text-muted)); margin-top: 0.5rem;">Administre os acessos e permissões do sistema.
+            </p>
+        </div>
+        <a href="{{ url_for('admin.add_user') }}" class="btn btn-primary">
+            <span>➕</span> Novo Usuário
+        </a>
+    </div>
+
+    <div class="card" style="padding: 0; overflow: hidden;">
+        <div class="table-container">
+            <table style="width: 100%; border-collapse: collapse; background: white;">
+                <thead>
+                    <tr style="background: hsl(var(--bg-main)); text-align: left;">
+                        <th
+                            style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted));">
+                            ID</th>
+                        <th
+                            style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted));">
+                            NOME DE USUÁRIO</th>
+                        <th
+                            style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted));">
+                            NÍVEL DE ACESSO</th>
+                        <th
+                            style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted)); text-align: right;">
+                            AÇÕES</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr style="border-bottom: 1px solid hsl(var(--border)); transition: background 0.2s;"
+                        onmouseover="this.style.background='hsl(var(--primary-soft))'"
+                        onmouseout="this.style.background='transparent'">
+                        <td style="padding: 1.25rem; color: hsl(var(--text-muted));">#{{ user.id }}</td>
+                        <td style="padding: 1.25rem; font-weight: 600;">{{ user.username }}</td>
+                        <td style="padding: 1.25rem;">
+                            <span
+                                style="padding: 0.4rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; 
+                                {% if user.role == 'admin' %} background: #dcfce7; color: #166534; {% else %} background: #f1f5f9; color: #475569; {% endif %}">
+                                {{ user.role }}
+                            </span>
+                        </td>
+                        <td style="padding: 1.25rem; text-align: right;">
+                            {% if current_user.role in ['admin', 'atendimento'] %}
+                            <a href="{{ url_for('admin.edit_user', user_id=user.id) }}" class="btn btn-outline"
+                                style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: #cbd5e1; color: #475569; margin-right: 0.5rem; text-decoration: none;">
+                                ✏️ Editar
+                            </a>
+                            {% endif %}
+
+                            {% if user.id != current_user.id %}
+                            <form action="{{ url_for('admin.delete_user', user_id=user.id) }}" method="POST"
+                                style="display: inline;"
+                                onsubmit="return confirm('⚠️ Tem certeza que deseja excluir permanentemente este usuário?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-outline"
+                                    style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: #fee2e2; color: #991b1b;">
+                                    🗑️ Excluir
+                                </button>
+                            </form>
+                            {% else %}
+                            <span style="font-size: 0.75rem; color: hsl(var(--text-muted)); font-style: italic;">Você
+                                (Logado)</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

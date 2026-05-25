@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block title %}Anamnese - {{ a.patient_name }}{% endblock %}
+
+{% block content %}
+<div class="document-container animate-fade" id="printable-area">
+    <div style="margin-bottom: 2rem;" class="no-print">
+        <a href="{{ url_for('patients.view_patient', id=a.patient_id) }}"
+            style="display: inline-flex; align-items: center; gap: 0.5rem; color: hsl(var(--text-muted)); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.2s;"
+            onmouseover="this.style.color='hsl(var(--primary))'" onmouseout="this.style.color='hsl(var(--text-muted))'">
+            <span>⬅️</span> Voltar ao Prontuário
+        </a>
+    </div>
+
+    <div class="document-header" style="border-bottom: 3px solid hsl(var(--primary));">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <h1 style="color: hsl(var(--primary));">PRONTUÁRIO ODONTOLÓGICO</h1>
+                <h2>FICHA DE ANAMNESE CONCLUÍDA</h2>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-weight: 700; color: hsl(var(--primary));">Nº FICHA: #{{ a.id }}</div>
+                <div style="font-size: 0.85rem; color: hsl(var(--text-muted));">Data: {{ a.data_criacao }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Identificação do Paciente -->
+    <div class="card" style="margin-bottom: 2rem; background: hsl(var(--bg-main)); border: none; padding: 1.5rem;">
+        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 2rem;">
+            <div>
+                <label
+                    style="display: block; font-size: 0.75rem; font-weight: 700; color: hsl(var(--text-muted)); text-transform: uppercase;">Paciente</label>
+                <div style="font-size: 1.1rem; font-weight: 600;">{{ a.patient_name }}</div>
+            </div>
+            <div>
+                <label
+                    style="display: block; font-size: 0.75rem; font-weight: 700; color: hsl(var(--text-muted)); text-transform: uppercase;">CPF</label>
+                <div style="font-family: monospace;">{{ a.patient_cpf or '---' }}</div>
+            </div>
+            <div>
+                <label
+                    style="display: block; font-size: 0.75rem; font-weight: 700; color: hsl(var(--text-muted)); text-transform: uppercase;">Nascimento</label>
+                <div>{{ a.patient_birth or '---' }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Conteúdo da Anamnese -->
+    <div class="anamnese-content" style="display: flex; flex-direction: column; gap: 3rem;">
+
+        <!-- 1. Queixa e História -->
+        <section>
+            <div class="form-section-title">1. Identificação Inicial e Queixa</div>
+            <div style="margin-bottom: 1.5rem;">
+                <label class="form-label" style="font-size: 0.9rem; color: hsl(var(--primary));">Queixa
+                    Principal:</label>
+                <p
+                    style="background: white; padding: 1rem; border: 1px solid hsl(var(--border)); border-radius: var(--radius-md); min-height: 2.5rem;">
+                    {{ a.queixa_principal or '---' }}</p>
+            </div>
+            <div>
+                <label class="form-label" style="font-size: 0.9rem; color: hsl(var(--primary));">História da Doença
+                    Atual:</label>
+                <p
+                    style="background: white; padding: 1rem; border: 1px solid hsl(var(--border)); border-radius: var(--radius-md); min-height: 2.5rem;">
+                    {{ a.historia_doenca_atual or '---' }}</p>
+            </div>
+        </section>
+
+        <!-- 2. História Médica -->
+        <section>
+            <div class="form-section-title">2. História Médica e Saúde Geral</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;">
+                <!-- Perguntas Sim/Não -->
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    {% set medico = [
+                    ('sofre_doenca', 'Sofre de alguma doença?'),
+                    ('tratamento_medico', 'Está sob tratamento médico?'),
+                    ('tomando_medicamento', 'Está tomando algum medicamento?'),
+                    ('tem_alergia', 'Tem algum tipo de alergia?'),
+                    ('desmaios_convulsoes', 'Já teve desmaios ou convulsões?'),
+                    ('tem_cancer', 'Já teve câncer?'),
+                    ('radioterapia_quimioterapia', 'Radioterapia ou quimioterapia?'),
+                    ('falta_ar', 'Sente falta de ar com frequência?'),
+                    ('fez_cirurgia', 'Já fez alguma cirurgia?'),
+                    ('foi_hospitalizado', 'Já foi hospitalizado?')
+                    ] %}
+                    {% for name, label in medico %}
+                    <div
+                        style="display: flex; justify-content: space-between; border-bottom: 1px solid hsl(var(--border)/0.5); padding-bottom: 0.5rem;">
+                        <span style="font-size: 0.95rem;">{{ label }}</span>
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <span class="badge"
+                                style="background: {% if a[name] == 'Sim' %}hsl(var(--danger)/0.15){% else %}hsl(var(--success)/0.15){% endif %}; color: {% if a[name] == 'Sim' %}hsl(var(--danger)){% else %}hsl(var(--success)){% endif %}; min-width: 45px; text-align: center;">{{
+                                a[name] or 'Não' }}</span>
+                            {% if a[name ~ '_explica'] %}
+                            <span style="font-size: 0.85rem; color: hsl(var(--text-muted)); font-style: italic;">({{
+                                a[name ~ '_explica'] }})</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <!-- Outros campos -->
+                <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                    <div>
+                        <label class="form-label" style="font-size: 0.85rem;">Pressão Arterial:</label>
+                        <div style="font-weight: 600;">{{ a.pressao_arterial }}</div>
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size: 0.85rem;">Sangramento / Cicatrização:</label>
+                        <div style="font-weight: 600;">{{ a.sangramento_cortar }} / {{ a.cicatrizacao }}</div>
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size: 0.85rem;">Alergia a Alimentos/Medicamentos:</label>
+                        <div style="font-weight: 600;">{{ a.alergia_medicamento_alimento or 'Nenhuma' }}</div>
+                    </div>
+                    {% if a.gestante != 'Não' %}
+                    <div
+                        style="background: hsl(var(--bg-main)); padding: 1rem; border-left: 4px solid hsl(var(--primary)); border-radius: var(--radius-sm);">
+                        <label class="form-label" style="font-size: 0.85rem;">Gestante:</label>
+                        <div style="font-weight: 700; color: hsl(var(--primary));">{{ a.gestante }} {% if
+                            a.gestante_semanas %}({{ a.gestante_semanas }} semanas){% endif %}</div>
+                    </div>
+                    {% endif %}
+                    <div>
+                        <label class="form-label" style="font-size: 0.85rem;">Outros Históricos:</label>
+                        <div>{{ a.problemas_saude_ja_teve or 'Nenhum informado' }}</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. Histórico Odontológico -->
+        <section>
+            <div class="form-section-title">3. Histórico Odontológico Específico</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;">
+                <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                    <div>
+                        <label class="form-label" style="font-size: 0.85rem;">Reação a Anestesia:</label>
+                        <div style="font-weight: 600;">{{ a.reacao_anestesia }} {% if a.reacao_anestesia_explica %}({{
+                            a.reacao_anestesia_explica }}){% endif %}</div>
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size: 0.85rem;">Último Tratamento:</label>
+                        <div>{{ a.ultimo_tratamento_dentario or 'Não informado' }}</div>
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size: 0.85rem;">Dores nos Dentes/Gengiva:</label>
+                        <div>{{ a.dor_dentes_gengiva or 'Não' }}</div>
+                    </div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                    <div>
+                        <label class="form-label" style="font-size: 0.85rem;">Gengiva Sangra:</label>
+                        <div>{{ a.gengiva_sangra }}</div>
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size: 0.85rem;">Usa Fio Dental:</label>
+                        <div>{{ a.fio_dental }}</div>
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size: 0.85rem;">Dores/Estalos ATN:</label>
+                        <div>{{ a.dores_estalos_maxilar or 'Não' }}</div>
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size: 0.85rem;">Range Dentes:</label>
+                        <div>{{ a.range_dentes or 'Não' }}</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. Antecedentes e Hábitos -->
+        <section>
+            <div class="form-section-title">4. Antecedentes e Hábitos</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;">
+                <div>
+                    <label class="form-label" style="font-size: 0.85rem;">Antecedentes Familiares:</label>
+                    <p>{{ a.antecedentes_familiares or '---' }}</p>
+                    <label class="form-label" style="font-size: 0.85rem; margin-top: 1rem;">Causas de óbito na
+                        família:</label>
+                    <p>{{ a.causas_obitos_familiares or '---' }}</p>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div
+                        style="display: flex; justify-content: space-between; border-bottom: 1px solid hsl(var(--border)/0.5); padding-bottom: 0.5rem;">
+                        <span style="font-size: 0.95rem;">Fuma?</span>
+                        <span style="font-weight: 600;">{{ a.fuma }} {% if a.fuma_quantidade %}({{ a.fuma_quantidade }}
+                            p/ dia){% endif %}</span>
+                    </div>
+                    <div
+                        style="display: flex; justify-content: space-between; border-bottom: 1px solid hsl(var(--border)/0.5); padding-bottom: 0.5rem;">
+                        <span style="font-size: 0.95rem;">Álcool?</span>
+                        <span style="font-weight: 600;">{{ a.ingere_alcool }} {% if a.ingere_alcool_frequencia %}({{
+                            a.ingere_alcool_frequencia }}){% endif %}</span>
+                    </div>
+                    <div
+                        style="display: flex; justify-content: space-between; border-bottom: 1px solid hsl(var(--border)/0.5); padding-bottom: 0.5rem;">
+                        <span style="font-size: 0.95rem;">Exercícios?</span>
+                        <span style="font-weight: 600;">{{ a.exercicios_fisicos }} {% if a.exercicios_fisicos_frequencia
+                            %}({{ a.exercicios_fisicos_frequencia }}){% endif %}</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Assinatura -->
+        <section
+            style="margin-top: 4rem; text-align: center; border-top: 2px solid hsl(var(--border)); padding-top: 3rem;">
+            <p style="font-style: italic; color: hsl(var(--text-muted)); margin-bottom: 2rem;">"Declaro para fins de
+                direito que as informações acima prestadas são verdadeiras."</p>
+
+            <div
+                style="display: inline-block; text-align: center; border-bottom: 1px solid black; padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
+                {% if a.assinatura_base64 %}
+                <img src="{{ a.assinatura_base64 }}" alt="Assinatura Digital"
+                    style="max-width: 400px; max-height: 150px;">
+                {% else %}
+                <div
+                    style="height: 100px; display: flex; align-items: flex-end; justify-content: center; color: hsl(var(--danger)); font-weight: 600;">
+                    ASSINATURA NÃO REGISTRADA</div>
+                {% endif %}
+            </div>
+            <div style="font-weight: 700; font-family: var(--font-heading); text-transform: uppercase;">{{
+                a.patient_name }}</div>
+            <div style="font-size: 0.8rem; color: hsl(var(--text-muted));">Assinatura do Paciente ou Responsável</div>
+        </section>
+    </div>
+
+    <!-- Ações Inferiores (Ocultas na Impressão) -->
+    <div class="form-actions no-print"
+        style="margin-top: 5rem; border-top: 1px solid hsl(var(--border)); padding-top: 3rem;">
+        <button onclick="window.print()" class="btn btn-primary" style="padding: 1rem 3rem;">🖨️ IMPRIMIR FICHA</button>
+        <a href="{{ url_for('anamnesis.list_completed') }}" class="btn btn-outline" style="padding: 1rem 2rem;">VOLTAR
+            PARA BUSCA</a>
+    </div>
+</div>
+
+<style>
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+
+        body {
+            background: white !important;
+        }
+
+        .document-container {
+            box-shadow: none !important;
+            margin: 0 !important;
+            width: 100% !important;
+            padding: 0 !important;
+        }
+
+        .form-section-title {
+            background: #f0f0f0 !important;
+            -webkit-print-color-adjust: exact;
+        }
+    }
+</style>
+{% endblock %}

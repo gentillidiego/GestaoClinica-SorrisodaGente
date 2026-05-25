@@ -1,0 +1,52 @@
+# Variáveis de ambiente sensíveis — nunca entram na imagem
+.env
+.env.*
+!.env.example
+
+# Bancos de dados locais e backups
+*.db
+*.db-wal
+*.db-shm
+*.backup_*
+*.sql
+*.dump
+
+# Logs
+logs/
+*.log
+
+# PDFs e uploads gerados em runtime
+pdf_temp/
+uploads/
+
+# Resultados de carga/teste
+locust_results_*.csv
+locust_results_*.html
+
+# Cookies e sessões locais
+cookies.txt
+
+# Backups e arquivos de distribuição
+*.tar.gz
+*.zip
+
+# Cache Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Diretórios de desenvolvimento local
+.venv/
+node_modules/
+
+# Artefatos de ferramentas internas
+*.restored1/
+__pycache__.restored1/
+blueprints.restored1/
+docs.restored1/
+static.restored1/
+templates.restored1/
+
+# IDEs
+.vscode/
+.idea/

@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Relatórios Gerenciais - Gestão Clínica{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
+        <div>
+            <h1 style="font-family: var(--font-heading); font-size: 2rem; font-weight: 800; color: hsl(var(--primary));">
+                Relatórios Gerenciais
+            </h1>
+            <p style="color: hsl(var(--text-muted)); margin-top: 0.5rem;">
+                Painel administrativo para prestação de contas e análise de produtividade.
+            </p>
+        </div>
+        <form method="POST" action="{{ url_for('reports.export_pdf') }}" target="_blank">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="data_inicio" value="{{ data_inicio }}">
+            <input type="hidden" name="data_fim" value="{{ data_fim }}">
+            <input type="hidden" name="dentista_id" value="{{ dentista_id }}">
+            <input type="hidden" name="tipo_procedimento" value="{{ tipo_procedimento }}">
+            <input type="hidden" name="status_procedimento" value="{{ status_procedimento }}">
+            <button type="submit" class="btn btn-primary" style="gap: 0.5rem;">
+                📄 Exportar PDF
+            </button>
+        </form>
+    </div>
+
+    <!-- FILTROS -->
+    <div class="card" style="margin-bottom: 2rem;">
+        <form method="POST" action="{{ url_for('reports.index') }}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; align-items: end;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Data Inicial</label>
+                <input type="date" name="data_inicio" class="form-input" value="{{ data_inicio }}">
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Data Final</label>
+                <input type="date" name="data_fim" class="form-input" value="{{ data_fim }}">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Profissional</label>
+                <select name="dentista_id" class="form-input">
+                    <option value="">Todos</option>
+                    {% for d in dentistas %}
+                    <option value="{{ d.id }}" {% if dentista_id == d.id|string %}selected{% endif %}>{{ d.full_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Procedimento (Busca)</label>
+                <input type="text" name="tipo_procedimento" class="form-input" placeholder="Ex: Resina" value="{{ tipo_procedimento }}">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Status</label>
+                <select name="status_procedimento" class="form-input">
+                    <option value="">Todos</option>
+                    <option value="Concluído" {% if status_procedimento == 'Concluído' %}selected{% endif %}>Concluído</option>
+                    <option value="Pendente" {% if status_procedimento == 'Pendente' %}selected{% endif %}>Pendente</option>
+                    <option value="Cancelado" {% if status_procedimento == 'Cancelado' %}selected{% endif %}>Cancelado</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">🔍 Filtrar</button>
+        </form>
+    </div>
+
+    <!-- KPIs -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+        <div class="card" style="display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 2rem;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">📈</div>
+            <h3 style="color: hsl(var(--text-muted)); font-size: 1rem; margin-bottom: 0.5rem; text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">Produtividade</h3>
+            <div style="font-size: 2.5rem; font-weight: 800; color: hsl(var(--primary));">{{ kpis.produtividade }}</div>
+            <p style="color: hsl(var(--text-muted)); font-size: 0.85rem; margin-top: 0.5rem;">Procedimentos realizados</p>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 2rem;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">💰</div>
+            <h3 style="color: hsl(var(--text-muted)); font-size: 1rem; margin-bottom: 0.5rem; text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">Taxa de Conversão</h3>
+            <div style="font-size: 2.5rem; font-weight: 800; color: hsl(var(--success));">{{ "%.1f"|format(kpis.conversao) }}%</div>
+            <p style="color: hsl(var(--text-muted)); font-size: 0.85rem; margin-top: 0.5rem;">Orçamentos aprovados (R$)</p>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 2rem;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
+            <h3 style="color: hsl(var(--text-muted)); font-size: 1rem; margin-bottom: 0.5rem; text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">Absenteísmo</h3>
+            <div style="font-size: 2.5rem; font-weight: 800; color: hsl(var(--danger));">{{ "%.1f"|format(kpis.absenteismo) }}%</div>
+            <p style="color: hsl(var(--text-muted)); font-size: 0.85rem; margin-top: 0.5rem;">Faltas/Cancelamentos</p>
+        </div>
+    </div>
+
+    <!-- TABELA DE RESULTADOS -->
+    <div class="card" style="overflow-x: auto;">
+        <h3 style="font-size: 1.25rem; font-weight: 700; color: hsl(var(--primary)); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            📋 Listagem Detalhada
+        </h3>
+        
+        {% if procedimentos %}
+        <table style="width: 100%; border-collapse: collapse; min-width: 800px;">
+            <thead>
+                <tr style="border-bottom: 2px solid hsl(var(--border));">
+                    <th style="text-align: left; padding: 1rem; color: hsl(var(--text-muted)); font-weight: 600;">Data</th>
+                    <th style="text-align: left; padding: 1rem; color: hsl(var(--text-muted)); font-weight: 600;">Paciente</th>
+                    <th style="text-align: left; padding: 1rem; color: hsl(var(--text-muted)); font-weight: 600;">Procedimento</th>
+                    <th style="text-align: left; padding: 1rem; color: hsl(var(--text-muted)); font-weight: 600;">Profissional</th>
+                    <th style="text-align: left; padding: 1rem; color: hsl(var(--text-muted)); font-weight: 600;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for proc in procedimentos %}
+                <tr style="border-bottom: 1px solid hsl(var(--border)); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='hsl(var(--bg-main))'" onmouseout="this.style.backgroundColor='transparent'">
+                    <td style="padding: 1rem; color: hsl(var(--text-main));">
+                        {{ proc.data_sessao or 'N/A' }}
+                    </td>
+                    <td style="padding: 1rem; font-weight: 600; color: hsl(var(--primary));">
+                        {{ proc.patient_name }}
+                    </td>
+                    <td style="padding: 1rem; color: hsl(var(--text-main));">
+                        <div style="font-size: 0.85rem; color: hsl(var(--text-muted));">Elemento: {{ proc.dente or 'Geral' }}</div>
+                        {{ proc.descricao }}
+                    </td>
+                    <td style="padding: 1rem; color: hsl(var(--text-main));">
+                        {{ proc.dentista_name or 'N/I' }}
+                    </td>
+                    <td style="padding: 1rem;">
+                        <span style="display: inline-flex; align-items: center; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem; font-weight: 600; 
+                            {% if proc.status == 'Concluído' %}background: hsla(var(--success), 0.1); color: hsl(var(--success));
+                            {% elif proc.status == 'Cancelado' %}background: hsla(var(--danger), 0.1); color: hsl(var(--danger));
+                            {% else %}background: hsla(var(--warning), 0.1); color: hsl(var(--warning));{% endif %}">
+                            {{ proc.status }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="text-align: center; padding: 3rem; color: hsl(var(--text-muted));">
+            <span style="font-size: 2rem; display: block; margin-bottom: 1rem;">🔍</span>
+            Nenhum procedimento encontrado para os filtros selecionados.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

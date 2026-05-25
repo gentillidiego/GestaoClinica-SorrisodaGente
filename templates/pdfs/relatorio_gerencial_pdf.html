@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Relatório Gerencial</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 20mm;
+            @bottom-center {
+                content: "Página " counter(page) " de " counter(pages);
+                font-family: Arial, sans-serif;
+                font-size: 9pt;
+                color: #666;
+            }
+        }
+        
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #333;
+            line-height: 1.5;
+            margin: 0;
+            padding: 0;
+            font-size: 10pt;
+        }
+
+        .header {
+            border-bottom: 2px solid #2563eb;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24pt;
+            color: #1e3a8a;
+            text-transform: uppercase;
+        }
+
+        .header p {
+            margin: 5px 0 0 0;
+            font-size: 11pt;
+            color: #4b5563;
+        }
+
+        .filters {
+            margin-bottom: 20px;
+            font-size: 9pt;
+            color: #4b5563;
+        }
+
+        .kpi-container {
+            display: table;
+            width: 100%;
+            margin-bottom: 30px;
+        }
+
+        .kpi-card {
+            display: table-cell;
+            width: 33.33%;
+            text-align: center;
+            border: 1px solid #e5e7eb;
+            padding: 15px;
+            background-color: #f9fafb;
+        }
+
+        .kpi-value {
+            font-size: 20pt;
+            font-weight: bold;
+            color: #2563eb;
+            margin: 5px 0;
+        }
+
+        .kpi-label {
+            font-size: 9pt;
+            text-transform: uppercase;
+            color: #6b7280;
+            font-weight: bold;
+        }
+
+        table.data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }
+
+        table.data-table th, table.data-table td {
+            border: 1px solid #e5e7eb;
+            padding: 8px;
+            text-align: left;
+        }
+
+        table.data-table th {
+            background-color: #f3f4f6;
+            font-weight: bold;
+            color: #374151;
+            font-size: 9pt;
+        }
+
+        table.data-table td {
+            font-size: 9pt;
+            color: #4b5563;
+        }
+
+        .footer-signature {
+            margin-top: 50px;
+            page-break-inside: avoid;
+            text-align: center;
+        }
+
+        .signature-line {
+            width: 300px;
+            border-top: 1px solid #000;
+            margin: 0 auto 10px auto;
+        }
+
+        .signature-name {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Relatório Gerencial</h1>
+        <p>Prestação de Contas e Produtividade Clínica</p>
+    </div>
+
+    <div class="filters">
+        <strong>Período Analisado:</strong> 
+        {% if data_inicio or data_fim %}
+            {{ data_inicio|default('Início') }} até {{ data_fim|default('Atual') }}
+        {% else %}
+            Todo o período
+        {% endif %}
+    </div>
+
+    <div class="kpi-container">
+        <div class="kpi-card">
+            <div class="kpi-label">Produtividade</div>
+            <div class="kpi-value">{{ kpis.produtividade }}</div>
+            <div style="font-size: 8pt; color: #6b7280;">Procedimentos realizados</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Conversão (R$)</div>
+            <div class="kpi-value" style="color: #059669;">{{ "%.1f"|format(kpis.conversao) }}%</div>
+            <div style="font-size: 8pt; color: #6b7280;">Orçamentos aprovados</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Absenteísmo</div>
+            <div class="kpi-value" style="color: #dc2626;">{{ "%.1f"|format(kpis.absenteismo) }}%</div>
+            <div style="font-size: 8pt; color: #6b7280;">Faltas e Cancelamentos</div>
+        </div>
+    </div>
+
+    <h3 style="font-size: 11pt; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; color: #1f2937;">Detalhamento de Procedimentos</h3>
+
+    {% if procedimentos %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Paciente</th>
+                <th>Elemento</th>
+                <th>Procedimento</th>
+                <th>Status</th>
+                <th>Profissional</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for proc in procedimentos %}
+            <tr>
+                <td>{{ proc.data_sessao or 'N/A' }}</td>
+                <td style="font-weight: bold; color: #1e3a8a;">{{ proc.patient_name }}</td>
+                <td>{{ proc.dente or '-' }}</td>
+                <td>{{ proc.descricao }}</td>
+                <td>{{ proc.status }}</td>
+                <td>{{ proc.dentista_name or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="text-align: center; color: #6b7280; margin: 30px 0;">Nenhum procedimento encontrado para o filtro selecionado.</p>
+    {% endif %}
+
+    <div class="footer-signature">
+        <div class="signature-line"></div>
+        <div class="signature-name">Responsável Administrativo</div>
+        <div style="font-size: 8pt; color: #6b7280; margin-top: 5px;">Gestão Clínica Corporativa</div>
+    </div>
+
+</body>
+</html>

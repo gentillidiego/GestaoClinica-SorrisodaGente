@@ -1,0 +1,51 @@
+<div id="tab-paciente" class="tab-content active animate-fade">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+        <div class="card">
+            <h3
+                style="font-family: var(--font-heading); font-size: 1.1rem; margin-bottom: 1.5rem; color: hsl(var(--primary)); border-bottom: 1px solid hsl(var(--border)); padding-bottom: 0.75rem;">
+                Informações de Contato</h3>
+            <div style="display: grid; gap: 1rem;">
+                <div>
+                    <span
+                        style="display: block; font-size: 0.75rem; font-weight: 700; color: hsl(var(--text-muted));">E-MAIL</span>
+                    <span style="font-weight: 600;">{{ patient.email or 'Não informado' }}</span>
+                </div>
+                <div>
+                    <span
+                        style="display: block; font-size: 0.75rem; font-weight: 700; color: hsl(var(--text-muted));">TELEFONE</span>
+                    <span style="font-weight: 600;">{{ patient.celular or 'Não informado' }}</span>
+                </div>
+                <div>
+                    <span
+                        style="display: block; font-size: 0.75rem; font-weight: 700; color: hsl(var(--text-muted));">ENDEREÇO</span>
+                    <span style="font-weight: 600;">{{ patient.endereco_residencial or 'Não informado' }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3
+                style="font-family: var(--font-heading); font-size: 1.1rem; margin-bottom: 1.5rem; color: hsl(var(--primary)); border-bottom: 1px solid hsl(var(--border)); padding-bottom: 0.75rem;">
+                Detalhes Administrativos</h3>
+            <div style="display: grid; gap: 1rem;">
+                <div>
+                    <span
+                        style="display: block; font-size: 0.75rem; font-weight: 700; color: hsl(var(--text-muted));">PROFISSÃO</span>
+                    <span style="font-weight: 600;">{{ patient.profissao or 'Não informada' }}</span>
+                </div>
+                <div>
+                    <span
+                        style="display: block; font-size: 0.75rem; font-weight: 700; color: hsl(var(--text-muted));">OBSERVAÇÕES
+                        GERAIS</span>
+                    <span style="font-weight: 600;">{{ patient.observacoes or 'Nenhuma observação' }}</span>
+                </div>
+                <div>
+                    <span
+                        style="display: block; font-size: 0.75rem; font-weight: 700; color: hsl(var(--text-muted));">DATA
+                        DE CADASTRO</span>
+                    <span style="font-weight: 600;">{{ patient.criado_em }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

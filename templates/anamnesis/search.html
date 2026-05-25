@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Buscar Paciente - Anamnese{% endblock %}
+
+{% block content %}
+<div style="max-width: 900px; margin: 3rem auto;" class="animate-fade">
+    <div style="margin-bottom: 2rem;">
+        <a href="{{ url_for('main.dashboard') }}"
+            style="display: inline-flex; align-items: center; gap: 0.5rem; color: hsl(var(--text-muted)); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.2s;"
+            onmouseover="this.style.color='hsl(var(--primary))'" onmouseout="this.style.color='hsl(var(--text-muted))'">
+            <span>⬅️</span> Voltar ao Início
+        </a>
+    </div>
+    <div class="card" style="padding: 3rem;">
+        <h1
+            style="font-family: var(--font-heading); font-size: 2rem; font-weight: 800; color: hsl(var(--primary)); margin-bottom: 1rem;">
+            🔍 Localizar Paciente
+        </h1>
+        <p style="color: hsl(var(--text-muted)); font-size: 1.1rem; margin-bottom: 2.5rem;">
+            Pesquise pelo nome para iniciar a ficha de anamnese.
+        </p>
+
+        <form method="GET" action="{{ url_for('anamnesis.search') }}"
+            style="display: flex; gap: 1rem; margin-bottom: 3rem;">
+            <div style="flex: 1; position: relative;">
+                <input type="text" name="q" class="form-control"
+                    style="padding-left: 3rem; height: 55px; font-size: 1.05rem;" placeholder="Nome do paciente..."
+                    value="{{ query }}" required>
+                <span
+                    style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); font-size: 1.25rem;">🔎</span>
+            </div>
+            <button type="submit" class="btn btn-primary" style="padding: 0 2.5rem;">Pesquisar</button>
+        </form>
+
+        {% if query %}
+        <div class="results-header"
+            style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid hsl(var(--border));">
+            <h3 style="font-size: 1.25rem;">Resultados para: <span style="color: hsl(var(--primary));">"{{ query
+                    }}"</span></h3>
+            <span class="badge"
+                style="background: hsl(var(--primary-soft)); color: hsl(var(--primary)); padding: 0.25rem 0.75rem; border-radius: 20px; font-weight: 600; font-size: 0.85rem;">
+                {{ patients|length }} encontrado(s)
+            </span>
+        </div>
+
+        {% if patients %}
+        <div class="table-container"
+            style="border: 1px solid hsl(var(--border)); border-radius: var(--radius-md); overflow: hidden;">
+            <table style="width: 100%; border-collapse: collapse; background: white;">
+                <thead>
+                    <tr style="background: hsl(var(--bg-main)); text-align: left;">
+                        <th
+                            style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted));">
+                            NOME DO PACIENTE</th>
+                        <th
+                            style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted));">
+                            CPF</th>
+                        <th
+                            style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted)); text-align: right;">
+                            AÇÃO</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for patient in patients %}
+                    <tr style="border-bottom: 1px solid hsl(var(--border)); transition: background 0.2s;"
+                        onmouseover="this.style.background='hsl(var(--primary-soft))'"
+                        onmouseout="this.style.background='transparent'">
+                        <td style="padding: 1.25rem; font-weight: 600;">{{ patient.nome }}</td>
+                        <td style="padding: 1.25rem; color: hsl(var(--text-muted));">{{ patient.cpf }}</td>
+                        <td
+                            style="padding: 1.25rem; text-align: right; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                            <a href="{{ url_for('anamnesis.form', patient_id=patient.id) }}" class="btn btn-primary"
+                                style="padding: 0.5rem 1.25rem; font-size: 0.85rem;">
+                                Nova Anamnese
+                            </a>
+                            {% if patient.last_anamnesis_id %}
+                            <a href="{{ url_for('exams.list_exams', anamnesis_id=patient.last_anamnesis_id) }}"
+                                class="btn btn-outline"
+                                style="padding: 0.5rem 1.25rem; font-size: 0.85rem; background: white;">
+                                Ver Exames 🧬
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-danger" style="display: flex; align-items: center; gap: 1rem;">
+            <span>⚠️</span> Nenhum paciente encontrado com o nome fornecido.
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

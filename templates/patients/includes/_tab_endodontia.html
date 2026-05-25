@@ -1,0 +1,81 @@
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <h3 style="font-family: var(--font-heading); font-size: 1.25rem; color: hsl(var(--primary));">
+                🦷 Acompanhamento de Endodontia</h3>
+        </div>
+
+        <!-- Formulário para adicionar novo elemento -->
+        <div
+            style="margin-bottom: 2rem; background: hsl(var(--bg-main)); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid hsl(var(--border));">
+            <h4 style="font-size: 0.95rem; font-weight: 700; color: hsl(var(--text-main)); margin-bottom: 1rem;">
+                Iniciar Novo Acompanhamento</h4>
+            <form action="{{ url_for('endodontia.add_element', patient_id=patient.id) }}" method="POST"
+                style="display: grid; grid-template-columns: 1fr auto; gap: 1rem; align-items: end;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label class="form-label" style="font-size: 0.8rem;">Elemento Dentário (Nº)</label>
+                    <input type="text" name="elemento_dentario" class="form-control" placeholder="Ex: 11, 26, 48..."
+                        required>
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-primary" style="height: 48px; padding: 0 1.5rem;">➕
+                        Adicionar Elemento</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Lista de Elementos (Cards) -->
+        <div
+            style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 1rem;">
+            {% if endodontia_elements %}
+            {% for element in endodontia_elements %}
+            <div class="card"
+                style="padding: 1.5rem; border: 1.5px solid hsl(var(--border) / 0.8); display: flex; flex-direction: column; transition: all 0.2s; position: relative;"
+                onmouseover="this.style.borderColor='hsl(var(--primary)/0.4)'; this.style.boxShadow='var(--shadow-md)';"
+                onmouseout="this.style.borderColor='hsl(var(--border)/0.8)'; this.style.boxShadow='var(--shadow-sm)';">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div
+                            style="width: 40px; height: 40px; background: hsl(var(--primary)/0.1); color: hsl(var(--primary)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem;">
+                            {{ element.elemento_dentario }}
+                        </div>
+                        <div>
+                            <h4 style="font-size: 1rem; font-weight: 700; margin: 0; color: hsl(var(--text-main));">
+                                Dente {{ element.elemento_dentario }}</h4>
+                            <span style="font-size: 0.75rem; color: hsl(var(--text-muted));">Iniciado em {{
+                                (element.criado_em|string).split(' ')[0] }}</span>
+                        </div>
+                    </div>
+                    <span class="badge {{ 'badge-success' if element.status == 'Concluído' else 'badge-primary' }}"
+                        style="font-size: 0.65rem;">
+                        {{ element.status|upper }}
+                    </span>
+                </div>
+
+                <div style="margin-bottom: 1.5rem; font-size: 0.85rem; color: hsl(var(--text-muted));">
+                    <strong>Profissional:</strong> {{ element.aluno_nome }}
+                </div>
+
+                <div style="display: flex; gap: 0.5rem; margin-top: auto;">
+                    <a href="{{ url_for('endodontia.followup', endo_id=element.id) }}" class="btn btn-primary"
+                        style="flex: 2; font-size: 0.85rem; justify-content: center;">
+                        👁️ Acompanhamento
+                    </a>
+                    <button type="button" class="btn btn-outline"
+                        style="flex: 1; justify-content: center; color: hsl(var(--danger)); border-color: hsl(var(--danger));"
+                        onclick="openDeleteEndoModal('{{ url_for('endodontia.delete_element', endo_id=element.id) }}', '{{ element.elemento_dentario }}')">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div
+                style="grid-column: 1 / -1; padding: 3rem; text-align: center; color: hsl(var(--text-muted)); background: hsl(var(--bg-main)); border-radius: var(--radius-md);">
+                <p style="margin: 0;">Nenhum dente em acompanhamento endodôntico.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>

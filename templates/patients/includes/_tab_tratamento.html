@@ -1,0 +1,112 @@
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <h3 style="font-family: var(--font-heading); font-size: 1.25rem; color: hsl(var(--primary));">
+                🦷 Plano de Tratamento</h3>
+        </div>
+
+        <!-- Formulário para adicionar novo procedimento -->
+        <div
+            style="margin-bottom: 2rem; background: hsl(var(--bg-main)); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid hsl(var(--border));">
+            <h4
+                style="font-size: 0.95rem; font-weight: 700; color: hsl(var(--text-main)); margin-bottom: 1rem;">
+                Adicionar Procedimento</h4>
+            <form action="{{ url_for('patients.add_treatment', id=patient.id) }}" method="POST"
+                style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 1rem; align-items: end;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label class="form-label" style="font-size: 0.8rem;">Dente</label>
+                    <input type="text" name="dente" class="form-control" placeholder="Ex: 46">
+                </div>
+                <div>
+                    <label class="form-label" style="font-size: 0.8rem;">Procedimento a ser realizado</label>
+                    <input type="text" name="descricao" class="form-control"
+                        placeholder="Descrição do procedimento" required>
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-primary" style="height: 48px; padding: 0 1.5rem;">➕
+                        Adicionar</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Tabela de Procedimentos -->
+        <div class="table-container"
+            style="border-radius: var(--radius-md); border: 1px solid hsl(var(--border)); overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead style="background: hsl(var(--bg-main)); border-bottom: 2px solid hsl(var(--border));">
+                    <tr>
+                        <th
+                            style="padding: 1rem; font-size: 0.85rem; font-weight: 700; color: hsl(var(--text-muted)); text-transform: uppercase;">
+                            Sessão</th>
+                        <th
+                            style="padding: 1rem; font-size: 0.85rem; font-weight: 700; color: hsl(var(--text-muted)); text-transform: uppercase;">
+                            Dente</th>
+                        <th
+                            style="padding: 1rem; font-size: 0.85rem; font-weight: 700; color: hsl(var(--text-muted)); text-transform: uppercase;">
+                            Procedimento a ser realizado</th>
+                        <th
+                            style="padding: 1rem; font-size: 0.85rem; font-weight: 700; color: hsl(var(--text-muted)); text-transform: uppercase; text-align: center;">
+                            Dentista Responsável (Assinatura)</th>
+                        <th
+                            style="padding: 1rem; font-size: 0.85rem; font-weight: 700; color: hsl(var(--text-muted)); text-transform: uppercase; text-align: right;">
+                            Ações</th>
+                    </tr>
+                </thead>
+                <tbody data-paginate="true" data-per-page="5" style="font-size: 0.95rem;">
+                    {% if treatments %}
+                    {% for proc in treatments %}
+                    <tr style="border-bottom: 1px solid hsl(var(--border));">
+                        <td style="padding: 1rem;">{{ loop.index }}</td>
+                        <td style="padding: 1rem; font-weight: 600;">{{ proc.dente }}</td>
+                        <td style="padding: 1rem;">{{ proc.descricao }}</td>
+                        <td style="padding: 1rem; text-align: center;">
+                            {% if proc.status == 'Pendente' %}
+                            <button
+                                onclick="openSignModal('{{ url_for('patients.sign_treatment', id=patient.id, proc_id=proc.id) }}')"
+                                class="btn btn-outline"
+                                style="padding: 0.4rem 0.8rem; font-size: 0.85rem; color: hsl(var(--warning)); border-color: hsl(var(--warning));">
+                                📝 Assinar
+                            </button>
+                            {% else %}
+                            <span
+                                style="display: inline-flex; align-items: center; gap: 0.4rem; color: hsl(var(--success)); font-weight: 600; font-size: 0.9rem; background: hsl(var(--success)/0.1); padding: 0.4rem 0.8rem; border-radius: var(--radius-sm);">
+                                ✅ 
+                                {% if proc.professor_role == 'admin' %}Adm.
+                                {% elif proc.professor_role == 'dentista' %}Dent.
+                                {% elif proc.professor_role == 'tsb' %}TSB
+                                {% else %}Prof.{% endif %}
+                                {{ proc.professor_full_name or proc.professor_nome }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 1rem; text-align: right; white-space: nowrap;">
+                            <button class="btn btn-outline" style="padding: 0.4rem; font-size: 0.85rem;"
+                                title="Editar" data-id="{{ proc.id }}" data-dente="{{ proc.dente }}"
+                                data-desc="{{ proc.descricao }}"
+                                onclick="openEditTreatmentModal(this)">✏️</button>
+
+                            <form
+                                action="{{ url_for('patients.delete_treatment', id=patient.id, proc_id=proc.id) }}"
+                                method="POST" style="display:inline;"
+                                onsubmit="return confirm('Tem certeza que deseja excluir este procedimento do plano de tratamento?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-danger"
+                                    style="padding: 0.4rem; font-size: 0.85rem;" title="Excluir">🗑️</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr class="no-paginate">
+                        <td colspan="4"
+                            style="padding: 3rem; text-align: center; color: hsl(var(--text-muted));">
+                            <span style="font-size: 1.5rem; display: block; margin-bottom: 0.5rem;">📋</span>
+                            Nenhum procedimento registrado neste plano de tratamento.
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>

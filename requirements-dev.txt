@@ -1,0 +1,2 @@
+# Dependências apenas para desenvolvimento/testes — não instalar em produção
+locust==2.32.0

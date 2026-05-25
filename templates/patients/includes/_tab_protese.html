@@ -1,0 +1,229 @@
+<div class="animate-fade">
+    {% if prosthesis_active %}
+    <div class="card"
+        style="border-left: 6px solid hsl(var(--primary)); padding: 2rem; margin-bottom: 2rem; background: white;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem;">
+            <div>
+                <span
+                    style="font-size: 0.75rem; font-weight: 800; color: hsl(var(--primary)); text-transform: uppercase;">Caso
+                    Ativo</span>
+                <h2 style="font-family: var(--font-heading); font-size: 1.8rem; color: hsl(var(--primary));">
+                    Acompanhamento Prótese - {{ prosthesis_active.tipo }}</h2>
+                <div style="display: flex; gap: 2rem; margin-top: 0.5rem; font-size: 0.95rem;">
+                    <span>📅 Início: <strong>{{ prosthesis_active.data }}</strong></span>
+                    <span>👨‍⚕️ Profissional: <strong>{{ prosthesis_active.aluno_nome or 'Não atribuído' }}</strong></span>
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <div style="margin-bottom: 0.5rem;">
+                    <span style="font-size: 0.85rem; color: hsl(var(--text-muted));">Valor Acordado</span>
+                    <div style="font-size: 1.5rem; font-weight: 800; color: hsl(var(--primary));">
+                        R$ {{ "%.2f"|format(prosthesis_active.valor_acordado or 0) }}
+                        <button onclick="openEditAgreementModal({{ prosthesis_active.valor_acordado or 0 }})"
+                            style="background: none; border: none; cursor: pointer; font-size: 0.9rem; margin-left: 0.5rem;"
+                            title="Editar Valor">✏️</button>
+                    </div>
+                </div>
+                {% set total_pago = pagamentos|sum(attribute='valor') %}
+                <div>
+                    <span style="font-size: 0.85rem; color: hsl(var(--text-muted));">Saldo Devedor</span>
+                    <div
+                        style="font-size: 1.1rem; font-weight: 700; color: {{ 'hsl(var(--danger))' if total_pago < prosthesis_active.valor_acordado else 'hsl(var(--success))' }}">
+                        R$ {{ "%.2f"|format((prosthesis_active.valor_acordado or 0) - total_pago) }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Etapas do Tratamento -->
+        <h3
+            style="font-family: var(--font-heading); font-size: 1.1rem; color: hsl(var(--primary)); margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid hsl(var(--border));">
+            Cronograma de Etapas</h3>
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">Seq</th>
+                        <th>Etapa</th>
+                        <th>Data Realização</th>
+                        <th>Laboratório (Envio)</th>
+                        <th>Serviço/Observações</th>
+                        <th style="text-align: center;">Paciente</th>
+                        <th style="text-align: center;">Validador</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for etapa in etapas %}
+                    <tr style="{{ 'background: hsl(var(--primary-soft));' if etapa.status == 'Concluído' }}">
+                        <td><strong>{{ loop.index }}</strong></td>
+                        <td>{{ etapa.nome_etapa }}</td>
+                        <form action="{{ url_for('prosthesis.update_etapa', etapa_id=etapa.id) }}" method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="patient_id" value="{{ patient.id }}">
+                            <td>
+                                <input type="date" name="data_etapa" value="{{ etapa.data_etapa }}" class="form-control"
+                                    style="padding: 4px; font-size: 0.85rem;">
+                            </td>
+                            <td>
+                                <input type="date" name="data_envio_lab" value="{{ etapa.data_envio_lab }}"
+                                    class="form-control" style="padding: 4px; font-size: 0.85rem;">
+                            </td>
+                            <td>
+                                <textarea name="servico_solicitado" class="form-control" rows="1"
+                                    style="padding: 4px; font-size: 0.85rem; min-width: 150px;">{{ etapa.servico_solicitado }}</textarea>
+                            </td>
+                            <td style="text-align: center;">
+                                {% if etapa.assinatura_paciente_base64 %}
+                                <span title="Assinado" style="cursor: help;">✅</span>
+                                {% else %}
+                                <button type="button" class="btn btn-outline"
+                                    style="padding: 2px 8px; font-size: 0.7rem; border-style: dashed;"
+                                    onclick="openPatientSignModal('{{ url_for('prosthesis.sign_patient', etapa_id=etapa.id) }}')">Assinar</button>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: center;">
+                                {% if etapa.professor_id %}
+                                <span title="Validado por {% if etapa.professor_role == 'admin' %}Administrador{% elif etapa.professor_role == 'dentista' %}Cir.-Dentista{% elif etapa.professor_role == 'tsb' %}TSB / ASB{% else %}Profissional{% endif %} {{ etapa.professor_nome }}" style="cursor: help;">✅</span>
+                                {% else %}
+                                <button type="button" class="btn btn-outline"
+                                    style="padding: 2px 8px; font-size: 0.7rem; border-style: dashed;"
+                                    onclick="openSignModal('{{ url_for('prosthesis.sign_professor', etapa_id=etapa.id) }}')">Validar</button>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button type="submit" class="btn btn-primary"
+                                    style="padding: 4px 8px; font-size: 0.75rem;" title="Salvar Alterações">💾</button>
+                            </td>
+                        </form>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Financeiro do Caso -->
+        <div style="margin-top: 3rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 style="font-family: var(--font-heading); font-size: 1.1rem; color: hsl(var(--primary));">Histórico de
+                    Pagamentos</h3>
+                <button class="btn btn-success" style="font-size: 0.85rem; padding: 0.5rem 1rem;"
+                    onclick="openAddPaymentModal('{{ url_for('prosthesis.add_payment', prosthesis_id=prosthesis_active.id) }}')">💰
+                    Registrar Pagamento</button>
+            </div>
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Valor</th>
+                            <th>Recebido por</th>
+                            <th style="text-align: center;">Recibo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if pagamentos %}
+                        {% for pg in pagamentos %}
+                        <tr>
+                            <td>{{ pg.data_pagamento }}</td>
+                            <td style="font-weight: 700;">R$ {{ "%.2f"|format(pg.valor) }}</td>
+                            <td>{{ pg.responsavel_nome }}</td>
+                            <td style="text-align: center;">
+                                <span style="font-size: 1.2rem; cursor: pointer;"
+                                    title="Ver Assinatura do Paciente (Recibo)">🧾</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% else %}
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: hsl(var(--text-muted)); padding: 2rem;">Nenhum
+                                pagamento registrado para este caso.</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div style="margin-top: 4rem; text-align: right; border-top: 1px solid hsl(var(--border-soft)); padding-top: 1rem;">
+            <button class="btn btn-outline" style="color: hsl(var(--danger)); border-color: rgba(var(--danger), 0.2);"
+                onclick="openDeleteCaseModal('{{ url_for('prosthesis.delete_case', patient_id=patient.id, prosthesis_id=prosthesis_active.id) }}')">⚠️
+                Excluir este Tratamento</button>
+        </div>
+    </div>
+    {% else %}
+    <div class="card" style="text-align: center; padding: 4rem 2rem; background: white;">
+        <div style="font-size: 3rem; margin-bottom: 1.5rem;">🦷</div>
+        <h2 style="font-family: var(--font-heading); font-size: 1.5rem; color: hsl(var(--text-muted));">Nenhum Caso de
+            Prótese Ativo</h2>
+        <p style="color: hsl(var(--text-muted)); margin-bottom: 2rem; max-width: 400px; margin-left: auto; margin-right: auto;">Selecione
+            o tipo de prótese abaixo para iniciar o acompanhamento clínico e financeiro.</p>
+        
+        <div style="display: flex; gap: 1.5rem; justify-content: center;">
+            <button class="btn btn-primary" style="padding: 1rem 2rem;" onclick="toggleNewProsthesisForm('PPR')">Nova PPR
+                (Parcial)</button>
+            <button class="btn btn-primary" style="padding: 1rem 2rem;" onclick="toggleNewProsthesisForm('Total')">Nova Protese
+                Total</button>
+        </div>
+
+        <!-- Formulário Oculto para Iniciar Caso -->
+        <div id="new-prosthesis-form" class="card" style="display: none; margin-top: 3rem; text-align: left; max-width: 500px; margin-left: auto; margin-right: auto; background: hsl(var(--bg-main));">
+            <h3 id="form-title" style="margin-bottom: 1.5rem; font-size: 1.1rem; color: hsl(var(--primary));">Iniciar Acompanhamento</h3>
+            <form action="{{ url_for('prosthesis.create_case', patient_id=patient.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="tipo" id="form-tipo" value="">
+                
+                <div style="margin-bottom: 1rem;">
+                    <label class="form-label">Valor do Tratamento (R$)</label>
+                    <input type="number" step="0.01" name="valor_acordado" class="form-control" placeholder="0.00" required>
+                </div>
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <label class="form-label">Profissional Responsável</label>
+                    <select name="aluno_id" class="form-control" required>
+                        <option value="">Selecione o profissional...</option>
+                        {% for student in students %}
+                            <option value="{{ student.id }}" {{ 'selected' if student.id == current_user.id }}>{{ student.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div style="display: flex; gap: 1rem;">
+                    <button type="button" class="btn btn-outline" style="flex: 1;" onclick="document.getElementById('new-prosthesis-form').style.display='none'">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Iniciar Caso</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if history_prosthesis %}
+    <div style="margin-top: 3rem;">
+        <h3 style="font-family: var(--font-heading); font-size: 1.1rem; color: hsl(var(--text-muted)); margin-bottom: 1rem;">Histórico de Próteses</h3>
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Início</th>
+                        <th>Tipo</th>
+                        <th>Status</th>
+                        <th>Valor</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for h in history_prosthesis %}
+                    <tr>
+                        <td>{{ h.data }}</td>
+                        <td>{{ h.tipo }}</td>
+                        <td><span class="badge {{ 'badge-success' if h.status == 'Concluído' else 'badge-muted' }}">{{ h.status }}</span></td>
+                        <td>R$ {{ "%.2f"|format(h.valor_acordado or 0) }}</td>
+                        <td><button class="btn btn-outline" style="padding: 2px 8px; font-size: 0.75rem;">Ver Ficha</button></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>

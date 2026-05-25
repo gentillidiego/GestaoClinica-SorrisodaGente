@@ -1,0 +1,428 @@
+{% extends "base.html" %}
+
+{% block title %}Controle de Placa - {{ anamnesis.patient_name }}{% endblock %}
+
+{% block content %}
+<div class="animate-fade"
+    style="max-width: 1100px; margin: 2rem auto; padding: 2.5rem; background: white; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);">
+
+    <!-- Botão Voltar -->
+    <div style="margin-bottom: 2rem;">
+        <a href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}"
+            style="display: inline-flex; align-items: center; gap: 0.5rem; color: hsl(var(--text-muted)); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.2s;"
+            onmouseover="this.style.color='hsl(var(--primary))'" onmouseout="this.style.color='hsl(var(--text-muted))'">
+            <span>⬅️</span> Voltar ao Prontuário
+        </a>
+    </div>
+
+    <!-- Cabeçalho -->
+    <div
+        style="text-align: center; margin-bottom: 3.5rem; border-bottom: 2px solid hsl(var(--primary)); padding-bottom: 2rem;">
+        <h1
+            style="font-family: var(--font-heading); font-size: 2.2rem; font-weight: 800; color: hsl(var(--primary)); margin: 0; text-transform: uppercase;">
+            PERIODONTIA: CONTROLE DE PLACA
+        </h1>
+        <p style="color: hsl(var(--text-muted)); font-size: 1.1rem; margin-top: 0.6rem;">
+            Paciente: <strong>{{ anamnesis.patient_name }}</strong> | Ref. Anamnese: #{{ anamnesis.id }}
+        </p>
+    </div>
+
+    <form method="POST" id="placaForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="data_faces" id="data_faces">
+        <input type="hidden" name="psr_data" id="psr_data">
+
+        <!-- Macro para Dente Circular -->
+        {% macro tooth_circular(number, type) %}
+        <div class="tooth-circular" data-tooth="{{ number }}" data-type="{{ type }}">
+            <span class="tooth-label">{{ number }}</span>
+            <div class="tooth-circle">
+                <div class="face top" data-face="vestibular"></div>
+                <div class="face right" data-face="distal"></div>
+                <div class="face bottom" data-face="lingual"></div>
+                <div class="face left" data-face="mesial"></div>
+                <div class="center-hole"></div>
+            </div>
+        </div>
+        {% endmacro %}
+
+        <!-- Seção de Índices (IG e IP) -->
+        <div style="display: grid; grid-template-columns: 1fr; gap: 4rem;">
+
+            <!-- IG - Índice Gengival -->
+            <div class="index-section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                    <h2 style="font-family: var(--font-heading); color: hsl(var(--primary)); margin: 0;">IG - Índice
+                        Gengival</h2>
+                    <div class="formula-box">
+                        <span id="ig_calc">IG = (0 x 100) / (32 x 4) = <strong>0%</strong></span>
+                    </div>
+                </div>
+
+                <div class="tooth-grid">
+                    <!-- Arcada Superior -->
+                    <div class="tooth-row">
+                        {% for n in range(18, 10, -1) %}{{ tooth_circular(n, 'ig') }}{% endfor %}
+                        {% for n in range(21, 29) %}{{ tooth_circular(n, 'ig') }}{% endfor %}
+                    </div>
+                    <!-- Arcada Inferior -->
+                    <div class="tooth-row">
+                        {% for n in range(48, 40, -1) %}{{ tooth_circular(n, 'ig') }}{% endfor %}
+                        {% for n in range(31, 39) %}{{ tooth_circular(n, 'ig') }}{% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <hr style="border: 0; border-top: 1.5px dashed hsl(var(--border));">
+
+            <!-- IP - Índice de Placa -->
+            <div class="index-section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                    <h2 style="font-family: var(--font-heading); color: hsl(var(--primary)); margin: 0;">IP - Índice de
+                        Placa</h2>
+                    <div class="formula-box">
+                        <span id="ip_calc">IP = (0 x 100) / (32 x 4) = <strong>0%</strong></span>
+                    </div>
+                </div>
+
+                <div class="tooth-grid">
+                    <!-- Arcada Superior -->
+                    <div class="tooth-row">
+                        {% for n in range(18, 10, -1) %}{{ tooth_circular(n, 'ip') }}{% endfor %}
+                        {% for n in range(21, 29) %}{{ tooth_circular(n, 'ip') }}{% endfor %}
+                    </div>
+                    <!-- Arcada Inferior -->
+                    <div class="tooth-row">
+                        {% for n in range(48, 40, -1) %}{{ tooth_circular(n, 'ip') }}{% endfor %}
+                        {% for n in range(31, 39) %}{{ tooth_circular(n, 'ip') }}{% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Inputs Escondidos para os cálculos -->
+        <input type="hidden" name="num_dentes" id="num_dentes" value="32">
+        <input type="hidden" name="num_faces_placa" id="num_faces_placa" value="0">
+        <input type="hidden" name="indice_placa" id="indice_placa_val" value="0">
+
+        <!-- Seção PSR -->
+        <div style="margin-top: 5rem;">
+            <h2
+                style="font-family: var(--font-heading); color: hsl(var(--primary)); margin-bottom: 2rem; text-align: center; text-transform: uppercase; font-size: 1.5rem; letter-spacing: 0.05em;">
+                EXAME PERIODONTAL SIMPLIFICADO - PSR
+            </h2>
+
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 3rem;">
+                <!-- Tabela de Critérios -->
+                <div class="card" style="padding: 0; overflow: hidden; border: 1.5px solid hsl(var(--border) / 0.6);">
+                    <table class="psr-table" style="width: 100%; border-collapse: collapse;">
+                        <thead style="background: hsl(var(--bg-main));">
+                            <tr>
+                                <th style="width: 80px;">Escore</th>
+                                <th>Critérios Clínicos (RPS)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>0</td>
+                                <td>Nenhum sinal de doença periodontal - Faixa colorida totalmente visível</td>
+                            </tr>
+                            <tr>
+                                <td>1</td>
+                                <td>Sangramento gengival até 30s após sondagem suave</td>
+                            </tr>
+                            <tr>
+                                <td>2</td>
+                                <td>Cálculo supra e/ou subgengival e/ou margens restauradoras mal adaptadas</td>
+                            </tr>
+                            <tr>
+                                <td>3</td>
+                                <td>Bolsa periodontal (3.5 a 5.5 mm) - Faixa colorida da sonda parcialmente visível</td>
+                            </tr>
+                            <tr>
+                                <td>4</td>
+                                <td>Bolsa profunda (> 5.5 mm) - Faixa colorida não visível</td>
+                            </tr>
+                            <tr>
+                                <td>*</td>
+                                <td>Anormalidade clínica (comprometimento furca, mobilidade, recessão ≥ 3.5mm)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Grade de PSR -->
+                <div class="card"
+                    style="padding: 2rem; display: flex; flex-direction: column; justify-content: center;">
+                    <h3
+                        style="font-family: var(--font-heading); font-size: 1rem; color: hsl(var(--primary)); margin-bottom: 1.5rem; text-align: center;">
+                        CONDIÇÃO PERIODONTAL</h3>
+                    <div class="psr-grid">
+                        <div class="psr-cell"><label>S1</label><input type="text" maxlength="2" data-psr="S1"></div>
+                        <div class="psr-cell"><label>S2</label><input type="text" maxlength="2" data-psr="S2"></div>
+                        <div class="psr-cell"><label>S3</label><input type="text" maxlength="2" data-psr="S3"></div>
+                        <div class="psr-cell"><label>S6</label><input type="text" maxlength="2" data-psr="S6"></div>
+                        <div class="psr-cell"><label>S5</label><input type="text" maxlength="2" data-psr="S5"></div>
+                        <div class="psr-cell"><label>S4</label><input type="text" maxlength="2" data-psr="S4"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Observações Finais -->
+        <div style="margin-top: 3rem;">
+            <label
+                style="font-weight: 800; color: hsl(var(--text-main)); display: block; margin-bottom: 0.8rem;">Observações
+                / Condição Periodontal Geral</label>
+            <textarea name="condicao_periodontal" rows="4"
+                style="width: 100%; padding: 1.2rem; border-radius: var(--radius-md); border: 1.5px solid hsl(var(--border)); font-family: var(--font-body);">{{ exam_data.condicao_periodontal if exam_data else '' }}</textarea>
+        </div>
+
+        <!-- Ações -->
+        <div style="display: flex; gap: 1.5rem; justify-content: flex-end; margin-top: 4rem;">
+            <a href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}"
+                class="btn btn-outline">Cancelar</a>
+            <button type="submit" class="btn btn-primary" style="padding: 1rem 3rem; font-weight: 800;">💾 Salvar
+                Controle de Placa</button>
+        </div>
+
+    </form>
+</div>
+
+<style>
+    .tooth-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        align-items: center;
+    }
+
+    .tooth-row {
+        display: flex;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .tooth-circular {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.3rem;
+        width: 48px;
+    }
+
+    .tooth-label {
+        font-size: 0.75rem;
+        font-weight: 800;
+        color: hsl(var(--text-muted));
+    }
+
+    .tooth-circle {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        border: 1.5px solid #ccc;
+        position: relative;
+        overflow: hidden;
+        background: white;
+        cursor: pointer;
+    }
+
+    .face {
+        position: absolute;
+        width: 50%;
+        height: 50%;
+        transition: background 0.2s;
+    }
+
+    .face.top {
+        top: 0;
+        left: 25%;
+        width: 50%;
+        clip-path: polygon(0 0, 100% 0, 50% 100%);
+    }
+
+    .face.right {
+        top: 25%;
+        right: 0;
+        height: 50%;
+        clip-path: polygon(100% 0, 100% 100%, 0 50%);
+    }
+
+    .face.bottom {
+        bottom: 0;
+        left: 25%;
+        width: 50%;
+        clip-path: polygon(50% 0, 100% 100%, 0 100%);
+    }
+
+    .face.left {
+        top: 25%;
+        left: 0;
+        height: 50%;
+        clip-path: polygon(0 0, 100% 50%, 0 100%);
+    }
+
+    .face.active {
+        background: hsl(var(--primary));
+    }
+
+    .center-hole {
+        position: absolute;
+        width: 40%;
+        height: 40%;
+        background: white;
+        border: 1.2px solid #ccc;
+        border-radius: 50%;
+        top: 30%;
+        left: 30%;
+        transform: rotate(45deg);
+        /* Apenas para alinhar com o design circular das faces */
+    }
+
+    .formula-box {
+        background: hsl(var(--bg-main));
+        padding: 0.8rem 1.5rem;
+        border-radius: var(--radius-md);
+        font-family: 'Courier New', monospace;
+        font-size: 1.1rem;
+        color: hsl(var(--text-main));
+        border: 1.5px solid hsl(var(--border) / 0.4);
+    }
+
+    .formula-box strong {
+        color: hsl(var(--primary));
+    }
+
+    .psr-table th,
+    .psr-table td {
+        padding: 1rem;
+        border-bottom: 1px solid hsl(var(--border) / 0.5);
+        font-size: 0.9rem;
+    }
+
+    .psr-table td:first-child {
+        text-align: center;
+        font-weight: 800;
+        color: hsl(var(--primary));
+    }
+
+    .psr-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+
+    .psr-cell {
+        display: flex;
+        flex-direction: column;
+        border: 1.5px solid hsl(var(--border));
+        border-radius: var(--radius-sm);
+        background: hsl(var(--bg-main));
+    }
+
+    .psr-cell label {
+        font-size: 0.7rem;
+        font-weight: 800;
+        padding: 0.3rem;
+        background: hsl(var(--border) / 0.3);
+        text-align: center;
+        border-bottom: 1.5px solid hsl(var(--border));
+    }
+
+    .psr-cell input {
+        border: none;
+        background: transparent;
+        padding: 0.5rem;
+        text-align: center;
+        font-weight: 700;
+        font-size: 1.1rem;
+        outline: none;
+    }
+
+    .psr-cell input:focus {
+        background: white;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        let facesState = {};
+        let psrState = {};
+
+        // Carregar dados existentes
+        const initialData = {{ (exam_data.data_faces | safe) if exam_data and exam_data.data_faces else '{}'
+    }};
+    const initialPsr = {{ (exam_data.psr_data | safe) if exam_data and exam_data.psr_data else '{}' }};
+
+    facesState = (typeof initialData === 'string') ? JSON.parse(initialData) : initialData;
+    psrState = (typeof initialPsr === 'string') ? JSON.parse(initialPsr) : initialPsr;
+
+    // Aplicar visual inicial
+    Object.keys(facesState).forEach(key => {
+        const [type, tooth, face] = key.split('_');
+        const el = document.querySelector(`.tooth-circular[data-tooth="${tooth}"][data-type="${type}"] .face[data-face="${face}"]`);
+        if (el) el.classList.add('active');
+    });
+
+    Object.keys(psrState).forEach(key => {
+        const input = document.querySelector(`.psr-grid input[data-psr="${key}"]`);
+        if (input) input.value = psrState[key];
+    });
+
+    calculateIndices();
+
+    // Eventos Face Click
+    document.querySelectorAll('.face').forEach(face => {
+        face.addEventListener('click', function () {
+            const toothEl = this.closest('.tooth-circular');
+            const type = toothEl.dataset.type;
+            const tooth = toothEl.dataset.tooth;
+            const faceName = this.dataset.face;
+            const key = `${type}_${tooth}_${faceName}`;
+
+            if (this.classList.contains('active')) {
+                this.classList.remove('active');
+                delete facesState[key];
+            } else {
+                this.classList.add('active');
+                facesState[key] = true;
+            }
+            calculateIndices();
+        });
+    });
+
+    function calculateIndices() {
+        const types = ['ig', 'ip'];
+        types.forEach(type => {
+            const activeCount = Object.keys(facesState).filter(k => k.startsWith(type)).length;
+            const numDentes = 32; // Pode ser dinâmico no futuro se necessário
+            const totalFaces = numDentes * 4;
+            const percentage = ((activeCount / totalFaces) * 100).toFixed(1);
+
+            const calcSpan = document.getElementById(`${type}_calc`);
+            calcSpan.innerHTML = `${type.toUpperCase()} = (${activeCount} x 100) / (${numDentes} x 4) = <strong>${percentage}%</strong>`;
+
+            if (type === 'ip') {
+                document.getElementById('num_faces_placa').value = activeCount;
+                document.getElementById('indice_placa_val').value = percentage;
+            }
+        });
+    }
+
+    // Serialização antes do envio
+    document.getElementById('placaForm').addEventListener('submit', function () {
+        document.getElementById('data_faces').value = JSON.stringify(facesState);
+
+        // Coletar PSR
+        const psrInputs = document.querySelectorAll('.psr-grid input');
+        psrState = {};
+        psrInputs.forEach(i => {
+            psrState[i.dataset.psr] = i.value;
+        });
+        document.getElementById('psr_data').value = JSON.stringify(psrState);
+    });
+});
+</script>
+{% endblock %}

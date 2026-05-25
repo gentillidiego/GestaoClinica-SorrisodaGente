@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}Fichas de Anamnese - Gestão Clínica{% endblock %}
+
+{% block content %}
+<div class="animate-fade" style="max-width: 1000px; margin: 0 auto;">
+    <div style="margin-bottom: 2rem;">
+        <a href="{{ url_for('main.dashboard') }}"
+            style="display: inline-flex; align-items: center; gap: 0.5rem; color: hsl(var(--text-muted)); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.2s;"
+            onmouseover="this.style.color='hsl(var(--primary))'" onmouseout="this.style.color='hsl(var(--text-muted))'">
+            <span>⬅️</span> Voltar ao Início
+        </a>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 3rem;">
+        <div>
+            <h1
+                style="font-family: var(--font-heading); font-size: 2rem; font-weight: 800; color: hsl(var(--primary));">
+                Fichas de Anamnese
+            </h1>
+            <p style="color: hsl(var(--text-muted)); margin-top: 0.5rem;">
+                Consulte e visualize as anamneses já realizadas.
+            </p>
+        </div>
+        <a href="{{ url_for('anamnesis.search') }}" class="btn btn-primary">
+            <span>➕</span> Nova Anamnese
+        </a>
+    </div>
+
+    <!-- Barra de Busca -->
+    <div class="card" style="margin-bottom: 2rem; padding: 1.5rem;">
+        <form method="GET" action="{{ url_for('anamnesis.list_completed') }}" style="display: flex; gap: 1rem;">
+            <div style="flex-grow: 1; position: relative;">
+                <span
+                    style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: hsl(var(--text-muted)); font-size: 1.2rem;">🔍</span>
+                <input type="text" name="q" value="{{ query }}" placeholder="Buscar paciente por nome ou CPF..."
+                    style="width: 100%; padding: 0.8rem 1rem 0.8rem 2.8rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); font-family: var(--font-body); height: 55px; font-size: 1rem;">
+            </div>
+            <button type="submit" class="btn btn-primary" style="padding: 0 2rem;">Pesquisar</button>
+            {% if query %}
+            <a href="{{ url_for('anamnesis.list_completed') }}" class="btn btn-outline"
+                style="background: white; display: flex; align-items: center; justify-content: center; width: 60px; font-size: 1.2rem;">✖</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Listagem de Resultados -->
+    {% if query %}
+    <div class="card" style="padding: 0; overflow: hidden;">
+        {% if results %}
+        <table style="width: 100%; border-collapse: collapse; background: white;">
+            <thead>
+                <tr style="background: hsl(var(--bg-main)); text-align: left;">
+                    <th style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted));">
+                        PACIENTE</th>
+                    <th style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted));">
+                        CPF</th>
+                    <th
+                        style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted)); text-align: right;">
+                        AÇÕES</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in results %}
+                <tr style="border-bottom: 1px solid hsl(var(--border)); transition: background 0.2s;"
+                    onmouseover="this.style.background='hsl(var(--primary-soft))'"
+                    onmouseout="this.style.background='transparent'">
+                    <td style="padding: 1.25rem;">
+                        <div style="font-weight: 600; color: hsl(var(--text-main));">{{ item.nome }}</div>
+                        <div
+                            style="font-size: 0.75rem; color: hsl(var(--text-muted)); text-transform: uppercase; margin-top: 0.2rem;">
+                            Realizada em: {{ item.data_anamnese }}</div>
+                    </td>
+                    <td style="padding: 1.25rem; color: hsl(var(--text-muted)); font-family: monospace;">{{ item.cpf or
+                        '---' }}</td>
+                    <td
+                        style="padding: 1.25rem; text-align: right; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                        <a href="{{ url_for('anamnesis.view_anamnesis', id=item.id) }}" class="btn btn-outline"
+                            style="padding: 0.5rem 1rem; font-size: 0.85rem; background: white; font-weight: 600;">
+                            Abrir Ficha 📄
+                        </a>
+                        <a href="{{ url_for('anamnesis.edit_anamnesis', id=item.id) }}" class="btn btn-outline"
+                            style="padding: 0.5rem 1rem; font-size: 0.85rem; background: white; font-weight: 600;">
+                            Editar ✏️
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="padding: 5rem; text-align: center; color: hsl(var(--text-muted));">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">📋</div>
+            <p style="font-size: 1.1rem;">Nenhuma anamnese encontrada para o termo <strong
+                    style="color: hsl(var(--primary));">"{{ query }}"</strong>.</p>
+            <p style="margin-top: 0.5rem; font-size: 0.9rem;">Verifique se o nome está correto ou tente pelo CPF.</p>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="card"
+        style="padding: 4rem; text-align: center; border: 2px dashed hsl(var(--border)); background: transparent;">
+        <div style="font-size: 4rem; margin-bottom: 1.5rem; opacity: 0.5;">🔎</div>
+        <h3 style="color: hsl(var(--text-muted)); font-weight: 600;">Utilize a busca acima para localizar uma anamnese.
+        </h3>
+        <p style="color: hsl(var(--text-muted) / 0.7); margin-top: 0.5rem;">Digite o nome do paciente ou o CPF para ver
+            as fichas salvas.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

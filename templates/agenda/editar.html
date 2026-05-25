@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Consulta — Gestão Saúde Oral{% endblock %}
+
+{% block content %}
+<div class="animate-fade" style="max-width:680px; margin:0 auto;">
+  <div style="margin-bottom:2rem;">
+    <a href="{{ url_for('agenda.agenda_index') }}" style="color:hsl(var(--text-muted)); font-size:0.9rem; text-decoration:none;">
+      ← Voltar para Agenda
+    </a>
+    <h1 class="page-title" style="margin-top:0.75rem;">✏️ Editar Consulta</h1>
+    <p class="page-subtitle">Consulta de <strong>{{ consulta.patient_nome }}</strong></p>
+  </div>
+
+  <div class="card">
+    <form method="POST" action="{{ url_for('agenda.editar_consulta', consulta_id=consulta.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="form-group" style="margin-bottom:1.25rem;">
+        <label class="form-label">Paciente *</label>
+        <select name="patient_id" class="form-control" required>
+          {% for p in patients %}
+          <option value="{{ p.id }}" {% if p.id == consulta.patient_id %}selected{% endif %}>{{ p.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-bottom:1.25rem;">
+        <label class="form-label">Dentista *</label>
+        <select name="dentista_id" class="form-control" required>
+          {% for d in dentistas %}
+          <option value="{{ d.id }}" {% if d.id == consulta.dentista_id %}selected{% endif %}>
+            {{ d.full_name or d.username }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.25rem;">
+        <div class="form-group">
+          <label class="form-label">Data e Hora *</label>
+          <input type="datetime-local" name="data_consulta" class="form-control" required
+                 value="{{ consulta.data_consulta.strftime('%Y-%m-%dT%H:%M') }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Duração</label>
+          <select name="duracao_minutos" class="form-control">
+            {% for dur in [30, 45, 60, 90, 120] %}
+            <option value="{{ dur }}" {% if consulta.duracao_minutos == dur %}selected{% endif %}>
+              {% if dur < 60 %}{{ dur }} minutos{% elif dur == 60 %}1 hora{% elif dur == 90 %}1h 30min{% else %}2 horas{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:1.25rem;">
+        <label class="form-label">Status</label>
+        <select name="status" class="form-control">
+          {% for s in ['Pendente','Confirmado','Realizado','Cancelado'] %}
+          <option value="{{ s }}" {% if consulta.status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-bottom:2rem;">
+        <label class="form-label">Observações</label>
+        <textarea name="observacoes" class="form-control" rows="3">{{ consulta.observacoes or '' }}</textarea>
+      </div>
+
+      <div style="display:flex; gap:1rem; justify-content:flex-end;">
+        <a href="{{ url_for('agenda.agenda_index') }}" class="btn btn-outline">Cancelar</a>
+        <button type="submit" class="btn btn-primary">💾 Salvar Alterações</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

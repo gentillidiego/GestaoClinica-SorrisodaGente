@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Usuário - Administração{% endblock %}
+
+{% block content %}
+<div style="max-width: 550px; margin: 4rem auto;" class="animate-fade">
+    <div style="margin-bottom: 2rem;">
+        <a href="{{ url_for('admin.list_users') }}"
+            style="display: inline-flex; align-items: center; gap: 0.5rem; color: hsl(var(--text-muted)); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.2s;"
+            onmouseover="this.style.color='hsl(var(--primary))'" onmouseout="this.style.color='hsl(var(--text-muted))'">
+            <span>⬅️</span> Voltar para Usuários
+        </a>
+    </div>
+    <div class="card" style="padding: 3rem;">
+        <div style="text-align: center; margin-bottom: 3rem;">
+            <div style="font-size: 2.5rem; margin-bottom: 1rem;">✏️✨</div>
+            <h1
+                style="font-family: var(--font-heading); font-size: 1.75rem; font-weight: 800; color: hsl(var(--primary));">
+                Editar Usuário</h1>
+            <p style="color: hsl(var(--text-muted)); margin-top: 0.5rem;">Atualize os dados e acessos deste usuário.</p>
+        </div>
+
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div style="margin-bottom: 1.5rem;">
+                <label for="full_name" class="form-label">Nome Completo</label>
+                <input type="text" name="full_name" id="full_name" class="form-control" placeholder="Ex: João da Silva"
+                    value="{{ user.full_name or '' }}" required autofocus>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <label for="username" class="form-label">Nome de Usuário (login)</label>
+                <input type="text" name="username" id="username" class="form-control" placeholder="Ex: joao.silva"
+                    value="{{ user.username }}" required>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <label for="password" class="form-label">Nova Senha (deixe em branco para não alterar)</label>
+                <input type="password" name="password" id="password" class="form-control" placeholder="••••••••">
+            </div>
+
+            <div style="margin-bottom: 2.5rem;">
+                <label for="role" class="form-label">Nível de Acesso (Perfil)</label>
+                <select name="role" id="role" class="form-control" required onchange="toggleCro()">
+                    <option value="admin" {% if user.role=='admin' %}selected{% endif %}>Administrador (Acesso Total)</option>
+                    <option value="dentista" {% if user.role=='dentista' %}selected{% endif %}>Cirurgião-Dentista</option>
+                    <option value="tsb" {% if user.role=='tsb' %}selected{% endif %}>TSB / ASB</option>
+                    <option value="atendente" {% if user.role=='atendente' %}selected{% endif %}>Atendente (Recepção)</option>
+                </select>
+            </div>
+
+            <div id="cro_container"
+                style="{% if user.role in ['admin', 'dentista'] %}display: grid;{% else %}display: none;{% endif %} grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 2.5rem;">
+                <div>
+                    <label for="cro" class="form-label">Número CRO</label>
+                    <input type="text" name="cro" id="cro" class="form-control" placeholder="Ex: 12345"
+                        value="{{ user.cro or '' }}">
+                </div>
+                <div>
+                    <label for="cro_uf" class="form-label">CRO-UF</label>
+                    <input type="text" name="cro_uf" id="cro_uf" class="form-control" placeholder="Ex: AL"
+                        value="{{ user.cro_uf or '' }}">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 1.25rem;">
+                <button type="submit" class="btn btn-primary" style="flex: 2; height: 50px;">
+                    Salvar Alterações
+                </button>
+                <a href="{{ url_for('admin.list_users') }}" class="btn btn-outline" style="flex: 1; height: 50px;">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function toggleCro() {
+        var role = document.getElementById('role').value;
+        var croContainer = document.getElementById('cro_container');
+        if (role === 'dentista' || role === 'admin') {
+            croContainer.style.display = 'grid';
+        } else {
+            croContainer.style.display = 'none';
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Gestão de Pacientes - Gestão Clínica{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="margin-bottom: 2rem;">
+        <a href="{{ url_for('main.dashboard') }}"
+            style="display: inline-flex; align-items: center; gap: 0.5rem; color: hsl(var(--text-muted)); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.2s;"
+            onmouseover="this.style.color='hsl(var(--primary))'" onmouseout="this.style.color='hsl(var(--text-muted))'">
+            <span>⬅️</span> Voltar ao Início
+        </a>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 3rem;">
+        <div>
+            <h1
+                style="font-family: var(--font-heading); font-size: 2rem; font-weight: 800; color: hsl(var(--primary));">
+                Gestão de Pacientes
+            </h1>
+            <p style="color: hsl(var(--text-muted)); margin-top: 0.5rem;">
+                Visualize, edite ou remova pacientes cadastrados.
+            </p>
+        </div>
+        <a href="{{ url_for('patients.register') }}" class="btn btn-primary">
+            <span>➕</span> Novo Cadastro
+        </a>
+    </div>
+
+    <!-- Barra de Busca -->
+    <div class="card" style="margin-bottom: 2rem; padding: 1.5rem;">
+        <form method="GET" action="{{ url_for('patients.list_patients') }}" style="display: flex; gap: 1rem;">
+            <div style="flex-grow: 1; position: relative;">
+                <span
+                    style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: hsl(var(--text-muted));">🔍</span>
+                <input type="text" name="q" value="{{ query }}" placeholder="Buscar por nome ou CPF..."
+                    style="width: 100%; padding: 0.8rem 1rem 0.8rem 2.8rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); font-family: var(--font-body);">
+            </div>
+            <button type="submit" class="btn btn-outline" style="background: white;">Pesquisar</button>
+            {% if query %}
+            <a href="{{ url_for('patients.list_patients') }}" class="btn btn-outline"
+                style="background: hsl(var(--bg-main));">Limpar</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Tabela de Pacientes -->
+    <div class="card" style="padding: 0; overflow: hidden;">
+        {% if patients %}
+        <div class="table-container">
+            <table style="width: 100%; border-collapse: collapse; background: white;">
+                <thead>
+                    <tr style="background: hsl(var(--bg-main)); text-align: left;">
+                        <th
+                            style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted));">
+                            NOME COMPLETO</th>
+                        <th
+                            style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted));">
+                            CPF</th>
+                        <th
+                            style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted)); text-align: right;">
+                            AÇÕES</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for patient in patients %}
+                    <tr style="border-bottom: 1px solid hsl(var(--border)); transition: background 0.2s;"
+                        onmouseover="this.style.background='hsl(var(--primary-soft))'"
+                        onmouseout="this.style.background='transparent'">
+                        <td style="padding: 1.25rem; font-weight: 600;">
+                            <a href="{{ url_for('patients.view_patient', id=patient.id) }}"
+                                style="color: hsl(var(--primary)); text-decoration: none; border-bottom: 2.5px solid transparent; transition: all 0.2s;"
+                                onmouseover="this.style.borderBottomColor='hsl(var(--primary))'"
+                                onmouseout="this.style.borderBottomColor='transparent'">
+                                {{ patient.nome }}
+                            </a>
+                        </td>
+                        <td style="padding: 1.25rem; color: hsl(var(--text-muted));">{{ patient.cpf or 'Não informado'
+                            }}
+                        </td>
+                        <td
+                            style="padding: 1.25rem; text-align: right; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                            <a href="{{ url_for('patients.edit_patient', id=patient.id) }}" class="btn btn-outline"
+                                style="padding: 0.4rem 0.8rem; font-size: 0.8rem; background: white;">
+                                Editar ✏️
+                            </a>
+                            <button type="button" class="btn btn-outline"
+                                style="padding: 0.4rem 0.8rem; font-size: 0.8rem; color: hsl(var(--danger)); border-color: hsl(var(--danger)/0.3);"
+                                onclick="openDeleteModal({{ patient.id }}, '{{ patient.nome }}')">
+                                Excluir 🗑️
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Paginação -->
+        {% if total_pages > 1 %}
+        <div
+            style="padding: 1.5rem; display: flex; justify-content: center; gap: 0.5rem; border-top: 1px solid hsl(var(--border)); background: hsl(var(--bg-main));">
+            {% if page > 1 %}
+            <a href="{{ url_for('patients.list_patients', page=page-1, q=query) }}" class="btn btn-outline"
+                style="background: white; padding: 0.5rem 1rem;">⬅️ Anterior</a>
+            {% endif %}
+
+            <span style="padding: 0.5rem 1.5rem; font-weight: 600; color: hsl(var(--text-muted));">Página {{ page }} de
+                {{ total_pages }}</span>
+
+            {% if page < total_pages %} <a href="{{ url_for('patients.list_patients', page=page+1, q=query) }}"
+                class="btn btn-outline" style="background: white; padding: 0.5rem 1rem;">Próxima ➡️</a>
+                {% endif %}
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div style="padding: 5rem; text-align: center; color: hsl(var(--text-muted));">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">👥</div>
+            <p>Nenhum paciente encontrado para esta busca.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal de Exclusão -->
+<div id="deleteModal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card"
+        style="width: 100%; max-width: 450px; padding: 2.5rem; text-align: center; animation: slideUp 0.3s ease-out;">
+        <div style="font-size: 3.5rem; margin-bottom: 1.5rem;">⚠️</div>
+        <h3
+            style="font-family: var(--font-heading); font-size: 1.5rem; color: hsl(var(--danger)); margin-bottom: 1rem;">
+            Atenção: Exclusão Permanente</h3>
+        <p style="color: hsl(var(--text-muted)); margin-bottom: 2rem;">Você está prestes a excluir o paciente <strong
+                id="deletePatientName"></strong>. Esta ação não pode ser desfeita.</p>
+
+        <form id="deleteForm" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="margin-bottom: 2rem; text-align: left;">
+                <label style="display: block; font-weight: 700; margin-bottom: 0.5rem; font-size: 0.9rem;">CONFIRME SUA
+                    SENHA DE ACESSO:</label>
+                <input type="password" name="password" required placeholder="Digite sua senha..."
+                    style="width: 100%; padding: 0.8rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md);">
+            </div>
+
+            <div style="display: flex; gap: 1rem;">
+                <button type="button" class="btn btn-outline" style="flex: 1;"
+                    onclick="closeDeleteModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary"
+                    style="flex: 1; background: hsl(var(--danger)); border-color: hsl(var(--danger));">Confirmar
+                    Exclusão</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openDeleteModal(id, name) {
+        document.getElementById('deletePatientName').textContent = name;
+        document.getElementById('deleteForm').action = "{{ url_for('patients.delete_patient', id=0) }}".replace('0', id);
+        document.getElementById('deleteModal').style.display = 'flex';
+    }
+    function closeDeleteModal() {
+        document.getElementById('deleteModal').style.display = 'none';
+        document.getElementById('deleteForm').reset();
+    }
+    // Fechar modal ao clicar fora
+    window.onclick = function (event) {
+        if (event.target == document.getElementById('deleteModal')) {
+            closeDeleteModal();
+        }
+    }
+</script>
+
+<style>
+    @keyframes slideUp {
+        from {
+            transform: translateY(20px);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,55 @@
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <h3 style="font-family: var(--font-heading); font-size: 1.25rem; color: hsl(var(--primary));">
+                Questionário de Saúde</h3>
+            <a href="{{ url_for('anamnesis.form', patient_id=patient.id) }}" class="btn btn-outline"
+                style="background: white;">➕ Nova Anamnese</a>
+        </div>
+
+        {% if anamnesis %}
+        <div
+            style="padding: 2rem; background: hsl(var(--bg-main)); border-radius: var(--radius-sm); border: 1px solid hsl(var(--border)/0.5);">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2.5rem;">
+                <div>
+                    <h4
+                        style="font-size: 0.9rem; color: hsl(var(--primary)); margin-bottom: 1rem; border-bottom: 1px solid hsl(var(--border)); padding-bottom: 0.5rem;">
+                        Resumo de Saúde</h4>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                            <span style="color: hsl(var(--text-muted));">Queixa Principal:</span>
+                            <span style="font-weight: 600;">{{ anamnesis.queixa_principal or 'N/A' }}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                            <span style="color: hsl(var(--text-muted));">Pressão Arterial:</span>
+                            <span style="font-weight: 600;">{{ anamnesis.pressao_arterial or 'N/A' }}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                            <span style="color: hsl(var(--text-muted));">Alergias:</span>
+                            <span style="font-weight: 600; color: hsl(var(--danger));">{{
+                                anamnesis.tem_alergia_explica or 'Não' }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div
+                    style="display: flex; flex-direction: column; justify-content: space-between; text-align: right;">
+                    <div>
+                        <span
+                            style="display: block; font-size: 0.75rem; font-weight: 700; color: hsl(var(--text-muted)); text-transform: uppercase;">Última
+                            Atualização</span>
+                        <span style="font-weight: 600; font-size: 0.95rem;">{{ anamnesis.data_anamnese }}</span>
+                    </div>
+                    <a href="{{ url_for('anamnesis.view_anamnesis', id=anamnesis.id) }}" class="btn btn-primary"
+                        style="margin-top: 1rem; align-self: flex-end;">
+                        📄 Ver Ficha Completa
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div style="padding: 2rem; background: hsl(var(--bg-main)); border-radius: var(--radius-sm);">
+            <p style="text-align: center; color: hsl(var(--text-muted)); font-style: italic;">Não há formulários
+                de anamnese preenchidos para este paciente.</p>
+        </div>
+        {% endif %}
+    </div>

@@ -1,0 +1,98 @@
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2.5rem;">
+            <h3
+                style="font-family: var(--font-heading); font-size: 1.4rem; font-weight: 700; color: hsl(var(--primary));">
+                Exames Complementares</h3>
+            <a href="{{ url_for('exams.check_anamnesis', patient_id=patient.id) }}" class="btn btn-primary"
+                style="padding: 0.8rem 1.5rem; font-weight: 700;">Novo Exame ➕</a>
+        </div>
+
+        <div data-paginate="true" data-per-page="6" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2rem;">
+            {% if exams %}
+            {% for exam in exams %}
+            <div class="card"
+                style="padding: 1.8rem; border: 1.5px solid hsl(var(--border) / 0.8); display: flex; flex-direction: column; transition: all 0.2s; background: white;"
+                onmouseover="this.style.borderColor='hsl(var(--primary)/0.4)'; this.style.boxShadow='var(--shadow-md)';"
+                onmouseout="this.style.borderColor='hsl(var(--border)/0.8)'; this.style.boxShadow='var(--shadow-sm)';">
+                <!-- Header do Card -->
+                <div
+                    style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; gap: 1rem;">
+                    <div style="flex: 1;">
+                        <h4
+                            style="font-size: 1.15rem; font-weight: 800; color: hsl(var(--text-main)); margin: 0; line-height: 1.2;">
+                            Exame em {{ (exam.data_criacao|string).split(' ')[0] if exam.data_criacao else '---' }}
+                        </h4>
+                        <div
+                            style="font-size: 0.85rem; color: hsl(var(--text-muted)); font-weight: 600; margin-top: 0.3rem;">
+                            {{ (exam.data_criacao|string).split(' ')[1] if exam.data_criacao and ' ' in (exam.data_criacao|string)
+                            else '' }}
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem;">
+                        <span
+                            style="font-size: 0.65rem; font-weight: 800; color: hsl(var(--primary)); text-transform: uppercase; letter-spacing: 0.05em; background: hsl(var(--bg-main)); padding: 0.3rem 0.6rem; border-radius: 4px; border: 1px solid hsl(var(--border)/0.5); white-space: nowrap;">
+                            {{ exam.tipo|upper }}
+                        </span>
+                        <button onclick="openDeleteExamModal('{{ url_for('exams.delete_exam', exam_id=exam.id) }}')" 
+                                style="background: hsl(var(--danger)/0.1); border: none; border-radius: 4px; padding: 0.4rem; cursor: pointer; color: hsl(var(--danger)); display: flex; align-items: center; justify-content: center; transition: all 0.2s;"
+                                onmouseover="this.style.background='hsl(var(--danger)/0.2)'"
+                                onmouseout="this.style.background='hsl(var(--danger)/0.1)'"
+                                title="Excluir Exame">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Corpo do Card -->
+                <div style="flex: 1; margin-bottom: 1.8rem;">
+                    <div
+                        style="font-size: 0.9rem; color: hsl(var(--text-muted)); font-weight: 500; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
+                        {{ exam.resumo_clinico or 'Sem observações gerais.' }}
+                    </div>
+                </div>
+
+                <!-- Ação do Card -->
+                <a href="{{ url_for('exams.' + (exam.tipo if exam.tipo != 'fisico' else 'fisico'), anamnesis_id=exam.anamnesis_id, exam_id=exam.id) }}"
+                    class="btn btn-outline"
+                    style="width: 100%; justify-content: center; background: hsl(var(--bg-main)); font-weight: 700; border-width: 1.5px; padding: 0.75rem;">
+                    Visualizar Exame
+                </a>
+
+                <!-- Validação do Exame -->
+                <div style="margin-top: 1rem;">
+                    {% if exam.professor_id %}
+                    <span
+                        style="display: block; width: 100%; text-align: center; color: hsl(var(--success)); font-weight: 700; font-size: 0.85rem; padding: 0.5rem; background: hsl(var(--success)/0.1); border-radius: var(--radius-sm);">
+                        ✅ Validado por 
+                        {% if exam.professor_role == 'admin' %}Administrador
+                        {% elif exam.professor_role == 'dentista' %}Cir.-Dentista
+                        {% elif exam.professor_role == 'tsb' %}TSB / ASB
+                        {% else %}Profissional{% endif %}
+                        {{ exam.professor_full_name or exam.professor_nome }}
+                    </span>
+                    {% else %}
+                    <button
+                        onclick="openSignModal('{{ url_for('patients.validate_exam', id=patient.id, exam_id=exam.id) }}')"
+                        class="btn btn-outline"
+                        style="width: 100%; justify-content: center; color: hsl(var(--warning)); border-color: hsl(var(--warning)); font-weight: 700; padding: 0.5rem; font-size: 0.85rem;">
+                        🔑 Validar
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div
+                style="grid-column: 1 / -1; padding: 4rem; text-align: center; color: hsl(var(--text-muted)); background: hsl(var(--bg-main)); border-radius: var(--radius-md);">
+                <span style="font-size: 2rem; display: block; margin-bottom: 1rem;">🔍</span>
+                <p>Nenhum exame anexado ou realizado.</p>
+                {% if not anamnesis %}
+                <p style="margin-top: 1rem; font-size: 0.9rem; color: hsl(var(--warning)); font-weight: 600;">
+                    ⚠️ Atenção: Para realizar um novo exame, é necessário preencher a Anamnese primeiro.
+                </p>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>

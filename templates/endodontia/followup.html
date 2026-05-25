@@ -1,0 +1,461 @@
+{% extends "base.html" %}
+
+{% block title %}Endodontia - Dente {{ endo.elemento_dentario }} - {{ endo.patient_name }}{% endblock %}
+
+{% block content %}
+<div class="animate-fade" style="max-width: 1200px; margin: 2rem auto; padding: 0 1.5rem;">
+
+    <!-- Botão Voltar -->
+    <div style="margin-bottom: 2rem;" class="no-print">
+        <a href="{{ url_for('patients.view_patient', id=endo.patient_id) }}#tab-endodontia"
+            style="display: inline-flex; align-items: center; gap: 0.5rem; color: #666; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.2s;"
+            onmouseover="this.style.color='hsl(var(--primary))'" onmouseout="this.style.color='#666'">
+            <span>⬅️</span> Voltar ao Prontuário
+        </a>
+    </div>
+
+    <!-- Cabeçalho Principal -->
+    <div style="text-align: center; margin-bottom: 3rem;">
+        <h1
+            style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 800; color: #000; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1rem;">
+            FICHA ENDODÔNTICA E EVOLUÇÃO DE TRATAMENTO
+        </h1>
+        <div
+            style="display: flex; align-items: center; justify-content: center; gap: 1rem; font-size: 1.1rem; border-top: 1px solid #000; padding-top: 1rem;">
+            <span style="font-weight: 700;">Paciente:</span>
+            <span
+                style="border-bottom: 1px solid #000; flex: 1; max-width: 800px; text-align: left; padding: 0 0.5rem;">{{
+                endo.patient_name }}</span>
+        </div>
+    </div>
+
+    <form action="{{ url_for('endodontia.save_case_details', endo_id=endo.id) }}" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <section style="margin-bottom: 3.5rem;">
+            <h2
+                style="font-family: var(--font-heading); font-size: 1.2rem; color: #b45f5f; text-align: center; text-transform: uppercase; margin-bottom: 1.5rem; font-weight: 700;">
+                EXAME CLÍNICO E RADIOGRÁFICO
+            </h2>
+            <div style="border: 1px solid #000; overflow: hidden;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td
+                            style="width: 250px; padding: 0.75rem 1rem; border-bottom: 1px solid #000; border-right: 1px solid #000; font-weight: 600;">
+                            Coroa;</td>
+                        <td style="padding: 0; border-bottom: 1px solid #000;">
+                            <input type="text" name="coroa" value="{{ endo.coroa or '' }}"
+                                style="width: 100%; border: none; padding: 0.85rem 1rem; outline: none; font-size: 1rem;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td
+                            style="padding: 0.75rem 1rem; border-bottom: 1px solid #000; border-right: 1px solid #000; font-weight: 600;">
+                            Canal(is) Radicular(es):</td>
+                        <td style="padding: 0; border-bottom: 1px solid #000;">
+                            <input type="text" name="canais_radiculares" value="{{ endo.canais_radiculares or '' }}"
+                                style="width: 100%; border: none; padding: 0.85rem 1rem; outline: none; font-size: 1rem;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td
+                            style="padding: 0.75rem 1rem; border-bottom: 1px solid #000; border-right: 1px solid #000; font-weight: 600;">
+                            Região Apical:</td>
+                        <td style="padding: 0; border-bottom: 1px solid #000;">
+                            <input type="text" name="regiao_apical" value="{{ endo.regiao_apical or '' }}"
+                                style="width: 100%; border: none; padding: 0.85rem 1rem; outline: none; font-size: 1rem;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.75rem 1rem; border-right: 1px solid #000; font-weight: 600;">Demais:</td>
+                        <td style="padding: 0;">
+                            <input type="text" name="demais" value="{{ endo.demais or '' }}"
+                                style="width: 100%; border: none; padding: 0.85rem 1rem; outline: none; font-size: 1rem;">
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </section>
+
+        <section style="margin-bottom: 3.5rem;">
+            <h2
+                style="font-family: var(--font-heading); font-size: 1.2rem; color: #b45f5f; text-align: center; text-transform: uppercase; margin-bottom: 1.5rem; font-weight: 700;">
+                DIAGNÓSTICO PROVÁVEL
+            </h2>
+            <div style="display: flex; flex-direction: column; gap: 1.5rem; max-width: 800px; margin: 0 auto;">
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <span style="font-weight: 700;">Dente:</span>
+                    <span style="border-bottom: 1px solid #000; padding: 0.2rem 1rem; width: 250px;">{{
+                        endo.elemento_dentario }}</span>
+                </div>
+                <div style="display: flex; gap: 1rem; align-items: flex-end;">
+                    <span style="font-weight: 700; white-space: nowrap;">Diagnóstico:</span>
+                    <input type="text" name="diagnostico" value="{{ endo.diagnostico or '' }}"
+                        style="border: none; border-bottom: 1px solid #000; padding: 0.2rem 0.5rem; flex: 1; outline: none; font-size: 1rem;">
+                </div>
+            </div>
+        </section>
+
+        <section style="margin-bottom: 3.5rem;">
+            <h2
+                style="font-family: var(--font-heading); font-size: 1.2rem; color: #b45f5f; text-align: center; text-transform: uppercase; margin-bottom: 1.5rem; font-weight: 700;">
+                INFORMAÇÕES TÉCNICAS DO TRATAMENTO
+            </h2>
+            <div style="border: 1px solid #000;">
+                <div style="display: flex; border-bottom: 1px solid #000;">
+                    <div
+                        style="flex: 1; padding: 0.75rem 1.5rem; border-right: 1px solid #000; display: flex; align-items: center; gap: 1rem;">
+                        <span style="font-weight: 700;">Dente: </span> <span
+                            style="border-bottom: 1px solid #000; padding: 0 1rem; min-width: 100px;">{{
+                            endo.elemento_dentario }}</span>
+                    </div>
+                    <div style="flex: 1; padding: 0.75rem 1.5rem; display: flex; align-items: center; gap: 1rem;">
+                        <span style="font-weight: 700;">Grampo: </span>
+                        <input type="text" name="grampo" value="{{ endo.grampo or '' }}"
+                            style="border: none; border-bottom: 1px solid #000; outline: none; flex: 1; font-size: 1rem;">
+                    </div>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; min-width: 900px;" id="table-canais">
+                        <thead>
+                            <tr style="text-align: center; font-weight: 700; background: #fff;">
+                                <td style="border: 1px solid #000; padding: 0.75rem; width: 15%;">Canal</td>
+                                <td style="border: 1px solid #000; padding: 0.75rem; width: 10%;">CAD</td>
+                                <td style="border: 1px solid #000; padding: 0.75rem; width: 15%;">Referência</td>
+                                <td style="border: 1px solid #000; padding: 0.75rem; width: 10%;">CT</td>
+                                <td style="border: 1px solid #000; padding: 0.75rem; width: 15%;">Lima Inicial</td>
+                                <td style="border: 1px solid #000; padding: 0.75rem; width: 15%;">Lima final</td>
+                                <td style="border: 1px solid #000; padding: 0.75rem; width: 10%;">Cone</td>
+                                <td style="border: 1px solid #000; padding: 0.75rem; width: 10%;">Selamento</td>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if canais %}
+                            {% for c in canais %}
+                            <tr>
+                                <td style="border: 1px solid #000;"><input type="text" name="canal[]"
+                                        value="{{ c.canal or '' }}"
+                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center; font-size: 0.95rem;">
+                                </td>
+                                <td style="border: 1px solid #000;"><input type="text" name="cad[]"
+                                        value="{{ c.cad or '' }}"
+                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center; font-size: 0.95rem;">
+                                </td>
+                                <td style="border: 1px solid #000;"><input type="text" name="referencia[]"
+                                        value="{{ c.referencia or '' }}"
+                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center; font-size: 0.95rem;">
+                                </td>
+                                <td style="border: 1px solid #000;"><input type="text" name="ct[]"
+                                        value="{{ c.ct or '' }}"
+                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center; font-size: 0.95rem;">
+                                </td>
+                                <td style="border: 1px solid #000;"><input type="text" name="lima_inicial[]"
+                                        value="{{ c.lima_inicial or '' }}"
+                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center; font-size: 0.95rem;">
+                                </td>
+                                <td style="border: 1px solid #000;"><input type="text" name="lima_final[]"
+                                        value="{{ c.lima_final or '' }}"
+                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center; font-size: 0.95rem;">
+                                </td>
+                                <td style="border: 1px solid #000;"><input type="text" name="cone[]"
+                                        value="{{ c.cone or '' }}"
+                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center; font-size: 0.95rem;">
+                                </td>
+                                <td style="border: 1px solid #000;"><input type="text" name="selamento[]"
+                                        value="{{ c.selamento or '' }}"
+                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center; font-size: 0.95rem;">
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% endif %}
+                            {% for _ in range(6 - (canais|length if canais else 0)) %}
+                            <tr>
+                                <td style="border: 1px solid #000;"><input type="text" name="canal[]"
+                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center;"></td>
+                                <td style="border: 1px solid #000;"><input type="text" name="cad[]"
+                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center;"></td>
+                                <td style="border: 1px solid #000;"><input type="text" name="referencia[]"
+                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center;"></td>
+                                <td style="border: 1px solid #000;"><input type="text" name="ct[]"
+                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center;"></td>
+                                <td style="border: 1px solid #000;"><input type="text" name="lima_inicial[]"
+                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center;"></td>
+                                <td style="border: 1px solid #000;"><input type="text" name="lima_final[]"
+                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center;"></td>
+                                <td style="border: 1px solid #000;"><input type="text" name="cone[]"
+                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center;"></td>
+                                <td style="border: 1px solid #000;"><input type="text" name="selamento[]"
+                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center;"></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div
+                    style="padding: 1rem 1.5rem; display: flex; align-items: center; gap: 1rem; border-top: 1px solid #000;">
+                    <span style="font-weight: 700;">Finalidade Protética?</span>
+                    <input type="text" name="finalidade_protetica" value="{{ endo.finalidade_protetica or '' }}"
+                        style="border: none; border-bottom: 1px solid #000; outline: none; flex: 1; font-size: 1rem; background: transparent;">
+                </div>
+            </div>
+            <div style="margin-top: 2rem; display: flex; justify-content: flex-end;" class="no-print">
+                <button type="submit" class="btn btn-primary"
+                    style="padding: 0.85rem 3rem; font-weight: 700; border-radius: 4px;">
+                    💾 SALVAR INFORMAÇÕES TÉCNICAS
+                </button>
+            </div>
+        </section>
+    </form>
+
+    <section style="margin-bottom: 4rem;">
+        <h2
+            style="font-family: var(--font-heading); font-size: 1.2rem; color: #b45f5f; text-align: center; text-transform: uppercase; margin-bottom: 1.5rem; font-weight: 700;">
+            EVOLUÇÃO DO TRATAMENTO
+        </h2>
+
+        <div style="border: 1px solid #000; border-radius: 0; overflow: hidden;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="text-align: center; font-weight: 700; background: #fff;">
+                        <td style="border: 1px solid #000; padding: 1rem; width: 120px;">DATA</td>
+                        <td style="border: 1px solid #000; padding: 1rem;">PRROCEDIMENTO EXECUTADO</td>
+                        <td style="border: 1px solid #000; padding: 1rem; width: 130px;">Profissional</td>
+                        <td style="border: 1px solid #000; padding: 1rem; width: 130px;">Ass Paciente</td>
+                        <td style="border: 1px solid #000; padding: 1rem; width: 130px;">Dentista/Validador</td>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if followups %}
+                    {% for f in followups %}
+                    <tr>
+                        <td style="border: 1px solid #000; padding: 1rem; text-align: center; font-weight: 600;">{{
+                            f.data }}</td>
+                        <td style="border: 1px solid #000; padding: 1rem; vertical-align: top; line-height: 1.5;">{{
+                            f.evolucao }}</td>
+                        <td
+                            style="border: 1px solid #000; padding: 1rem; text-align: center; font-size: 0.85rem; color: #444;">
+                            <u>{{ endo.aluno_nome }}</u>
+                        </td>
+                        <td style="border: 1px solid #000; padding: 1rem; text-align: center;">
+                            {% if f.assinatura_paciente_base64 %}
+                            <img src="{{ f.assinatura_paciente_base64 }}"
+                                style="max-height: 50px; filter: grayscale(1) contrast(1.5);">
+                            {% else %}
+                            <button class="btn btn-outline btn-sm no-print"
+                                onclick="openPatientSignModal('{{ url_for('endodontia.sign_patient', followup_id=f.id) }}')">✍️
+                                Assinar</button>
+                            {% endif %}
+                        </td>
+                        <td style="border: 1px solid #000; padding: 1rem; text-align: center;">
+                            {% if f.professor_id %}
+                            <div style="font-weight: 700; color: #000; font-size: 0.8rem;">
+                                {% if f.professor_role == 'admin' %}Adm. {% elif f.professor_role == 'dentista' %}Dent. {% elif f.professor_role == 'tsb' %}TSB {% else %}Prof. {% endif %}{{ f.professor_nome }}
+                            </div>
+                            {% else %}
+                            <button class="btn btn-outline btn-sm no-print"
+                                onclick="openProfessorSignModal('{{ url_for('endodontia.sign_professor', followup_id=f.id) }}')">🔑
+                                Validar</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% endif %}
+
+                    {% set remaining_rows = 3 - (followups|length if followups else 0) %}
+                    {% if remaining_rows > 0 %}
+                    {% for _ in range(remaining_rows) %}
+                    <tr class="empty-row">
+                        <td style="border: 1px solid #000; height: 3.5rem;"></td>
+                        <td style="border: 1px solid #000;"></td>
+                        <td style="border: 1px solid #000;"></td>
+                        <td style="border: 1px solid #000;"></td>
+                        <td style="border: 1px solid #000;"></td>
+                    </tr>
+                    {% endfor %}
+                    {% endif %}
+
+                    {% if endo.status != 'Concluído' %}
+                    <tr class="no-print" style="background: #fafafa;">
+                        <form action="{{ url_for('endodontia.add_followup', endo_id=endo.id) }}" method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <td style="border: 1px solid #000; padding: 0.75rem;">
+                                <input type="date" name="data" value="{{ current_date }}"
+                                    style="width: 100%; border: 1px solid #ddd; padding: 0.5rem; border-radius: 4px;">
+                            </td>
+                            <td style="border: 1px solid #000; padding: 0.75rem;">
+                                <textarea name="evolucao" rows="2"
+                                    style="width: 100%; border: 1px solid #ddd; padding: 0.5rem; border-radius: 4px; outline: none;"
+                                    placeholder="Nova Evolução..."></textarea>
+                            </td>
+                            <td colspan="3" style="border: 1px solid #000; padding: 0.75rem; text-align: center;">
+                                <button type="submit" class="btn btn-primary"
+                                    style="width: 100%; height: 60px; font-weight: 700;">➕ ADICIONAR EVOLUÇÃO</button>
+                            </td>
+                        </form>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+</div>
+
+<!-- Modais -->
+<div id="patientSignModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 style="font-weight: 700;">Assinatura do Paciente</h3>
+        </div>
+        <form id="patientSignForm" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="endo_id" value="{{ endo.id }}">
+            <input type="hidden" name="assinatura_base64" id="assinatura_base64_patient">
+            <div style="padding: 2rem; text-align: center;">
+                <div style="border: 2px solid #000; background: #fff; margin-bottom: 1.5rem;">
+                    <canvas id="signature-pad-patient" style="width: 100%; height: 250px; cursor: crosshair;"></canvas>
+                </div>
+                <button type="button" class="btn btn-outline" id="clear-signature-patient">Limpar Quadro</button>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closePatientSignModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Confirmar Assinatura</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="professorSignModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3 style="font-weight: 700;">Validação de Responsável</h3>
+        </div>
+        <form id="professorSignForm" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="endo_id" value="{{ endo.id }}">
+            <div style="padding: 2rem; display: flex; flex-direction: column; gap: 1.5rem;">
+                <input type="text" name="prof_username" class="form-control" placeholder="Usuário do dentista" required
+                    style="height: 50px; font-size: 1.1rem;">
+                <input type="password" name="prof_password" class="form-control" placeholder="Senha" required
+                    style="height: 50px; font-size: 1.1rem;">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeProfessorSignModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Validar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+<script>
+    function openPatientSignModal(url) {
+        const modal = document.getElementById('patientSignModal');
+        const form = document.getElementById('patientSignForm');
+        form.action = url;
+        modal.style.display = 'flex';
+
+        const canvas = document.getElementById('signature-pad-patient');
+        if (canvas && !canvas.initialized) {
+            const pad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)' });
+            document.getElementById('clear-signature-patient').addEventListener('click', () => pad.clear());
+            form.addEventListener('submit', (e) => {
+                if (pad.isEmpty()) { e.preventDefault(); alert('Por favor, solicite a assinatura do paciente.'); return; }
+                document.getElementById('assinatura_base64_patient').value = pad.toDataURL();
+            });
+
+            function resize() {
+                const ratio = Math.max(window.devicePixelRatio || 1, 1);
+                canvas.width = canvas.offsetWidth * ratio;
+                canvas.height = canvas.offsetHeight * ratio;
+                canvas.getContext("2d").scale(ratio, ratio);
+                pad.clear();
+            }
+            window.addEventListener("resize", resize);
+            resize();
+            canvas.initialized = true;
+            setTimeout(resize, 100);
+        }
+    }
+
+    function closePatientSignModal() { document.getElementById('patientSignModal').style.display = 'none'; }
+    function openProfessorSignModal(url) {
+        document.getElementById('professorSignForm').action = url;
+        document.getElementById('professorSignModal').style.display = 'flex';
+    }
+    function closeProfessorSignModal() { document.getElementById('professorSignModal').style.display = 'none'; }
+</script>
+
+<style>
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        backdrop-filter: blur(5px);
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 4px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        width: 90%;
+    }
+
+    .modal-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid #000;
+    }
+
+    .modal-footer {
+        padding: 1.5rem;
+        border-top: 1px solid #000;
+        display: flex;
+        justify-content: flex-end;
+        gap: 1rem;
+        background: #fafafa;
+    }
+
+    .btn-sm {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.85rem;
+        font-weight: 700;
+    }
+
+    input:focus,
+    textarea:focus {
+        background: #fffef0;
+    }
+
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+
+        .animate-fade {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            max-width: none !important;
+        }
+
+        section {
+            margin-bottom: 2rem !important;
+        }
+
+        .empty-row {
+            display: table-row !important;
+        }
+
+        input {
+            border: none !important;
+        }
+    }
+</style>
+{% endblock %}

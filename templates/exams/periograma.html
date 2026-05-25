@@ -1,0 +1,1010 @@
+{% extends "base.html" %}
+
+{% block title %}Periograma - {{ anamnesis.patient_name }}{% endblock %}
+
+{% block content %}
+<div class="animate-fade"
+    style="max-width: 1400px; margin: 2rem auto; padding: 2rem; background: white; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);">
+
+    <!-- Botão Voltar -->
+    <div style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;"
+        class="no-print">
+        <a href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}"
+            style="display: inline-flex; align-items: center; gap: 0.5rem; color: hsl(var(--text-muted)); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.2s;"
+            onmouseover="this.style.color='hsl(var(--primary))'" onmouseout="this.style.color='hsl(var(--text-muted))'">
+            <span>⬅️</span> Voltar ao Prontuário
+        </a>
+        <button type="button" onclick="gerarPDF()" class="btn btn-secondary"
+            style="display: flex; align-items: center; gap: 0.5rem;">
+            🖨️ Gerar PDF do Exame
+        </button>
+    </div>
+
+    <!-- Container do PDF -->
+    <div id="periograma-print-area">
+
+        <!-- Cabeçalho Exclusivo para o PDF (Oculto na Tela) -->
+        <div class="only-print"
+            style="border-bottom: 2px solid #000; padding-bottom: 1rem; margin-bottom: 2rem; display: none;">
+            <div style="text-align: center;">
+                <h1
+                    style="font-family: var(--font-heading); font-size: 1.8rem; font-weight: 800; text-transform: uppercase; margin: 0;">
+                    LAUDO DE EXAME PERIODONTAL
+                </h1>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 1rem; font-size: 1.1rem;">
+                <div>
+                    <strong>Paciente:</strong> {{ anamnesis.patient_name }}
+                </div>
+                <div>
+                    <strong>Data:</strong> {{ exam_data.data_criacao if exam_data else 'Novo Exame' }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Cabeçalho da Tela -->
+        <div class="no-print"
+            style="border-bottom: 2px solid hsl(var(--primary)); padding-bottom: 1.5rem; margin-bottom: 2.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                <div>
+                    <h1
+                        style="font-family: var(--font-heading); font-size: 2rem; font-weight: 800; color: hsl(var(--primary)); margin: 0; text-transform: uppercase;">
+                        PERIOGRAMA</h1>
+                    <p style="color: hsl(var(--text-muted)); margin-top: 0.4rem; font-size: 1.1rem;">
+                        Paciente: <strong>{{ anamnesis.patient_name }}</strong>
+                    </p>
+                </div>
+                <div style="text-align: right; color: hsl(var(--text-muted)); font-weight: 600;">
+                    <p style="margin: 0;">Ref. Anamnese: #{{ anamnesis.id }}</p>
+                    <p style="margin: 0; font-size: 0.85rem;">Data do Exame: {{ exam_data.data_criacao if exam_data else
+                        'Nova Sondagem' }}</p>
+                </div>
+            </div>
+        </div>
+
+        <form method="POST" id="perioForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="medicoes_data" id="medicoes_data">
+
+            <!-- Seleção de Fase -->
+            <div class="card no-print"
+                style="margin-bottom: 2.5rem; padding: 1.5rem; display: flex; align-items: center; gap: 2rem; background: hsl(var(--bg-main));">
+                <span
+                    style="font-weight: 800; color: hsl(var(--primary)); text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em;">Fase
+                    da Sondagem:</span>
+                <div style="display: flex; gap: 1rem;">
+                    <label class="phase-btn"><input type="radio" name="fase" value="Inicial" {{ 'checked' if not
+                            exam_data or exam_data.fase=='Inicial' }}> Inicial</label>
+                    <label class="phase-btn"><input type="radio" name="fase" value="Reavaliação" {{ 'checked' if
+                            exam_data and exam_data.fase=='Reavaliação' }}> Reavaliação</label>
+                    <label class="phase-btn"><input type="radio" name="fase" value="Final" {{ 'checked' if exam_data and
+                            exam_data.fase=='Final' }}> Final</label>
+                </div>
+            </div>
+
+            {% macro tooth_attr_row(label, teeth) %}
+            <div class="metrics-row-container tooth-attr-row">
+                <div class="row-label">{{ label }}</div>
+                <div class="teeth-row">
+                    {% for t in teeth %}
+                    <div class="tooth-input-group single-attr-group" data-tooth="{{ t }}">
+                        {% if label == 'Mobilidade' %}
+                        <input type="text" maxlength="1" class="perio-in mobilidade-in" data-tooth="{{ t }}"
+                            placeholder="-">
+                        {% elif label == 'Implante' %}
+                        <div class="attr-toggle implante-toggle" data-tooth="{{ t }}" data-state="false"
+                            title="Marcar como Implante"></div>
+                        {% elif label == 'Furca' %}
+                        <div class="attr-toggle furca-toggle" data-tooth="{{ t }}" data-state="0"
+                            title="Classificação de Furca (0-3)"></div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endmacro %}
+
+            {% macro metrics_row(label, teeth, arch, side) %}
+            {% set metric_class = 'ce-mg' if label == 'CE-MG' else 'ps' if label == 'PS-SS' else 'pic' %}
+            <div class="metrics-row-container {{ 'ps-ss-row' if label == 'PS-SS' else '' }}">
+                <div class="row-label">
+                    {{ label }}
+                    {% if label == 'PS-SS' %}
+                    <span class="ss-legend">(● SS)</span>
+                    {% endif %}
+                </div>
+                <div class="teeth-row">
+                    {% for t in teeth %}
+                    <div class="tooth-input-group" data-tooth="{{ t }}">
+                        {% if label == 'PS-SS' %}
+                        <div class="ss-dots-subrow">
+                            <div class="ss-dot-wrapper"><span class="ss-dot" data-tooth="{{ t }}" data-side="{{ side }}"
+                                    data-pos="d"></span></div>
+                            <div class="ss-dot-wrapper"><span class="ss-dot" data-tooth="{{ t }}" data-side="{{ side }}"
+                                    data-pos="m"></span></div>
+                            <div class="ss-dot-wrapper"><span class="ss-dot" data-tooth="{{ t }}" data-side="{{ side }}"
+                                    data-pos="mes"></span></div>
+                        </div>
+                        <div class="inputs-row">
+                            <input type="text" maxlength="2" class="perio-in ps" data-tooth="{{ t }}"
+                                data-side="{{ side }}" data-pos="d">
+                            <input type="text" maxlength="2" class="perio-in ps" data-tooth="{{ t }}"
+                                data-side="{{ side }}" data-pos="m">
+                            <input type="text" maxlength="2" class="perio-in ps" data-tooth="{{ t }}"
+                                data-side="{{ side }}" data-pos="mes">
+                        </div>
+                        {% else %}
+                        <div class="inputs-row">
+                            <input type="text" maxlength="2" class="perio-in {{ metric_class }}" data-tooth="{{ t }}"
+                                data-side="{{ side }}" data-pos="d">
+                            <input type="text" maxlength="2" class="perio-in {{ metric_class }}" data-tooth="{{ t }}"
+                                data-side="{{ side }}" data-pos="m">
+                            <input type="text" maxlength="2" class="perio-in {{ metric_class }}" data-tooth="{{ t }}"
+                                data-side="{{ side }}" data-pos="mes">
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endmacro %}
+
+            {% macro arch_section(teeth_groups, arch, title) %}
+            <h3 class="arch-title">{{ title }}</h3>
+            <div class="arch-columns-container">
+                {% for group in teeth_groups %}
+                <div class="arch-column">
+                    <div class="column-labels-top">VESTIBULAR</div>
+                    <div class="tooth-numbers-row">
+                        <div class="row-label-empty"></div>
+                        {% for t in group %}<div class="tooth-number">{{ t }}</div>{% endfor %}
+                    </div>
+
+                    <div class="metrics-block">
+                        {{ tooth_attr_row('Mobilidade', group) }}
+                        {{ tooth_attr_row('Implante', group) }}
+                        {{ tooth_attr_row('Furca', group) }}
+                        {{ metrics_row('CE-MG', group, arch, 'v') }}
+                        {{ metrics_row('PS-SS', group, arch, 'v') }}
+                        {{ metrics_row('PIC', group, arch, 'v') }}
+                    </div>
+
+                    <div class="tooth-images-row">
+                        <div class="row-label-empty"></div>
+                        {% for t in group %}
+                        <div class="tooth-img-box" data-tooth="{{ t }}"></div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="column-labels-bottom">{{ 'PALATINA' if arch == 'sup' else 'LINGUAL' }}</div>
+                    <div class="metrics-block">
+                        {{ metrics_row('CE-MG', group, arch, 'l') }}
+                        {{ metrics_row('PS-SS', group, arch, 'l') }}
+                        {{ metrics_row('PIC', group, arch, 'l') }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endmacro %}
+
+            <!-- Arcada Superior -->
+            {{ arch_section([[18,17,16,15,14], [13,12,11,21,22,23], [24,25,26,27,28]], 'sup', 'ARCADA SUPERIOR
+            (MAXILA)') }}
+
+            <!-- Arcada Inferior -->
+            <div style="margin-top: 4rem;">
+                {{ arch_section([[48,47,46,45,44], [43,42,41,31,32,33], [34,35,36,37,38]], 'inf', 'ARCADA INFERIOR
+                (MANDÍBULA)') }}
+            </div>
+
+            <!-- Rodapé com Cálculos e Diagnóstico -->
+            <div
+                style="margin-top: 5rem; display: grid; grid-template-columns: 1fr 2fr; gap: 3rem; align-items: stretch;">
+                <!-- Card de Sangramento -->
+                <div class="card"
+                    style="padding: 2rem; background: hsl(var(--primary-soft) / 0.15); border: 2px solid hsl(var(--primary)/0.1); display: flex; flex-direction: column;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h4
+                            style="margin: 0; color: hsl(var(--primary)); font-weight: 800; font-size: 1rem; text-transform: uppercase;">
+                            SS - Sangramento à Sondagem</h4>
+                    </div>
+                    <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+                        <div style="font-size: 3.5rem; font-weight: 800; color: hsl(var(--primary)); line-height: 1;">
+                            <span id="ss_percentage">0</span>%
+                        </div>
+                        <p
+                            style="margin: 1.5rem 0 0 0; font-size: 0.9rem; color: hsl(var(--text-muted)); line-height: 1.4;">
+                            Total de faces com sangramento em relação ao total de faces sondadas.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin: 0;">
+                    <label
+                        style="font-weight: 800; color: hsl(var(--text-main)); font-size: 1.1rem; margin-bottom: 1rem; display: block;">Diagnóstico
+                        / Observações do Periograma</label>
+                    <textarea name="diagnostico" id="diagnostico_textarea" rows="12"
+                        placeholder="Digite aqui o diagnóstico periodontal e observações clínicas..."
+                        style="width: 100%; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); padding: 1.2rem; font-family: var(--font-body); font-size: 1rem; height: 100%; min-height: 320px; resize: vertical;">{{ exam_data.diagnostico if exam_data else '' }}</textarea>
+
+                    <!-- Div text placeholder para o PDF renderizar quebras de linha corretamente em vez de um <textarea> -->
+                    <div id="diagnostico_print_view" class="only-print"
+                        style="display: none; padding: 1.2rem; border: 1.5px solid #ccc; font-family: var(--font-body); font-size: 1rem; white-space: pre-wrap; min-height: 200px;">
+                    </div>
+                </div>
+            </div>
+    </div> <!-- Fim do periograma-print-area -->
+
+    <!-- Ações -->
+    <div style="display: flex; gap: 1.5rem; justify-content: flex-end; margin-top: 4rem; padding-top: 2rem; border-top: 1px solid hsl(var(--border)/0.5);"
+        class="no-print">
+        <a href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}" class="btn btn-outline"
+            style="padding: 1rem 2rem;">Cancelar</a>
+        <button type="submit" class="btn btn-primary" style="padding: 1rem 3rem; font-weight: 800;">💾 Salvar
+            Periograma</button>
+    </div>
+    </form>
+</div>
+
+
+<style>
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .spinner {
+        display: inline-block;
+    }
+</style>
+
+<style>
+    .arch-title {
+        font-family: var(--font-heading);
+        font-size: 1.3rem;
+        color: hsl(var(--primary));
+        text-align: center;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        background: hsl(var(--bg-main));
+        padding: 0.8rem;
+        border-radius: var(--radius-sm);
+    }
+
+    .arch-columns-container {
+        display: grid;
+        grid-template-columns: 1fr 1.2fr 1fr;
+        gap: 2rem;
+        padding-bottom: 2rem;
+    }
+
+    .arch-column {
+        display: flex;
+        flex-direction: column;
+        border: 2px solid hsl(var(--border)/0.5);
+        border-radius: var(--radius-md);
+        background: white;
+        padding: 0.5rem;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .column-labels-top,
+    .column-labels-bottom {
+        text-align: center;
+        font-weight: 800;
+        font-size: 0.75rem;
+        color: hsl(var(--primary));
+        background: hsl(var(--bg-main));
+        padding: 0.5rem;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+    }
+
+    .tooth-numbers-row {
+        display: flex;
+        background: hsl(var(--primary));
+        color: white;
+    }
+
+    .metrics-block {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .row-label {
+        width: 75px;
+        flex-shrink: 0;
+        font-size: 0.75rem;
+        font-weight: 800;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding-left: 0.6rem;
+        border-right: 2px solid hsl(var(--border));
+        background: hsl(var(--bg-main));
+        color: hsl(var(--text-main));
+    }
+
+    .ss-legend {
+        font-size: 0.6rem;
+        color: #ef4444;
+        font-weight: 400;
+        line-height: 1;
+        margin-top: 2px;
+    }
+
+    .row-label-empty {
+        width: 75px;
+        flex-shrink: 0;
+    }
+
+    .teeth-row {
+        display: flex;
+        flex: 1;
+    }
+
+    .tooth-number {
+        flex: 1;
+        text-align: center;
+        font-weight: 800;
+        font-size: 0.9rem;
+        padding: 0.5rem 0;
+        border-left: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .metrics-row-container {
+        display: flex;
+        border-bottom: 1.5px solid #94a3b8;
+    }
+
+    .tooth-input-group {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        border-right: 2px solid #94a3b8;
+    }
+
+    .tooth-input-group:last-child {
+        border-right: none;
+    }
+
+    .inputs-row,
+    .ss-dots-subrow {
+        display: flex;
+        width: 100%;
+    }
+
+    .perio-in {
+        width: 100%;
+        border: none;
+        border-right: 1px solid #cbd5e1;
+        text-align: center;
+        font-size: 0.95rem;
+        font-weight: 700;
+        padding: 8px 0;
+        outline: none;
+        background: transparent;
+    }
+
+    .perio-in:last-child {
+        border-right: none;
+    }
+
+    .perio-in:focus {
+        background: hsl(var(--primary-soft)/0.4);
+    }
+
+    .perio-in.pic {
+        background: #f1f5f9;
+        color: hsl(var(--primary));
+    }
+
+    .ps-ss-row .tooth-input-group {
+        padding: 0;
+    }
+
+    .ss-dots-subrow {
+        padding: 6px 0;
+        border-bottom: 1px solid #cbd5e1;
+        background: #f8fafc;
+    }
+
+    .ss-dots-subrow .ss-dot-wrapper {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border-right: 1px solid #cbd5e1;
+    }
+
+    .ss-dots-subrow .ss-dot-wrapper:last-child {
+        border-right: none;
+    }
+
+    .ss-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid #94a3b8;
+        cursor: pointer;
+        background: #fff;
+        transition: all 0.2s;
+    }
+
+    .ss-dot:hover {
+        border-color: #ef4444;
+        transform: scale(1.1);
+    }
+
+    .ss-dot.active {
+        background: #ef4444;
+        border-color: #dc2626;
+        box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+    }
+
+    .tooth-images-row {
+        display: flex;
+        align-items: center;
+        padding: 1rem 0;
+        background: white;
+        border-top: 2px solid hsl(var(--border)/0.5);
+        border-bottom: 2px solid hsl(var(--border)/0.5);
+        height: 120px;
+    }
+
+    .tooth-container {
+        position: relative;
+        width: 48px;
+        height: 120px;
+    }
+
+    .tooth-img-box {
+        flex: 1;
+        height: 100%;
+        /* Novo arquivo de Sprite Panorâmico (16 dentes x 2 arcadas) */
+        background-image: url("{{ url_for('static', filename='dental_teeth_v3.png') }}");
+        background-size: 1600% 200%;
+        background-repeat: no-repeat;
+        opacity: 0.95;
+        filter: grayscale(0.1) contrast(1.1);
+    }
+
+    /* Mapping teeth to background positions (16 positions, ~6.67% steps) */
+    /* UPPER ROW (Sprite Row 1 - FDI 18 to 28) */
+    .tooth-img-box[data-tooth="18"] {
+        background-position: 0% 0%;
+    }
+
+    .tooth-img-box[data-tooth="17"] {
+        background-position: 6.67% 0%;
+    }
+
+    .tooth-img-box[data-tooth="16"] {
+        background-position: 13.33% 0%;
+    }
+
+    .tooth-img-box[data-tooth="15"] {
+        background-position: 20% 0%;
+    }
+
+    .tooth-img-box[data-tooth="14"] {
+        background-position: 26.67% 0%;
+    }
+
+    .tooth-img-box[data-tooth="13"] {
+        background-position: 33.33% 0%;
+    }
+
+    .tooth-img-box[data-tooth="12"] {
+        background-position: 40% 0%;
+    }
+
+    .tooth-img-box[data-tooth="11"] {
+        background-position: 46.67% 0%;
+    }
+
+    .tooth-img-box[data-tooth="21"] {
+        background-position: 53.33% 0%;
+    }
+
+    .tooth-img-box[data-tooth="22"] {
+        background-position: 60% 0%;
+    }
+
+    .tooth-img-box[data-tooth="23"] {
+        background-position: 66.67% 0%;
+    }
+
+    .tooth-img-box[data-tooth="24"] {
+        background-position: 73.33% 0%;
+    }
+
+    .tooth-img-box[data-tooth="25"] {
+        background-position: 80% 0%;
+    }
+
+    .tooth-img-box[data-tooth="26"] {
+        background-position: 86.67% 0%;
+    }
+
+    .tooth-img-box[data-tooth="27"] {
+        background-position: 93.33% 0%;
+    }
+
+    .tooth-img-box[data-tooth="28"] {
+        background-position: 100% 0%;
+    }
+
+    /* LOWER ROW (Sprite Row 2 - FDI 48 to 38) */
+    .tooth-img-box[data-tooth="48"] {
+        background-position: 0% 100%;
+    }
+
+    .tooth-img-box[data-tooth="47"] {
+        background-position: 6.67% 100%;
+    }
+
+    .tooth-img-box[data-tooth="46"] {
+        background-position: 13.33% 100%;
+    }
+
+    .tooth-img-box[data-tooth="45"] {
+        background-position: 20% 100%;
+    }
+
+    .tooth-img-box[data-tooth="44"] {
+        background-position: 26.67% 100%;
+    }
+
+    .tooth-img-box[data-tooth="43"] {
+        background-position: 33.33% 100%;
+    }
+
+    .tooth-img-box[data-tooth="42"] {
+        background-position: 40% 100%;
+    }
+
+    .tooth-img-box[data-tooth="41"] {
+        background-position: 46.67% 100%;
+    }
+
+    .tooth-img-box[data-tooth="31"] {
+        background-position: 53.33% 100%;
+    }
+
+    .tooth-img-box[data-tooth="32"] {
+        background-position: 60% 100%;
+    }
+
+    .tooth-img-box[data-tooth="33"] {
+        background-position: 66.67% 100%;
+    }
+
+    .tooth-img-box[data-tooth="34"] {
+        background-position: 73.33% 100%;
+    }
+
+    .tooth-img-box[data-tooth="35"] {
+        background-position: 80% 100%;
+    }
+
+    .tooth-img-box[data-tooth="36"] {
+        background-position: 86.67% 100%;
+    }
+
+    .tooth-img-box[data-tooth="37"] {
+        background-position: 93.33% 100%;
+    }
+
+    .tooth-img-box[data-tooth="38"] {
+        background-position: 100% 100%;
+    }
+
+    .phase-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 700;
+        color: hsl(var(--text-main));
+        cursor: pointer;
+        padding: 0.5rem 1rem;
+        border-radius: var(--radius-sm);
+        transition: background 0.2s;
+    }
+
+    .phase-btn:hover {
+        background: hsl(var(--border) / 0.2);
+    }
+
+    .phase-btn input {
+        width: 1rem;
+        height: 1rem;
+        cursor: pointer;
+    }
+
+    @media (max-width: 1200px) {
+        .arch-columns-container {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+
+        .animate-fade {
+            box-shadow: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        .arch-columns-container {
+            display: block;
+        }
+
+        .arch-column {
+            page-break-inside: avoid;
+            margin-bottom: 2rem;
+        }
+    }
+
+    /* Classes de controle dinâmico para html2pdf */
+    #periograma-print-area.is-printing .no-print {
+        display: none !important;
+    }
+
+    #periograma-print-area.is-printing .only-print {
+        display: block !important;
+    }
+
+    #periograma-print-area.is-printing textarea {
+        display: none !important;
+    }
+
+    #periograma-print-area.is-printing input {
+        border: none !important;
+        background: transparent !important;
+        color: #000 !important;
+    }
+
+    .tooth-attr-row {
+        background: hsl(var(--bg-main));
+    }
+
+    .single-attr-group {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 0;
+    }
+
+    .mobilidade-in {
+        width: 100% !important;
+        text-align: center;
+        border-right: none !important;
+        font-weight: 800;
+        color: hsl(var(--primary));
+    }
+
+    .attr-toggle {
+        width: 100%;
+        height: 28px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+        font-size: 1.1rem;
+        transition: all 0.2s;
+        border-right: 1px solid #cbd5e1;
+    }
+
+    .tooth-input-group:last-child .attr-toggle {
+        border-right: none;
+    }
+
+    .attr-toggle:hover {
+        background: hsl(var(--border) / 0.3);
+    }
+
+    .tooth-img-box.is-implant {
+        opacity: 0.35;
+        filter: grayscale(1) sepia(1) hue-rotate(180deg) contrast(1.5);
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        let medicacoes = {};
+
+        // Carregar dados
+        let initialData = {{ (exam_data.medicoes_data | safe) if exam_data and exam_data.medicoes_data else '{}'
+    }};
+    initialData = (typeof initialData === 'string') ? JSON.parse(initialData) : initialData;
+
+    // Normalização de dados (suporta formato antigo plano e novo formato hierárquico)
+    if (Object.keys(initialData).length > 0) {
+        const firstKey = Object.keys(initialData)[0];
+        if (initialData[firstKey] && typeof initialData[firstKey] === 'object' && initialData[firstKey].sitios) {
+            // Nova estrutura hierárquica
+            Object.keys(initialData).forEach(tooth => {
+                const toothData = initialData[tooth];
+                if (toothData.mobilidade !== undefined && toothData.mobilidade !== "") medicacoes[`mobilidade_${tooth}`] = toothData.mobilidade;
+                if (toothData.implante !== undefined) medicacoes[`implante_${tooth}`] = toothData.implante;
+                if (toothData.furca !== undefined && toothData.furca !== "") medicacoes[`furca_${tooth}`] = toothData.furca;
+
+                if (toothData.sitios) {
+                    Object.keys(toothData.sitios).forEach(k => {
+                        medicacoes[k] = toothData.sitios[k];
+                    });
+                }
+            });
+        } else {
+            medicacoes = { ...initialData };
+        }
+    }
+
+    // Aplicar dados iniciais
+    Object.keys(medicacoes).forEach(key => {
+        const val = medicacoes[key];
+
+        if (key.startsWith('mobilidade_')) {
+            const tooth = key.split('_')[1];
+            const input = document.querySelector(`.mobilidade-in[data-tooth="${tooth}"]`);
+            if (input) input.value = val;
+        } else if (key.startsWith('implante_')) {
+            const tooth = key.split('_')[1];
+            const toggle = document.querySelector(`.implante-toggle[data-tooth="${tooth}"]`);
+            if (toggle) {
+                toggle.dataset.state = val === true ? 'true' : 'false';
+            }
+        } else if (key.startsWith('furca_')) {
+            const tooth = key.split('_')[1];
+            const toggle = document.querySelector(`.furca-toggle[data-tooth="${tooth}"]`);
+            if (toggle) {
+                toggle.dataset.state = val;
+            }
+        } else {
+            const parts = key.split('_');
+            if (parts.length < 4) return;
+            const [metric, tooth, side, pos] = parts;
+
+            if (metric === 'ss') {
+                const dot = document.querySelector(`.ss-dot[data-tooth="${tooth}"][data-side="${side}"][data-pos="${pos}"]`);
+                if (dot && val) dot.classList.add('active');
+            } else {
+                const input = document.querySelector(`.perio-in.${metric}[data-tooth="${tooth}"][data-side="${side}"][data-pos="${pos}"]`);
+                if (input) input.value = val;
+            }
+        }
+    });
+
+    calculatePICAll();
+    calculateSS();
+
+    // Inicializar botões visuais
+    function renderImplante(toggle) {
+        const isImplante = toggle.dataset.state === 'true';
+        toggle.innerHTML = isImplante ? '▮' : '';
+        toggle.style.color = isImplante ? 'hsl(var(--text-main))' : 'transparent';
+
+        const toothImg = document.querySelector(`.tooth-img-box[data-tooth="${toggle.dataset.tooth}"]`);
+        if (toothImg) {
+            if (isImplante) {
+                toothImg.classList.add('is-implant');
+            } else {
+                toothImg.classList.remove('is-implant');
+            }
+        }
+    }
+
+    const furcaSymbols = { "0": "", "1": "○", "2": "◐", "3": "●" };
+    function renderFurca(toggle) {
+        const state = toggle.dataset.state || "0";
+        toggle.innerHTML = furcaSymbols[state];
+        toggle.style.color = state !== "0" ? 'hsl(var(--text-main))' : 'transparent';
+    }
+
+    document.querySelectorAll('.implante-toggle').forEach(renderImplante);
+    document.querySelectorAll('.furca-toggle').forEach(renderFurca);
+
+    // Eventos para Mobilidade, Implante e Furca
+    document.querySelectorAll('.mobilidade-in').forEach(input => {
+        input.addEventListener('input', function () {
+            let val = this.value;
+            if (val && !['0', '1', '2', '3'].includes(val)) {
+                this.value = '';
+                val = '';
+            }
+            if (val === '') {
+                delete medicacoes[`mobilidade_${this.dataset.tooth}`];
+            } else {
+                medicacoes[`mobilidade_${this.dataset.tooth}`] = parseInt(val);
+            }
+        });
+    });
+
+    document.querySelectorAll('.implante-toggle').forEach(toggle => {
+        toggle.addEventListener('click', function () {
+            const isImplante = this.dataset.state === 'true';
+            this.dataset.state = !isImplante;
+            medicacoes[`implante_${this.dataset.tooth}`] = !isImplante;
+            renderImplante(this);
+        });
+    });
+
+    document.querySelectorAll('.furca-toggle').forEach(toggle => {
+        toggle.addEventListener('click', function () {
+            let state = parseInt(this.dataset.state || "0");
+            state = (state + 1) % 4;
+            this.dataset.state = state;
+            if (state === 0) {
+                delete medicacoes[`furca_${this.dataset.tooth}`];
+            } else {
+                medicacoes[`furca_${this.dataset.tooth}`] = state;
+            }
+            renderFurca(this);
+        });
+    });
+
+    // Eventos de Input (CE-MG, PS)
+    document.querySelectorAll('.perio-in:not(.pic)').forEach(input => {
+        input.addEventListener('input', function () {
+            const tooth = this.dataset.tooth;
+            const side = this.dataset.side;
+            const pos = this.dataset.pos;
+            const type = this.classList.contains('ce-mg') ? 'ce-mg' : 'ps';
+
+            const key = `${type}_${tooth}_${side}_${pos}`;
+            medicacoes[key] = this.value;
+
+            calculatePIC(tooth, side, pos);
+            calculateSS();
+        });
+    });
+
+    // Eventos SS Click
+    document.querySelectorAll('.ss-dot').forEach(dot => {
+        dot.addEventListener('click', function () {
+            const tooth = this.dataset.tooth;
+            const side = this.dataset.side;
+            const pos = this.dataset.pos;
+            const key = `ss_${tooth}_${side}_${pos}`;
+
+            if (this.classList.contains('active')) {
+                this.classList.remove('active');
+                delete medicacoes[key];
+            } else {
+                this.classList.add('active');
+                medicacoes[key] = true;
+            }
+            calculateSS();
+        });
+    });
+
+    // --- Funções de Cálculo ---
+    function calculatePIC(tooth, side, pos) {
+        const ceMgKey = `ce-mg_${tooth}_${side}_${pos}`;
+        const psKey = `ps_${tooth}_${side}_${pos}`;
+
+        const ceMgVal = medicacoes[ceMgKey] || "0";
+        const psVal = medicacoes[psKey];
+
+        const picInput = document.querySelector(`.perio-in.pic[data-tooth="${tooth}"][data-side="${side}"][data-pos="${pos}"]`);
+        if (!picInput) return;
+
+        if (psVal !== undefined && psVal !== "" && !isNaN(psVal) && !isNaN(ceMgVal)) {
+            const pic = parseInt(ceMgVal) + parseInt(psVal);
+            picInput.value = pic;
+            medicacoes[`nci_${tooth}_${side}_${pos}`] = pic; // Mantemos 'nci' no banco por compatibilidade
+        } else {
+            picInput.value = "";
+            delete medicacoes[`nci_${tooth}_${side}_${pos}`];
+        }
+    }
+
+    function calculatePICAll() {
+        document.querySelectorAll('.perio-in.ce-mg, .perio-in.ps').forEach(i => {
+            calculatePIC(i.dataset.tooth, i.dataset.side, i.dataset.pos);
+        });
+    }
+
+    function calculateSS() {
+        const ssActive = Object.keys(medicacoes).filter(k => k.startsWith('ss_') && medicacoes[k] === true).length;
+        const presentTeeth = new Set();
+        Object.keys(medicacoes).forEach(key => {
+            if (key.startsWith('ps_')) {
+                const val = medicacoes[key];
+                if (val !== undefined && val !== "" && !isNaN(val)) {
+                    presentTeeth.add(key.split('_')[1]);
+                }
+            }
+        });
+
+        const numPresentTeeth = presentTeeth.size || 32;
+        const totalSites = numPresentTeeth * 6;
+        const percentage = ((ssActive / totalSites) * 100).toFixed(1);
+        document.getElementById('ss_percentage').textContent = percentage;
+    }
+
+    // Serialização antes do envio (Nova Estrutura Hierárquica por Dente)
+    document.getElementById('perioForm').addEventListener('submit', function () {
+        const finalData = {};
+
+        Object.keys(medicacoes).forEach(key => {
+            let tooth = null;
+            if (key.startsWith('mobilidade_') || key.startsWith('implante_') || key.startsWith('furca_')) {
+                tooth = key.split('_')[1];
+            } else {
+                const parts = key.split('_');
+                if (parts.length >= 4) {
+                    tooth = parts[1];
+                }
+            }
+
+            if (tooth) {
+                if (!finalData[tooth]) {
+                    finalData[tooth] = { mobilidade: "", implante: false, furca: 0, sitios: {} };
+                }
+
+                if (key.startsWith('mobilidade_')) {
+                    finalData[tooth].mobilidade = medicacoes[key];
+                } else if (key.startsWith('implante_')) {
+                    finalData[tooth].implante = medicacoes[key];
+                } else if (key.startsWith('furca_')) {
+                    finalData[tooth].furca = medicacoes[key];
+                } else {
+                    finalData[tooth].sitios[key] = medicacoes[key];
+                }
+            }
+        });
+
+        document.getElementById('medicoes_data').value = JSON.stringify(finalData);
+    });
+    });
+
+    // --- LÓGICA DE GERAÇÃO DE PDF (html2pdf.js) ---
+    function gerarPDF() {
+        const printArea = document.getElementById('periograma-print-area');
+        const defaultFilename = `Periograma_{{ anamnesis.patient_name | replace(' ', '_') }}.pdf`;
+
+        // Prepara o textarea para visualização impressa
+        const textarea = document.getElementById('diagnostico_textarea');
+        const printView = document.getElementById('diagnostico_print_view');
+        printView.textContent = textarea.value;
+
+        // Adiciona classe injetora de estilos específicos para o gerador pdf
+        printArea.classList.add('is-printing');
+
+        // Configuração de Paisagem (Landscape) para caber as 3 colunas FDI (1 / 1.2 / 1) confortavelmente
+        const opt = {
+            margin: 10, // 10mm de borda
+            filename: defaultFilename,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true, letterRendering: true }, // Scale 2 para os CSS Sprites saírem nítidos
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+        };
+
+        // Promessa de renderização
+        html2pdf().set(opt).from(printArea).save().then(() => {
+            // Após gerar e baixar, remove a classe de "modo impressão" retornando a interface
+            printArea.classList.remove('is-printing');
+        }).catch(err => {
+            console.error("Erro ao gerar PDF:", err);
+            printArea.classList.remove('is-printing');
+        });
+    }
+</script>
+
+<!-- Importação do html2pdf.js via CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
+    integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+{% endblock %}

@@ -1,0 +1,505 @@
+<script>
+    function initPagination(container) {
+        const paginatedLists = container.querySelectorAll('[data-paginate="true"]');
+        paginatedLists.forEach(list => {
+            const items = Array.from(list.children).filter(el => !el.classList.contains('no-paginate'));
+            const perPage = parseInt(list.getAttribute('data-per-page')) || 5;
+            if (items.length <= perPage) return;
+            
+            let currentPage = 1;
+            const totalPages = Math.ceil(items.length / perPage);
+            
+            const controls = document.createElement('div');
+            controls.className = 'pagination-controls';
+            controls.style.cssText = 'display: flex; gap: 0.5rem; justify-content: center; margin-top: 1.5rem; align-items: center; width: 100%;';
+            
+            const updateView = () => {
+                items.forEach((item, index) => {
+                    item.style.display = (index >= (currentPage-1)*perPage && index < currentPage*perPage) ? '' : 'none';
+                });
+                controls.innerHTML = `
+                    <button class="btn btn-outline" style="padding: 0.4rem 0.8rem;" ${currentPage === 1 ? 'disabled' : ''}>Anterior</button>
+                    <span style="font-size: 0.9rem; font-weight: 600; color: hsl(var(--text-muted));">Página ${currentPage} de ${totalPages}</span>
+                    <button class="btn btn-outline" style="padding: 0.4rem 0.8rem;" ${currentPage === totalPages ? 'disabled' : ''}>Próxima</button>
+                `;
+                const btns = controls.querySelectorAll('button');
+                if(btns[0]) btns[0].onclick = () => { if(currentPage > 1) { currentPage--; updateView(); } };
+                if(btns[1]) btns[1].onclick = () => { if(currentPage < totalPages) { currentPage++; updateView(); } };
+            };
+            
+            const insertAnchor = list.tagName.toLowerCase() === 'tbody' ? list.closest('table') : list;
+            insertAnchor.parentNode.insertBefore(controls, insertAnchor.nextSibling);
+            updateView();
+        });
+    }
+
+    async function switchTab(evt, tabName) {
+        var i, tabcontent, tablinks;
+        tabcontent = document.getElementsByClassName("tab-content");
+        for (i = 0; i < tabcontent.length; i++) {
+            tabcontent[i].style.display = "none";
+            tabcontent[i].classList.remove("active");
+        }
+        tablinks = document.getElementsByClassName("tab-btn");
+        for (i = 0; i < tablinks.length; i++) {
+            tablinks[i].classList.remove("active");
+        }
+        
+        const target = document.getElementById(tabName);
+        if (target) {
+            target.style.display = "block";
+            target.classList.add("active");
+            
+            // Lazy loading logic
+            if (target.getAttribute('data-loaded') === 'false') {
+                target.innerHTML = `
+                    <div class="tab-loader">
+                        <div class="spinner"></div>
+                        <p>Carregando dados...</p>
+                    </div>
+                `;
+                try {
+                    const baseUrl = "{{ url_for('patients.get_tab_content', id=patient.id, tab_name='TAB_NAME') }}";
+                    const fetchUrl = baseUrl.replace('TAB_NAME', tabName);
+                    
+                    const response = await fetch(fetchUrl);
+                    if (!response.ok) throw new Error('Falha ao carregar conteúdo');
+                    const html = await response.text();
+                    target.innerHTML = html;
+                    target.setAttribute('data-loaded', 'true');
+                    
+                    if (typeof initPagination === 'function') initPagination(target);
+                    
+                    // Re-inicialização de componentes específicos se necessário
+                    if (tabName === 'tab-receituario' || tabName === 'tab-atestado') {
+                        // Scripts de documentos carregados dinamicamente
+                    }
+                } catch (error) {
+                    target.innerHTML = `
+                        <div class="tab-loader" style="color: hsl(var(--danger));">
+                            <p>❌ Erro ao carregar aba. Tente recarregar a página.</p>
+                        </div>
+                    `;
+                    console.error('Erro no lazy loading:', error);
+                }
+            }
+        }
+        
+        if (evt && evt.currentTarget) {
+            evt.currentTarget.classList.add("active");
+        } else {
+            const btn = document.querySelector(`button[onclick*="'${tabName}'"]`);
+            if (btn) btn.classList.add("active");
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        if (window.location.hash) {
+            const hash = window.location.hash.substring(1);
+            if (document.getElementById(hash) && document.getElementById(hash).classList.contains('tab-content')) {
+                switchTab(null, hash);
+                const tabsContainer = document.querySelector('.tabs-container');
+                if (tabsContainer) tabsContainer.scrollIntoView({ behavior: 'smooth' });
+            } else {
+                switchTab(null, 'tab-paciente');
+            }
+        } else {
+            switchTab(null, 'tab-paciente');
+        }
+    });
+
+    function openSignModal(actionUrl) {
+        const modal = document.getElementById('signModal');
+        const form = document.getElementById('signForm');
+        form.action = actionUrl;
+        modal.style.display = 'flex';
+    }
+
+    function closeSignModal() {
+        const modal = document.getElementById('signModal');
+        const form = document.getElementById('signForm');
+        modal.style.display = 'none';
+        form.reset();
+    }
+
+    // Prótese - Funções Adicionais
+    function toggleNewProsthesisForm(tipo) {
+        document.getElementById('form-tipo').value = tipo;
+        document.getElementById('form-title').innerText = "Iniciar Acompanhamento - " + tipo;
+        document.getElementById('new-prosthesis-form').style.display = 'block';
+        document.getElementById('new-prosthesis-form').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function openEtapaSignModal(actionUrl) {
+        const modal = document.getElementById('signModal');
+        const form = document.getElementById('signForm');
+        form.action = actionUrl;
+
+        // Adiciona input hidden para patient_id se não existir
+        if (!form.querySelector('input[name="patient_id"]')) {
+            const hid = document.createElement('input');
+            hid.type = 'hidden';
+            hid.name = 'patient_id';
+            hid.value = "{{ patient.id }}";
+            form.appendChild(hid);
+        }
+
+        modal.style.display = 'flex';
+    }
+
+    function openAddPaymentModal(actionUrl) {
+        const modal = document.getElementById('paymentModal');
+        const form = document.getElementById('paymentForm');
+        form.action = actionUrl;
+
+        const canvas = document.getElementById('signature-pad-payment');
+        if (canvas && typeof SignaturePad !== 'undefined' && !canvas.padInitialized) {
+            const signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)' });
+            document.getElementById('clear-signature-payment').addEventListener('click', () => signaturePad.clear());
+
+            form.addEventListener('submit', function (e) {
+                if (signaturePad.isEmpty()) {
+                    e.preventDefault();
+                    alert('Por favor, solicite a assinatura do paciente.');
+                    return;
+                }
+                document.getElementById('assinatura_base64_payment').value = signaturePad.toDataURL();
+            });
+
+            function resizeCanvasPag() {
+                const ratio = Math.max(window.devicePixelRatio || 1, 1);
+                canvas.width = canvas.offsetWidth * ratio;
+                canvas.height = canvas.offsetHeight * ratio;
+                canvas.getContext("2d").scale(ratio, ratio);
+                signaturePad.clear();
+            }
+            window.addEventListener("resize", resizeCanvasPag);
+            resizeCanvasPag();
+            canvas.padInitialized = true;
+            setTimeout(resizeCanvasPag, 100);
+        }
+
+        modal.style.display = 'flex';
+    }
+
+    function closeAddPaymentModal() {
+        document.getElementById('paymentModal').style.display = 'none';
+        document.getElementById('paymentForm').reset();
+    }
+
+    function openEditAgreementModal(currentValue) {
+        document.getElementById('edit_agreement_valor').value = currentValue;
+        document.getElementById('agreementModal').style.display = 'flex';
+    }
+
+    function closeEditAgreementModal() {
+        document.getElementById('agreementModal').style.display = 'none';
+        document.getElementById('editAgreementForm').reset();
+    }
+
+    function openDeleteCaseModal(actionUrl) {
+        const modal = document.getElementById('signModal');
+        const form = document.getElementById('signForm');
+        form.action = actionUrl;
+
+        const title = modal.querySelector('h3');
+        const originalTitleText = title.innerText;
+        const originalTitleColor = title.style.color;
+
+        title.innerText = 'Autorização de Exclusão';
+        title.style.color = 'hsl(var(--danger))';
+
+        const sub = modal.querySelector('button[type="submit"]');
+        const originalSubText = sub.innerText;
+        const originalSubClass = sub.className;
+
+        sub.innerText = 'Confirmar Exclusão';
+        sub.className = 'btn btn-danger';
+
+        const originalClose = window.closeSignModal;
+        window.closeSignModal = function () {
+            title.innerText = originalTitleText;
+            title.style.color = originalTitleColor;
+            sub.innerText = originalSubText;
+            sub.className = originalSubClass;
+            originalClose();
+            window.closeSignModal = originalClose;
+        };
+
+        modal.style.display = 'flex';
+    }
+
+    function openDeleteExamModal(actionUrl) {
+        const modal = document.getElementById('signModal');
+        const form = document.getElementById('signForm');
+        form.action = actionUrl;
+
+        const title = modal.querySelector('h3');
+        const originalTitleText = title.innerText;
+        const originalTitleColor = title.style.color;
+
+        title.innerText = 'Autorização para Excluir Exame';
+        title.style.color = 'hsl(var(--danger))';
+
+        const sub = modal.querySelector('button[type="submit"]');
+        const originalSubText = sub.innerText;
+        const originalSubClass = sub.className;
+
+        sub.innerText = 'Confirmar Exclusão';
+        sub.className = 'btn btn-danger';
+
+        const originalClose = window.closeSignModal;
+        window.closeSignModal = function () {
+            title.innerText = originalTitleText;
+            title.style.color = originalTitleColor;
+            sub.innerText = originalSubText;
+            sub.className = originalSubClass;
+            originalClose();
+            window.closeSignModal = originalClose;
+        };
+
+        modal.style.display = 'flex';
+    }
+
+    function switchSubTab(evt, subtabName) {
+        var i, subtabcontent, subtablinks;
+        subtabcontent = document.getElementsByClassName("subtab-content");
+        for (i = 0; i < subtabcontent.length; i++) {
+            subtabcontent[i].style.display = "none";
+            subtabcontent[i].classList.remove("active");
+        }
+        subtablinks = document.getElementsByClassName("subtab-btn");
+        for (i = 0; i < subtablinks.length; i++) {
+            subtablinks[i].classList.remove("active");
+        }
+        document.getElementById(subtabName).style.display = "block";
+        document.getElementById(subtabName).classList.add("active");
+        evt.currentTarget.classList.add("active");
+    }
+
+    function handleTabClick(evt, tabName) {
+        const btn = evt.currentTarget;
+        if (btn.getAttribute('data-locked') === '1') {
+            showTcleAlert();
+            return;
+        }
+        switchTab(evt, tabName);
+    }
+
+    function showTcleAlert() {
+        alert('Acesso Bloqueado: Este prontuário só será liberado após o paciente assinar o Termo de Consentimento (TCLE).');
+    }
+
+    function openPatientSignModal(actionUrl) {
+        const modal = document.getElementById('patientSignModal');
+        const form = document.getElementById('patientSignForm');
+        form.action = actionUrl;
+
+        // Setup signature pad for patient sign modal
+        const canvas = document.getElementById('signature-pad-patient');
+        if (canvas && typeof SignaturePad !== 'undefined' && !canvas.padInitialized) {
+            const signaturePad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)' });
+            document.getElementById('clear-signature-patient').addEventListener('click', () => signaturePad.clear());
+
+            form.addEventListener('submit', function (e) {
+                if (signaturePad.isEmpty()) {
+                    e.preventDefault();
+                    alert('Por favor, assine no quadro ou clique em Cancelar.');
+                    return;
+                }
+                document.getElementById('assinatura_base64_patient').value = signaturePad.toDataURL();
+            });
+
+            function resizeCanvas() {
+                const ratio = Math.max(window.devicePixelRatio || 1, 1);
+                canvas.width = canvas.offsetWidth * ratio;
+                canvas.height = canvas.offsetHeight * ratio;
+                canvas.getContext("2d").scale(ratio, ratio);
+                signaturePad.clear();
+            }
+            window.addEventListener("resize", resizeCanvas);
+            resizeCanvas();
+            canvas.padInitialized = true;
+
+            // Call again after modal display to fix sizing issues
+            setTimeout(resizeCanvas, 100);
+        } else if (canvas && canvas.padInitialized) {
+            // just clear it
+            const clearBtn = document.getElementById('clear-signature-patient');
+            if (clearBtn) clearBtn.click();
+        }
+
+        modal.style.display = 'flex';
+    }
+
+    function closePatientSignModal() {
+        const modal = document.getElementById('patientSignModal');
+        modal.style.display = 'none';
+        document.getElementById('patientSignForm').reset();
+    }
+
+    function openEditAtendimentoModal(btn) {
+        const patientId = btn.getAttribute('data-patient');
+        const apptId = btn.getAttribute('data-appt');
+        const data = btn.getAttribute('data-date');
+        const observacoes = btn.getAttribute('data-obs');
+
+        const modal = document.getElementById('editAtendimentoModal');
+        const form = document.getElementById('editAtendimentoForm');
+        form.action = "{{ url_for('patients.edit_atendimento', id=0, appt_id=1) }}"
+            .replace('/0/', '/' + patientId + '/')
+            .replace('/1/', '/' + apptId + '/');
+
+        document.getElementById('edit_atend_data').value = data;
+        document.getElementById('edit_atend_observacoes').value = observacoes;
+
+        modal.style.display = 'flex';
+    }
+
+    function closeEditAtendimentoModal() {
+        const modal = document.getElementById('editAtendimentoModal');
+        modal.style.display = 'none';
+        document.getElementById('editAtendimentoForm').reset();
+    }
+
+    function openEditTreatmentModal(btn) {
+        const procId = btn.getAttribute('data-id');
+        const dente = btn.getAttribute('data-dente');
+        const desc = btn.getAttribute('data-desc');
+
+        const modal = document.getElementById('editTreatmentModal');
+        const form = document.getElementById('editTreatmentForm');
+
+        // Set action URL correctly using patient.id
+        form.action = "{{ url_for('patients.edit_treatment', id=patient.id, proc_id=0) }}".replace('/0', '/' + procId);
+
+        document.getElementById('edit_proc_dente').value = dente;
+        document.getElementById('edit_proc_desc').value = desc;
+
+        modal.style.display = 'flex';
+    }
+
+    function closeEditTreatmentModal() {
+        const modal = document.getElementById('editTreatmentModal');
+        modal.style.display = 'none';
+        document.getElementById('editTreatmentForm').reset();
+    }
+
+    function openDeleteEndoModal(actionUrl, elemento) {
+        const modal = document.getElementById('signModal');
+        const form = document.getElementById('signForm');
+        form.action = actionUrl;
+
+        // Adiciona input hidden para patient_id
+        if (!form.querySelector('input[name="patient_id"]')) {
+            const hid = document.createElement('input');
+            hid.type = 'hidden';
+            hid.name = 'patient_id';
+            hid.value = "{{ patient.id }}";
+            form.appendChild(hid);
+        }
+
+        const title = modal.querySelector('h3');
+        const originalTitleText = title.innerText;
+        const originalTitleColor = title.style.color;
+
+        title.innerText = 'Validação de Professor (Excluir Dente ' + elemento + ')';
+        title.style.color = 'hsl(var(--danger))';
+
+        const sub = modal.querySelector('button[type="submit"]');
+        const originalSubText = sub.innerText;
+        const originalSubClass = sub.className;
+
+        sub.innerText = 'Confirmar Exclusão';
+        sub.className = 'btn btn-danger';
+
+        const originalClose = window.closeSignModal;
+        window.closeSignModal = function () {
+            title.innerText = originalTitleText;
+            title.style.color = originalTitleColor;
+            sub.innerText = originalSubText;
+            sub.className = originalSubClass;
+            originalClose();
+            window.closeSignModal = originalClose;
+        };
+
+        modal.style.display = 'flex';
+    }
+
+    function openStudentSignModal(actionUrl) {
+        const modal = document.getElementById('studentSignModal');
+        const form = document.getElementById('studentSignForm');
+        form.action = actionUrl;
+        modal.style.display = 'flex';
+    }
+
+    function closeStudentSignModal() {
+        const modal = document.getElementById('studentSignModal');
+        modal.style.display = 'none';
+        document.getElementById('studentSignForm').reset();
+    }
+
+    function openNovaReceitaModal(evt) {
+        if(evt) evt.preventDefault();
+        console.log("Abrindo modal nova receita...");
+        const modal = document.getElementById('novaReceitaModal');
+        console.log("Modal element:", modal);
+        if (modal) modal.style.display = 'flex';
+    }
+
+    function closeNovaReceitaModal() {
+        document.getElementById('novaReceitaModal').style.display = 'none';
+        document.getElementById('novaReceitaForm').reset();
+        // Reset to exactly one medication row when closed
+        const container = document.getElementById('medicamentos-container');
+        const rows = container.querySelectorAll('.medicamento-row');
+        for(let i = 1; i < rows.length; i++) {
+            rows[i].remove();
+        }
+    }
+
+    function addMedicamentoRow() {
+        const container = document.getElementById('medicamentos-container');
+        
+        const row = document.createElement('div');
+        row.className = 'medicamento-row animate-fade';
+        row.style.cssText = 'background: hsl(var(--bg-main)); padding: 1rem; border-radius: var(--radius-sm); margin-bottom: 1rem; position: relative;';
+        row.innerHTML = `
+            <button type="button" class="btn btn-danger" style="position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.2rem 0.5rem; font-size: 0.8rem;" onclick="this.closest('.medicamento-row').remove()" title="Remover">-</button>
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 1rem; margin-top: 0.5rem;">
+                <div>
+                    <label class="form-label" style="font-size: 0.8rem;">Medicamento</label>
+                    <input type="text" name="medicamento[]" class="form-control" placeholder="Ex: Amoxicilina 500mg" required>
+                </div>
+                <div>
+                    <label class="form-label" style="font-size: 0.8rem;">Quantidade</label>
+                    <input type="text" name="quantidade[]" class="form-control" placeholder="Ex: 1 cx" required>
+                </div>
+            </div>
+            <div>
+                <label class="form-label" style="font-size: 0.8rem;">Posologia (Como tomar)</label>
+                <input type="text" name="uso_med[]" class="form-control" placeholder="Ex: Tomar 1 comprimido de 8/8h" required>
+            </div>
+        `;
+        container.appendChild(row);
+        
+        // Foca no primeiro campo do novo medicamento
+        setTimeout(() => {
+            const input = row.querySelector('input');
+            if(input) input.focus();
+        }, 100);
+    }
+
+    function openNovoAtestadoModal(evt) {
+        if(evt) evt.preventDefault();
+        console.log("Abrindo modal novo atestado...");
+        const modal = document.getElementById('novoAtestadoModal');
+        console.log("Modal element:", modal);
+        if (modal) modal.style.display = 'flex';
+    }
+
+    function closeNovoAtestadoModal() {
+        document.getElementById('novoAtestadoModal').style.display = 'none';
+        document.getElementById('novoAtestadoForm').reset();
+    }
+</script>

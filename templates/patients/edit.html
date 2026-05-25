@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Paciente - {{ patient.nome }}{% endblock %}
+
+{% block content %}
+<div class="document-container animate-fade">
+    <div style="margin-bottom: 2rem;">
+        <a href="{{ url_for('patients.view_patient', id=patient.id) }}"
+            style="display: inline-flex; align-items: center; gap: 0.5rem; color: hsl(var(--text-muted)); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.2s;"
+            onmouseover="this.style.color='hsl(var(--primary))'" onmouseout="this.style.color='hsl(var(--text-muted))'">
+            <span>⬅️</span> Voltar ao Prontuário
+        </a>
+    </div>
+
+    <div class="document-header" style="border-color: hsl(var(--primary));">
+        <h1 style="color: hsl(var(--primary));">PRONTUÁRIO ODONTOLÓGICO</h1>
+        <h2 style="color: hsl(var(--text-muted));">EDIÇÃO DE CADASTRO</h2>
+    </div>
+
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-grid">
+            <!-- Coluna da Esquerda -->
+            <div class="form-column">
+                <div class="form-group-inline">
+                    <label for="cns" class="form-label">CNS:</label>
+                    <input type="text" name="cns" id="cns" class="form-control" value="{{ patient.cns or '' }}">
+                </div>
+
+                <div class="form-group-inline">
+                    <label for="nome" class="form-label">Nome Completo:</label>
+                    <input type="text" name="nome" id="nome" class="form-control" required value="{{ patient.nome }}">
+                </div>
+
+                <div class="form-group-inline">
+                    <label for="rg" class="form-label">Identificação (RG):</label>
+                    <input type="text" name="rg" id="rg" class="form-control" value="{{ patient.rg or '' }}">
+                </div>
+
+                <div class="form-group-inline">
+                    <label for="cpf" class="form-label">CPF:</label>
+                    <input type="text" name="cpf" id="cpf" class="form-control" value="{{ patient.cpf or '' }}">
+                </div>
+
+                <div class="form-group-inline">
+                    <label for="profissao" class="form-label">Profissão:</label>
+                    <input type="text" name="profissao" id="profissao" class="form-control"
+                        value="{{ patient.profissao or '' }}">
+                </div>
+
+                <div class="form-group-inline">
+                    <label for="endereco_residencial" class="form-label">End. Residencial:</label>
+                    <input type="text" name="endereco_residencial" id="endereco_residencial" class="form-control"
+                        value="{{ patient.endereco_residencial or '' }}">
+                </div>
+
+                <div class="form-group-inline">
+                    <label for="endereco_comercial" class="form-label">End. Comercial:</label>
+                    <input type="text" name="endereco_comercial" id="endereco_comercial" class="form-control"
+                        value="{{ patient.endereco_comercial or '' }}">
+                </div>
+
+                <div class="form-group-inline">
+                    <label for="cd_anterior" class="form-label">CD Anterior:</label>
+                    <input type="text" name="cd_anterior" id="cd_anterior" class="form-control"
+                        value="{{ patient.cd_anterior or '' }}">
+                </div>
+
+                <div class="form-group-inline">
+                    <label for="email" class="form-label">E-mail para Contato:</label>
+                    <input type="email" name="email" id="email" class="form-control" value="{{ patient.email or '' }}">
+                </div>
+            </div>
+
+            <!-- Coluna da Direita -->
+            <div class="form-column">
+                <div class="form-section-title" style="margin-top: 0; color: hsl(var(--primary));">Dados Pessoais</div>
+
+                <div class="form-group-inline">
+                    <label class="form-label">Gênero:</label>
+                    <div class="radio-group">
+                        <label class="radio-option">
+                            <input type="radio" name="genero" value="Masc" {% if patient.genero=='Masc' %}checked{%
+                                endif %}> Masc
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="genero" value="Fem" {% if patient.genero=='Fem' %}checked{% endif
+                                %}> Fem
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group-inline">
+                    <label for="data_nascimento" class="form-label">Nascimento:</label>
+                    <input type="date" name="data_nascimento" id="data_nascimento" class="form-control"
+                        value="{{ patient.data_nascimento }}">
+                </div>
+
+                <div class="form-group-inline">
+                    <label for="nacionalidade" class="form-label">Nacionalidade:</label>
+                    <input type="text" name="nacionalidade" id="nacionalidade" class="form-control"
+                        value="{{ patient.nacionalidade or '' }}">
+                </div>
+
+                <div class="form-group-inline">
+                    <label for="celular" class="form-label">Celular:</label>
+                    <input type="text" name="celular" id="celular" class="form-control"
+                        value="{{ patient.celular or '' }}">
+                </div>
+
+                <div class="form-group-inline">
+                    <label for="estado_civil" class="form-label">Estado Civil:</label>
+                    <input type="text" name="estado_civil" id="estado_civil" class="form-control"
+                        value="{{ patient.estado_civil or '' }}">
+                </div>
+
+                <div class="form-group-inline">
+                    <label for="atendido_em" class="form-label">Atendido em:</label>
+                    <input type="text" name="atendido_em" id="atendido_em" class="form-control"
+                        value="{{ patient.atendido_em or '' }}">
+                </div>
+
+                <div class="form-section-title" style="margin-top: 2.5rem; color: hsl(var(--primary));">Responsável
+                    Legal</div>
+
+                <div class="form-group-inline">
+                    <label for="nome_responsavel" class="form-label">Nome Completo:</label>
+                    <input type="text" name="nome_responsavel" id="nome_responsavel" class="form-control"
+                        value="{{ patient.nome_responsavel or '' }}">
+                </div>
+
+                <div class="form-group-inline">
+                    <label for="rg_responsavel" class="form-label">RG nº:</label>
+                    <input type="text" name="rg_responsavel" id="rg_responsavel" class="form-control"
+                        value="{{ patient.rg_responsavel or '' }}">
+                </div>
+
+                <div class="form-group-inline">
+                    <label for="email_responsavel" class="form-label">E-mail:</label>
+                    <input type="email" name="email_responsavel" id="email_responsavel" class="form-control"
+                        value="{{ patient.email_responsavel or '' }}">
+                </div>
+            </div>
+        </div>
+
+        <!-- Seção de Confirmação de Segurança -->
+        <div class="card"
+            style="margin-top: 4rem; padding: 2.5rem; border: 2px solid hsl(var(--primary)/0.2); background: hsl(var(--primary-soft)/0.3);">
+            <div style="display: flex; gap: 2rem; align-items: center;">
+                <div style="font-size: 2.5rem;">🔒</div>
+                <div style="flex-grow: 1;">
+                    <h4 style="margin-bottom: 0.5rem; color: hsl(var(--primary)); font-weight: 700;">Confirmação de
+                        Alteração</h4>
+                    <p style="color: hsl(var(--text-muted)); font-size: 0.95rem;">Para salvar as alterações no
+                        prontuário de <strong>{{ patient.nome }}</strong>, confirme sua senha de acesso.</p>
+                </div>
+                <div style="width: 300px;">
+                    <input type="password" name="confirm_password" required placeholder="Digite sua senha..."
+                        style="width: 100%; padding: 0.8rem; border: 1.5px solid hsl(var(--primary)/0.3); border-radius: var(--radius-md);">
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions"
+            style="border-top: 1px solid hsl(var(--border)); padding-top: 3rem; margin-top: 4rem;">
+            <button type="submit" class="btn btn-primary" id="submit-btn" style="padding: 1.25rem 4rem; font-size: 1.1rem;">💾 SALVAR
+                ALTERAÇÕES</button>
+            <a href="{{ url_for('patients.list_patients') }}" class="btn btn-outline"
+                style="padding: 1.25rem 2rem;">CANCELAR</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
