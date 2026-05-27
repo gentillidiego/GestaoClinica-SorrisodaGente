@@ -52,10 +52,12 @@ O módulo de triagem organiza as grandes ações realizadas nos municípios de A
 
 ### Dinâmica operacional
 1. A equipe cria uma **Ação de Triagem** informando município, data, local e observações.
-2. Dentro da ação, são geradas senhas por especialidade.
+2. Dentro da ação, o operador seleciona uma especialidade e gera **uma senha por vez**.
 3. A senha entregue ao paciente usa o formato `MUN-ESP-000`.
-4. No cadastro do paciente, a primeira informação obrigatória é a **Senha de Triagem**.
-5. Após o cadastro, a senha fica vinculada ao prontuário e a especialidade aparece em destaque no cabeçalho do paciente.
+4. Após gerar, o sistema exibe um popup grande com a senha para o operador anotar e entregar ao paciente.
+5. No cadastro do paciente, a primeira informação é a **Senha de Triagem**, mas o campo é opcional.
+6. Quando preenchida, a senha fica vinculada ao prontuário e a especialidade aparece em destaque no cabeçalho do paciente.
+7. Quando o paciente é cadastrado sem senha, o sistema exibe um aviso relevante informando que a senha e a especialidade de encaminhamento não constarão no prontuário.
 
 ### Exemplos de senhas
 | Senha | Origem | Especialidade |

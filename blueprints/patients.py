@@ -18,23 +18,25 @@ def register():
     senha_triagem = _normalize_triage_code(request.args.get('senha'))
     if request.method == 'POST':
         senha_triagem = _normalize_triage_code(request.form.get('senha_triagem'))
-        triage_ticket = query('''
-            SELECT s.*, e.nome as especialidade_nome, m.nome as municipio_nome
-            FROM triagem_senhas s
-            JOIN especialidades e ON s.especialidade_id = e.id
-            JOIN municipios m ON s.municipio_id = m.id
-            WHERE s.codigo = %s
-        ''', (senha_triagem,), one=True)
+        triage_ticket = None
+        if senha_triagem:
+            triage_ticket = query('''
+                SELECT s.*, e.nome as especialidade_nome, m.nome as municipio_nome
+                FROM triagem_senhas s
+                JOIN especialidades e ON s.especialidade_id = e.id
+                JOIN municipios m ON s.municipio_id = m.id
+                WHERE s.codigo = %s
+            ''', (senha_triagem,), one=True)
 
-        if not triage_ticket:
-            flash('Senha de triagem não encontrada. Verifique o código informado.', 'danger')
-            return render_template('patients/register.html', senha_triagem=senha_triagem)
-        if triage_ticket['patient_id']:
-            flash('Esta senha de triagem já está vinculada a outro paciente.', 'danger')
-            return render_template('patients/register.html', senha_triagem=senha_triagem)
-        if triage_ticket['status'] == 'Cancelada':
-            flash('Esta senha de triagem está cancelada e não pode iniciar atendimento.', 'danger')
-            return render_template('patients/register.html', senha_triagem=senha_triagem)
+            if not triage_ticket:
+                flash('Senha de triagem não encontrada. Verifique o código informado.', 'danger')
+                return render_template('patients/register.html', senha_triagem=senha_triagem)
+            if triage_ticket['patient_id']:
+                flash('Esta senha de triagem já está vinculada a outro paciente.', 'danger')
+                return render_template('patients/register.html', senha_triagem=senha_triagem)
+            if triage_ticket['status'] == 'Cancelada':
+                flash('Esta senha de triagem está cancelada e não pode iniciar atendimento.', 'danger')
+                return render_template('patients/register.html', senha_triagem=senha_triagem)
 
         # Coleta de dados do formulário
         data = {
@@ -61,36 +63,51 @@ def register():
         }
         
         try:
-            patient_id = execute('''
-                WITH available_ticket AS (
-                    SELECT id
-                    FROM triagem_senhas
-                    WHERE id = %s AND patient_id IS NULL AND status != 'Cancelada'
-                    FOR UPDATE
-                ),
-                new_patient AS (
+            if triage_ticket:
+                patient_id = execute('''
+                    WITH available_ticket AS (
+                        SELECT id
+                        FROM triagem_senhas
+                        WHERE id = %s AND patient_id IS NULL AND status != 'Cancelada'
+                        FOR UPDATE
+                    ),
+                    new_patient AS (
+                        INSERT INTO patients (
+                            cns, nome, rg, cpf, profissao, endereco_residencial, endereco_comercial,
+                            cd_anterior, endereco_comercial_adicional, email, genero, data_nascimento,
+                            nacionalidade, celular, estado_civil, atendido_em, nome_responsavel,
+                            rg_responsavel, telefone_expedidor_responsavel, email_responsavel
+                        )
+                        SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        WHERE EXISTS (SELECT 1 FROM available_ticket)
+                        RETURNING id
+                    )
+                    UPDATE triagem_senhas
+                    SET status = 'Vinculada',
+                        patient_id = (SELECT id FROM new_patient),
+                        vinculada_em = CURRENT_TIMESTAMP
+                    WHERE id = (SELECT id FROM available_ticket)
+                    RETURNING patient_id as id
+                ''', (triage_ticket['id'], *list(data.values())))
+                if not patient_id:
+                    flash('A senha foi vinculada por outro atendimento. Atualize e tente novamente.', 'danger')
+                    return render_template('patients/register.html', senha_triagem=senha_triagem)
+                flash('Paciente cadastrado com sucesso!', 'success')
+            else:
+                patient_id = execute('''
                     INSERT INTO patients (
                         cns, nome, rg, cpf, profissao, endereco_residencial, endereco_comercial,
                         cd_anterior, endereco_comercial_adicional, email, genero, data_nascimento,
                         nacionalidade, celular, estado_civil, atendido_em, nome_responsavel,
                         rg_responsavel, telefone_expedidor_responsavel, email_responsavel
-                    )
-                    SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                    WHERE EXISTS (SELECT 1 FROM available_ticket)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
+                ''', list(data.values()))
+                flash(
+                    'ATENÇÃO: paciente salvo sem senha de triagem. Portanto, a senha e a especialidade de encaminhamento não constarão no prontuário.',
+                    'warning'
                 )
-                UPDATE triagem_senhas
-                SET status = 'Vinculada',
-                    patient_id = (SELECT id FROM new_patient),
-                    vinculada_em = CURRENT_TIMESTAMP
-                WHERE id = (SELECT id FROM available_ticket)
-                RETURNING patient_id as id
-            ''', (triage_ticket['id'], *list(data.values())))
-            if not patient_id:
-                flash('A senha foi vinculada por outro atendimento. Atualize e tente novamente.', 'danger')
-                return render_template('patients/register.html', senha_triagem=senha_triagem)
 
-            flash('Paciente cadastrado com sucesso!', 'success')
             return redirect(url_for('patients.view_patient', id=patient_id))
         except Exception as e:
             flash(f'Erro ao cadastrar paciente: {str(e)}', 'danger')

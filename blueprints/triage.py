@@ -118,6 +118,7 @@ def view_action(action_id):
         especialidades=especialidades,
         summary=summary,
         tickets=tickets,
+        generated_ticket=_normalize_code(request.args.get('senha_gerada')),
     )
 
 
@@ -134,9 +135,8 @@ def generate_tickets(action_id):
         return redirect(url_for('triage.list_actions'))
 
     especialidade_id = request.form.get('especialidade_id', type=int)
-    quantidade = request.form.get('quantidade', type=int)
-    if not especialidade_id or not quantidade or quantidade < 1:
-        flash('Informe a especialidade e uma quantidade válida.', 'danger')
+    if not especialidade_id:
+        flash('Informe a especialidade para gerar a senha.', 'danger')
         return redirect(url_for('triage.view_action', action_id=action_id))
 
     especialidade = query("SELECT id, codigo FROM especialidades WHERE id = %s AND ativo = 1", (especialidade_id,), one=True)
@@ -144,26 +144,22 @@ def generate_tickets(action_id):
         flash('Especialidade inválida.', 'danger')
         return redirect(url_for('triage.view_action', action_id=action_id))
 
-    if quantidade > 500:
-        flash('Gere no máximo 500 senhas por vez.', 'danger')
-        return redirect(url_for('triage.view_action', action_id=action_id))
-
     last = query('''
         SELECT COALESCE(MAX(numero), 0) as ultimo
         FROM triagem_senhas
         WHERE municipio_id = %s AND especialidade_id = %s
     ''', (action['municipio_id'], especialidade_id), one=True)
-    start = (last['ultimo'] or 0) + 1
+    numero = (last['ultimo'] or 0) + 1
+    codigo = f"{action['municipio_codigo']}-{especialidade['codigo']}-{numero:03d}"
 
     try:
-        for numero in range(start, start + quantidade):
-            codigo = f"{action['municipio_codigo']}-{especialidade['codigo']}-{numero:03d}"
-            execute('''
-                INSERT INTO triagem_senhas (
-                    triagem_acao_id, municipio_id, especialidade_id, numero, codigo
-                ) VALUES (%s, %s, %s, %s, %s)
-            ''', (action_id, action['municipio_id'], especialidade_id, numero, codigo))
-        flash(f'{quantidade} senha(s) gerada(s) com sucesso.', 'success')
+        execute('''
+            INSERT INTO triagem_senhas (
+                triagem_acao_id, municipio_id, especialidade_id, numero, codigo
+            ) VALUES (%s, %s, %s, %s, %s)
+        ''', (action_id, action['municipio_id'], especialidade_id, numero, codigo))
+        flash(f'Senha {codigo} gerada com sucesso.', 'success')
+        return redirect(url_for('triage.view_action', action_id=action_id, senha_gerada=codigo))
     except Exception as e:
         flash(f'Erro ao gerar senhas: {str(e)}', 'danger')
 
