@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Senhas de Triagem - Gestão Clínica{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; margin-bottom:2rem; flex-wrap:wrap;">
+        <div>
+            <h1 style="font-family:var(--font-heading); font-size:2rem; font-weight:800; color:hsl(var(--primary));">Senhas de Triagem</h1>
+            <p style="color:hsl(var(--text-muted)); margin-top:0.5rem;">Busque e acompanhe senhas no formato município-especialidade-número.</p>
+        </div>
+        <a href="{{ url_for('triage.list_actions') }}" class="btn btn-outline" style="background:white;">Ações</a>
+    </div>
+
+    <div class="card" style="margin-bottom:2rem;">
+        <form method="GET" action="{{ url_for('triage.list_tickets') }}" style="display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr auto; gap:1rem; align-items:end;">
+            <div>
+                <label class="form-label">Senha</label>
+                <input type="text" name="q" class="form-control" value="{{ q }}" placeholder="Ex: ARA-P-001">
+            </div>
+            <div>
+                <label class="form-label">Município</label>
+                <select name="municipio_id" class="form-control">
+                    <option value="">Todos</option>
+                    {% for municipio in municipios %}
+                    <option value="{{ municipio.id }}" {% if municipio_id == municipio.id %}selected{% endif %}>{{ municipio.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="form-label">Especialidade</label>
+                <select name="especialidade_id" class="form-control">
+                    <option value="">Todas</option>
+                    {% for esp in especialidades %}
+                    <option value="{{ esp.id }}" {% if especialidade_id == esp.id %}selected{% endif %}>{{ esp.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="form-label">Status</label>
+                <select name="status" class="form-control">
+                    <option value="">Todos</option>
+                    {% for value in ['Disponível', 'Entregue', 'Vinculada', 'Cancelada'] %}
+                    <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ value }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary" style="height:48px;">Filtrar</button>
+        </form>
+    </div>
+
+    <div class="card" style="padding:0; overflow:hidden;">
+        {% if tickets %}
+        <div class="table-container">
+            <table style="width:100%; border-collapse:collapse; background:white;">
+                <thead>
+                    <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                        <th style="padding:1rem; color:hsl(var(--text-muted));">SENHA</th>
+                        <th style="padding:1rem; color:hsl(var(--text-muted));">ORIGEM</th>
+                        <th style="padding:1rem; color:hsl(var(--text-muted));">ESPECIALIDADE</th>
+                        <th style="padding:1rem; color:hsl(var(--text-muted));">STATUS</th>
+                        <th style="padding:1rem; color:hsl(var(--text-muted));">PACIENTE</th>
+                        <th style="padding:1rem; text-align:right; color:hsl(var(--text-muted));">AÇÃO</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ticket in tickets %}
+                    <tr style="border-bottom:1px solid hsl(var(--border));">
+                        <td style="padding:1rem; font-weight:900; color:hsl(var(--primary));">{{ ticket.codigo }}</td>
+                        <td style="padding:1rem;">
+                            {{ ticket.municipio_nome }}
+                            <div style="font-size:0.78rem; color:hsl(var(--text-muted));">{{ ticket.data_acao.strftime('%d/%m/%Y') if ticket.data_acao else '' }}</div>
+                        </td>
+                        <td style="padding:1rem;">{{ ticket.especialidade_nome }}</td>
+                        <td style="padding:1rem;"><span class="badge badge-primary">{{ ticket.status }}</span></td>
+                        <td style="padding:1rem; color:hsl(var(--text-muted));">{{ ticket.patient_nome or '—' }}</td>
+                        <td style="padding:1rem; text-align:right;">
+                            {% if not ticket.patient_id %}
+                            <form method="POST" action="{{ url_for('triage.update_ticket_status', ticket_id=ticket.id) }}" style="display:inline-flex; gap:0.4rem;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <select name="status" class="form-control" style="height:36px; min-width:130px;">
+                                    {% for value in ['Disponível', 'Entregue', 'Cancelada'] %}
+                                    <option value="{{ value }}" {% if ticket.status == value %}selected{% endif %}>{{ value }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-outline" style="background:white; padding:0.35rem 0.7rem;">Salvar</button>
+                            </form>
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="padding:4rem; text-align:center; color:hsl(var(--text-muted));">Nenhuma senha encontrada.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

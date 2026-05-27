@@ -19,6 +19,7 @@ from blueprints.anamnesis import anamnesis_bp
 from blueprints.exams import exams_bp
 from blueprints.prosthesis import prosthesis_bp
 from blueprints.agenda import agenda_bp
+from blueprints.triage import triage_bp
 
 load_dotenv()
 
@@ -127,6 +128,7 @@ def create_app():
     app.register_blueprint(documents_bp)
     app.register_blueprint(endodontia_bp)
     app.register_blueprint(agenda_bp)
+    app.register_blueprint(triage_bp)
     app.register_blueprint(reports_bp)
 
     # Configura logging e hooks de monitoramento

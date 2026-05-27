@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Ação de Triagem - Gestão Clínica{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="margin-bottom:2rem;">
+        <a href="{{ url_for('triage.list_actions') }}" style="color:hsl(var(--text-muted)); text-decoration:none; font-weight:600;">⬅️ Voltar para Triagem</a>
+    </div>
+
+    <div class="card" style="margin-bottom:2rem; border-left:6px solid hsl(var(--primary));">
+        <div style="display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+            <div>
+                <span style="font-size:0.75rem; font-weight:800; color:hsl(var(--primary)); text-transform:uppercase; letter-spacing:0.08em;">{{ action.municipio_codigo }} · Ação de Triagem</span>
+                <h1 style="font-family:var(--font-heading); color:hsl(var(--primary)); font-size:2rem; margin-top:0.5rem;">{{ action.municipio_nome }}</h1>
+                <p style="color:hsl(var(--text-muted)); margin-top:0.4rem;">
+                    {{ action.data_acao.strftime('%d/%m/%Y') if action.data_acao else 'Sem data' }} · {{ action.local or 'Local não informado' }}
+                </p>
+            </div>
+            <a href="{{ url_for('triage.list_tickets', municipio_id=action.municipio_id) }}" class="btn btn-outline" style="background:white; align-self:flex-start;">Ver Senhas</a>
+        </div>
+    </div>
+
+    <div class="card" style="margin-bottom:2rem;">
+        <h2 style="font-family:var(--font-heading); font-size:1.25rem; color:hsl(var(--primary)); margin-bottom:1rem;">Gerar senhas</h2>
+        <form method="POST" action="{{ url_for('triage.generate_tickets', action_id=action.id) }}" style="display:grid; grid-template-columns:2fr 1fr auto; gap:1rem; align-items:end;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div>
+                <label class="form-label">Especialidade</label>
+                <select name="especialidade_id" class="form-control" required>
+                    <option value="">Selecione...</option>
+                    {% for esp in especialidades %}
+                    <option value="{{ esp.id }}">{{ action.municipio_codigo }}-{{ esp.codigo }}-000 · {{ esp.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="form-label">Quantidade</label>
+                <input type="number" name="quantidade" class="form-control" min="1" max="500" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="height:48px;">Gerar</button>
+        </form>
+    </div>
+
+    <div class="card" style="margin-bottom:2rem;">
+        <h2 style="font-family:var(--font-heading); font-size:1.25rem; color:hsl(var(--primary)); margin-bottom:1rem;">Resumo por especialidade</h2>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem;">
+            {% for item in summary %}
+            <div style="border:1px solid hsl(var(--border)); border-radius:var(--radius-md); padding:1rem; background:hsl(var(--bg-main));">
+                <div style="font-weight:800; color:hsl(var(--primary));">{{ item.codigo }} · {{ item.nome }}</div>
+                <div style="font-size:0.85rem; color:hsl(var(--text-muted)); margin-top:0.5rem;">
+                    {{ item.total }} total · {{ item.disponiveis }} disp. · {{ item.vinculadas }} vinculadas
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="card" style="padding:0; overflow:hidden;">
+        <div style="padding:1.25rem; display:flex; justify-content:space-between; align-items:center;">
+            <h2 style="font-family:var(--font-heading); font-size:1.25rem; color:hsl(var(--primary)); margin:0;">Senhas geradas</h2>
+            <span style="color:hsl(var(--text-muted)); font-weight:600;">{{ tickets|length }} registros</span>
+        </div>
+        {% if tickets %}
+        <div class="table-container">
+            <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                        <th style="padding:1rem; color:hsl(var(--text-muted));">SENHA</th>
+                        <th style="padding:1rem; color:hsl(var(--text-muted));">ESPECIALIDADE</th>
+                        <th style="padding:1rem; color:hsl(var(--text-muted));">STATUS</th>
+                        <th style="padding:1rem; color:hsl(var(--text-muted));">PACIENTE</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ticket in tickets %}
+                    <tr style="border-bottom:1px solid hsl(var(--border));">
+                        <td style="padding:1rem; font-weight:900; color:hsl(var(--primary));">{{ ticket.codigo }}</td>
+                        <td style="padding:1rem;">{{ ticket.especialidade_nome }}</td>
+                        <td style="padding:1rem;"><span class="badge badge-primary">{{ ticket.status }}</span></td>
+                        <td style="padding:1rem; color:hsl(var(--text-muted));">{{ ticket.patient_nome or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="padding:3rem; text-align:center; color:hsl(var(--text-muted));">Nenhuma senha gerada para esta ação.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

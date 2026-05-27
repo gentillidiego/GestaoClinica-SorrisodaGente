@@ -119,6 +119,7 @@ MIGRATIONS = {
     'atendimentos': [
         ('assinatura_paciente_base64', 'TEXT'),
         ('professor_id', 'INTEGER'),
+        ('aluno_executor_id', 'INTEGER'),
         ('status', "TEXT DEFAULT 'Pendente'"),
         ('created_by', 'INTEGER')
     ],
@@ -140,6 +141,24 @@ MIGRATIONS = {
 def init_db():
     """Inicializa o banco de dados PostgreSQL com a estrutura necessária."""
     execute('''
+        CREATE TABLE IF NOT EXISTS municipios (
+            id SERIAL PRIMARY KEY,
+            nome TEXT NOT NULL,
+            codigo TEXT UNIQUE NOT NULL,
+            ativo INTEGER DEFAULT 1
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS especialidades (
+            id SERIAL PRIMARY KEY,
+            nome TEXT NOT NULL,
+            codigo TEXT UNIQUE NOT NULL,
+            ativo INTEGER DEFAULT 1
+        )
+    ''')
+
+    execute('''
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             username TEXT UNIQUE NOT NULL,
@@ -149,6 +168,21 @@ def init_db():
             matricula TEXT,
             cro TEXT,
             cro_uf TEXT
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS triagem_acoes (
+            id SERIAL PRIMARY KEY,
+            municipio_id INTEGER NOT NULL,
+            data_acao DATE NOT NULL,
+            local TEXT,
+            observacoes TEXT,
+            status TEXT DEFAULT 'Aberta',
+            created_by INTEGER,
+            criado_em TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (municipio_id) REFERENCES municipios(id),
+            FOREIGN KEY (created_by) REFERENCES users(id)
         )
     ''')
 
@@ -176,6 +210,27 @@ def init_db():
             telefone_expedidor_responsavel TEXT,
             email_responsavel TEXT,
             criado_em TIMESTAMP DEFAULT NOW()
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS triagem_senhas (
+            id SERIAL PRIMARY KEY,
+            triagem_acao_id INTEGER NOT NULL,
+            municipio_id INTEGER NOT NULL,
+            especialidade_id INTEGER NOT NULL,
+            numero INTEGER NOT NULL,
+            codigo TEXT UNIQUE NOT NULL,
+            status TEXT DEFAULT 'Disponível',
+            patient_id INTEGER UNIQUE,
+            entregue_em TIMESTAMP,
+            vinculada_em TIMESTAMP,
+            criado_em TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (triagem_acao_id) REFERENCES triagem_acoes(id) ON DELETE CASCADE,
+            FOREIGN KEY (municipio_id) REFERENCES municipios(id),
+            FOREIGN KEY (especialidade_id) REFERENCES especialidades(id),
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE SET NULL,
+            UNIQUE (municipio_id, especialidade_id, numero)
         )
     ''')
 
@@ -310,9 +365,13 @@ def init_db():
             observacoes TEXT,
             assinatura_paciente_base64 TEXT,
             professor_id INTEGER,
+            aluno_executor_id INTEGER,
             status TEXT DEFAULT 'Pendente',
             created_by INTEGER,
-            FOREIGN KEY (patient_id) REFERENCES patients (id)
+            FOREIGN KEY (patient_id) REFERENCES patients (id),
+            FOREIGN KEY (professor_id) REFERENCES users (id),
+            FOREIGN KEY (aluno_executor_id) REFERENCES users (id),
+            FOREIGN KEY (created_by) REFERENCES users (id)
         )
     ''')
 
@@ -512,6 +571,10 @@ def init_db():
     for table, cols in MIGRATIONS.items():
         _ensure_columns_exist(table, cols)
 
+    # Normaliza valores legados gravados sem acento para o padrão exibido na UI.
+    execute("UPDATE tratamento_procedimentos SET status = 'Concluído' WHERE status = 'Concluido'")
+    execute("UPDATE atendimentos SET status = 'Concluído' WHERE status = 'Concluido'")
+
     # === ÍNDICES DE PERFORMANCE ===
     indexes = [
         "CREATE INDEX IF NOT EXISTS idx_patients_nome ON patients(nome)",
@@ -521,6 +584,7 @@ def init_db():
         "CREATE INDEX IF NOT EXISTS idx_exams_patient_id ON exams(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_patient_id ON atendimentos(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_professor_id ON atendimentos(professor_id)",
+        "CREATE INDEX IF NOT EXISTS idx_atendimentos_aluno_executor_id ON atendimentos(aluno_executor_id)",
         "CREATE INDEX IF NOT EXISTS idx_tratamento_patient_id ON tratamento_procedimentos(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_tratamento_status ON tratamento_procedimentos(status)",
         "CREATE INDEX IF NOT EXISTS idx_prosthesis_patient_id ON prosthesis(patient_id)",
@@ -537,6 +601,10 @@ def init_db():
         "CREATE INDEX IF NOT EXISTS idx_exam_odontograma_exam_id ON exam_odontograma(exam_id)",
         "CREATE INDEX IF NOT EXISTS idx_exam_placa_exam_id ON exam_controle_placa(exam_id)",
         "CREATE INDEX IF NOT EXISTS idx_exam_periograma_exam_id ON exam_periograma(exam_id)",
+        "CREATE INDEX IF NOT EXISTS idx_triagem_senhas_codigo ON triagem_senhas(codigo)",
+        "CREATE INDEX IF NOT EXISTS idx_triagem_senhas_patient_id ON triagem_senhas(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_triagem_senhas_mun_esp ON triagem_senhas(municipio_id, especialidade_id)",
+        "CREATE INDEX IF NOT EXISTS idx_triagem_acoes_municipio ON triagem_acoes(municipio_id)",
     ]
     for idx_sql in indexes:
         execute(idx_sql)
@@ -567,4 +635,135 @@ def init_db():
     for idx_sql in agenda_indexes:
         execute(idx_sql)
 
+    seed_reference_data()
     print("Banco de dados PostgreSQL inicializado/verificado com sucesso!")
+
+def seed_reference_data():
+    """Garante os cadastros base usados pelo módulo de triagem."""
+    especialidades = [
+        ('Prótese Dentária', 'P'),
+        ('Implantodontia', 'I'),
+        ('Dentística', 'D'),
+        ('Ortodontia', 'ORT'),
+        ('Endodontia', 'END'),
+        ('Periodontia', 'PER'),
+        ('Cirurgia e Traumatologia Buco-Maxilo-Facial', 'CTBMF'),
+        ('Odontopediatria', 'ODP'),
+        ('Estética', 'EST'),
+    ]
+    municipios = [
+        ('Água Branca', 'AGB'),
+        ('Anadia', 'ANA'),
+        ('Arapiraca', 'ARA'),
+        ('Atalaia', 'ATL'),
+        ('Barra de Santo Antônio', 'BSA'),
+        ('Barra de São Miguel', 'BSM'),
+        ('Batalha', 'BAT'),
+        ('Belém', 'BEL'),
+        ('Belo Monte', 'BMT'),
+        ('Boca da Mata', 'BDM'),
+        ('Branquinha', 'BRQ'),
+        ('Cacimbinhas', 'CAC'),
+        ('Cajueiro', 'CAJ'),
+        ('Campestre', 'CAM'),
+        ('Campo Alegre', 'CPA'),
+        ('Campo Grande', 'CPG'),
+        ('Canapi', 'CAN'),
+        ('Capela', 'CAP'),
+        ('Carneiros', 'CAR'),
+        ('Chã Preta', 'CHP'),
+        ('Coité do Nóia', 'CDN'),
+        ('Colônia Leopoldina', 'CLP'),
+        ('Coqueiro Seco', 'CQS'),
+        ('Coruripe', 'COR'),
+        ('Craíbas', 'CRA'),
+        ('Delmiro Gouveia', 'DMG'),
+        ('Dois Riachos', 'DRI'),
+        ('Estrela de Alagoas', 'EDA'),
+        ('Feira Grande', 'FEG'),
+        ('Feliz Deserto', 'FZD'),
+        ('Flexeiras', 'FLX'),
+        ('Girau do Ponciano', 'GDP'),
+        ('Ibateguara', 'IBT'),
+        ('Igaci', 'IGA'),
+        ('Igreja Nova', 'IGN'),
+        ('Inhapi', 'INH'),
+        ('Jacaré dos Homens', 'JDH'),
+        ('Jacuípe', 'JCP'),
+        ('Japaratinga', 'JAP'),
+        ('Jaramataia', 'JRM'),
+        ('Jequiá da Praia', 'JQP'),
+        ('Joaquim Gomes', 'JQG'),
+        ('Jundiá', 'JUN'),
+        ('Junqueiro', 'JQR'),
+        ('Lagoa da Canoa', 'LDC'),
+        ('Limoeiro de Anadia', 'LDA'),
+        ('Maceió', 'MCZ'),
+        ('Major Isidoro', 'MJI'),
+        ('Mar Vermelho', 'MVM'),
+        ('Maragogi', 'MRG'),
+        ('Maravilha', 'MRV'),
+        ('Marechal Deodoro', 'MDR'),
+        ('Maribondo', 'MRB'),
+        ('Mata Grande', 'MTG'),
+        ('Matriz de Camaragibe', 'MTC'),
+        ('Messias', 'MES'),
+        ('Minador do Negrão', 'MDN'),
+        ('Monteirópolis', 'MTP'),
+        ('Murici', 'MUR'),
+        ('Novo Lino', 'NVL'),
+        ("Olho d'Água das Flores", 'OAF'),
+        ("Olho d'Água do Casado", 'OAC'),
+        ("Olho d'Água Grande", 'OAG'),
+        ('Olivença', 'OLV'),
+        ('Ouro Branco', 'OUB'),
+        ('Palestina', 'PAL'),
+        ('Palmeira dos Índios', 'PMI'),
+        ('Pão de Açúcar', 'PDA'),
+        ('Pariconha', 'PAR'),
+        ('Paripueira', 'PRP'),
+        ('Passo de Camaragibe', 'PDC'),
+        ('Paulo Jacinto', 'PJT'),
+        ('Penedo', 'PEN'),
+        ('Piaçabuçu', 'PIA'),
+        ('Pilar', 'PIL'),
+        ('Pindoba', 'PIN'),
+        ('Piranhas', 'PIR'),
+        ('Poço das Trincheiras', 'PDT'),
+        ('Porto Calvo', 'PTC'),
+        ('Porto de Pedras', 'PTP'),
+        ('Porto Real do Colégio', 'PRC'),
+        ('Quebrangulo', 'QBR'),
+        ('Rio Largo', 'RLG'),
+        ('Roteiro', 'ROT'),
+        ('Santa Luzia do Norte', 'SLN'),
+        ('Santana do Ipanema', 'SDI'),
+        ('Santana do Mundaú', 'SDM'),
+        ('São Brás', 'SBR'),
+        ('São José da Laje', 'SJL'),
+        ('São José da Tapera', 'SJT'),
+        ('São Luís do Quitunde', 'SLQ'),
+        ('São Miguel dos Campos', 'SMC'),
+        ('São Miguel dos Milagres', 'SMM'),
+        ('São Sebastião', 'SSB'),
+        ('Satuba', 'SAT'),
+        ('Senador Rui Palmeira', 'SRP'),
+        ("Tanque d'Arca", 'TDA'),
+        ('Taquarana', 'TAQ'),
+        ('Teotônio Vilela', 'TNV'),
+        ('Traipu', 'TRP'),
+        ('União dos Palmares', 'UDP'),
+        ('Viçosa', 'VIC'),
+    ]
+
+    for nome, codigo in especialidades:
+        execute(
+            "INSERT INTO especialidades (nome, codigo) VALUES (%s, %s) ON CONFLICT (codigo) DO UPDATE SET nome = EXCLUDED.nome, ativo = 1",
+            (nome, codigo)
+        )
+
+    for nome, codigo in municipios:
+        execute(
+            "INSERT INTO municipios (nome, codigo) VALUES (%s, %s) ON CONFLICT (codigo) DO UPDATE SET nome = EXCLUDED.nome, ativo = 1",
+            (nome, codigo)
+        )

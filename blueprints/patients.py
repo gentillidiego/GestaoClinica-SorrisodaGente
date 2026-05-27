@@ -1,17 +1,41 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app
 from flask_login import login_required, current_user
 from werkzeug.security import check_password_hash
-from database import execute, query
+from database import execute, query, execute_transaction
 from constants import Role
 import math
 from datetime import datetime
 
 patients_bp = Blueprint('patients', __name__, url_prefix='/patients')
 
+
+def _normalize_triage_code(value):
+    return (value or '').strip().upper()
+
 @patients_bp.route('/register', methods=['GET', 'POST'])
 @login_required
 def register():
+    senha_triagem = _normalize_triage_code(request.args.get('senha'))
     if request.method == 'POST':
+        senha_triagem = _normalize_triage_code(request.form.get('senha_triagem'))
+        triage_ticket = query('''
+            SELECT s.*, e.nome as especialidade_nome, m.nome as municipio_nome
+            FROM triagem_senhas s
+            JOIN especialidades e ON s.especialidade_id = e.id
+            JOIN municipios m ON s.municipio_id = m.id
+            WHERE s.codigo = %s
+        ''', (senha_triagem,), one=True)
+
+        if not triage_ticket:
+            flash('Senha de triagem não encontrada. Verifique o código informado.', 'danger')
+            return render_template('patients/register.html', senha_triagem=senha_triagem)
+        if triage_ticket['patient_id']:
+            flash('Esta senha de triagem já está vinculada a outro paciente.', 'danger')
+            return render_template('patients/register.html', senha_triagem=senha_triagem)
+        if triage_ticket['status'] == 'Cancelada':
+            flash('Esta senha de triagem está cancelada e não pode iniciar atendimento.', 'danger')
+            return render_template('patients/register.html', senha_triagem=senha_triagem)
+
         # Coleta de dados do formulário
         data = {
             'cns': request.form.get('cns'),
@@ -37,21 +61,41 @@ def register():
         }
         
         try:
-            execute('''
-                INSERT INTO patients (
-                    cns, nome, rg, cpf, profissao, endereco_residencial, endereco_comercial,
-                    cd_anterior, endereco_comercial_adicional, email, genero, data_nascimento,
-                    nacionalidade, celular, estado_civil, atendido_em, nome_responsavel,
-                    rg_responsavel, telefone_expedidor_responsavel, email_responsavel
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ''', list(data.values()))
-            
+            patient_id = execute('''
+                WITH available_ticket AS (
+                    SELECT id
+                    FROM triagem_senhas
+                    WHERE id = %s AND patient_id IS NULL AND status != 'Cancelada'
+                    FOR UPDATE
+                ),
+                new_patient AS (
+                    INSERT INTO patients (
+                        cns, nome, rg, cpf, profissao, endereco_residencial, endereco_comercial,
+                        cd_anterior, endereco_comercial_adicional, email, genero, data_nascimento,
+                        nacionalidade, celular, estado_civil, atendido_em, nome_responsavel,
+                        rg_responsavel, telefone_expedidor_responsavel, email_responsavel
+                    )
+                    SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    WHERE EXISTS (SELECT 1 FROM available_ticket)
+                    RETURNING id
+                )
+                UPDATE triagem_senhas
+                SET status = 'Vinculada',
+                    patient_id = (SELECT id FROM new_patient),
+                    vinculada_em = CURRENT_TIMESTAMP
+                WHERE id = (SELECT id FROM available_ticket)
+                RETURNING patient_id as id
+            ''', (triage_ticket['id'], *list(data.values())))
+            if not patient_id:
+                flash('A senha foi vinculada por outro atendimento. Atualize e tente novamente.', 'danger')
+                return render_template('patients/register.html', senha_triagem=senha_triagem)
+
             flash('Paciente cadastrado com sucesso!', 'success')
-            return redirect(url_for('main.dashboard'))
+            return redirect(url_for('patients.view_patient', id=patient_id))
         except Exception as e:
             flash(f'Erro ao cadastrar paciente: {str(e)}', 'danger')
             
-    return render_template('patients/register.html')
+    return render_template('patients/register.html', senha_triagem=senha_triagem)
 @patients_bp.route('/list')
 @login_required
 def list_patients():
@@ -62,8 +106,12 @@ def list_patients():
     
     if q:
         search_term = f'%{q}%'
-        where_clause = "WHERE nome LIKE %s OR cpf LIKE %s OR cns LIKE %s OR celular LIKE %s"
-        params = (search_term, search_term, search_term, search_term)
+        where_clause = """
+            WHERE p.nome ILIKE %s OR p.cpf ILIKE %s OR p.cns ILIKE %s
+               OR p.celular ILIKE %s OR ts.codigo ILIKE %s
+               OR e.nome ILIKE %s OR m.nome ILIKE %s
+        """
+        params = (search_term, search_term, search_term, search_term, search_term, search_term, search_term)
         
         try:
             date_term = datetime.strptime(q, "%d/%m/%Y").strftime("%Y-%m-%d")
@@ -75,9 +123,26 @@ def list_patients():
         where_clause = ""
         params = ()
         
-    patients = query(f"SELECT id, nome, cpf FROM patients {where_clause} ORDER BY id DESC LIMIT %s OFFSET %s", (*params, per_page, offset))
+    patients = query(f"""
+        SELECT p.id, p.nome, p.cpf, ts.codigo as senha_triagem,
+               e.nome as especialidade_nome, m.codigo as municipio_codigo
+        FROM patients p
+        LEFT JOIN triagem_senhas ts ON ts.patient_id = p.id
+        LEFT JOIN especialidades e ON ts.especialidade_id = e.id
+        LEFT JOIN municipios m ON ts.municipio_id = m.id
+        {where_clause}
+        ORDER BY p.id DESC
+        LIMIT %s OFFSET %s
+    """, (*params, per_page, offset))
     
-    total_count = query(f"SELECT COUNT(*) as count FROM patients {where_clause}", params, one=True)['count']
+    total_count = query(f"""
+        SELECT COUNT(*) as count
+        FROM patients p
+        LEFT JOIN triagem_senhas ts ON ts.patient_id = p.id
+        LEFT JOIN especialidades e ON ts.especialidade_id = e.id
+        LEFT JOIN municipios m ON ts.municipio_id = m.id
+        {where_clause}
+    """, params, one=True)['count']
     total_pages = math.ceil(total_count / per_page)
     
     return render_template('patients/list.html', patients=patients, query=q, page=page, total_pages=total_pages)
@@ -343,7 +408,7 @@ def sign_treatment(id, proc_id):
     try:
         execute('''
             UPDATE tratamento_procedimentos 
-            SET professor_id = %s, status = 'Concluido'
+            SET professor_id = %s, status = 'Concluído'
             WHERE id = %s AND patient_id = %s
         ''', (prof['id'], proc_id, id))
         
@@ -355,7 +420,7 @@ def sign_treatment(id, proc_id):
         # Data fica em branco até que paciente também assine
         execute('''
             INSERT INTO atendimentos (patient_id, data, observacoes, created_by, professor_id, status)
-            VALUES (%s, '', %s, %s, %s, 'Concluido')
+            VALUES (%s, NULL, %s, %s, %s, 'Concluído')
         ''', (id, obs, current_user.id, prof['id']))
         
         flash('Procedimento assinado e importado para evolução!', 'success')
@@ -512,7 +577,7 @@ def sign_atendimento(id, appt_id):
     try:
         execute('''
             UPDATE atendimentos 
-            SET professor_id = %s, status = 'Concluido'
+            SET professor_id = %s, status = 'Concluído'
             WHERE id = %s AND patient_id = %s
         ''', (prof['id'], appt_id, id))
         
@@ -538,7 +603,31 @@ def delete_patient(id):
         return redirect(url_for('patients.list_patients'))
         
     try:
-        execute("DELETE FROM patients WHERE id = %s", (id,))
+        execute_transaction([
+            ('DELETE FROM exam_imagem_arquivos WHERE exam_id IN (SELECT id FROM exams WHERE patient_id = %s)', (id,)),
+            ('DELETE FROM exam_imagem WHERE exam_id IN (SELECT id FROM exams WHERE patient_id = %s)', (id,)),
+            ('DELETE FROM exam_fisico WHERE exam_id IN (SELECT id FROM exams WHERE patient_id = %s)', (id,)),
+            ('DELETE FROM exam_odontograma WHERE exam_id IN (SELECT id FROM exams WHERE patient_id = %s)', (id,)),
+            ('DELETE FROM exam_controle_placa WHERE exam_id IN (SELECT id FROM exams WHERE patient_id = %s)', (id,)),
+            ('DELETE FROM exam_periograma WHERE exam_id IN (SELECT id FROM exams WHERE patient_id = %s)', (id,)),
+            ('DELETE FROM exams WHERE patient_id = %s', (id,)),
+            ('DELETE FROM anamnesis WHERE patient_id = %s', (id,)),
+            ('DELETE FROM atendimentos WHERE patient_id = %s', (id,)),
+            ('DELETE FROM planos_tratamento WHERE patient_id = %s', (id,)),
+            ('DELETE FROM tratamento_procedimentos WHERE patient_id = %s', (id,)),
+            ('DELETE FROM prosthesis_pagamentos WHERE prosthesis_id IN (SELECT id FROM prosthesis WHERE patient_id = %s)', (id,)),
+            ('DELETE FROM prosthesis_etapas WHERE prosthesis_id IN (SELECT id FROM prosthesis WHERE patient_id = %s)', (id,)),
+            ('DELETE FROM prosthesis WHERE patient_id = %s', (id,)),
+            ('DELETE FROM endodontia_canais WHERE endodontia_id IN (SELECT id FROM endodontia WHERE patient_id = %s)', (id,)),
+            ('DELETE FROM endodontia_followup WHERE endodontia_id IN (SELECT id FROM endodontia WHERE patient_id = %s)', (id,)),
+            ('DELETE FROM endodontia WHERE patient_id = %s', (id,)),
+            ('DELETE FROM receituarios WHERE patient_id = %s', (id,)),
+            ('DELETE FROM atestados WHERE patient_id = %s', (id,)),
+            ('DELETE FROM patient_tcle WHERE patient_id = %s', (id,)),
+            ('DELETE FROM consultas WHERE patient_id = %s', (id,)),
+            ("UPDATE triagem_senhas SET patient_id = NULL, status = 'Disponível', vinculada_em = NULL WHERE patient_id = %s", (id,)),
+            ('DELETE FROM patients WHERE id = %s', (id,)),
+        ])
         flash('Paciente excluído com sucesso.', 'success')
     except Exception as e:
         flash(f'Erro ao excluir: {str(e)}', 'danger')

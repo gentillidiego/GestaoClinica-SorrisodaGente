@@ -142,7 +142,7 @@ Operações de peso pericial ficam como rascunho até um `professor` ou `admin` 
 
 ### 6.3. Regras do Plano de Tratamento e Evolução Clínica
 1. Sessões numeradas sequencialmente por `criado_em`.
-2. Ao assinar, professor importa o procedimento para Evolução Clínica com status `Concluido`.
+2. Ao assinar, professor importa o procedimento para Evolução Clínica com status `Concluído`.
 3. **Tríplice Assinatura** na Evolução: Aluno + Paciente (signature_pad) + Professor.
 4. Data do atendimento só é gerada na última assinatura.
 

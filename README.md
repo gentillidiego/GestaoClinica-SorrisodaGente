@@ -41,9 +41,43 @@ O sistema opera em uma arquitetura de microsserviços via Docker Compose:
 Acessível via `/dashboard` após login:
 
 - **Módulo de Exames de Imagem** — Galeria com upload em lote e visualização em tela cheia
+- **Módulo de Triagem Municipal** — Criação de ações por município e geração de senhas por especialidade no formato `ARA-P-001`
 - **Agenda Semanal** — Controle de consultas com badges de status e vinculação paciente/dentista
 - **Dashboard Gerencial** — Métricas de produtividade e taxa de conclusão de agendamentos
 - **Segurança** — Rate limiting integrado e isolamento de dados via PostgreSQL
+
+## 🎫 Fluxo de Triagem Municipal
+
+O módulo de triagem organiza as grandes ações realizadas nos municípios de Alagoas e cria senhas físicas para iniciar o atendimento especializado em Maceió.
+
+### Dinâmica operacional
+1. A equipe cria uma **Ação de Triagem** informando município, data, local e observações.
+2. Dentro da ação, são geradas senhas por especialidade.
+3. A senha entregue ao paciente usa o formato `MUN-ESP-000`.
+4. No cadastro do paciente, a primeira informação obrigatória é a **Senha de Triagem**.
+5. Após o cadastro, a senha fica vinculada ao prontuário e a especialidade aparece em destaque no cabeçalho do paciente.
+
+### Exemplos de senhas
+| Senha | Origem | Especialidade |
+|---|---|---|
+| `ARA-P-001` | Arapiraca | Prótese Dentária |
+| `PEN-END-001` | Penedo | Endodontia |
+| `MCZ-I-001` | Maceió | Implantodontia |
+| `UDP-ORT-001` | União dos Palmares | Ortodontia |
+
+### Especialidades cadastradas
+- Prótese Dentária (`P`)
+- Implantodontia (`I`)
+- Dentística (`D`)
+- Ortodontia (`ORT`)
+- Endodontia (`END`)
+- Periodontia (`PER`)
+- Cirurgia e Traumatologia Buco-Maxilo-Facial (`CTBMF`)
+- Odontopediatria (`ODP`)
+- Estética (`EST`)
+
+### Regra de numeração
+A sequência é única por **município + especialidade**. Assim, `ARA-P-001` identifica uma senha de prótese de Arapiraca, enquanto `PEN-P-001` identifica uma senha de prótese de Penedo, sem conflito operacional.
 
 ## 🔧 Comandos Úteis
 
@@ -53,7 +87,8 @@ docker compose up -d
 ```
 
 ### Rebuild completo
-> ⚠️ **Obrigatório após qualquer alteração em código Python, templates ou static.**
+> ⚠️ **Obrigatório após alterações em código Python ou dependências.**
+> Em desenvolvimento via `docker-compose.yml`, `templates/` e `static/` são montados como volumes e normalmente atualizam sem rebuild.
 ```bash
 docker compose up -d --build
 ```

@@ -151,6 +151,18 @@
                 PRONTUÁRIO ODONTOLÓGICO #{{ patient.id }}
             </span>
         </div>
+        {% if triage %}
+        <div style="margin-bottom:1.4rem; display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+            <div style="display:inline-flex; align-items:center; gap:0.75rem; padding:0.85rem 1.1rem; border-radius:var(--radius-md); background:hsl(var(--primary)); color:white; box-shadow:var(--shadow-md);">
+                <span style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.08em; opacity:0.8;">Encaminhamento</span>
+                <strong style="font-size:1.15rem;">{{ triage.especialidade_nome }}</strong>
+                <span style="font-weight:900; background:rgba(255,255,255,0.16); padding:0.35rem 0.65rem; border-radius:999px;">{{ triage.codigo }}</span>
+            </div>
+            <div style="color:hsl(var(--text-muted)); font-size:0.9rem; font-weight:600;">
+                {{ triage.municipio_nome }} · {{ triage.data_acao.strftime('%d/%m/%Y') if triage.data_acao else 'Ação sem data' }}
+            </div>
+        </div>
+        {% endif %}
         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
             <div>
                 <h1

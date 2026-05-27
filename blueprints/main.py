@@ -60,12 +60,12 @@ def dashboard():
     first_day_str = datetime.date.today().replace(day=1).strftime('%Y-%m-%d')
 
     procedimentos_hoje = query(
-        "SELECT COUNT(*) as count FROM tratamento_procedimentos WHERE status = 'Concluido' AND data_sessao = %s",
+        "SELECT COUNT(*) as count FROM tratamento_procedimentos WHERE status = 'Concluído' AND data_sessao = %s",
         (today_str,), one=True
     )['count']
 
     procedimentos_mes = query(
-        "SELECT COUNT(*) as count FROM tratamento_procedimentos WHERE status = 'Concluido' AND data_sessao >= %s",
+        "SELECT COUNT(*) as count FROM tratamento_procedimentos WHERE status = 'Concluído' AND data_sessao >= %s",
         (first_day_str,), one=True
     )['count']
 

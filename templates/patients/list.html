@@ -33,7 +33,7 @@
             <div style="flex-grow: 1; position: relative;">
                 <span
                     style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: hsl(var(--text-muted));">🔍</span>
-                <input type="text" name="q" value="{{ query }}" placeholder="Buscar por nome ou CPF..."
+                <input type="text" name="q" value="{{ query }}" placeholder="Buscar por nome, CPF, senha, município ou especialidade..."
                     style="width: 100%; padding: 0.8rem 1rem 0.8rem 2.8rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); font-family: var(--font-body);">
             </div>
             <button type="submit" class="btn btn-outline" style="background: white;">Pesquisar</button>
@@ -58,6 +58,9 @@
                             style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted));">
                             CPF</th>
                         <th
+                            style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted));">
+                            TRIAGEM</th>
+                        <th
                             style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted)); text-align: right;">
                             AÇÕES</th>
                     </tr>
@@ -77,6 +80,16 @@
                         </td>
                         <td style="padding: 1.25rem; color: hsl(var(--text-muted));">{{ patient.cpf or 'Não informado'
                             }}
+                        </td>
+                        <td style="padding: 1.25rem;">
+                            {% if patient.senha_triagem %}
+                            <div style="font-weight: 900; color: hsl(var(--primary));">{{ patient.senha_triagem }}</div>
+                            <div style="font-size: 0.78rem; color: hsl(var(--text-muted));">
+                                {{ patient.especialidade_nome }} · {{ patient.municipio_codigo }}
+                            </div>
+                            {% else %}
+                            <span style="color: hsl(var(--text-muted));">Sem triagem</span>
+                            {% endif %}
                         </td>
                         <td
                             style="padding: 1.25rem; text-align: right; display: flex; gap: 0.5rem; justify-content: flex-end;">

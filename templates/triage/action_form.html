@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Nova Ação de Triagem - Gestão Clínica{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="margin-bottom:2rem;">
+        <a href="{{ url_for('triage.list_actions') }}" style="color:hsl(var(--text-muted)); text-decoration:none; font-weight:600;">⬅️ Voltar para Triagem</a>
+    </div>
+
+    <div class="card" style="max-width:760px;">
+        <h1 style="font-family:var(--font-heading); font-size:1.8rem; color:hsl(var(--primary)); margin-bottom:0.5rem;">Nova Ação de Triagem</h1>
+        <p style="color:hsl(var(--text-muted)); margin-bottom:2rem;">Crie a ação municipal antes de gerar as senhas por especialidade.</p>
+
+        <form method="POST" style="display:flex; flex-direction:column; gap:1.2rem;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="form-group">
+                <label class="form-label">Município</label>
+                <select name="municipio_id" class="form-control" required>
+                    <option value="">Selecione...</option>
+                    {% for municipio in municipios %}
+                    <option value="{{ municipio.id }}">{{ municipio.codigo }} - {{ municipio.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Data da ação</label>
+                <input type="date" name="data_acao" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Local</label>
+                <input type="text" name="local" class="form-control" placeholder="Ex: Ginásio municipal, UBS central...">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Observações</label>
+                <textarea name="observacoes" class="form-control" rows="4" placeholder="Equipe, logística, detalhes da ação..."></textarea>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1rem;">
+                <a href="{{ url_for('triage.list_actions') }}" class="btn btn-outline">Cancelar</a>
+                <button type="submit" class="btn btn-primary">Criar Ação</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

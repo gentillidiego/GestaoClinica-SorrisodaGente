@@ -111,7 +111,7 @@ def sign_professor(etapa_id):
         return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
         
     try:
-        execute('UPDATE prosthesis_etapas SET professor_id = %s, status = "Concluído" WHERE id = %s', (prof['id'], etapa_id))
+        execute("UPDATE prosthesis_etapas SET professor_id = %s, status = 'Concluído' WHERE id = %s", (prof['id'], etapa_id))
         flash('Etapa validada pelo dentista responsável.', 'success')
     except Exception as e:
         flash(f'Erro ao validar: {str(e)}', 'danger')

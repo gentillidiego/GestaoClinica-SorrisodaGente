@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Triagem - Gestão Clínica{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; margin-bottom:2rem; flex-wrap:wrap;">
+        <div>
+            <h1 style="font-family:var(--font-heading); font-size:2rem; font-weight:800; color:hsl(var(--primary));">Triagem</h1>
+            <p style="color:hsl(var(--text-muted)); margin-top:0.5rem;">Gerencie ações municipais e senhas por especialidade.</p>
+        </div>
+        <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+            <a href="{{ url_for('triage.list_tickets') }}" class="btn btn-outline" style="background:white;">🎫 Senhas</a>
+            <a href="{{ url_for('triage.create_action') }}" class="btn btn-primary">➕ Nova Ação</a>
+        </div>
+    </div>
+
+    <div class="card" style="padding:0; overflow:hidden;">
+        {% if actions %}
+        <div class="table-container">
+            <table style="width:100%; border-collapse:collapse; background:white;">
+                <thead>
+                    <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                        <th style="padding:1rem; color:hsl(var(--text-muted)); font-size:0.85rem;">AÇÃO</th>
+                        <th style="padding:1rem; color:hsl(var(--text-muted)); font-size:0.85rem;">MUNICÍPIO</th>
+                        <th style="padding:1rem; color:hsl(var(--text-muted)); font-size:0.85rem;">SENHAS</th>
+                        <th style="padding:1rem; color:hsl(var(--text-muted)); font-size:0.85rem;">STATUS</th>
+                        <th style="padding:1rem; text-align:right; color:hsl(var(--text-muted)); font-size:0.85rem;">AÇÕES</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for action in actions %}
+                    <tr style="border-bottom:1px solid hsl(var(--border));">
+                        <td style="padding:1rem;">
+                            <strong>{{ action.data_acao.strftime('%d/%m/%Y') if action.data_acao else 'Sem data' }}</strong>
+                            <div style="font-size:0.82rem; color:hsl(var(--text-muted));">{{ action.local or 'Local não informado' }}</div>
+                        </td>
+                        <td style="padding:1rem;">
+                            <span style="font-weight:800; color:hsl(var(--primary));">{{ action.municipio_codigo }}</span>
+                            <div style="font-size:0.9rem;">{{ action.municipio_nome }}</div>
+                        </td>
+                        <td style="padding:1rem; color:hsl(var(--text-muted));">
+                            <strong style="color:hsl(var(--text-main));">{{ action.total_senhas }}</strong> total
+                            <div style="font-size:0.78rem;">
+                                {{ action.senhas_disponiveis }} disp. · {{ action.senhas_entregues }} entregues · {{ action.senhas_vinculadas }} vinculadas
+                            </div>
+                        </td>
+                        <td style="padding:1rem;">
+                            <span class="badge badge-primary">{{ action.status }}</span>
+                        </td>
+                        <td style="padding:1rem; text-align:right;">
+                            <a href="{{ url_for('triage.view_action', action_id=action.id) }}" class="btn btn-outline" style="background:white; padding:0.45rem 0.8rem; font-size:0.82rem;">Abrir</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="padding:4rem; text-align:center; color:hsl(var(--text-muted));">
+            <div style="font-size:2.5rem; margin-bottom:1rem;">🎫</div>
+            <p>Nenhuma ação de triagem cadastrada.</p>
+            <a href="{{ url_for('triage.create_action') }}" class="btn btn-primary" style="margin-top:1rem;">Criar primeira ação</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -20,6 +20,23 @@
     <form method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
+        <div class="card" style="margin-bottom:2rem; border-left:6px solid hsl(var(--warning)); background:linear-gradient(135deg, #fffdf5 0%, #fff7ed 100%);">
+            <div style="display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
+                <div>
+                    <span style="font-size:0.75rem; font-weight:800; color:hsl(var(--warning)); text-transform:uppercase; letter-spacing:0.08em;">Entrada por triagem</span>
+                    <h3 style="font-family:var(--font-heading); font-size:1.25rem; color:hsl(var(--text-main)); margin:0.4rem 0 0.5rem;">Informe a senha antes do cadastro</h3>
+                    <p style="color:hsl(var(--text-muted)); font-size:0.9rem;">Use o formato impresso entregue na ação municipal, por exemplo <strong>ARA-P-001</strong>.</p>
+                </div>
+                <a href="{{ url_for('triage.list_tickets') }}" class="btn btn-outline" style="background:white; font-size:0.85rem;">Buscar Senhas</a>
+            </div>
+            <div class="form-group" style="margin-top:1.25rem; max-width:360px;">
+                <label for="senha_triagem" class="form-label">Senha de Triagem:</label>
+                <input type="text" name="senha_triagem" id="senha_triagem" class="form-control" required
+                    value="{{ senha_triagem or '' }}" placeholder="Ex: ARA-P-001"
+                    style="text-transform:uppercase; font-weight:900; letter-spacing:0.08em;">
+            </div>
+        </div>
+
         <div class="form-grid">
             <!-- Coluna da Esquerda -->
             <div class="form-column">

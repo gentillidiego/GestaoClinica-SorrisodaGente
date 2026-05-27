@@ -11,10 +11,24 @@ class PatientService:
         
         tcle = query("SELECT data_assinatura FROM patient_tcle WHERE patient_id = %s ORDER BY id DESC LIMIT 1", (patient_id,), one=True)
         tcle_signed = True if tcle else False
+        triage = query("""
+            SELECT s.codigo, s.status, s.vinculada_em,
+                   e.nome as especialidade_nome, e.codigo as especialidade_codigo,
+                   m.nome as municipio_nome, m.codigo as municipio_codigo,
+                   a.data_acao, a.local as triagem_local
+            FROM triagem_senhas s
+            JOIN especialidades e ON s.especialidade_id = e.id
+            JOIN municipios m ON s.municipio_id = m.id
+            JOIN triagem_acoes a ON s.triagem_acao_id = a.id
+            WHERE s.patient_id = %s
+            ORDER BY s.vinculada_em DESC, s.id DESC
+            LIMIT 1
+        """, (patient_id,), one=True)
         
         return {
             'patient': patient,
-            'tcle_signed': tcle_signed
+            'tcle_signed': tcle_signed,
+            'triage': triage
         }
 
     @staticmethod
@@ -153,4 +167,3 @@ class PatientService:
             'endodontia_elements': endodontia_elements,
             'students': students
         }
-
