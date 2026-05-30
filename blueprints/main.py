@@ -1,8 +1,12 @@
-from flask import Blueprint, render_template, jsonify
+from flask import Blueprint, render_template, jsonify, request
 from flask_login import login_required, current_user
 from database import query
 import datetime
 from extensions import limiter
+from services.command_center_service import get_command_center_data
+from services.epidemiology_service import get_epidemiology_dashboard
+from services.executive_bi_service import get_executive_bi_dashboard
+from services.security_service import permission_required
 
 main_bp = Blueprint('main', __name__)
 
@@ -50,6 +54,9 @@ def dashboard():
     # Tratamentos pendentes
     pending_treatments = query("SELECT COUNT(*) as count FROM tratamento_procedimentos WHERE status = 'Pendente'", one=True)['count']
 
+    # Pacientes em Alerta Vermelho (suspeita de neoplasia bucal)
+    red_alert_patients_count = query("SELECT COUNT(*) as count FROM estomatologia WHERE suspeita_neoplasia = TRUE", one=True)['count']
+
     # Últimos 5 pacientes cadastrados
     recent_patients = query(
         "SELECT id, nome, criado_em FROM patients ORDER BY id DESC LIMIT 5"
@@ -80,6 +87,7 @@ def dashboard():
     agenda_confirmadas = agenda_by_status.get('Confirmado', 0)
     agenda_concluidas  = agenda_by_status.get('Realizado', 0)
     agenda_canceladas  = agenda_by_status.get('Cancelado', 0)
+    agenda_faltas      = agenda_by_status.get('Faltou', 0)
     agenda_total       = sum(agenda_by_status.values())
 
     # Consultas de hoje (para a lista rápida)
@@ -109,13 +117,16 @@ def dashboard():
         'pending_treatments':  pending_treatments,
         'procedimentos_hoje':  procedimentos_hoje,
         'procedimentos_mes':   procedimentos_mes,
+        'red_alert_patients_count': red_alert_patients_count,
         # agenda
         'agenda_planejadas':  agenda_planejadas,
         'agenda_confirmadas': agenda_confirmadas,
         'agenda_concluidas':  agenda_concluidas,
         'agenda_canceladas':  agenda_canceladas,
+        'agenda_faltas':      agenda_faltas,
         'agenda_total':       agenda_total,
         'taxa_conclusao':     taxa_conclusao,
+        'pending_signatures':  0,
     }
 
     return render_template(
@@ -125,3 +136,34 @@ def dashboard():
         recent_patients=recent_patients,
         consultas_hoje=consultas_hoje,
     )
+
+
+@main_bp.route('/command-center')
+@login_required
+@permission_required('command_center:view')
+def command_center():
+    data = get_command_center_data()
+    return render_template('command_center.html', data=data)
+
+
+@main_bp.route('/epidemiologia')
+@login_required
+@permission_required('epidemiologia:view')
+def epidemiologia_dashboard():
+    data = get_epidemiology_dashboard(
+        start_date=request.args.get('inicio'),
+        end_date=request.args.get('fim'),
+        neighborhood=request.args.get('bairro'),
+    )
+    return render_template('epidemiologia.html', data=data)
+
+
+@main_bp.route('/bi')
+@login_required
+@permission_required('bi:view')
+def bi_dashboard():
+    data = get_executive_bi_dashboard(
+        start_date=request.args.get('inicio'),
+        end_date=request.args.get('fim'),
+    )
+    return render_template('bi_dashboard.html', data=data)

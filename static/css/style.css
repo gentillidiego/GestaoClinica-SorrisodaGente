@@ -802,6 +802,7 @@ body {
 .status-confirmado { border-left-color: #10b981; background: #f0fdf4; }
 .status-realizado  { border-left-color: #6b7280; background: #f9fafb; }
 .status-cancelado  { border-left-color: #ef4444; background: #fef2f2; opacity: 0.65; }
+.status-faltou     { border-left-color: #f97316; background: #fff7ed; }
 
 .consulta-hora     { font-weight: 800; color: hsl(var(--text-main)); font-size: 0.8rem; }
 .consulta-paciente { font-weight: 600; color: hsl(var(--text-main)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -819,6 +820,7 @@ body {
 .badge-confirmado { background: #d1fae5; color: #065f46; }
 .badge-realizado  { background: #f3f4f6; color: #374151; }
 .badge-cancelado  { background: #fee2e2; color: #991b1b; }
+.badge-faltou     { background: #ffedd5; color: #9a3412; }
 
 .consulta-actions { display: none; gap: 0.25rem; margin-top: 0.3rem; }
 .consulta-card:hover .consulta-actions { display: flex; }

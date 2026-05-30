@@ -72,10 +72,13 @@
                         onmouseout="this.style.background='transparent'">
                         <td style="padding: 1.25rem; font-weight: 600;">
                             <a href="{{ url_for('patients.view_patient', id=patient.id) }}"
-                                style="color: hsl(var(--primary)); text-decoration: none; border-bottom: 2.5px solid transparent; transition: all 0.2s;"
+                                style="color: hsl(var(--primary)); text-decoration: none; border-bottom: 2.5px solid transparent; transition: all 0.2s; display: inline-flex; align-items: center; gap: 0.5rem;"
                                 onmouseover="this.style.borderBottomColor='hsl(var(--primary))'"
                                 onmouseout="this.style.borderBottomColor='transparent'">
                                 {{ patient.nome }}
+                                {% if patient.suspeita_neoplasia %}
+                                <span class="badge-status" style="background: #fef2f2; color: #ef4444; border: 1.5px solid #fca5a5; font-size: 0.65rem; font-weight: 800; padding: 0.15rem 0.4rem; border-radius: 4px; display: inline-flex; align-items: center; animation: blink-danger 1s infinite alternate; text-transform: uppercase;">🚨 ALERTA VERMELHO</span>
+                                {% endif %}
                             </a>
                         </td>
                         <td style="padding: 1.25rem; color: hsl(var(--text-muted));">{{ patient.cpf or 'Não informado'
@@ -197,6 +200,10 @@
             transform: translateY(0);
             opacity: 1;
         }
+    }
+    @keyframes blink-danger {
+        from { opacity: 1; box-shadow: 0 0 5px rgba(239, 68, 68, 0.5); }
+        to { opacity: 0.4; box-shadow: 0 0 1px rgba(239, 68, 68, 0.1); }
     }
 </style>
 {% endblock %}

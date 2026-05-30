@@ -49,31 +49,60 @@
                 class="nav-item {% if request.endpoint == 'main.dashboard' %}active{% endif %}">
                 <span class="nav-icon">🏠</span> Início
             </a>
+            {% if can('command_center:view') %}
+            <a href="{{ url_for('main.command_center') }}"
+                class="nav-item {% if request.endpoint == 'main.command_center' %}active{% endif %}">
+                <span class="nav-icon">📡</span> Central de Comando
+            </a>
+            {% endif %}
 
             <div class="nav-divider">MÓDULOS</div>
-            {% if current_user.role in ['admin', 'atendente'] %}
+            {% if can('triage:view') %}
             <a href="{{ url_for('triage.list_actions') }}"
                 class="nav-item {% if 'triage' in request.endpoint %}active{% endif %}">
                 <span class="nav-icon">🎫</span> Triagem
             </a>
             {% endif %}
+            {% if can('patients:view') %}
             <a href="{{ url_for('patients.list_patients') }}"
                 class="nav-item {% if 'patients' in request.endpoint or 'anamnesis' in request.endpoint or 'exams' in request.endpoint %}active{% endif %}">
                 <span class="nav-icon">👥</span> Gestão de Pacientes
             </a>
+            {% endif %}
+            {% if can('agenda:view') %}
             <a href="{{ url_for('agenda.agenda_index') }}"
                 class="nav-item {% if 'agenda' in request.endpoint %}active{% endif %}">
                 <span class="nav-icon">📅</span> Agenda
             </a>
+            {% endif %}
+            {% if can('epidemiologia:view') %}
+            <a href="{{ url_for('main.epidemiologia_dashboard') }}"
+                class="nav-item {% if request.endpoint == 'main.epidemiologia_dashboard' %}active{% endif %}">
+                <span class="nav-icon">🗺️</span> Epidemiologia
+            </a>
+            {% endif %}
+            {% if can('bi:view') %}
+            <a href="{{ url_for('main.bi_dashboard') }}"
+                class="nav-item {% if request.endpoint == 'main.bi_dashboard' %}active{% endif %}">
+                <span class="nav-icon">📊</span> BI Executivo
+            </a>
+            {% endif %}
 
-            {% if current_user.role in ['admin', 'atendente'] %}
+            {% if can('users:view') or can('audit:view') %}
             <div class="nav-divider">ADMINISTRAÇÃO</div>
+            {% endif %}
+            {% if can('users:view') %}
             <a href="{{ url_for('admin.list_users') }}" class="nav-item">
                 <span class="nav-icon">⚙️</span> Usuários
             </a>
             {% endif %}
+            {% if can('audit:view') %}
+            <a href="{{ url_for('admin.audit_logs') }}" class="nav-item {% if request.endpoint == 'admin.audit_logs' %}active{% endif %}">
+                <span class="nav-icon">🛡️</span> Auditoria
+            </a>
+            {% endif %}
             
-            {% if current_user.role == 'admin' %}
+            {% if can('reports:view') %}
             <a href="{{ url_for('reports.index') }}" class="nav-item {% if 'reports' in request.endpoint %}active{% endif %}">
                 <span class="nav-icon">📊</span> Relatórios Gerenciais
             </a>
@@ -86,11 +115,7 @@
                 <div class="user-info">
                     <span class="user-name">{{ current_user.username|capitalize }}</span>
                     <span class="user-role">
-                    {% if current_user.role == 'admin' %}Administrador
-                    {% elif current_user.role == 'dentista' %}Cir.-Dentista
-                    {% elif current_user.role == 'tsb' %}TSB / ASB
-                    {% elif current_user.role == 'atendente' %}Atendente
-                    {% else %}Usuário{% endif %}
+                    {{ current_user.role_label }}
                 </span>
                 </div>
             </div>

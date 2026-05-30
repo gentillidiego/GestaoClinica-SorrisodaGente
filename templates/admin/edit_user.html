@@ -43,15 +43,22 @@
             <div style="margin-bottom: 2.5rem;">
                 <label for="role" class="form-label">Nível de Acesso (Perfil)</label>
                 <select name="role" id="role" class="form-control" required onchange="toggleCro()">
-                    <option value="admin" {% if user.role=='admin' %}selected{% endif %}>Administrador (Acesso Total)</option>
-                    <option value="dentista" {% if user.role=='dentista' %}selected{% endif %}>Cirurgião-Dentista</option>
-                    <option value="tsb" {% if user.role=='tsb' %}selected{% endif %}>TSB / ASB</option>
-                    <option value="atendente" {% if user.role=='atendente' %}selected{% endif %}>Atendente (Recepção)</option>
+                    {% for role_value, role_name in role_choices %}
+                    <option value="{{ role_value }}" {% if user.role==role_value %}selected{% endif %}>{{ role_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <label for="active" class="form-label">Status do Acesso</label>
+                <select name="active" id="active" class="form-control" required>
+                    <option value="1" {% if user.active %}selected{% endif %}>Ativo</option>
+                    <option value="0" {% if not user.active %}selected{% endif %}>Inativo</option>
                 </select>
             </div>
 
             <div id="cro_container"
-                style="{% if user.role in ['admin', 'dentista'] %}display: grid;{% else %}display: none;{% endif %} grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 2.5rem;">
+                style="{% if user.role in ['admin', 'dentista', 'clinica_geral', 'endodontia', 'cirurgia', 'implantes', 'estomatologia'] %}display: grid;{% else %}display: none;{% endif %} grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 2.5rem;">
                 <div>
                     <label for="cro" class="form-label">Número CRO</label>
                     <input type="text" name="cro" id="cro" class="form-control" placeholder="Ex: 12345"
@@ -80,7 +87,7 @@
     function toggleCro() {
         var role = document.getElementById('role').value;
         var croContainer = document.getElementById('cro_container');
-        if (role === 'dentista' || role === 'admin') {
+        if (['dentista', 'admin', 'clinica_geral', 'endodontia', 'cirurgia', 'implantes', 'estomatologia'].includes(role)) {
             croContainer.style.display = 'grid';
         } else {
             croContainer.style.display = 'none';

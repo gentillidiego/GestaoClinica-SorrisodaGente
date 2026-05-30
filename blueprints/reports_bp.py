@@ -1,19 +1,24 @@
 import os
-import json
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from database import query
+from services.institutional_report_service import (
+    get_institutional_report,
+    get_report_profile,
+    get_report_type_choices,
+    list_generated_reports,
+    register_generated_report,
+    update_generated_report_task,
+)
 from tasks.pdf_tasks import generate_pdf_task
-from celery.result import AsyncResult
-from celery_app import celery
 
 reports_bp = Blueprint('reports', __name__, url_prefix='/reports')
 
 @reports_bp.before_request
 @login_required
-def require_admin():
-    if current_user.role != 'admin':
-        flash('Acesso negado. Apenas administradores podem acessar os Relatórios Gerenciais.', 'danger')
+def require_reports_access():
+    if not current_user.can('reports:view'):
+        flash('Acesso negado para relatórios.', 'danger')
         return redirect(url_for('main.dashboard'))
 
 @reports_bp.route('/', methods=['GET', 'POST'])
@@ -216,4 +221,55 @@ def export_pdf():
     output_path = os.path.join(pdf_dir, filename)
     
     task = generate_pdf_task.delay(html, output_path)
+    return redirect(url_for('documents.pdf_status', task_id=task.id, filename=filename))
+
+
+@reports_bp.route('/institutional')
+def institutional():
+    report_type = request.args.get('tipo') or 'institucional'
+    report = get_institutional_report(
+        start_date=request.args.get('inicio'),
+        end_date=request.args.get('fim'),
+        report_type=report_type,
+    )
+    generated_reports = list_generated_reports(limit=12)
+    return render_template(
+        'reports/institutional.html',
+        report=report,
+        report_type_choices=get_report_type_choices(),
+        generated_reports=generated_reports,
+    )
+
+
+@reports_bp.route('/institutional/export', methods=['POST'])
+def export_institutional_pdf():
+    report_type = request.form.get('tipo') or 'institucional'
+    report = get_institutional_report(
+        start_date=request.form.get('inicio'),
+        end_date=request.form.get('fim'),
+        report_type=report_type,
+    )
+    generated_by = current_user.full_name or current_user.username
+    html = render_template(
+        'pdfs/relatorio_institucional_pdf.html',
+        report=report,
+        generated_by=generated_by,
+    )
+
+    pdf_dir = os.path.join(os.getcwd(), 'pdf_temp')
+    os.makedirs(pdf_dir, exist_ok=True)
+    profile = get_report_profile(report_type)
+    start = report['period']['start'].strftime('%Y%m%d')
+    end = report['period']['end'].strftime('%Y%m%d')
+    filename = f"{profile['filename_prefix']}_{start}_{end}_{current_user.id}.pdf"
+    output_path = os.path.join(pdf_dir, filename)
+
+    report_id = register_generated_report(
+        report,
+        filename=filename,
+        file_path=output_path,
+        generated_by=current_user.id,
+    )
+    task = generate_pdf_task.delay(html, output_path, report_id)
+    update_generated_report_task(report_id, task.id)
     return redirect(url_for('documents.pdf_status', task_id=task.id, filename=filename))

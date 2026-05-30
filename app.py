@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 from database import init_db
 from utils import User
 from extensions import limiter
+from constants import get_role_label
+from services.security_service import can
 from blueprints.admin import admin_bp
 from blueprints.patients import patients_bp
 from blueprints.anamnesis import anamnesis_bp
@@ -103,6 +105,13 @@ def create_app():
     @login_manager.user_loader
     def load_user(user_id):
         return User.get(user_id)
+
+    @app.context_processor
+    def inject_security_helpers():
+        return {
+            'can': can,
+            'role_label': get_role_label,
+        }
 
     # Inicializar Banco de Dados
     with app.app_context():

@@ -57,7 +57,7 @@
       <div class="form-group" style="margin-bottom:1.25rem;">
         <label class="form-label">Status</label>
         <select name="status" class="form-control">
-          {% for s in ['Pendente','Confirmado','Realizado','Cancelado'] %}
+          {% for s in ['Pendente','Confirmado','Realizado','Cancelado','Faltou'] %}
           <option value="{{ s }}" {% if consulta.status == s %}selected{% endif %}>{{ s }}</option>
           {% endfor %}
         </select>

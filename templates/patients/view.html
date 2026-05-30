@@ -213,6 +213,10 @@
                 onclick="handleTabClick(event, 'tab-receituario')">Receituário</button>
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-atestado')">Atestado</button>
+            <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
+                onclick="handleTabClick(event, 'tab-estomatologia')">🚨 Estomatologia</button>
+            <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
+                onclick="handleTabClick(event, 'tab-linha-tempo')">Linha do Tempo</button>
         </div>
 
         <!-- Conteúdo das Abas (Lazy Loading) -->
@@ -226,6 +230,9 @@
         <div id="tab-protese" class="tab-content" data-loaded="false"></div>
         <div id="tab-receituario" class="tab-content" data-loaded="false"></div>
         <div id="tab-atestado" class="tab-content" data-loaded="false"></div>
+        <div id="tab-estomatologia" class="tab-content" data-loaded="false"></div>
+        <div id="tab-linha-tempo" class="tab-content" data-loaded="false"></div>
+    </div>
     </div>
 
     <!-- Modais e Scripts -->

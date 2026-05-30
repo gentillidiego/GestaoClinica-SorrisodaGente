@@ -123,7 +123,7 @@ def pdf_receituario(patient_id, doc_id):
     os.makedirs(pdf_dir, exist_ok=True)
     filename = f'receituario_{doc_id}_{patient_id}.pdf'
     output_path = os.path.join(pdf_dir, filename)
-    
+
     # Chama Celery
     task = generate_pdf_task.delay(html, output_path)
     return redirect(url_for('documents.pdf_status', task_id=task.id, filename=filename))
@@ -145,6 +145,34 @@ def pdf_atestado(patient_id, doc_id):
     filename = f'atestado_{patient_id}_{doc_id}.pdf'
     output_path = os.path.join(pdf_dir, filename)
     
+    task = generate_pdf_task.delay(html, output_path)
+    return redirect(url_for('documents.pdf_status', task_id=task.id, filename=filename))
+
+@documents_bp.route('/<int:patient_id>/estomatologia/<int:est_id>/pdf', methods=['GET'])
+@login_required
+def pdf_estomatologia(patient_id, est_id):
+    doc = query("SELECT * FROM estomatologia WHERE id = %s AND patient_id = %s", (est_id, patient_id), one=True)
+    patient = query("SELECT * FROM patients WHERE id = %s", (patient_id,), one=True)
+
+    if not doc or not patient:
+        return "Not found", 404
+
+    # Obtém dados de triagem, se houver
+    triage = query("""
+        SELECT s.codigo, m.nome as municipio_nome
+        FROM triagem_senhas s
+        JOIN municipios m ON s.municipio_id = m.id
+        WHERE s.patient_id = %s
+        ORDER BY s.id DESC LIMIT 1
+    """, (patient_id,), one=True)
+
+    html = render_template('pdfs/encaminhamento_estomatologia_pdf.html', doc=doc, patient=patient, triage=triage)
+
+    pdf_dir = os.path.join(os.getcwd(), 'pdf_temp')
+    os.makedirs(pdf_dir, exist_ok=True)
+    filename = f'encaminhamento_{est_id}_{patient_id}.pdf'
+    output_path = os.path.join(pdf_dir, filename)
+
     task = generate_pdf_task.delay(html, output_path)
     return redirect(url_for('documents.pdf_status', task_id=task.id, filename=filename))
 

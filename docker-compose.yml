@@ -6,11 +6,10 @@ services:
     ports:
       - "5003:5002"
     volumes:
-      - ./logs:/app/logs
-      - ./uploads:/app/uploads
-      - ./static:/app/static
-      - ./templates:/app/templates
+      - logs_oral:/app/logs
+      - uploads_oral:/app/uploads
       - pdf_temp_oral:/app/pdf_temp
+      - backups_oral:/app/backups
     env_file:
       - .env
     depends_on:
@@ -40,9 +39,10 @@ services:
     restart: always
     command: celery -A celery_app.celery worker --loglevel=info --concurrency=2
     volumes:
-      - ./static:/app/static
-      - ./templates:/app/templates
       - pdf_temp_oral:/app/pdf_temp
+      - logs_oral:/app/logs
+      - uploads_oral:/app/uploads
+      - backups_oral:/app/backups
     env_file:
       - .env
     depends_on:
@@ -75,3 +75,6 @@ volumes:
   redis_data_oral:
   pdf_temp_oral:
   postgres_data_oral:
+  logs_oral:
+  uploads_oral:
+  backups_oral:

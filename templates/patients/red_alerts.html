@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Regulação de Alta Urgência: Fila Vermelha — Gestão Clínica{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="margin-bottom: 2rem;">
+        <a href="{{ url_for('main.dashboard') }}"
+            style="display: inline-flex; align-items: center; gap: 0.5rem; color: hsl(var(--text-muted)); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.2s;"
+            onmouseover="this.style.color='hsl(var(--primary))'" onmouseout="this.style.color='hsl(var(--text-muted))'">
+            <span>⬅️</span> Voltar ao Início
+        </a>
+    </div>
+
+    <!-- Cabeçalho -->
+    <div style="background: #fef2f2; border: 2px solid #fee2e2; border-left: 8px solid #ef4444; border-radius: var(--radius-lg); padding: 2.2rem; margin-bottom: 3rem; position: relative; overflow: hidden;">
+        <div style="position: absolute; right: 2rem; top: 50%; transform: translateY(-50%); font-size: 5rem; opacity: 0.08; user-select: none;">🚨</div>
+        <h1 style="font-family: var(--font-heading); font-size: 2.2rem; font-weight: 900; color: #b91c1c; margin: 0; display: flex; align-items: center; gap: 0.6rem;">
+            🚨 FILA VERMELHA: Casos Suspeitos de Neoplasia
+        </h1>
+        <p style="color: #7f1d1d; font-weight: 600; margin-top: 0.5rem; max-width: 800px; line-height: 1.5;">
+            Pacientes listados abaixo apresentam lesões bucais com forte suspeita clínica de câncer de boca e foram assinalados com Alerta Vermelho. Eles devem receber prioridade máxima absoluta no encaminhamento, regulação e agendamento de biópsias/cirurgias oncológicas junto à rede estadual e municipal.
+        </p>
+    </div>
+
+    <!-- Tabela da Fila -->
+    <div class="card" style="padding: 0; overflow: hidden; border: 1.5px solid #fee2e2;">
+        {% if patients %}
+        <div class="table-container">
+            <table style="width: 100%; border-collapse: collapse; background: white;">
+                <thead>
+                    <tr style="background: #fff5f5; text-align: left; border-bottom: 2px solid #fee2e2;">
+                        <th style="padding: 1.25rem; font-weight: 800; font-size: 0.85rem; color: #991b1b; text-transform: uppercase;">PACIENTE</th>
+                        <th style="padding: 1.25rem; font-weight: 800; font-size: 0.85rem; color: #991b1b; text-transform: uppercase;">MUNICÍPIO / SENHA</th>
+                        <th style="padding: 1.25rem; font-weight: 800; font-size: 0.85rem; color: #991b1b; text-transform: uppercase;">LOCALIZAÇÃO DA LESÃO</th>
+                        <th style="padding: 1.25rem; font-weight: 800; font-size: 0.85rem; color: #991b1b; text-transform: uppercase;">EVOLUÇÃO ESTIMADA</th>
+                        <th style="padding: 1.25rem; font-weight: 800; font-size: 0.85rem; color: #991b1b; text-transform: uppercase;">DATA DO REGISTRO</th>
+                        <th style="padding: 1.25rem; font-weight: 800; font-size: 0.85rem; color: #991b1b; text-transform: uppercase; text-align: right;">AÇÕES</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in patients %}
+                    <tr style="border-bottom: 1px solid #fee2e2; transition: background 0.2s;"
+                        onmouseover="this.style.background='#fffafb'"
+                        onmouseout="this.style.background='transparent'">
+
+                        <!-- Paciente -->
+                        <td style="padding: 1.25rem; font-weight: 700;">
+                            <a href="{{ url_for('patients.view_patient', id=p.id) }}#tab-estomatologia"
+                               style="color: #b91c1c; text-decoration: none; border-bottom: 2px solid transparent; transition: all 0.2s;"
+                               onmouseover="this.style.borderBottomColor='#b91c1c'"
+                               onmouseout="this.style.borderBottomColor='transparent'">
+                                {{ p.nome }}
+                            </a>
+                            <div style="font-size: 0.78rem; color: hsl(var(--text-muted)); font-weight: 600; margin-top: 0.2rem;">CPF: {{ p.cpf or '—' }}</div>
+                        </td>
+
+                        <!-- Município / Senha -->
+                        <td style="padding: 1.25rem; font-weight: 600;">
+                            {% if p.senha_triagem %}
+                            <div style="color: #b91c1c; font-weight: 800; font-size: 0.95rem;">{{ p.senha_triagem }}</div>
+                            <div style="font-size: 0.75rem; color: hsl(var(--text-muted));">{{ p.municipio_nome }}</div>
+                            {% else %}
+                            <span style="color: hsl(var(--text-muted)); font-style: italic;">Sem senha (UBS/Demanda Espontânea)</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Localização da Lesão -->
+                        <td style="padding: 1.25rem; font-weight: 600; color: hsl(var(--text-main));">
+                            {{ p.localizacao_lesao }}
+                            <div style="font-size: 0.75rem; color: #7f1d1d; font-weight: 500; margin-top: 0.2rem;">Tamanho: {{ p.tamanho_lesao }}</div>
+                        </td>
+
+                        <!-- Evolução Estimada -->
+                        <td style="padding: 1.25rem; font-weight: 600; color: hsl(var(--text-main));">
+                            {{ p.tempo_evolucao }}
+                        </td>
+
+                        <!-- Data do Registro -->
+                        <td style="padding: 1.25rem; color: hsl(var(--text-muted)); font-size: 0.85rem; font-weight: 500;">
+                            {{ p.data_registro.strftime('%d/%m/%Y às %H:%M') }}
+                        </td>
+
+                        <!-- Ações -->
+                        <td style="padding: 1.25rem; text-align: right;">
+                            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                                <a href="{{ url_for('patients.view_patient', id=p.id) }}#tab-estomatologia" class="btn btn-outline"
+                                   style="padding: 0.4rem 0.8rem; font-size: 0.8rem; background: white; border-color: #fca5a5; color: #b91c1c;">
+                                    Abrir Prontuário 🔎
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="padding: 6rem; text-align: center; color: hsl(var(--text-muted)); background: #fffcfc;">
+            <div style="font-size: 4rem; margin-bottom: 1.5rem; animation: heartbeat 1.5s infinite alternate;">💖</div>
+            <h3 style="font-family: var(--font-heading); font-size: 1.4rem; font-weight: 800; color: #047857; margin-bottom: 0.5rem;">Fila Limpa! Excelente notícia!</h3>
+            <p style="font-size: 0.95rem; font-weight: 500;">Nenhum paciente sob suspeita de neoplasia ativa na Fila Vermelha no momento.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+@keyframes heartbeat {
+    from { transform: scale(1); }
+    to { transform: scale(1.1); }
+}
+</style>
+{% endblock %}

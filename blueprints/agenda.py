@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash,
 from flask_login import login_required, current_user
 from database import execute, query
 from datetime import datetime, timedelta
+from services.security_service import audit_log
 
 agenda_bp = Blueprint('agenda', __name__, url_prefix='/agenda')
 
@@ -15,7 +16,7 @@ def _get_week_range(ref_date):
 
 def _can_manage():
     """Verifica se o usuário pode criar/editar/cancelar consultas."""
-    return current_user.role in ('admin', 'atendente', 'dentista')
+    return current_user.can('agenda:write')
 
 
 @agenda_bp.route('/')
@@ -124,12 +125,21 @@ def nova_consulta():
         return redirect(url_for('agenda.agenda_index'))
 
     try:
-        execute(
+        consulta_id = execute(
             """
             INSERT INTO consultas (patient_id, dentista_id, data_consulta, duracao_minutos, observacoes, created_by)
             VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id
             """,
             (patient_id, dentista_id, dt, duracao, observacoes, current_user.id),
+        )
+        audit_log(
+            action='appointment_created',
+            module='agenda',
+            entity_type='consulta',
+            entity_id=consulta_id,
+            patient_id=patient_id,
+            details={'dentista_id': dentista_id, 'data_consulta': dt.isoformat(), 'duracao_minutos': duracao}
         )
         flash('Consulta agendada com sucesso! ✅', 'success')
     except Exception as e:
@@ -168,6 +178,10 @@ def editar_consulta(consulta_id):
         duracao = request.form.get('duracao_minutos', 30, type=int)
         status = request.form.get('status', 'Pendente')
         observacoes = request.form.get('observacoes', '')
+        status_validos = ('Pendente', 'Confirmado', 'Realizado', 'Cancelado', 'Faltou')
+        if status not in status_validos:
+            flash('Status inválido.', 'danger')
+            return redirect(url_for('agenda.editar_consulta', consulta_id=consulta_id))
 
         try:
             dt = datetime.strptime(data_hora, '%Y-%m-%dT%H:%M')
@@ -184,6 +198,19 @@ def editar_consulta(consulta_id):
                 WHERE id=%s
                 """,
                 (patient_id, dentista_id, dt, duracao, status, observacoes, consulta_id),
+            )
+            audit_log(
+                action='appointment_updated',
+                module='agenda',
+                entity_type='consulta',
+                entity_id=consulta_id,
+                patient_id=patient_id,
+                details={
+                    'previous_status': consulta['status'],
+                    'new_status': status,
+                    'previous_date': consulta['data_consulta'],
+                    'new_date': dt.isoformat(),
+                }
             )
             flash('Consulta atualizada com sucesso! ✅', 'success')
         except Exception as e:
@@ -206,13 +233,21 @@ def cancelar_consulta(consulta_id):
         flash('Sem permissão para cancelar consultas.', 'danger')
         return redirect(url_for('agenda.agenda_index'))
 
-    consulta = query("SELECT data_consulta FROM consultas WHERE id = %s", (consulta_id,), one=True)
+    consulta = query("SELECT patient_id, data_consulta, status FROM consultas WHERE id = %s", (consulta_id,), one=True)
     if not consulta:
         flash('Consulta não encontrada.', 'danger')
         return redirect(url_for('agenda.agenda_index'))
 
     try:
         execute("UPDATE consultas SET status = 'Cancelado' WHERE id = %s", (consulta_id,))
+        audit_log(
+            action='appointment_canceled',
+            module='agenda',
+            entity_type='consulta',
+            entity_id=consulta_id,
+            patient_id=consulta['patient_id'],
+            details={'previous_status': consulta['status'], 'new_status': 'Cancelado'}
+        )
         flash('Consulta cancelada.', 'success')
     except Exception as e:
         flash(f'Erro ao cancelar: {str(e)}', 'danger')
@@ -229,12 +264,28 @@ def atualizar_status(consulta_id):
         return jsonify({'error': 'Sem permissão'}), 403
 
     novo_status = request.form.get('status')
-    status_validos = ('Pendente', 'Confirmado', 'Realizado', 'Cancelado')
+    status_validos = ('Pendente', 'Confirmado', 'Realizado', 'Cancelado', 'Faltou')
     if novo_status not in status_validos:
         return jsonify({'error': 'Status inválido'}), 400
 
     try:
+        consulta = query("SELECT patient_id, status FROM consultas WHERE id = %s", (consulta_id,), one=True)
+        if not consulta:
+            flash('Consulta não encontrada.', 'danger')
+            return redirect(request.referrer or url_for('agenda.agenda_index'))
+
         execute("UPDATE consultas SET status = %s WHERE id = %s", (novo_status, consulta_id))
+        audit_log(
+            action='appointment_status_changed',
+            module='agenda',
+            entity_type='consulta',
+            entity_id=consulta_id,
+            patient_id=consulta['patient_id'],
+            details={
+                'previous_status': consulta['status'],
+                'new_status': novo_status,
+            }
+        )
         flash(f'Status atualizado para "{novo_status}".', 'success')
     except Exception as e:
         flash(f'Erro ao atualizar status: {str(e)}', 'danger')

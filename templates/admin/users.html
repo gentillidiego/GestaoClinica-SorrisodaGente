@@ -19,9 +19,11 @@
             <p style="color: hsl(var(--text-muted)); margin-top: 0.5rem;">Administre os acessos e permissões do sistema.
             </p>
         </div>
+        {% if can('users:write') %}
         <a href="{{ url_for('admin.add_user') }}" class="btn btn-primary">
             <span>➕</span> Novo Usuário
         </a>
+        {% endif %}
     </div>
 
     <div class="card" style="padding: 0; overflow: hidden;">
@@ -39,6 +41,12 @@
                             style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted));">
                             NÍVEL DE ACESSO</th>
                         <th
+                            style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted));">
+                            STATUS</th>
+                        <th
+                            style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted));">
+                            ÚLTIMO LOGIN</th>
+                        <th
                             style="padding: 1.25rem; font-weight: 700; font-size: 0.9rem; color: hsl(var(--text-muted)); text-align: right;">
                             AÇÕES</th>
                     </tr>
@@ -52,20 +60,35 @@
                         <td style="padding: 1.25rem; font-weight: 600;">{{ user.username }}</td>
                         <td style="padding: 1.25rem;">
                             <span
-                                style="padding: 0.4rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; 
+                                style="padding: 0.4rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
                                 {% if user.role == 'admin' %} background: #dcfce7; color: #166534; {% else %} background: #f1f5f9; color: #475569; {% endif %}">
-                                {{ user.role }}
+                                {{ role_label(user.role) }}
                             </span>
                         </td>
+                        <td style="padding: 1.25rem;">
+                            <span
+                                style="padding: 0.4rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+                                {% if user.active %} background: #dcfce7; color: #166534; {% else %} background: #fee2e2; color: #991b1b; {% endif %}">
+                                {% if user.active %}Ativo{% else %}Inativo{% endif %}
+                            </span>
+                        </td>
+                        <td style="padding: 1.25rem; color: hsl(var(--text-muted)); font-size: 0.85rem;">
+                            {% if user.last_login_at %}
+                            {{ user.last_login_at.strftime('%d/%m/%Y %H:%M') }}<br>
+                            <span style="font-size: 0.75rem;">{{ user.last_login_ip or '-' }}</span>
+                            {% else %}
+                            Nunca acessou
+                            {% endif %}
+                        </td>
                         <td style="padding: 1.25rem; text-align: right;">
-                            {% if current_user.role in ['admin', 'atendimento'] %}
+                            {% if can('users:write') %}
                             <a href="{{ url_for('admin.edit_user', user_id=user.id) }}" class="btn btn-outline"
                                 style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: #cbd5e1; color: #475569; margin-right: 0.5rem; text-decoration: none;">
                                 ✏️ Editar
                             </a>
                             {% endif %}
 
-                            {% if user.id != current_user.id %}
+                            {% if user.id != current_user.id and can('users:write') %}
                             <form action="{{ url_for('admin.delete_user', user_id=user.id) }}" method="POST"
                                 style="display: inline;"
                                 onsubmit="return confirm('⚠️ Tem certeza que deseja excluir permanentemente este usuário?')">

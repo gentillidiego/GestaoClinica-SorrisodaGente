@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Auditoria - Administração{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="margin-bottom: 2rem;">
+        <a href="{{ url_for('main.dashboard') }}"
+            style="display: inline-flex; align-items: center; gap: 0.5rem; color: hsl(var(--text-muted)); text-decoration: none; font-weight: 600; font-size: 0.9rem;">
+            <span>⬅️</span> Voltar ao Início
+        </a>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem; gap: 1rem;">
+        <div>
+            <h1 style="font-family: var(--font-heading); font-size: 2rem; font-weight: 800; color: hsl(var(--primary));">
+                Auditoria do Sistema
+            </h1>
+            <p style="color: hsl(var(--text-muted)); margin-top: 0.5rem;">
+                Consulte acessos, alterações, exclusões e eventos críticos registrados automaticamente.
+            </p>
+        </div>
+    </div>
+
+    <form method="GET" class="card" style="padding: 1.5rem; margin-bottom: 1.5rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; align-items: end;">
+            <div>
+                <label class="form-label" for="user_id">Usuário</label>
+                <select class="form-control" name="user_id" id="user_id">
+                    <option value="">Todos</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}" {% if filters.user_id|string == user.id|string %}selected{% endif %}>
+                        {{ user.full_name or user.username }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="form-label" for="module">Módulo</label>
+                <select class="form-control" name="module" id="module">
+                    <option value="">Todos</option>
+                    {% for item in modules %}
+                    <option value="{{ item.module }}" {% if filters.module == item.module %}selected{% endif %}>{{ item.module }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="form-label" for="action">Ação</label>
+                <input class="form-control" type="text" name="action" id="action" value="{{ filters.action or '' }}" placeholder="Ex: login, user">
+            </div>
+            <div>
+                <label class="form-label" for="patient_id">Paciente ID</label>
+                <input class="form-control" type="number" name="patient_id" id="patient_id" value="{{ filters.patient_id or '' }}">
+            </div>
+            <div>
+                <label class="form-label" for="status">Status</label>
+                <select class="form-control" name="status" id="status">
+                    <option value="">Todos</option>
+                    <option value="success" {% if filters.status == 'success' %}selected{% endif %}>Sucesso</option>
+                    <option value="failed" {% if filters.status == 'failed' %}selected{% endif %}>Falha</option>
+                    <option value="denied" {% if filters.status == 'denied' %}selected{% endif %}>Negado</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary" style="height: 48px;">Filtrar</button>
+        </div>
+    </form>
+
+    <div class="card" style="padding: 0; overflow: hidden;">
+        <div class="table-container">
+            <table style="width: 100%; border-collapse: collapse; background: white;">
+                <thead>
+                    <tr style="background: hsl(var(--bg-main)); text-align: left;">
+                        <th style="padding: 1rem; font-size: 0.85rem; color: hsl(var(--text-muted));">DATA/HORA</th>
+                        <th style="padding: 1rem; font-size: 0.85rem; color: hsl(var(--text-muted));">USUÁRIO</th>
+                        <th style="padding: 1rem; font-size: 0.85rem; color: hsl(var(--text-muted));">MÓDULO</th>
+                        <th style="padding: 1rem; font-size: 0.85rem; color: hsl(var(--text-muted));">AÇÃO</th>
+                        <th style="padding: 1rem; font-size: 0.85rem; color: hsl(var(--text-muted));">ENTIDADE</th>
+                        <th style="padding: 1rem; font-size: 0.85rem; color: hsl(var(--text-muted));">IP</th>
+                        <th style="padding: 1rem; font-size: 0.85rem; color: hsl(var(--text-muted));">STATUS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr style="border-bottom: 1px solid hsl(var(--border));">
+                        <td style="padding: 1rem; white-space: nowrap;">{{ log.created_at.strftime('%d/%m/%Y %H:%M:%S') }}</td>
+                        <td style="padding: 1rem;">
+                            {{ log.username or 'Sistema' }}<br>
+                            <span style="font-size: 0.75rem; color: hsl(var(--text-muted));">{{ role_label(log.user_role) if log.user_role else '-' }}</span>
+                        </td>
+                        <td style="padding: 1rem;">{{ log.module }}</td>
+                        <td style="padding: 1rem;">{{ log.action }}</td>
+                        <td style="padding: 1rem;">
+                            {{ log.entity_type or '-' }}
+                            {% if log.entity_id %}#{{ log.entity_id }}{% endif %}
+                            {% if log.patient_id %}<br><span style="font-size: 0.75rem;">Paciente #{{ log.patient_id }}</span>{% endif %}
+                        </td>
+                        <td style="padding: 1rem;">{{ log.ip_address or '-' }}</td>
+                        <td style="padding: 1rem;">
+                            <span style="padding: 0.35rem 0.65rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+                                {% if log.status == 'success' %}background: #dcfce7; color: #166534;
+                                {% elif log.status == 'denied' %}background: #fee2e2; color: #991b1b;
+                                {% else %}background: #fef3c7; color: #92400e;{% endif %}">
+                                {{ log.status }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" style="padding: 2rem; text-align: center; color: hsl(var(--text-muted));">
+                            Nenhum evento de auditoria encontrado.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

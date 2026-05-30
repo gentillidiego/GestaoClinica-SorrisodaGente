@@ -1,9 +1,9 @@
 from flask_login import UserMixin
 from database import query
-from constants import Role
+from constants import Role, get_role_label, role_has_permission
 
 class User(UserMixin):
-    def __init__(self, id, username, role, full_name=None, matricula=None, cro=None, cro_uf=None):
+    def __init__(self, id, username, role, full_name=None, matricula=None, cro=None, cro_uf=None, active=True):
         self.id = id
         self.username = username
         self.role = role
@@ -11,6 +11,7 @@ class User(UserMixin):
         self.matricula = matricula
         self.cro = cro
         self.cro_uf = cro_uf
+        self.active = active
 
     @staticmethod
     def get(user_id):
@@ -23,9 +24,21 @@ class User(UserMixin):
                 full_name=user_data.get('full_name'),
                 matricula=user_data.get('matricula'),
                 cro=user_data.get('cro'),
-                cro_uf=user_data.get('cro_uf')
+                cro_uf=user_data.get('cro_uf'),
+                active=user_data.get('active', True)
             )
         return None
+
+    @property
+    def is_active(self):
+        return bool(self.active)
+
+    @property
+    def role_label(self):
+        return get_role_label(self.role)
+
+    def can(self, permission):
+        return role_has_permission(self.role, permission)
 
     @property
     def is_admin(self):
@@ -41,4 +54,4 @@ class User(UserMixin):
 
     @property
     def is_atendente(self):
-        return self.role == Role.ATENDENTE
+        return self.role in [Role.ATENDENTE, Role.ATENDIMENTO_LEGACY]

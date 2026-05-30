@@ -1,0 +1,368 @@
+{% extends "base.html" %}
+
+{% block title %}BI Executivo — Gestão Saúde Oral{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+  <div class="bi-header">
+    <div>
+      <h1 class="page-title">BI Executivo</h1>
+      <p class="page-subtitle">Produção, filas, impacto territorial, metas e comparativos mensais.</p>
+    </div>
+    <a href="{{ url_for('main.epidemiologia_dashboard') }}" class="btn btn-outline" style="height:40px;">Epidemiologia</a>
+  </div>
+
+  <form method="GET" class="bi-filter">
+    <div>
+      <label class="form-label" for="inicio">Início</label>
+      <input class="form-control" type="date" id="inicio" name="inicio" value="{{ data.period.start.isoformat() }}">
+    </div>
+    <div>
+      <label class="form-label" for="fim">Fim</label>
+      <input class="form-control" type="date" id="fim" name="fim" value="{{ data.period.end.isoformat() }}">
+    </div>
+    <button type="submit" class="btn btn-primary" style="height:48px;">Filtrar</button>
+    <a href="{{ url_for('main.bi_dashboard') }}" class="btn btn-outline" style="height:48px;">Limpar</a>
+  </form>
+
+  <div class="stat-grid" style="margin-bottom:1.5rem;">
+    <div class="stat-card" style="border-bottom:4px solid #2563eb;">
+      <div class="stat-icon" style="background:#dbeafe;">P</div>
+      <div class="stat-info">
+        <span class="stat-value">{{ data.summary.completed_procedures }}</span>
+        <span class="stat-label">Procedimentos</span>
+      </div>
+    </div>
+    <div class="stat-card" style="border-bottom:4px solid #16a34a;">
+      <div class="stat-icon" style="background:#dcfce7;">A</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#15803d;">{{ data.summary.patients_seen }}</span>
+        <span class="stat-label">Pacientes Atendidos</span>
+      </div>
+    </div>
+    <div class="stat-card" style="border-bottom:4px solid #7c3aed;">
+      <div class="stat-icon" style="background:#ede9fe;">F</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#7c3aed;">{{ data.summary.queue_scheduled_or_seen }}</span>
+        <span class="stat-label">Fila Encaminhada</span>
+      </div>
+    </div>
+    <div class="stat-card" style="border-bottom:4px solid #f97316;">
+      <div class="stat-icon" style="background:#ffedd5;">%</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#ea580c;">{{ data.summary.no_show_rate }}%</span>
+        <span class="stat-label">Absenteísmo</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="bi-layout">
+    <section class="card" style="margin:0;">
+      <div class="bi-section-heading">
+        <h2 class="section-header" style="margin:0;">Comparativo Mensal</h2>
+        <span>{{ data.period.start.strftime('%d/%m/%Y') }} a {{ data.period.end.strftime('%d/%m/%Y') }}</span>
+      </div>
+
+      {% if data.monthly_comparison %}
+      <div class="bi-month-grid">
+        {% for row in data.monthly_comparison %}
+        {% set max_value = [row.completed_procedures, row.appointments_done, row.new_patients, 1]|max %}
+        <div class="bi-month">
+          <strong>{{ row.label }}</strong>
+          <div class="bi-mini-bar">
+            <span>Produção</span>
+            <div><i style="width:{{ (row.completed_procedures / max_value * 100)|round(1) }}%;"></i></div>
+            <b>{{ row.completed_procedures }}</b>
+          </div>
+          <div class="bi-mini-bar">
+            <span>Atendidos</span>
+            <div><i style="width:{{ (row.appointments_done / max_value * 100)|round(1) }}%;"></i></div>
+            <b>{{ row.appointments_done }}</b>
+          </div>
+          <div class="bi-mini-bar">
+            <span>Cadastros</span>
+            <div><i style="width:{{ (row.new_patients / max_value * 100)|round(1) }}%;"></i></div>
+            <b>{{ row.new_patients }}</b>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="bi-empty">Sem dados mensais para comparação.</div>
+      {% endif %}
+    </section>
+
+    <aside class="bi-side">
+      <section class="card" style="margin:0;">
+        <h2 class="section-header">Metas Automáticas</h2>
+        {% for target in data.targets %}
+        <div class="bi-target">
+          <div>
+            <strong>{{ target.label }}</strong>
+            <span>{{ target.current }} / {{ target.target }} {{ target.unit }}</span>
+          </div>
+          <div><i style="width:{{ target.rate }}%;"></i></div>
+        </div>
+        {% endfor %}
+      </section>
+
+      <section class="card" style="margin:0;">
+        <h2 class="section-header">Crescimento vs. Mês Anterior</h2>
+        <div class="bi-growth-grid">
+          <span>Produção <strong>{{ data.growth.production }}%</strong></span>
+          <span>Atendidos <strong>{{ data.growth.patients_seen }}%</strong></span>
+          <span>Fila <strong>{{ data.growth.queue_resolution }}%</strong></span>
+          <span>Absenteísmo <strong>{{ data.growth.no_show_rate }} p.p.</strong></span>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <div class="bi-summary-row">
+    <section class="card" style="margin:0;">
+      <h2 class="section-header">Impacto Social</h2>
+      <div class="bi-kpi-list">
+        <span>Pacientes alcançados <strong>{{ data.summary.reached_patients }}</strong></span>
+        <span>Bairros atendidos <strong>{{ data.summary.neighborhoods }}</strong></span>
+        <span>Municípios vinculados <strong>{{ data.summary.municipalities }}</strong></span>
+        <span>Comparecimento <strong>{{ data.summary.attendance_rate }}%</strong></span>
+      </div>
+    </section>
+
+    <section class="card" style="margin:0;">
+      <h2 class="section-header">Fila SUS</h2>
+      <div class="bi-kpi-list">
+        <span>Demanda triada <strong>{{ data.summary.queue_total }}</strong></span>
+        <span>Encaminhada/atendida <strong>{{ data.summary.queue_scheduled_or_seen }}</strong></span>
+        <span>Reprimida <strong>{{ data.summary.queue_repressed }}</strong></span>
+        <span>Taxa de encaminhamento <strong>{{ data.summary.queue_resolution_rate }}%</strong></span>
+      </div>
+    </section>
+
+    <section class="card" style="margin:0;">
+      <h2 class="section-header">Financeiro Operacional</h2>
+      <div class="bi-kpi-list">
+        <span>Planos estimados <strong>R$ {{ "%.2f"|format(data.summary.estimated_plan_value) }}</strong></span>
+        <span>Planos aprovados <strong>R$ {{ "%.2f"|format(data.summary.approved_plan_value) }}</strong></span>
+        <span>Conversão <strong>{{ data.summary.plan_conversion_rate }}%</strong></span>
+        <span>Procedimentos pendentes <strong>{{ data.summary.pending_procedures }}</strong></span>
+      </div>
+    </section>
+  </div>
+
+  <div class="bi-rankings">
+    <section class="card" style="margin:0;">
+      <h2 class="section-header">Ranking de Produção</h2>
+      {% for row in data.professional_ranking %}
+      <div class="bi-rank-row">
+        <span>{{ row.professional }}</span>
+        <strong>{{ row.completed_procedures }}</strong>
+      </div>
+      {% else %}
+      <p style="color:hsl(var(--text-muted));">Sem produção concluída no período.</p>
+      {% endfor %}
+    </section>
+
+    <section class="card" style="margin:0;">
+      <h2 class="section-header">Bairros com Maior Alcance</h2>
+      {% for row in data.neighborhood_ranking %}
+      <div class="bi-rank-row">
+        <span>{{ row.bairro }}</span>
+        <strong>{{ row.reached_patients }}</strong>
+      </div>
+      {% else %}
+      <p style="color:hsl(var(--text-muted));">Sem atendimentos territoriais no período.</p>
+      {% endfor %}
+    </section>
+
+    <section class="card" style="margin:0;">
+      <h2 class="section-header">Especialidades Críticas</h2>
+      {% for row in data.specialty_ranking %}
+      <div class="bi-rank-row">
+        <span>{{ row.especialidade }}</span>
+        <strong>{{ row.repressed }}</strong>
+      </div>
+      {% else %}
+      <p style="color:hsl(var(--text-muted));">Sem demanda reprimida por especialidade.</p>
+      {% endfor %}
+    </section>
+  </div>
+</div>
+
+<style>
+.bi-header {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:1rem;
+  flex-wrap:wrap;
+  margin-bottom:1.5rem;
+}
+.bi-filter {
+  display:grid;
+  grid-template-columns:repeat(2, minmax(160px, 1fr)) auto auto;
+  gap:1rem;
+  align-items:end;
+  padding:1rem;
+  border:1px solid hsl(var(--border));
+  border-radius:var(--radius-md);
+  background:white;
+  margin-bottom:1.5rem;
+}
+.bi-layout {
+  display:grid;
+  grid-template-columns:minmax(0,1.35fr) minmax(320px,0.65fr);
+  gap:1.5rem;
+  align-items:start;
+}
+.bi-side {
+  display:flex;
+  flex-direction:column;
+  gap:1.5rem;
+}
+.bi-section-heading {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  margin-bottom:1rem;
+}
+.bi-section-heading span {
+  color:hsl(var(--text-muted));
+  font-size:0.82rem;
+  font-weight:700;
+}
+.bi-month-grid {
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:1rem;
+}
+.bi-month {
+  border:1px solid hsl(var(--border));
+  border-radius:var(--radius-md);
+  padding:0.9rem;
+  background:#fff;
+}
+.bi-month > strong {
+  display:block;
+  color:hsl(var(--primary));
+  margin-bottom:0.75rem;
+}
+.bi-mini-bar {
+  display:grid;
+  grid-template-columns:72px minmax(0,1fr) 36px;
+  gap:0.55rem;
+  align-items:center;
+  padding:0.3rem 0;
+}
+.bi-mini-bar span {
+  color:hsl(var(--text-muted));
+  font-size:0.76rem;
+  font-weight:700;
+}
+.bi-mini-bar div,
+.bi-target > div:last-child {
+  height:8px;
+  border-radius:999px;
+  background:#e5e7eb;
+  overflow:hidden;
+}
+.bi-mini-bar i,
+.bi-target i {
+  display:block;
+  height:100%;
+  border-radius:999px;
+  background:#2563eb;
+}
+.bi-mini-bar b {
+  text-align:right;
+  color:hsl(var(--text-main));
+  font-size:0.82rem;
+}
+.bi-target {
+  display:flex;
+  flex-direction:column;
+  gap:0.55rem;
+  padding:0.75rem 0;
+  border-bottom:1px solid hsl(var(--border));
+}
+.bi-target:last-child {
+  border-bottom:none;
+}
+.bi-target strong {
+  color:hsl(var(--text-main));
+}
+.bi-target span {
+  display:block;
+  color:hsl(var(--text-muted));
+  font-size:0.8rem;
+  margin-top:0.15rem;
+}
+.bi-growth-grid,
+.bi-kpi-list {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:0.75rem;
+}
+.bi-growth-grid span,
+.bi-kpi-list span {
+  display:flex;
+  flex-direction:column;
+  gap:0.25rem;
+  padding:0.8rem;
+  border-radius:var(--radius-md);
+  background:hsl(var(--bg-main));
+  color:hsl(var(--text-muted));
+  font-size:0.78rem;
+}
+.bi-growth-grid strong,
+.bi-kpi-list strong {
+  color:hsl(var(--text-main));
+  font-size:1rem;
+}
+.bi-summary-row,
+.bi-rankings {
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:1.5rem;
+  margin-top:1.5rem;
+}
+.bi-rank-row {
+  display:flex;
+  justify-content:space-between;
+  gap:1rem;
+  padding:0.65rem 0;
+  border-bottom:1px solid hsl(var(--border));
+}
+.bi-rank-row:last-child {
+  border-bottom:none;
+}
+.bi-rank-row span {
+  color:hsl(var(--text-main));
+  font-weight:600;
+}
+.bi-rank-row strong {
+  color:hsl(var(--primary));
+}
+.bi-empty {
+  padding:2rem;
+  text-align:center;
+  color:hsl(var(--text-muted));
+}
+@media (max-width: 1100px) {
+  .bi-layout,
+  .bi-summary-row,
+  .bi-rankings,
+  .bi-month-grid {
+    grid-template-columns:1fr;
+  }
+}
+@media (max-width: 720px) {
+  .bi-filter,
+  .bi-growth-grid,
+  .bi-kpi-list {
+    grid-template-columns:1fr;
+  }
+}
+</style>
+{% endblock %}

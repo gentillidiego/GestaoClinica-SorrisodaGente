@@ -142,7 +142,8 @@ def list_patients():
         
     patients = query(f"""
         SELECT p.id, p.nome, p.cpf, ts.codigo as senha_triagem,
-               e.nome as especialidade_nome, m.codigo as municipio_codigo
+               e.nome as especialidade_nome, m.codigo as municipio_codigo,
+               COALESCE((SELECT suspeita_neoplasia FROM estomatologia WHERE patient_id = p.id ORDER BY id DESC LIMIT 1), FALSE) as suspeita_neoplasia
         FROM patients p
         LEFT JOIN triagem_senhas ts ON ts.patient_id = p.id
         LEFT JOIN especialidades e ON ts.especialidade_id = e.id
@@ -283,6 +284,16 @@ def get_tab_content(id, tab_name):
         'tab-atestado': {
             'service': PatientService.get_patient_documents,
             'template': 'patients/includes/_tab_atestado.html',
+            'is_dict': True
+        },
+        'tab-estomatologia': {
+            'service': PatientService.get_patient_estomatologia,
+            'template': 'patients/includes/_tab_estomatologia.html',
+            'is_dict': True
+        },
+        'tab-linha-tempo': {
+            'service': PatientService.get_patient_timeline,
+            'template': 'patients/includes/_tab_linha_tempo.html',
             'is_dict': True
         }
     }
@@ -722,3 +733,153 @@ def validate_exam(id, exam_id):
         flash(f'Erro ao validar exame: {str(e)}', 'danger')
         
     return redirect(url_for('patients.view_patient', id=id))
+
+# ── Rotas do Módulo de Estomatologia (Fase 0) ────────────────────────────────
+
+@patients_bp.route('/<int:id>/estomatologia/save', methods=['POST'])
+@login_required
+def save_estomatologia(id):
+    localizacao = request.form.get('localizacao_lesao')
+    tamanho = request.form.get('tamanho_lesao')
+    caracteristicas = request.form.get('caracteristicas_lesao')
+    habitos = request.form.get('habitos_paciente')
+    tempo_evolucao = request.form.get('tempo_evolucao')
+    hipotese = request.form.get('hipotese_diagnostica')
+    suspeita = True if request.form.get('suspeita_neoplasia') == 'on' else False
+    conduta = request.form.get('conduta_clinica')
+    encaminhado = True if request.form.get('encaminhado_para_biopsia') == 'on' else False
+
+    if not all([localizacao, tamanho, caracteristicas, tempo_evolucao]):
+        flash('Por favor, preencha todos os campos obrigatórios da lesão.', 'danger')
+        return redirect(url_for('patients.view_patient', id=id) + '#tab-estomatologia')
+
+    try:
+        # Verifica se já existe um registro para o paciente
+        est = query("SELECT id FROM estomatologia WHERE patient_id = %s LIMIT 1", (id,), one=True)
+
+        if est:
+            execute('''
+                UPDATE estomatologia SET
+                    dentista_id = %s,
+                    localizacao_lesao = %s,
+                    tamanho_lesao = %s,
+                    caracteristicas_lesao = %s,
+                    habitos_paciente = %s,
+                    tempo_evolucao = %s,
+                    hipotese_diagnostica = %s,
+                    suspeita_neoplasia = %s,
+                    conduta_clinica = %s,
+                    encaminhado_para_biopsia = %s,
+                    data_registro = CURRENT_TIMESTAMP
+                WHERE patient_id = %s
+            ''', (current_user.id, localizacao, tamanho, caracteristicas, habitos, tempo_evolucao, hipotese, suspeita, conduta, encaminhado, id))
+            flash('Ficha de Estomatologia atualizada com sucesso!', 'success')
+        else:
+            execute('''
+                INSERT INTO estomatologia (
+                    patient_id, dentista_id, localizacao_lesao, tamanho_lesao,
+                    caracteristicas_lesao, habitos_paciente, tempo_evolucao,
+                    hipotese_diagnostica, suspeita_neoplasia, conduta_clinica,
+                    encaminhado_para_biopsia
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''', (id, current_user.id, localizacao, tamanho, caracteristicas, habitos, tempo_evolucao, hipotese, suspeita, conduta, encaminhado))
+            flash('Ficha de Estomatologia registrada com sucesso!', 'success')
+
+    except Exception as e:
+        flash(f'Erro ao salvar ficha de estomatologia: {str(e)}', 'danger')
+
+    return redirect(url_for('patients.view_patient', id=id) + '#tab-estomatologia')
+
+@patients_bp.route('/<int:id>/estomatologia/photo/upload', methods=['POST'])
+@login_required
+def upload_estomatologia_photo(id):
+    import os
+    import uuid
+    from werkzeug.utils import secure_filename
+
+    file = request.files.get('foto')
+    legenda = request.form.get('legenda', '')
+
+    if not file or file.filename == '':
+        flash('Nenhuma foto enviada.', 'danger')
+        return redirect(url_for('patients.view_patient', id=id) + '#tab-estomatologia')
+
+    # Validação simples de tipo de arquivo
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ['.jpg', '.jpeg', '.png', '.webp']:
+        flash('Formato de imagem inválido. Use JPG, PNG ou WEBP.', 'danger')
+        return redirect(url_for('patients.view_patient', id=id) + '#tab-estomatologia')
+
+    try:
+        # Busca a estomatologia correspondente do paciente
+        est = query("SELECT id FROM estomatologia WHERE patient_id = %s LIMIT 1", (id,), one=True)
+        if not est:
+            flash('Por favor, salve a Ficha de Estomatologia antes de enviar fotos da lesão.', 'warning')
+            return redirect(url_for('patients.view_patient', id=id) + '#tab-estomatologia')
+
+        upload_dir = os.path.join('uploads', 'estomatologia')
+        os.makedirs(upload_dir, exist_ok=True)
+
+        filename = f"{uuid.uuid4().hex}{ext}"
+        filepath = os.path.join(upload_dir, filename)
+
+        file.save(filepath)
+
+        # Salva registro no banco
+        execute('''
+            INSERT INTO estomatologia_fotos (estomatologia_id, filename, file_path, legenda)
+            VALUES (%s, %s, %s, %s)
+        ''', (est['id'], filename, filepath, legenda))
+
+        flash('Foto da lesão enviada com sucesso!', 'success')
+    except Exception as e:
+        flash(f'Erro ao fazer upload da foto: {str(e)}', 'danger')
+
+    return redirect(url_for('patients.view_patient', id=id) + '#tab-estomatologia')
+
+@patients_bp.route('/<int:id>/estomatologia/photo/<int:photo_id>/delete', methods=['POST'])
+@login_required
+def delete_estomatologia_photo(id, photo_id):
+    import os
+    try:
+        # Busca a foto para obter o caminho
+        photo = query('''
+            SELECT f.id, f.file_path
+            FROM estomatologia_fotos f
+            JOIN estomatologia e ON f.estomatologia_id = e.id
+            WHERE f.id = %s AND e.patient_id = %s
+        ''', (photo_id, id), one=True)
+
+        if not photo:
+            flash('Foto não encontrada ou sem permissão para excluí-la.', 'danger')
+            return redirect(url_for('patients.view_patient', id=id) + '#tab-estomatologia')
+
+        # Remove do banco
+        execute('DELETE FROM estomatologia_fotos WHERE id = %s', (photo_id,))
+
+        # Tenta remover do disco
+        if os.path.exists(photo['file_path']):
+            os.remove(photo['file_path'])
+
+        flash('Foto removida da evolução com sucesso.', 'success')
+    except Exception as e:
+        flash(f'Erro ao excluir foto: {str(e)}', 'danger')
+
+    return redirect(url_for('patients.view_patient', id=id) + '#tab-estomatologia')
+
+@patients_bp.route('/red-alerts')
+@login_required
+def red_alert_list():
+    patients = query('''
+        SELECT p.id, p.nome, p.cpf, e.localizacao_lesao, e.tamanho_lesao,
+               e.tempo_evolucao, e.data_registro, ts.codigo as senha_triagem,
+               m.nome as municipio_nome
+        FROM patients p
+        JOIN estomatologia e ON e.patient_id = p.id
+        LEFT JOIN triagem_senhas ts ON ts.patient_id = p.id
+        LEFT JOIN municipios m ON ts.municipio_id = m.id
+        WHERE e.suspeita_neoplasia = TRUE
+        ORDER BY e.data_registro DESC
+    ''')
+
+    return render_template('patients/red_alerts.html', patients=patients)

@@ -11,7 +11,7 @@
       <h1 class="page-title">📅 Agenda</h1>
       <p class="page-subtitle">Gerencie as consultas da clínica.</p>
     </div>
-    {% if current_user.role in ['admin','atendimento','professor'] %}
+    {% if can('agenda:write') %}
     <button class="btn btn-primary" id="btn-nova-consulta" style="gap:0.5rem;">
       ➕ Nova Consulta
     </button>
@@ -59,6 +59,7 @@
           <option value="Confirmado" {% if status_filter=='Confirmado' %}selected{% endif %}>🟢 Confirmado</option>
           <option value="Realizado"  {% if status_filter=='Realizado'  %}selected{% endif %}>⚫ Realizado</option>
           <option value="Cancelado"  {% if status_filter=='Cancelado'  %}selected{% endif %}>🔴 Cancelado</option>
+          <option value="Faltou"     {% if status_filter=='Faltou'     %}selected{% endif %}>🟠 Faltou</option>
         </select>
       </div>
 
@@ -96,7 +97,7 @@
               <span class="consulta-dentista">{{ c.dentista_fullname or c.dentista_username }}</span>
               <span class="badge-status badge-{{ c.status|lower }}">{{ c.status }}</span>
 
-              {% if current_user.role in ['admin','atendimento','professor'] %}
+              {% if can('agenda:write') %}
               <div class="consulta-actions">
                 <a href="{{ url_for('agenda.editar_consulta', consulta_id=c.id) }}"
                    class="consulta-btn-edit" title="Editar">✏️</a>
@@ -132,7 +133,7 @@
             <th>Dentista</th>
             <th>Duração</th>
             <th>Status</th>
-            {% if current_user.role in ['admin','atendimento','professor'] %}
+            {% if can('agenda:write') %}
             <th>Ações</th>
             {% endif %}
           </tr>
@@ -150,7 +151,7 @@
             <td>{{ c.dentista_fullname or c.dentista_username }}</td>
             <td>{{ c.duracao_minutos }} min</td>
             <td><span class="badge-status badge-{{ c.status|lower }}">{{ c.status }}</span></td>
-            {% if current_user.role in ['admin','atendimento','professor'] %}
+            {% if can('agenda:write') %}
             <td>
               <div style="display:flex; gap:0.5rem; align-items:center;">
                 <!-- Mudar status rápido -->
@@ -161,6 +162,9 @@
                   <button name="status" value="Confirmado" class="btn-table-action btn-confirm">Confirmar</button>
                   {% elif c.status == 'Confirmado' %}
                   <button name="status" value="Realizado" class="btn-table-action btn-done">Realizado</button>
+                  {% endif %}
+                  {% if c.status != 'Faltou' and c.status != 'Realizado' and c.status != 'Cancelado' %}
+                  <button name="status" value="Faltou" class="btn-table-action btn-cancel">Faltou</button>
                   {% endif %}
                 </form>
                 <a href="{{ url_for('agenda.editar_consulta', consulta_id=c.id) }}"
@@ -182,7 +186,7 @@
     <div style="text-align:center; padding:2.5rem; color:hsl(var(--text-muted));">
       <div style="font-size:2.5rem; margin-bottom:0.75rem;">📅</div>
       <p>Nenhuma consulta agendada para hoje.</p>
-      {% if current_user.role in ['admin','atendimento','professor'] %}
+      {% if can('agenda:write') %}
       <button class="btn btn-primary" style="margin-top:1rem;" onclick="openNovaConsultaModal()">
         ➕ Agendar Consulta
       </button>

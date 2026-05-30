@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Encaminhamento - {{ patient.nome }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 20mm 20mm 20mm 20mm;
+        }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            color: #000;
+            line-height: 1.5;
+            margin: 0;
+            padding: 0;
+            font-size: 11pt;
+        }
+        .header {
+            border-bottom: 2px solid #000;
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .header h2 {
+            margin: 0;
+            font-size: 18pt;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .header p {
+            margin: 4px 0 0 0;
+            font-size: 10pt;
+            font-weight: bold;
+            color: #555;
+            text-transform: uppercase;
+        }
+        .red-alert-banner {
+            background-color: #fee2e2;
+            border: 2px solid #ef4444;
+            color: #b91c1c;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 12pt;
+            margin-bottom: 25px;
+            text-transform: uppercase;
+        }
+        .section-title {
+            font-size: 12pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            border-bottom: 1px solid #ccc;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            padding-bottom: 2px;
+            color: #111;
+        }
+        .info-grid {
+            display: table;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        .info-row {
+            display: table-row;
+        }
+        .info-cell {
+            display: table-cell;
+            padding: 4px 0;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #333;
+        }
+        .clinical-data {
+            margin-bottom: 15px;
+        }
+        .clinical-field {
+            margin-bottom: 12px;
+        }
+        .clinical-label {
+            font-weight: bold;
+            color: #333;
+            display: block;
+            margin-bottom: 2px;
+        }
+        .clinical-value {
+            background-color: #fafafa;
+            border: 1px solid #eee;
+            padding: 8px 12px;
+            border-radius: 4px;
+            min-height: 20px;
+        }
+        .date {
+            margin-top: 40px;
+            margin-bottom: 40px;
+            font-size: 11pt;
+            text-align: right;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            page-break-inside: avoid;
+        }
+        .signature-box {
+            text-align: center;
+            width: 350px;
+            margin: 0 auto;
+        }
+        .signature-line {
+            border-top: 1px solid #000;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h2>Programa Sorriso da Gente</h2>
+        <p>Serviço de Regulação e Especialidades de Alagoas</p>
+    </div>
+
+    {% if doc.suspeita_neoplasia %}
+    <div class="red-alert-banner">
+        🚨 ALERTA VERMELHO: Prioridade Absoluta SUS — Suspeita de Neoplasia Maligna 🚨
+    </div>
+    {% endif %}
+
+    <div class="subtitle" style="text-align: center; font-size: 15pt; font-weight: bold; text-transform: uppercase; margin-bottom: 25px;">
+        Guia de Encaminhamento - Estomatologia Especializada
+    </div>
+
+    <!-- Identificação do Paciente -->
+    <div class="section-title">Identificação do Paciente</div>
+    <div class="info-grid">
+        <div class="info-row">
+            <div class="info-cell" style="width: 60%;"><span class="info-label">Nome:</span> {{ patient.nome }}</div>
+            <div class="info-cell" style="width: 40%;"><span class="info-label">CPF:</span> {{ patient.cpf or '—' }}</div>
+        </div>
+        <div class="info-row">
+            <div class="info-cell"><span class="info-label">CNS:</span> {{ patient.cns or '—' }}</div>
+            <div class="info-cell"><span class="info-label">Data de Nascimento:</span> {{ patient.data_nascimento or '—' }}</div>
+        </div>
+        {% if triage %}
+        <div class="info-row">
+            <div class="info-cell"><span class="info-label">Município de Origem:</span> {{ triage.municipio_nome }}</div>
+            <div class="info-cell"><span class="info-label">Senha de Triagem:</span> {{ triage.codigo }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Dados Clínicos -->
+    <div class="section-title">Avaliação Estomatológica da Lesão</div>
+    <div class="clinical-data">
+        <div class="clinical-field">
+            <span class="clinical-label">Localização Anatômica:</span>
+            <div class="clinical-value">{{ doc.localizacao_lesao }}</div>
+        </div>
+        <div class="clinical-field">
+            <span class="clinical-label">Tamanho Estimado da Lesão:</span>
+            <div class="clinical-value">{{ doc.tamanho_lesao }}</div>
+        </div>
+        <div class="clinical-field">
+            <span class="clinical-label">Características Clínicas Observadas:</span>
+            <div class="clinical-value">{{ doc.caracteristicas_lesao }}</div>
+        </div>
+        {% if doc.habitos_paciente %}
+        <div class="clinical-field">
+            <span class="clinical-label">Hábitos de Risco Relatados (Ex: Tabagismo, Etilismo):</span>
+            <div class="clinical-value">{{ doc.habitos_paciente }}</div>
+        </div>
+        {% endif %}
+        <div class="clinical-field">
+            <span class="clinical-label">Tempo Aproximado de Evolução da Lesão:</span>
+            <div class="clinical-value">{{ doc.tempo_evolucao }}</div>
+        </div>
+        {% if doc.hipotese_diagnostica %}
+        <div class="clinical-field">
+            <span class="clinical-label">Hipótese Diagnóstica Inicial:</span>
+            <div class="clinical-value" style="font-weight: bold;">{{ doc.hipotese_diagnostica }}</div>
+        </div>
+        {% endif %}
+        {% if doc.conduta_clinica %}
+        <div class="clinical-field">
+            <span class="clinical-label">Conduta Clínica / Justificativa do Encaminhamento:</span>
+            <div class="clinical-value">{{ doc.conduta_clinica }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="date">
+        Maceió, {{ (doc.data_registro|string).split('-')[2][:2] if doc.data_registro else '' }} de
+        {% set meses = ['aneiro', 'evereiro', 'arço', 'bril', 'aio', 'unho', 'ulho', 'gosto', 'etembro', 'utubro',
+        'ovembro', 'ezembro'] %}
+        {% if doc.data_registro %}
+        {{ ['j', 'f', 'm', 'a', 'm', 'j', 'j', 'a', 's', 'o', 'n', 'd'][(doc.data_registro|string).split('-')[1]|int - 1] }}{{
+        meses[(doc.data_registro|string).split('-')[1]|int - 1] }}
+        {% endif %}
+        de {{ (doc.data_registro|string).split('-')[0] if doc.data_registro else '' }}.
+    </div>
+
+    <div class="footer">
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            <strong>Dra. Cibely Cândido</strong><br>
+            Coordenação Geral Sorriso da Gente<br>
+            Profissional Requisitante
+        </div>
+    </div>
+</body>
+</html>

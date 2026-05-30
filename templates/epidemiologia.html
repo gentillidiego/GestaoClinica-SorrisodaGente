@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+
+{% block title %}Epidemiologia — Gestão Saúde Oral{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+  <div class="epi-header">
+    <div>
+      <h1 class="page-title">Epidemiologia</h1>
+      <p class="page-subtitle">Indicadores territoriais, lesões bucais, absenteísmo e demanda reprimida.</p>
+    </div>
+    <a href="{{ url_for('main.command_center') }}" class="btn btn-outline" style="height:40px;">Central de Comando</a>
+  </div>
+
+  <form method="GET" class="epi-filter">
+    <div>
+      <label class="form-label" for="inicio">Início</label>
+      <input class="form-control" type="date" id="inicio" name="inicio" value="{{ data.period.start.isoformat() }}">
+    </div>
+    <div>
+      <label class="form-label" for="fim">Fim</label>
+      <input class="form-control" type="date" id="fim" name="fim" value="{{ data.period.end.isoformat() }}">
+    </div>
+    <div>
+      <label class="form-label" for="bairro">Bairro</label>
+      <select class="form-control" id="bairro" name="bairro">
+        <option value="">Todos</option>
+        {% for item in data.filters.neighborhoods %}
+        <option value="{{ item.bairro }}" {% if data.filters.neighborhood == item.bairro %}selected{% endif %}>{{ item.bairro }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary" style="height:48px;">Filtrar</button>
+    <a href="{{ url_for('main.epidemiologia_dashboard') }}" class="btn btn-outline" style="height:48px;">Limpar</a>
+  </form>
+
+  <div class="stat-grid" style="margin-bottom:1.5rem;">
+    <div class="stat-card" style="border-bottom:4px solid #2563eb;">
+      <div class="stat-icon" style="background:#dbeafe;">P</div>
+      <div class="stat-info">
+        <span class="stat-value">{{ data.summary.new_patients }}</span>
+        <span class="stat-label">Novos Cadastros</span>
+      </div>
+    </div>
+    <div class="stat-card" style="border-bottom:4px solid #dc2626;">
+      <div class="stat-icon" style="background:#fee2e2;">L</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#dc2626;">{{ data.summary.cancer_suspicions }}</span>
+        <span class="stat-label">Suspeitas Oncológicas</span>
+      </div>
+    </div>
+    <div class="stat-card" style="border-bottom:4px solid #f97316;">
+      <div class="stat-icon" style="background:#ffedd5;">F</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#ea580c;">{{ data.summary.no_show_rate }}%</span>
+        <span class="stat-label">Absenteísmo</span>
+      </div>
+    </div>
+    <div class="stat-card" style="border-bottom:4px solid #7c3aed;">
+      <div class="stat-icon" style="background:#ede9fe;">D</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#7c3aed;">{{ data.summary.repressed_demand }}</span>
+        <span class="stat-label">Demanda Reprimida</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="epi-layout">
+    <section class="card" style="margin:0;">
+      <div class="epi-section-heading">
+        <h2 class="section-header" style="margin:0;">Mapa por Bairro</h2>
+        <span>{{ data.period.start.strftime('%d/%m/%Y') }} a {{ data.period.end.strftime('%d/%m/%Y') }}</span>
+      </div>
+
+      {% if data.neighborhoods %}
+      <div style="overflow-x:auto;">
+        <table class="epi-table">
+          <thead>
+            <tr>
+              <th>Bairro</th>
+              <th>Pacientes</th>
+              <th>Lesões</th>
+              <th>Suspeitas</th>
+              <th>Faltas</th>
+              <th>Absenteísmo</th>
+              <th>Prótese</th>
+              <th>Demanda</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in data.neighborhoods %}
+            <tr>
+              <td><strong>{{ row.bairro }}</strong></td>
+              <td>{{ row.total_patients }}</td>
+              <td>{{ row.lesion_records }}</td>
+              <td><span class="{% if row.cancer_suspicions %}epi-danger{% endif %}">{{ row.cancer_suspicions }}</span></td>
+              <td>{{ row.no_shows }}</td>
+              <td>
+                <div class="epi-rate">
+                  <span>{{ row.no_show_rate }}%</span>
+                  <div><i style="width:{{ row.no_show_rate }}%;"></i></div>
+                </div>
+              </td>
+              <td>{{ row.prosthetic_need }}</td>
+              <td>{{ row.repressed_demand }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="epi-empty">Nenhum indicador territorial encontrado para o período.</div>
+      {% endif %}
+    </section>
+
+    <aside class="epi-side">
+      <section class="card" style="margin:0;">
+        <h2 class="section-header">Síntese Clínica</h2>
+        <div class="epi-mini-grid">
+          <span>Lesões registradas <strong>{{ data.summary.lesion_records }}</strong></span>
+          <span>Pacientes com lesão <strong>{{ data.summary.lesion_patients }}</strong></span>
+          <span>Encaminhamentos <strong>{{ data.summary.biopsy_referrals }}</strong></span>
+          <span>Necessidade protética <strong>{{ data.summary.prosthetic_need }}</strong></span>
+        </div>
+      </section>
+
+      <section class="card" style="margin:0;">
+        <h2 class="section-header">Localização das Lesões</h2>
+        {% for row in data.lesion_locations %}
+        <div class="epi-rank-row">
+          <span>{{ row.localizacao }}</span>
+          <strong>{{ row.lesion_records }}</strong>
+        </div>
+        {% else %}
+        <p style="color:hsl(var(--text-muted));">Sem registros de lesões no período.</p>
+        {% endfor %}
+      </section>
+
+      <section class="card" style="margin:0;">
+        <h2 class="section-header">Demanda por Especialidade</h2>
+        {% for row in data.specialties %}
+        <div class="epi-rank-row">
+          <span>{{ row.especialidade }}</span>
+          <strong>{{ row.repressed_demand }}</strong>
+        </div>
+        {% else %}
+        <p style="color:hsl(var(--text-muted));">Sem demanda vinculada por especialidade.</p>
+        {% endfor %}
+      </section>
+    </aside>
+  </div>
+
+  <div class="epi-bottom">
+    <section class="card" style="margin:0;">
+      <h2 class="section-header">Faixa Etária</h2>
+      {% for item in data.demographics.age_groups %}
+      <div class="epi-bar-row">
+        <span>{{ item.label }}</span>
+        <div><i style="width:{{ item.rate }}%;"></i></div>
+        <strong>{{ item.total }}</strong>
+      </div>
+      {% endfor %}
+    </section>
+
+    <section class="card" style="margin:0;">
+      <h2 class="section-header">Gênero</h2>
+      {% for item in data.demographics.gender %}
+      <div class="epi-bar-row">
+        <span>{{ item.label }}</span>
+        <div><i style="width:{{ item.rate }}%;"></i></div>
+        <strong>{{ item.total }}</strong>
+      </div>
+      {% else %}
+      <p style="color:hsl(var(--text-muted));">Sem dados demográficos no período.</p>
+      {% endfor %}
+    </section>
+
+    <section class="card" style="margin:0;">
+      <h2 class="section-header">Perfil Profissional</h2>
+      {% for item in data.demographics.occupations %}
+      <div class="epi-bar-row">
+        <span>{{ item.label }}</span>
+        <div><i style="width:{{ item.rate }}%;"></i></div>
+        <strong>{{ item.total }}</strong>
+      </div>
+      {% else %}
+      <p style="color:hsl(var(--text-muted));">Sem dados profissionais no período.</p>
+      {% endfor %}
+    </section>
+  </div>
+</div>
+
+<style>
+.epi-header {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:1rem;
+  flex-wrap:wrap;
+  margin-bottom:1.5rem;
+}
+.epi-filter {
+  display:grid;
+  grid-template-columns:repeat(3, minmax(160px, 1fr)) auto auto;
+  gap:1rem;
+  align-items:end;
+  padding:1rem;
+  border:1px solid hsl(var(--border));
+  border-radius:var(--radius-md);
+  background:white;
+  margin-bottom:1.5rem;
+}
+.epi-layout {
+  display:grid;
+  grid-template-columns:minmax(0,1.35fr) minmax(320px,0.65fr);
+  gap:1.5rem;
+  align-items:start;
+}
+.epi-side {
+  display:flex;
+  flex-direction:column;
+  gap:1.5rem;
+}
+.epi-bottom {
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:1.5rem;
+  margin-top:1.5rem;
+}
+.epi-section-heading {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  margin-bottom:1rem;
+}
+.epi-section-heading span {
+  color:hsl(var(--text-muted));
+  font-size:0.82rem;
+  font-weight:700;
+}
+.epi-table {
+  width:100%;
+  border-collapse:collapse;
+}
+.epi-table th {
+  text-align:left;
+  padding:0.75rem;
+  border-bottom:1px solid hsl(var(--border));
+  color:hsl(var(--text-muted));
+  font-size:0.76rem;
+}
+.epi-table td {
+  padding:0.85rem 0.75rem;
+  border-bottom:1px solid hsl(var(--border));
+  color:hsl(var(--text-main));
+  font-size:0.88rem;
+}
+.epi-danger {
+  color:#dc2626;
+  font-weight:800;
+}
+.epi-rate {
+  min-width:100px;
+}
+.epi-rate span {
+  font-size:0.76rem;
+  font-weight:800;
+  color:hsl(var(--text-main));
+}
+.epi-rate div,
+.epi-bar-row div {
+  height:8px;
+  border-radius:999px;
+  background:#e5e7eb;
+  overflow:hidden;
+  margin-top:0.25rem;
+}
+.epi-rate i,
+.epi-bar-row i {
+  display:block;
+  height:100%;
+  border-radius:999px;
+  background:#2563eb;
+}
+.epi-mini-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:0.75rem;
+}
+.epi-mini-grid span {
+  display:flex;
+  flex-direction:column;
+  gap:0.25rem;
+  padding:0.8rem;
+  border-radius:var(--radius-md);
+  background:hsl(var(--bg-main));
+  color:hsl(var(--text-muted));
+  font-size:0.78rem;
+}
+.epi-mini-grid strong {
+  color:hsl(var(--text-main));
+  font-size:1.25rem;
+}
+.epi-rank-row {
+  display:flex;
+  justify-content:space-between;
+  gap:1rem;
+  padding:0.65rem 0;
+  border-bottom:1px solid hsl(var(--border));
+}
+.epi-rank-row:last-child {
+  border-bottom:none;
+}
+.epi-rank-row span {
+  color:hsl(var(--text-main));
+  font-weight:600;
+}
+.epi-rank-row strong {
+  color:hsl(var(--primary));
+}
+.epi-bar-row {
+  display:grid;
+  grid-template-columns:82px minmax(0,1fr) 42px;
+  gap:0.75rem;
+  align-items:center;
+  padding:0.55rem 0;
+}
+.epi-bar-row span {
+  color:hsl(var(--text-main));
+  font-size:0.82rem;
+  font-weight:700;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.epi-bar-row strong {
+  text-align:right;
+  color:hsl(var(--primary));
+}
+.epi-empty {
+  padding:2rem;
+  text-align:center;
+  color:hsl(var(--text-muted));
+}
+@media (max-width: 1100px) {
+  .epi-layout,
+  .epi-bottom {
+    grid-template-columns:1fr;
+  }
+}
+@media (max-width: 760px) {
+  .epi-filter {
+    grid-template-columns:1fr;
+  }
+}
+</style>
+{% endblock %}

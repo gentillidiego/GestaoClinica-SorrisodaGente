@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Relatório Institucional — Gestão Saúde Oral{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap; margin-bottom:2rem;">
+    <div>
+      <h1 class="page-title">Relatório Institucional</h1>
+      <p class="page-subtitle">Síntese executiva e epidemiológica para gestão pública e prestação de contas.</p>
+    </div>
+    <form method="POST" action="{{ url_for('reports.export_institutional_pdf') }}" target="_blank">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="inicio" value="{{ report.period.start.isoformat() }}">
+      <input type="hidden" name="fim" value="{{ report.period.end.isoformat() }}">
+      <input type="hidden" name="tipo" value="{{ report.report_type }}">
+      <button type="submit" class="btn btn-primary">Gerar PDF</button>
+    </form>
+  </div>
+
+  <form method="GET" class="card" style="padding:1rem; margin-bottom:1.5rem;">
+    <div style="display:grid; grid-template-columns:repeat(3, minmax(180px, 1fr)) auto auto; gap:1rem; align-items:end;">
+      <div>
+        <label class="form-label" for="inicio">Início</label>
+        <input class="form-control" type="date" id="inicio" name="inicio" value="{{ report.period.start.isoformat() }}">
+      </div>
+      <div>
+        <label class="form-label" for="fim">Fim</label>
+        <input class="form-control" type="date" id="fim" name="fim" value="{{ report.period.end.isoformat() }}">
+      </div>
+      <div>
+        <label class="form-label" for="tipo">Perfil</label>
+        <select class="form-control" id="tipo" name="tipo">
+          {% for option in report_type_choices %}
+          <option value="{{ option.value }}" {% if report.report_type == option.value %}selected{% endif %}>{{ option.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary" style="height:48px;">Filtrar</button>
+      <a href="{{ url_for('reports.institutional') }}" class="btn btn-outline" style="height:48px;">Limpar</a>
+    </div>
+  </form>
+
+  <div class="stat-grid" style="margin-bottom:1.5rem;">
+    {% for item in report.highlights %}
+    <div class="stat-card" style="border-bottom:4px solid #2563eb;">
+      <div class="stat-icon" style="background:#dbeafe;">{{ item.label[0] }}</div>
+      <div class="stat-info">
+        <span class="stat-value">{{ item.value }}</span>
+        <span class="stat-label">{{ item.label }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div style="display:grid; grid-template-columns:minmax(0,1.2fr) minmax(320px,0.8fr); gap:1.5rem; align-items:start;">
+    <section class="card" style="margin:0;">
+      <h2 class="section-header">Recomendações Executivas</h2>
+      <div style="display:flex; flex-direction:column; gap:0.75rem;">
+        {% for item in report.recommendations %}
+        <div style="padding:0.9rem 1rem; border-left:4px solid #2563eb; background:#eff6ff; border-radius:var(--radius-md); color:hsl(var(--text-main));">
+          {{ item }}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <aside style="display:flex; flex-direction:column; gap:1.5rem;">
+      <section class="card" style="margin:0;">
+        <h2 class="section-header">Perfil do Relatório</h2>
+        <p style="color:hsl(var(--text-muted)); margin-bottom:0.75rem;">{{ report.meta.audience }}</p>
+        {% for item in report.meta.focus %}
+        <div class="rank-row"><span>{{ item }}</span><strong></strong></div>
+        {% endfor %}
+      </section>
+
+      <section class="card" style="margin:0;">
+        <h2 class="section-header">Observações Institucionais</h2>
+        {% for note in report.meta.notes %}
+        <p style="color:hsl(var(--text-muted)); margin-bottom:0.75rem;">{{ note }}</p>
+        {% endfor %}
+      </section>
+    </aside>
+  </div>
+
+  <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:1.5rem; margin-top:1.5rem;">
+    <section class="card" style="margin:0;">
+      <h2 class="section-header">Bairros</h2>
+      {% for row in report.top_neighborhoods %}
+      <div class="rank-row"><span>{{ row.bairro }}</span><strong>{{ row.reached_patients }}</strong></div>
+      {% else %}
+      <p style="color:hsl(var(--text-muted));">Sem bairros no período.</p>
+      {% endfor %}
+    </section>
+
+    <section class="card" style="margin:0;">
+      <h2 class="section-header">Especialidades</h2>
+      {% for row in report.top_specialties %}
+      <div class="rank-row"><span>{{ row.especialidade }}</span><strong>{{ row.repressed }}</strong></div>
+      {% else %}
+      <p style="color:hsl(var(--text-muted));">Sem demanda por especialidade.</p>
+      {% endfor %}
+    </section>
+
+    <section class="card" style="margin:0;">
+      <h2 class="section-header">Lesões</h2>
+      {% for row in report.top_lesions %}
+      <div class="rank-row"><span>{{ row.localizacao }}</span><strong>{{ row.lesion_records }}</strong></div>
+      {% else %}
+      <p style="color:hsl(var(--text-muted));">Sem lesões no período.</p>
+      {% endfor %}
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:1.5rem;">
+    <h2 class="section-header">Histórico de PDFs Gerados</h2>
+    {% if generated_reports %}
+    <div style="overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr style="text-align:left; border-bottom:1px solid hsl(var(--border));">
+            <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Tipo</th>
+            <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Período</th>
+            <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Arquivo</th>
+            <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Status</th>
+            <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Gerado por</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in generated_reports %}
+          <tr style="border-bottom:1px solid hsl(var(--border));">
+            <td style="padding:0.8rem;">{{ item.report_type|upper }}</td>
+            <td style="padding:0.8rem;">{{ item.period_start.strftime('%d/%m/%Y') }} a {{ item.period_end.strftime('%d/%m/%Y') }}</td>
+            <td style="padding:0.8rem;">
+              <a href="{{ url_for('documents.download_pdf', filename=item.filename) }}" target="_blank" style="color:hsl(var(--primary)); font-weight:700; text-decoration:none;">{{ item.filename }}</a>
+            </td>
+            <td style="padding:0.8rem;">{{ item.status }}</td>
+            <td style="padding:0.8rem;">{{ item.full_name or item.username or 'Sistema' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="color:hsl(var(--text-muted));">Nenhum PDF institucional registrado ainda.</p>
+    {% endif %}
+  </section>
+</div>
+
+<style>
+.rank-row {
+  display:flex;
+  justify-content:space-between;
+  gap:1rem;
+  padding:0.65rem 0;
+  border-bottom:1px solid hsl(var(--border));
+}
+.rank-row:last-child { border-bottom:none; }
+.rank-row span { color:hsl(var(--text-main)); font-weight:600; }
+.rank-row strong { color:hsl(var(--primary)); }
+@media (max-width: 960px) {
+  div[style*="grid-template-columns:minmax(0,1.2fr)"],
+  div[style*="grid-template-columns:repeat(3"] {
+    grid-template-columns:1fr !important;
+  }
+}
+@media (max-width: 760px) {
+  form div[style*="grid-template-columns:repeat(3"] {
+    grid-template-columns:1fr !important;
+  }
+}
+</style>
+{% endblock %}

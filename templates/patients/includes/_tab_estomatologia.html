@@ -1,0 +1,210 @@
+<div class="animate-fade">
+    <div style="display: grid; grid-template-columns: 1fr; gap: 2rem; margin-bottom: 2rem;">
+
+        <!-- Bloco 1: Ficha Clínica de Estomatologia -->
+        <div class="card" style="padding: 2.2rem; border-top: 5px solid hsl(var(--primary));">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 800; color: hsl(var(--primary)); display: flex; align-items: center; gap: 0.5rem;">
+                    🩺 Ficha Clínica de Estomatologia
+                </h2>
+                {% if estomatologia %}
+                <span class="badge-status badge-realizado">Cadastrado</span>
+                {% else %}
+                <span class="badge-status badge-pendente">Aguardando Preenchimento</span>
+                {% endif %}
+            </div>
+
+            <form action="{{ url_for('patients.save_estomatologia', id=patient.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <!-- ALERTA VERMELHO (Caso Suspeito de Câncer de Boca) -->
+                <div style="background: #fef2f2; border: 2px solid #fee2e2; border-left: 6px solid #ef4444; border-radius: var(--radius-md); padding: 1.5rem; margin-bottom: 2rem; transition: all 0.3s ease;">
+                    <div style="display: flex; align-items: flex-start; gap: 1rem;">
+                        <input type="checkbox" name="suspeita_neoplasia" id="suspeita_neoplasia"
+                               {% if estomatologia and estomatologia.suspeita_neoplasia %}checked{% endif %}
+                               style="width: 22px; height: 22px; cursor: pointer; accent-color: #ef4444; margin-top: 0.15rem;">
+                        <div>
+                            <label for="suspeita_neoplasia" style="font-weight: 800; color: #b91c1c; font-size: 1.05rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                                🚨 ATIVAR ALERTA VERMELHO (Suspeita Grave de Neoplasia / Câncer de Boca)
+                            </label>
+                            <p style="font-size: 0.82rem; color: #7f1d1d; margin-top: 0.4rem; font-weight: 600; line-height: 1.4;">
+                                Ao ativar esta opção, o paciente será imediatamente sinalizado de forma chamativa em vermelho piscante no painel administrativo e na lista geral de prontuários. Isso permite que a regulação municipal eleve o atendimento e a marcação de consultas de oncologia deste paciente para o topo absoluto da fila.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                    <div>
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">LOCALIZAÇÃO ANATÔMICA DA LESÃO <span style="color:red;">*</span></label>
+                        <input type="text" name="localizacao_lesao" required placeholder="Ex: Borda lateral esquerda da língua, Lábio inferior, etc."
+                               value="{{ estomatologia.localizacao_lesao if estomatologia else '' }}"
+                               style="width: 100%; padding: 0.8rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md);">
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">TAMANHO ESTIMADO DA LESÃO <span style="color:red;">*</span></label>
+                        <input type="text" name="tamanho_lesao" required placeholder="Ex: 1.5 cm x 1.0 cm, 8 mm de diâmetro, etc."
+                               value="{{ estomatologia.tamanho_lesao if estomatologia else '' }}"
+                               style="width: 100%; padding: 0.8rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md);">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">CARACTERÍSTICAS CLÍNICAS DA LESÃO <span style="color:red;">*</span></label>
+                    <textarea name="caracteristicas_lesao" required rows="3" placeholder="Descreva o aspecto físico da lesão (Ex: Úlcera com bordas elevadas e endurecidas, consistência firme à palpação, coloração esbranquiçada e avermelhada mesclada, sangramento ao toque...)"
+                              style="width: 100%; padding: 0.8rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); font-family: var(--font-body);">{{ estomatologia.caracteristicas_lesao if estomatologia else '' }}</textarea>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                    <div>
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">HÁBITOS DE RISCO DO PACIENTE</label>
+                        <input type="text" name="habitos_paciente" placeholder="Ex: Tabagista de 1 carteira/dia há 15 anos, etilista de destilados frequente"
+                               value="{{ estomatologia.habitos_paciente if estomatologia else '' }}"
+                               style="width: 100%; padding: 0.8rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md);">
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">TEMPO APROXIMADO DE EVOLUÇÃO <span style="color:red;">*</span></label>
+                        <input type="text" name="tempo_evolucao" required placeholder="Ex: 3 semanas, 2 meses, etc."
+                               value="{{ estomatologia.tempo_evolucao if estomatologia else '' }}"
+                               style="width: 100%; padding: 0.8rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md);">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+                    <div>
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">HIPÓTESE DIAGNÓSTICA</label>
+                        <input type="text" name="hipotese_diagnostica" placeholder="Ex: Suspeita de Carcinoma Espinocelular, Leucoplasia com Displasia"
+                               value="{{ estomatologia.hipotese_diagnostica if estomatologia else '' }}"
+                               style="width: 100%; padding: 0.8rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md);">
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">CONDUTA CLÍNICA ADOTADA</label>
+                        <input type="text" name="conduta_clinica" placeholder="Ex: Encaminhado com urgência para biópsia incisional e acompanhamento"
+                               value="{{ estomatologia.conduta_clinica if estomatologia else '' }}"
+                               style="width: 100%; padding: 0.8rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md);">
+                    </div>
+                </div>
+
+                <!-- Encaminhamento para Biópsia -->
+                <div style="background: hsl(var(--bg-main)); border: 1px solid hsl(var(--border)); border-radius: var(--radius-md); padding: 1.25rem; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <input type="checkbox" name="encaminhado_para_biopsia" id="encaminhado_para_biopsia"
+                               {% if estomatologia and estomatologia.encaminhado_para_biopsia %}checked{% endif %}
+                               style="width: 18px; height: 18px; cursor: pointer; accent-color: hsl(var(--primary));">
+                        <label for="encaminhado_para_biopsia" style="font-weight: 700; color: hsl(var(--text-main)); cursor: pointer;">
+                            Encaminhado formalmente para biópsia / cirurgia especializado
+                        </label>
+                    </div>
+
+                    {% if estomatologia %}
+                    <a href="{{ url_for('documents.pdf_estomatologia', patient_id=patient.id, est_id=estomatologia.id) }}"
+                       id="btn-print-express" class="btn btn-outline" style="background: white; border-color: hsl(var(--primary)); color: hsl(var(--primary)); font-weight: 800; font-size: 0.85rem;">
+                        🖨️ Encaminhamento Expresso (PDF)
+                    </a>
+                    {% endif %}
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+                    <button type="submit" class="btn btn-primary" style="padding: 0.8rem 2rem; font-weight: 800; font-size: 0.9rem;">
+                        💾 Salvar Ficha de Estomatologia
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Bloco 2: Upload e Evolução Fotográfica das Lesões -->
+        <div class="card" style="padding: 2.2rem; border-top: 5px solid #0ea5e9;">
+            <h2 style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 800; color: #0284c7; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                📸 Galeria e Evolução Fotográfica de Lesões
+            </h2>
+            <p style="color: hsl(var(--text-muted)); font-size: 0.9rem; margin-bottom: 2rem;">
+                Mantenha um histórico visual da evolução da lesão. Faça o upload das fotos das consultas, categorizando-as por ordem temporal.
+            </p>
+
+            {% if not estomatologia %}
+            <div style="text-align: center; padding: 2.5rem; background: hsl(var(--bg-main)); border: 1.5px dashed hsl(var(--border)); border-radius: var(--radius-md); color: hsl(var(--text-muted));">
+                <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">⚠️</span>
+                <p style="font-weight: 600;">Salve a Ficha de Estomatologia acima primeiro antes de realizar o envio de fotos.</p>
+            </div>
+            {% else %}
+
+            <!-- Formulário de Upload de Foto -->
+            <div style="background: hsl(var(--bg-main)); border: 1px solid hsl(var(--border)); border-radius: var(--radius-md); padding: 1.5rem; margin-bottom: 2.5rem;">
+                <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 1rem; color: hsl(var(--text-main));">➕ Enviar Nova Imagem da Lesão</h3>
+                <form action="{{ url_for('patients.upload_estomatologia_photo', id=patient.id) }}" method="POST" enctype="multipart/form-data" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div>
+                        <label class="form-label" style="font-weight: 700; font-size: 0.78rem;">ARQUIVO DE IMAGEM (JPG, PNG, WEBP)</label>
+                        <input type="file" name="foto" required style="width:100%; padding:0.5rem; background: white; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); font-size: 0.8rem;">
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-weight: 700; font-size: 0.78rem;">LEGENDA / ETAPA TEMPORAL</label>
+                        <input type="text" name="legenda" placeholder="Ex: Antes do tratamento, Evolução 1 semana, etc." style="width:100%; padding:0.6rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); font-size: 0.8rem;">
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="padding: 0.7rem 1.5rem; font-size: 0.85rem; font-weight: 800; height: 38px;">
+                        📤 Enviar
+                    </button>
+                </form>
+            </div>
+
+            <!-- Galeria e Comparador Antes e Depois -->
+            <h3 style="font-size: 1.1rem; font-weight: 800; margin-bottom: 1.25rem; color: hsl(var(--text-main)); display: flex; align-items: center; gap: 0.4rem;">
+                🖼️ Registro de Evolução Visual
+            </h3>
+
+            {% if fotos %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1.5rem;">
+                {% for f in fotos %}
+                <div style="border: 1px solid hsl(var(--border)); border-radius: var(--radius-md); overflow: hidden; background: white; display: flex; flex-direction: column; box-shadow: var(--shadow-sm); transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                    <div style="position: relative; padding-top: 75%; background: hsl(var(--bg-main)); overflow: hidden;">
+                        <img src="/{{ f.file_path }}" alt="Foto da Lesão" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; cursor: zoom-in;" onclick="openPhotoModal('/{{ f.file_path }}', '{{ f.legenda or 'Foto da Lesão' }}')">
+                    </div>
+                    <div style="padding: 1rem; flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 0.75rem;">
+                        <div>
+                            <div style="font-weight: 700; font-size: 0.85rem; color: hsl(var(--text-main)); line-height: 1.3;">{{ f.legenda or 'Sem legenda' }}</div>
+                            <div style="font-size: 0.72rem; color: hsl(var(--text-muted)); margin-top: 0.25rem;">Enviado em: {{ f.data_upload.strftime('%d/%m/%Y às %H:%M') }}</div>
+                        </div>
+                        <form action="{{ url_for('patients.delete_estomatologia_photo', id=patient.id, photo_id=f.id) }}" method="POST" onsubmit="return confirm('Deseja realmente excluir esta imagem do prontuário do paciente?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-outline" style="width: 100%; padding: 0.4rem; font-size: 0.75rem; color: hsl(var(--danger)); border-color: hsl(var(--danger)/0.2); justify-content: center; height: auto;">
+                                🗑️ Excluir Foto
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+
+            {% else %}
+            <div style="text-align: center; padding: 3rem; background: hsl(var(--bg-main)); border: 1.5px dashed hsl(var(--border)); border-radius: var(--radius-md); color: hsl(var(--text-muted));">
+                <span style="font-size: 2.2rem; display: block; margin-bottom: 0.5rem;">📸</span>
+                <p style="font-weight: 600; font-size: 0.9rem;">Nenhuma foto cadastrada para esta lesão bucal.</p>
+                <p style="font-size: 0.75rem; margin-top: 0.25rem;">Adicione arquivos acima para iniciar o acompanhamento visual.</p>
+            </div>
+            {% endif %}
+
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal Zoom de Imagem -->
+<div id="photoZoomModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(5px);" onclick="closePhotoModal()">
+    <div style="position: relative; max-width: 90%; max-height: 85vh; display: flex; flex-direction: column; align-items: center; gap: 1rem;">
+        <span style="position: absolute; top: -35px; right: 0; color: white; font-size: 1.5rem; font-weight: 800; cursor: pointer;">✕ Fechar</span>
+        <img id="photoZoomImg" src="" alt="Zoom Foto" style="max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: var(--radius-md); box-shadow: var(--shadow-lg);">
+        <div id="photoZoomCaption" style="color: white; font-weight: 700; font-size: 1.1rem; text-align: center; text-shadow: 0 2px 4px rgba(0,0,0,0.5);"></div>
+    </div>
+</div>
+
+<script>
+function openPhotoModal(src, caption) {
+    document.getElementById('photoZoomImg').src = src;
+    document.getElementById('photoZoomCaption').textContent = caption;
+    document.getElementById('photoZoomModal').style.display = 'flex';
+}
+function closePhotoModal() {
+    document.getElementById('photoZoomModal').style.display = 'none';
+}
+</script>

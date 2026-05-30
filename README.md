@@ -27,7 +27,7 @@ Página pública disponível em [https://sorrisodagentealagoas.com](https://sorr
 
 ## 🐳 Arquitetura e Deploy (Docker)
 
-O sistema opera em uma arquitetura de microsserviços via Docker Compose:
+O sistema opera em uma arquitetura moderna e resiliente de microsserviços via Docker Compose, utilizando volumes nomeados dedicados para isolamento e segurança máxima (LGPD-compliant), livre de permissões de bind mounts locais do host:
 
 | Container | Tecnologia | Função | Porta |
 |---|---|---|---|
@@ -35,6 +35,16 @@ O sistema opera em uma arquitetura de microsserviços via Docker Compose:
 | `gestaosaudeoral-postgres` | PostgreSQL 16 | Banco de dados persistente | `5433` (host) |
 | `gestaosaudeoral-redis` | Redis 7 | Broker de mensagens + Rate Limiting | — |
 | `gestaosaudeoral-celery` | Celery Worker | Geração assíncrona de PDFs | — |
+
+### Volumes Nomeados Persistentes
+* `redis_data_oral` — Cache, sessões rápidas de usuários e broker de tarefas Celery.
+* `pdf_temp_oral` — Diretório isolado para processamento temporário de PDFs gerados pelo WeasyPrint.
+* `postgres_data_oral` — Base PostgreSQL isolada (incluindo prontuários e triagem).
+* `logs_oral` — Histórico estruturado de logs do servidor web e worker.
+* `uploads_oral` — Armazenamento seguro de exames radiológicos e fotos clínicas de lesões bucais (Módulo de Estomatologia).
+* `backups_oral` — Retenção local dos backups operacionais gerados pelo script de contingência.
+
+> ⚠️ **Importante:** Os templates e arquivos estáticos fazem parte da **imagem Docker** (não há bind mount). Qualquer alteração em `templates/` ou `static/` exige rebuild obrigatório com `docker compose up -d --build`.
 
 ## 🌟 Funcionalidades Clínicas (Painel Administrativo)
 
@@ -44,7 +54,51 @@ Acessível via `/dashboard` após login:
 - **Módulo de Triagem Municipal** — Criação de ações por município e geração de senhas por especialidade no formato `ARA-P-001`
 - **Agenda Semanal** — Controle de consultas com badges de status e vinculação paciente/dentista
 - **Dashboard Gerencial** — Métricas de produtividade e taxa de conclusão de agendamentos
-- **Segurança** — Rate limiting integrado e isolamento de dados via PostgreSQL
+- **Central de Comando** — Painel operacional em `/command-center` com pacientes do dia, fila inteligente, alertas, bairros, especialidades e produção
+- **Epidemiologia** — Painel inicial em `/epidemiologia` com indicadores por bairro, lesões, suspeitas oncológicas, absenteísmo, demanda reprimida e perfil demográfico
+- **BI Executivo** — Painel em `/bi` com produção, filas, impacto social, metas automáticas, comparativos mensais e rankings executivos
+- **Relatórios Institucionais** — Prévia, geração assíncrona de PDF, histórico e recortes Institucional/SSA/SMS em `/reports/institutional`
+- **Linha do Tempo do Paciente** — Rastreabilidade inicial por prontuário reunindo cadastro, triagem, agenda, exames, procedimentos, documentos, estomatologia, fotos clínicas e auditoria
+- **Auditoria Administrativa** — Tela com filtros de logs por usuário, módulo, ação, paciente e status
+- **Segurança** — Rate limiting integrado (20 logins/hora por IP) e isolamento de dados via PostgreSQL
+- **🚨 Módulo de Estomatologia (Câncer de Boca)** — Ficha clínica especializada, evolução fotográfica de lesões, Fila Vermelha de regulação oncológica e Encaminhamento Expresso em PDF
+
+## 🚨 Módulo de Estomatologia — Câncer de Boca
+
+Módulo clínico dedicado ao rastreamento, documentação e regulação prioritária de casos suspeitos de neoplasia bucal. Acessível na aba **"🚨 Estomatologia"** dentro de cada prontuário.
+
+### Funcionalidades
+
+**Ficha Clínica Especializada**
+- Localização anatômica da lesão, tamanho estimado, características clínicas detalhadas
+- Hábitos de risco do paciente (tabagismo, etilismo), tempo de evolução
+- Hipótese diagnóstica e conduta clínica adotada
+- Checkbox de encaminhamento formal para biópsia/cirurgia
+
+**Alerta Vermelho (🚨 Suspeita de Neoplasia)**
+- Ao ativar, o paciente é imediatamente sinalizado em vermelho em todas as listas do sistema
+- Entrada automática na **Fila Vermelha de Regulação** (`/patients/red-alerts`)
+- O dashboard exibe o contador de casos ativos e acesso direto à fila
+
+**Evolução Fotográfica de Lesões**
+- Upload de fotos com legenda e categorização temporal ("Antes do tratamento", "Evolução 2 semanas", etc.)
+- Galeria visual tipo grade com modal de zoom em tela cheia
+- Exclusão individual de fotos com confirmação
+
+**Encaminhamento Expresso (PDF)**
+- Gerado via WeasyPrint + Celery com processamento assíncrono (~0.5s)
+- Inclui: banner de ALERTA VERMELHO, dados do paciente, dados clínicos da lesão, município de origem (via senha de triagem) e campo de assinatura da responsável clínica
+- Botão disponível diretamente na ficha clínica do prontuário
+
+### Rotas disponíveis
+
+| Rota | Método | Descrição |
+|---|---|---|
+| `/patients/<id>/estomatologia/save` | POST | Salva ou atualiza a ficha clínica |
+| `/patients/<id>/estomatologia/photo/upload` | POST | Upload de foto da lesão (JPG/PNG/WEBP) |
+| `/patients/<id>/estomatologia/photo/<photo_id>/delete` | POST | Exclusão de foto |
+| `/patients/red-alerts` | GET | Fila Vermelha de regulação oncológica |
+| `/documents/<patient_id>/estomatologia/<est_id>/pdf` | GET | Geração do PDF de encaminhamento |
 
 ## 🎫 Fluxo de Triagem Municipal
 
@@ -89,8 +143,7 @@ docker compose up -d
 ```
 
 ### Rebuild completo
-> ⚠️ **Obrigatório após alterações em código Python ou dependências.**
-> Em desenvolvimento via `docker-compose.yml`, `templates/` e `static/` são montados como volumes e normalmente atualizam sem rebuild.
+> ⚠️ **Obrigatório após qualquer alteração em código Python, templates HTML ou arquivos estáticos.**
 ```bash
 docker compose up -d --build
 ```
@@ -98,7 +151,7 @@ docker compose up -d --build
 ### Criar o admin inicial
 ```bash
 # Defina ADMIN_USERNAME e ADMIN_PASSWORD no .env antes de executar
-docker compose run --rm gestaoclinica python create_admin.py
+ADMIN_USERNAME=admin ADMIN_PASSWORD=senha_segura docker compose run --rm gestaoclinica python create_admin.py
 ```
 
 ### Diagnóstico do ambiente
@@ -106,10 +159,21 @@ docker compose run --rm gestaoclinica python create_admin.py
 docker compose run --rm gestaoclinica python scripts/check_env.py
 ```
 
+### Verificar saúde do sistema
+```bash
+curl http://localhost:5003/health
+# Esperado: {"status": "healthy", "database": "ok", ...}
+```
+
 ### Visualizar logs
 ```bash
 docker logs gestaosaudeoral-web -f
 docker logs gestaosaudeoral-celery -f
+```
+
+### Backup operacional
+```bash
+docker compose run --rm gestaoclinica python scripts/backup_postgres.py
 ```
 
 ## ⚙️ Variáveis de Ambiente Obrigatórias
@@ -124,11 +188,439 @@ Copie `.env.example` para `.env` e preencha antes de subir:
 | `REDIS_URL` | URL Redis — `redis://redis:6379/0` |
 | `ADMIN_USERNAME` | Usuário do admin (para `create_admin.py`) |
 | `ADMIN_PASSWORD` | Senha do admin (para `create_admin.py`) |
+| `BACKUP_DIR` | Diretório de saída dos backups operacionais |
+| `BACKUP_RETENTION_DAYS` | Dias de retenção dos backups locais |
+
+## 📌 Regra Permanente de Documentação do Projeto
+
+Este `README.md` é a **fonte primária do projeto**. Ele deve funcionar ao mesmo tempo como:
+
+- guia de desenvolvimento;
+- guia de implantação;
+- memória técnica das decisões tomadas;
+- base para a futura documentação institucional;
+- base para os manuais de uso por perfil: recepção, triagem, clínica, auditoria, BI, gestão e demais módulos.
+
+### Instrução obrigatória para encerramento de fase ou sessão
+
+Sempre que uma **fase for concluída**, uma **sessão de desenvolvimento for terminada** ou uma entrega relevante for validada, este README deve ser atualizado antes do encerramento do trabalho.
+
+O registro deve conter, no mínimo:
+
+- data da atualização;
+- fase afetada;
+- objetivo da sessão ou entrega;
+- funcionalidades implementadas;
+- arquivos, rotas, serviços, tabelas ou templates impactados;
+- testes executados e resultado;
+- validações manuais realizadas;
+- pendências, riscos e próximos passos;
+- observações úteis para construção futura de documentação e manuais de uso;
+- decisões de produto, regra de negócio ou segurança tomadas durante a sessão.
+
+### Como registrar
+
+- Marcar itens do roadmap como `[x]` apenas quando estiverem implementados e testados.
+- Usar `🟡` ou texto de "parcial" quando a base técnica existir, mas ainda faltar hardening, cobertura completa ou integração externa.
+- Nunca registrar senhas, chaves, tokens, dados sensíveis reais de pacientes ou credenciais.
+- Quando uma funcionalidade tiver impacto no treinamento da equipe, adicionar uma observação de manual, explicando o que o usuário final precisará aprender.
+- Quando houver teste, registrar o comando e o resultado esperado.
+- Quando houver pendência, registrar de forma objetiva o que falta para encerrar o requisito.
+
+## 🚀 Roadmap de Expansão & Acompanhamento de Status
+
+Acompanhe abaixo o progresso do desenvolvimento da expansão tecnológica acordada para o ecossistema do **Sorriso da Gente**.
+
+---
+
+### **Fase 0: MVP de Alta Urgência — 🟢 CONCLUÍDO E VALIDADO** *(Entregue em 29/05/2026)*
+
+> ✅ **Todos os itens implementados, testados e validados em ambiente de produção (Docker).**
+> Validação técnica realizada em 29/05/2026 com testes de integração end-to-end.
+
+- [x] **Módulo Clínico de Estomatologia (Câncer de Boca):**
+  - [x] Prontuário focado em lesões bucais (localização anatômica, tamanho, características clínicas, hábitos de risco e tempo de evolução).
+  - [x] Tabelas `estomatologia` e `estomatologia_fotos` criadas no PostgreSQL com índices de busca otimizados.
+  - [x] Aba "🚨 Estomatologia" integrada ao prontuário com lazy loading e TCLE como pré-requisito.
+- [x] **Evolução Fotográfica (Lesões):**
+  - [x] Upload seguro de fotos com validação de extensão (JPG/PNG/WEBP) e armazenamento no volume `uploads_oral`.
+  - [x] Galeria visual com legenda, data, modal de zoom em tela cheia e exclusão individual por foto.
+- [x] **Fila de Prioridade Clínica (Alerta Vermelho):**
+  - [x] Checkbox "Suspeita de Neoplasia" ativa o alerta imediatamente na listagem geral de pacientes.
+  - [x] Tela dedicada `/patients/red-alerts` com tabela priorizada por data de registro.
+  - [x] Dashboard exibe contador de casos ativos e link direto para a fila.
+- [x] **Encaminhamento Expresso (PDF):**
+  - [x] Geração assíncrona via Celery + WeasyPrint com tempo médio de ~0.5s.
+  - [x] Documento inclui banner de ALERTA VERMELHO, dados clínicos completos e campo de assinatura.
+  - [x] Botão de geração disponível diretamente na ficha clínica do prontuário.
+
+---
+
+### **Fase 1: Segurança, LGPD, Perfis de Acesso, Logs e Continuidade — 🟡 BASE IMPLEMENTADA / HARDENING PENDENTE** *(Revisada em 30/05/2026)*
+
+> Objetivo: preparar a base jurídica, operacional e técnica antes da expansão dos módulos clínicos e gerenciais.
+> Status atual: base funcional entregue e validada por testes automatizados. Ainda existem pendências de criptografia forte, assinatura digital formal, política avançada de retenção e redundância em nuvem.
+
+#### Entregas implementadas
+
+- [x] **Matriz de perfis de acesso**
+  - [x] Papéis definidos em `constants.py`: recepção, triagem, clínica geral, dentista, endodontia, cirurgia, implantes, estomatologia, radiologia, laboratório, financeiro, auditoria, epidemiologia, BI, comunicação, mutirão móvel, TSB/ASB, atendente legado e administrador.
+  - [x] Permissões estruturadas por módulo: pacientes, triagem, agenda, exames, documentos, estomatologia, radiologia, laboratório, financeiro, relatórios, BI, epidemiologia, auditoria, usuários e Central de Comando.
+  - [x] Helper `current_user.can(...)` disponível para menus, botões e ações condicionais.
+  - [x] Decorator `permission_required(...)` disponível para proteger rotas sensíveis.
+- [x] **Auditoria operacional inicial**
+  - [x] Serviço `services/security_service.py` com `audit_log(...)`, captura de usuário, papel, ação, módulo, entidade, paciente, IP, user-agent, método, rota, status e detalhes em JSON.
+  - [x] Tabela `audit_logs` criada na inicialização do banco.
+  - [x] Registro de login, logout, falhas de login, acesso negado, criação/edição/exclusão de usuários e eventos de agenda.
+  - [x] Tela administrativa de auditoria com filtros por usuário, módulo, ação, paciente e status.
+- [x] **Continuidade e backup operacional**
+  - [x] Script `scripts/backup_postgres.py` para dump PostgreSQL em formato custom.
+  - [x] Backup complementar do diretório `uploads`, quando existente.
+  - [x] Retenção local configurável por `BACKUP_RETENTION_DAYS`.
+  - [x] Volume Docker `backups_oral` previsto para armazenamento local dos backups.
+- [x] **Validação técnica da fase**
+  - [x] Pytest instalado no ambiente de desenvolvimento.
+  - [x] Testes automatizados cobrindo permissões, auditoria e base de segurança.
+
+#### Pendências da Fase 1
+
+- [ ] **LGPD Ready completo**
+  - [ ] Criptografia robusta para dados sensíveis em repouso, incluindo prontuários, exames, fotos clínicas, laudos e documentos.
+  - [ ] Política formal de retenção e descarte de uploads clínicos.
+  - [ ] Bloqueio completo de acesso direto a arquivos sem autenticação e autorização por perfil.
+  - [ ] Registro estruturado de consentimento com versionamento de termo, aceite, revogação e responsável.
+- [ ] **Auditoria plena**
+  - [ ] Ampliar cobertura para todos os módulos clínicos: prontuário, fotos, exames, laudos, documentos, triagem, filas, relatórios, alterações de prioridade e alta clínica.
+  - [ ] Incluir filtro por período, IP e severidade na tela administrativa.
+  - [ ] Registrar eventos de visualização sensível, não apenas alterações.
+- [ ] **Assinatura digital**
+  - [ ] Implementar assinatura eletrônica/digital para prontuários, laudos, consentimentos, relatórios, auditorias e documentos institucionais.
+  - [ ] Definir integração ICP-Brasil/A3/Nuvem, Gov.br ou alternativa institucional aceita.
+  - [ ] Registrar hash do documento assinado, carimbo de data/hora e autoria.
+- [ ] **Recuperação rápida**
+  - [ ] Automatizar rotina diária de backup.
+  - [ ] Replicar backups em nuvem com redundância e criptografia.
+  - [ ] Documentar e testar procedimento de restauração, com meta de RPO/RTO.
+
+#### Observações para manuais futuros
+
+- Manual de administração deve explicar criação de usuários, escolha de perfil, impacto de permissões e consulta à auditoria.
+- Manual LGPD deve explicar que todo acesso sensível será rastreado, incluindo usuário, IP, data/hora e módulo.
+- Manual técnico deve documentar o comando de backup, local de retenção e procedimento de restauração.
+
+---
+
+### **Fase 2: Operação Clínica, Fila Inteligente, Alertas e Rastreabilidade — 🟢 PRIMEIRA VERSÃO CONCLUÍDA E VALIDADA** *(Revisada em 30/05/2026)*
+
+> Objetivo: criar a primeira base operacional para gestão diária da clínica, priorização automática da fila, alertas críticos e rastreabilidade do paciente.
+> Status atual: primeira versão implementada, revisada e validada com testes automatizados e renderização autenticada em Docker.
+
+#### Entregas implementadas
+
+- [x] **Central de Comando Operacional**
+  - [x] Rota `/command-center` protegida por permissão `command_center:view`.
+  - [x] Cards de pacientes do dia, produção diária/mensal, status da agenda, alerta vermelho, tratamentos pendentes e alertas críticos.
+  - [x] Painéis de bairros atendidos, fila por especialidade, agenda do dia e ranking de prioridade.
+  - [x] Menu e acesso condicionados por perfil.
+- [x] **Inteligência de Fila do SUS**
+  - [x] Primeira versão do algoritmo de prioridade automática para pacientes oncológicos, idosos, faltosos, tratamentos pendentes e lesões suspeitas sem retorno.
+  - [x] Ranking inicial de urgência na Central de Comando (`/command-center`) com pontuação, nível de risco e motivos clínicos.
+  - [x] Revisão técnica contra contagem duplicada de faltas e tratamentos pendentes em joins SQL.
+  - [x] Uso da ficha mais recente de estomatologia para cálculo do risco atual.
+  - [x] Lesão suspeita sem retorno considera retorno somente após a data do registro da lesão.
+- [x] **Sistema de alertas operacionais**
+  - [x] Alertas para paciente com 2 faltas, lesão suspeita sem retorno, fila crítica, alerta vermelho oncológico e tratamentos pendentes.
+  - [x] Alertas da Central de Comando calculados sobre a fila completa, mesmo quando a tela exibe apenas o top 12.
+  - [x] Indicador de faltas integrado ao status `Faltou` da agenda.
+- [x] **Agenda com falta operacional**
+  - [x] Status `Faltou` disponível na criação/edição/filtro visual da agenda.
+  - [x] Ação rápida para marcar falta em consulta pendente ou confirmada.
+  - [x] Proteção contra atualização de status em consulta inexistente.
+  - [x] Auditoria de criação, edição, cancelamento e mudança de status da consulta.
+- [x] **Rastreabilidade total do paciente**
+  - [x] Linha do tempo inicial do acolhimento até a alta consolidando cadastro, triagem, consentimento, agenda, faltas, atendimentos, exames, tratamentos, prótese, endodontia, documentos, estomatologia, fotos clínicas e auditoria.
+  - [x] Aba `Linha do Tempo` no prontuário do paciente.
+  - [x] Parser de datas reforçado para formatos ISO completos e formatos brasileiros.
+  - [x] Eventos de auditoria aparecem como parte da rastreabilidade do paciente.
+- [x] **Validação técnica da fase**
+  - [x] Testes unitários da fila, pontuação, alertas, permissões, parser de datas e rota de agenda.
+  - [x] Renderização autenticada validada em Docker para `/command-center`, `/agenda/` e aba de linha do tempo.
+  - [x] Health check validado em `http://localhost:5003/health`.
+
+#### Testes executados na revisão de 30/05/2026
+
+```bash
+.venv/bin/python -m pytest -q
+# Resultado: 20 passed
+
+.venv/bin/python -m compileall services/command_center_service.py services/traceability_service.py blueprints/agenda.py
+# Resultado: compilação sem erro
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+```
+
+Validações autenticadas em Docker:
+
+| Rota | Resultado |
+|---|---|
+| `/command-center` | HTTP 200 |
+| `/agenda/` | HTTP 200 |
+| `/patients/view/<id>/tab/tab-linha-tempo` | HTTP 200 |
+
+#### Pendências da Fase 2
+
+- [ ] **Evolução do algoritmo de fila**
+  - [ ] Incluir diabéticos, casos agudos de dor, vulnerabilidade socioeconômica e tempo de espera por especialidade.
+  - [ ] Prever demanda por especialidade, bairro, município, período e mutirão.
+  - [ ] Medir redução de tempo de espera, gargalos de agenda e pacientes sem retorno.
+- [ ] **Central de Comando avançada**
+  - [ ] Visão por unidade, município, profissional, especialidade e período.
+  - [ ] Metas automáticas por produção clínica, comparecimento, conclusão de tratamento e fila reduzida.
+  - [ ] Exportação ou impressão de resumo operacional diário.
+- [ ] **Alertas pendentes**
+  - [ ] Implante sem pós-operatório.
+  - [ ] Exame pendente.
+  - [ ] Documento sem assinatura.
+  - [ ] Estoque baixo, material vencendo, material vencido e perdas operacionais.
+  - [ ] Centralização dos alertas também no prontuário e nos módulos responsáveis.
+- [ ] **Rastreabilidade avançada**
+  - [ ] Associação ao prontuário de instrumental utilizado, implante, prótese, lote, validade, fornecedor e profissional responsável.
+  - [ ] Registro do pós-operatório, intercorrências, conduta e alta clínica.
+  - [ ] Rastreabilidade por paciente, procedimento, material, lote, profissional e data.
+- [ ] **Módulo de fotos, radiografias e rastreamento visual**
+  - [ ] Organização padronizada por categoria: antes/depois, evolução, lesões, radiografias, intraoral, extraoral e documentos complementares.
+  - [ ] Comparativo visual lado a lado, linha do tempo e legenda obrigatória.
+  - [ ] Segurança LGPD aplicada aos arquivos, com permissão por perfil e registro de acesso.
+- [ ] **Módulo Financeiro e Logístico Operacional**
+  - [ ] Controle de custo por procedimento, especialidade, profissional, município e tipo de material.
+  - [ ] Produtividade por equipe, cadeira, especialidade e período.
+  - [ ] Estoque com entrada, saída, perdas, validade, lote, fornecedor, centro de custo e alerta automático.
+  - [ ] Relatórios operacionais de perdas, consumo médio e previsão de reposição.
+- [ ] **Treinamento e Implantação**
+  - [ ] Capacitação da equipe operacional por meio de videoaulas, manuais rápidos em PDF e apoio presencial/híbrido.
+
+#### Observações para manuais futuros
+
+- Manual da recepção deve explicar como criar consulta, confirmar, marcar `Faltou`, cancelar e interpretar filtros da agenda.
+- Manual da coordenação deve explicar leitura da Central de Comando: fila prioritária, motivos da pontuação, alertas críticos e produção do dia.
+- Manual clínico deve explicar a Linha do Tempo como visão consolidada do histórico do paciente.
+- Manual de auditoria deve explicar que mudanças de agenda e eventos relevantes aparecem na linha do tempo e nos logs administrativos.
+
+---
+
+### **Fase 3: Inteligência Epidemiológica, Painel Executivo (BI) e Integrações — 🟡 INICIADA** *(Sessão registrada em 30/05/2026)*
+
+> Objetivo: transformar os dados clínicos e operacionais já capturados pelo sistema em inteligência epidemiológica, painéis executivos e relatórios institucionais.
+> Status atual: Mapa Epidemiológico v1 implementado e validado. O painel ainda é territorial/tabular por bairro, sem georreferenciamento cartográfico avançado.
+
+#### Entregas implementadas em 30/05/2026
+
+- [x] **Mapa Epidemiológico v1**
+  - [x] Rota `/epidemiologia` protegida por permissão `epidemiologia:view`.
+  - [x] Menu lateral exibido apenas para perfis com acesso epidemiológico.
+  - [x] Filtros por período e bairro.
+  - [x] Indicadores por bairro: pacientes, lesões, suspeitas oncológicas, faltas, taxa de absenteísmo, necessidade protética e demanda reprimida.
+  - [x] Síntese clínica do período: novos cadastros, lesões registradas, pacientes com lesão, suspeitas oncológicas, encaminhamentos para biópsia, necessidade protética e demanda reprimida.
+  - [x] Ranking de localização anatômica das lesões.
+  - [x] Demanda por especialidade com destaque para demanda reprimida.
+  - [x] Perfil demográfico básico por faixa etária, gênero e profissão.
+- [x] **Base técnica da epidemiologia**
+  - [x] Serviço `services/epidemiology_service.py` criado para centralizar os cálculos.
+  - [x] Métricas derivadas de dados reais existentes: `patients`, `estomatologia`, `consultas`, `triagem_senhas`, `especialidades` e `prosthesis`.
+  - [x] Funções auxiliares para período, percentual, normalização de bairro e agrupamento demográfico.
+- [x] **Validação técnica da sessão**
+  - [x] Testes automatizados adicionados em `tests/test_phase3_epidemiology.py`.
+  - [x] Renderização autenticada da rota `/epidemiologia` validada em Docker.
+  - [x] Health check validado após rebuild.
+
+#### Testes executados na sessão de 30/05/2026
+
+```bash
+.venv/bin/python -m pytest -q
+# Resultado: 25 passed
+
+.venv/bin/python -m compileall services/epidemiology_service.py blueprints/main.py tests/test_phase3_epidemiology.py
+# Resultado: compilação sem erro
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+```
+
+Validações autenticadas em Docker:
+
+| Rota | Resultado |
+|---|---|
+| `/epidemiologia` | HTTP 200 |
+| `/epidemiologia?inicio=2026-05-01&fim=2026-05-30` | HTTP 200 |
+
+#### Entregas implementadas em 30/05/2026 — BI Executivo v1
+
+- [x] **Serviço de BI executivo**
+  - [x] Serviço `services/executive_bi_service.py` criado para centralizar os cálculos executivos.
+  - [x] Resumo de produção, consultas, filas, impacto social e financeiro operacional.
+  - [x] Comparação com mês anterior e cálculo de crescimento.
+  - [x] Metas automáticas iniciais para produção, comparecimento e fila encaminhada.
+  - [x] Comparativo mensal de seis meses.
+  - [x] Rankings por profissional, bairro e especialidade.
+- [x] **Tela de BI**
+  - [x] Template `templates/bi_dashboard.html`.
+  - [x] Rota `/bi` protegida por `bi:view`.
+  - [x] Menu lateral exibido apenas para perfis autorizados.
+  - [x] Filtro por período.
+- [x] **Validação técnica da sessão**
+  - [x] Testes automatizados adicionados em `tests/test_phase3_executive_bi.py`.
+  - [x] Renderização autenticada da rota `/bi` validada em Docker.
+  - [x] Health check validado após rebuild.
+
+#### Testes executados após BI Executivo v1
+
+```bash
+.venv/bin/python -m pytest -q
+# Resultado: 30 passed
+
+.venv/bin/python -m compileall services/executive_bi_service.py blueprints/main.py tests/test_phase3_executive_bi.py
+# Resultado: compilação sem erro
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+```
+
+Validações autenticadas em Docker:
+
+| Rota | Resultado |
+|---|---|
+| `/bi` | HTTP 200 |
+| `/bi?inicio=2026-05-01&fim=2026-05-30` | HTTP 200 |
+
+#### Entregas implementadas em 30/05/2026 — Relatórios Institucionais v1
+
+- [x] **Serviço de relatório institucional**
+  - [x] Serviço `services/institutional_report_service.py` criado para compor dados do BI Executivo e da Epidemiologia.
+  - [x] Perfis de relatório: Institucional, SSA e SMS.
+  - [x] Destaques executivos consolidados: produção, pacientes atendidos, fila encaminhada, suspeitas oncológicas, absenteísmo e bairros alcançados.
+  - [x] Recomendações automáticas para demanda reprimida, absenteísmo, fila oncológica, necessidade protética, biópsias e busca ativa municipal.
+  - [x] Observações institucionais sobre limitações de métricas proxy, suspeita oncológica e georreferenciamento v1.
+- [x] **Prévia e PDF institucional**
+  - [x] Rota `/reports/institutional` com filtros por período.
+  - [x] Filtro por perfil de relatório: Institucional, SSA e SMS.
+  - [x] Rota `/reports/institutional/export` para geração assíncrona via Celery + WeasyPrint.
+  - [x] Template `templates/reports/institutional.html` para prévia operacional.
+  - [x] Template `templates/pdfs/relatorio_institucional_pdf.html` para PDF institucional.
+  - [x] Link de acesso a partir de Relatórios Gerenciais.
+  - [x] Acesso de relatórios ajustado para permissão `reports:view`, não apenas `admin`.
+- [x] **Histórico e automação mensal**
+  - [x] Tabela `generated_reports` criada para registrar tipo, título, período, arquivo, task, usuário, status, detalhes e conclusão.
+  - [x] `generate_pdf_task` atualiza o status do relatório gerado para `success` ou `failed`.
+  - [x] Histórico dos PDFs gerados exibido na tela de relatório institucional.
+  - [x] Script `scripts/generate_monthly_reports.py` criado para geração mensal agendável por cron/orquestrador.
+  - [x] Script suporta `--type institucional`, `--type ssa`, `--type sms` e `--type all`.
+- [x] **Validação técnica da sessão**
+  - [x] Testes automatizados adicionados em `tests/test_phase3_institutional_report.py`.
+  - [x] Prévia autenticada validada em Docker.
+  - [x] POST de exportação validado com CSRF.
+  - [x] Arquivo PDF gerado no volume `pdf_temp`.
+  - [x] Geração mensal automatizada simulada por script.
+
+#### Testes executados após Relatório Institucional v1
+
+```bash
+.venv/bin/python -m pytest -q
+# Resultado: 36 passed
+
+.venv/bin/python -m compileall services/institutional_report_service.py tasks/pdf_tasks.py scripts/generate_monthly_reports.py blueprints/reports_bp.py tests/test_phase3_institutional_report.py
+# Resultado: compilação sem erro
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+
+docker compose exec -T gestaoclinica python scripts/generate_monthly_reports.py --type sms --month 2026-05
+# Resultado: relatorio_sms_20260501_20260531_auto.pdf gerado com sucesso
+```
+
+Validações autenticadas em Docker:
+
+| Rota/Ação | Resultado |
+|---|---|
+| `GET /reports/institutional` | HTTP 200 |
+| `GET /reports/institutional?inicio=2026-05-01&fim=2026-05-30` | HTTP 200 |
+| `GET /reports/institutional?tipo=ssa&inicio=2026-05-01&fim=2026-05-30` | HTTP 200 |
+| `GET /reports/institutional?tipo=sms&inicio=2026-05-01&fim=2026-05-30` | HTTP 200 |
+| `POST /reports/institutional/export` com tipo `ssa` | HTTP 302 para `/documents/status/...` |
+| `pdf_temp/relatorio_institucional_20260501_20260530_8.pdf` | PDF gerado com sucesso |
+| `pdf_temp/relatorio_ssa_20260501_20260530_8.pdf` | PDF gerado com sucesso |
+| `pdf_temp/relatorio_sms_20260501_20260531_auto.pdf` | PDF automático gerado com sucesso |
+| `generated_reports` | Registros `ssa` e `sms` com status `success` |
+
+#### Pendências da Fase 3
+
+- [ ] **Mapa Epidemiológico em Tempo Real avançado**
+  - [ ] Painel georreferenciado real por bairro, município, unidade e ação de triagem.
+  - [ ] Inclusão de perda dentária quando o odontograma estiver estruturado para esse indicador.
+  - [ ] Indicador formal de diagnóstico confirmado de câncer de boca, além da suspeita oncológica.
+  - [ ] Filtros por faixa etária, sexo, especialidade, profissional, município e status do tratamento.
+  - [ ] Identificação automática de áreas críticas para mutirões móveis e ações preventivas.
+- [ ] **Dashboard Executivo (BI) Governamental**
+  - [x] Rota `/bi` protegida por permissão `bi:view`.
+  - [x] Cards executivos de produção clínica, pacientes atendidos, fila encaminhada e absenteísmo.
+  - [x] Indicadores de impacto social: pacientes alcançados, bairros atendidos, municípios vinculados e comparecimento.
+  - [x] Indicadores de fila SUS: demanda triada, encaminhada/atendida, reprimida e taxa de encaminhamento.
+  - [x] Indicadores financeiros operacionais v1: valor estimado em planos, valor aprovado e taxa de conversão.
+  - [x] Metas automáticas v1 baseadas no mês anterior e meta fixa de comparecimento.
+  - [x] Comparativo mensal de produção, atendimentos, cadastros, faltas e suspeitas oncológicas.
+  - [x] Rankings de produção por profissional, bairros com maior alcance e especialidades críticas por demanda reprimida.
+  - [ ] Economia gerada formal com metodologia validada pela gestão pública.
+  - [ ] Visões específicas separadas para Prefeitura, SSA, SMS, coordenação clínica e auditoria.
+- [ ] **Relatórios automáticos e PDFs institucionais**
+  - [x] PDF institucional v1 com síntese executiva, epidemiológica e operacional.
+  - [x] Recortes SSA e SMS.
+  - [x] Geração assíncrona por Celery + WeasyPrint.
+  - [x] Prévia filtrável por período.
+  - [x] Script agendável para geração mensal automática.
+  - [x] Histórico inicial de geração.
+  - [ ] Serviço de scheduler interno ou cron configurado no ambiente de produção.
+  - [ ] Gráficos renderizados no PDF.
+  - [ ] Assinatura digital e histórico formal de geração.
+  - [ ] Agendamento de envio por e-mail ou disponibilização segura no painel executivo.
+- [ ] **Integração Governamental (API do SUS)**
+  - [ ] Barramento de comunicação para exportação e sincronização com bases de dados e APIs oficiais de saúde do SUS.
+  - [ ] Preparação de modelo de dados para interoperabilidade, anonimização estatística e exportação auditável.
+
+#### Observações para manuais futuros
+
+- Manual da epidemiologia deve explicar leitura dos filtros de período e bairro, diferença entre lesão registrada e suspeita oncológica, e interpretação da taxa de absenteísmo.
+- Manual da gestão deve reforçar que o v1 é territorial por bairro, não um mapa cartográfico georreferenciado.
+- Manual do BI deve explicar metas automáticas, crescimento contra mês anterior, ranking de produção e diferença entre valor estimado/aprovado e economia pública formal.
+- Manual de relatórios deve explicar como gerar a prévia institucional, aplicar período, exportar PDF e interpretar recomendações automáticas.
+- Manual técnico deve documentar a origem de cada indicador para evitar uso institucional de métricas proxy sem explicação.
+
+---
 
 ## 📝 Acessos
 
 - **Landing Page:** [https://sorrisodagentealagoas.com](https://sorrisodagentealagoas.com)
 - **Painel Administrativo:** `/dashboard`
+- **Fila Vermelha (Oncologia):** `/patients/red-alerts`
+- **Epidemiologia:** `/epidemiologia`
+- **BI Executivo:** `/bi`
+- **Relatórios Institucionais:** `/reports/institutional`
+- **Health Check:** `/health`
 - **Banco de Dados (host):** porta `5433`
 
 ---

@@ -1,0 +1,140 @@
+<div class="animate-fade">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:1.5rem;">
+        <div>
+            <h2 class="section-header" style="margin-bottom:0.25rem;">Linha do Tempo do Paciente</h2>
+            <p style="color:hsl(var(--text-muted)); margin:0;">Rastreabilidade do acolhimento até a alta, consolidando eventos clínicos, administrativos e de auditoria.</p>
+        </div>
+        <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+            <span class="trace-summary-pill">{{ total_events }} evento(s)</span>
+            {% if first_event %}
+            <span class="trace-summary-pill">Desde {{ first_event.occurred_at.strftime('%d/%m/%Y') }}</span>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if categories %}
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0.75rem; margin-bottom:1.5rem;">
+        {% for category, total in categories.items() %}
+        <div style="padding:0.9rem 1rem; border:1px solid hsl(var(--border)); border-radius:var(--radius-md); background:hsl(var(--bg-main));">
+            <div style="font-size:0.72rem; color:hsl(var(--text-muted)); font-weight:800; text-transform:uppercase;">{{ category }}</div>
+            <div style="font-size:1.35rem; font-weight:900; color:hsl(var(--primary));">{{ total }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if timeline %}
+    <div class="trace-timeline">
+        {% for event in timeline %}
+        <div class="trace-item trace-{{ event.category|lower|replace(' ', '-')|replace('í', 'i')|replace('é', 'e')|replace('ç', 'c') }}">
+            <div class="trace-marker"></div>
+            <div class="trace-card">
+                <div style="display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:0.45rem;">
+                    <div>
+                        <span class="trace-category">{{ event.category }}</span>
+                        <h3 style="margin:0.25rem 0 0; font-size:1rem; color:hsl(var(--text-main));">{{ event.title }}</h3>
+                    </div>
+                    <time style="font-size:0.8rem; color:hsl(var(--text-muted)); font-weight:700; white-space:nowrap;">
+                        {{ event.occurred_at.strftime('%d/%m/%Y %H:%M') }}
+                    </time>
+                </div>
+
+                <p style="margin:0 0 0.65rem; color:hsl(var(--text-muted)); font-size:0.9rem;">{{ event.description }}</p>
+
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    {% if event.status %}
+                    <span class="trace-chip">{{ event.status }}</span>
+                    {% endif %}
+                    {% if event.actor %}
+                    <span class="trace-chip">Resp.: {{ event.actor }}</span>
+                    {% endif %}
+                    {% if event.metadata.dente %}
+                    <span class="trace-chip">Dente: {{ event.metadata.dente }}</span>
+                    {% endif %}
+                    {% if event.metadata.local %}
+                    <span class="trace-chip">{{ event.metadata.local }}</span>
+                    {% endif %}
+                    {% if event.metadata.encaminhado_para_biopsia %}
+                    <span class="trace-chip">Encaminhado para biópsia</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card" style="text-align:center; padding:2.5rem; color:hsl(var(--text-muted));">
+        Nenhum evento rastreável encontrado para este paciente.
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.trace-summary-pill {
+    display:inline-flex;
+    align-items:center;
+    padding:0.45rem 0.75rem;
+    border-radius:999px;
+    background:hsl(var(--primary-soft));
+    color:hsl(var(--primary));
+    font-size:0.78rem;
+    font-weight:800;
+}
+.trace-timeline {
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    gap:1rem;
+    padding-left:1.25rem;
+}
+.trace-timeline::before {
+    content:"";
+    position:absolute;
+    left:0.42rem;
+    top:0.4rem;
+    bottom:0.4rem;
+    width:2px;
+    background:hsl(var(--border));
+}
+.trace-item {
+    position:relative;
+    display:grid;
+    grid-template-columns:1rem minmax(0,1fr);
+    gap:0.8rem;
+}
+.trace-marker {
+    width:0.85rem;
+    height:0.85rem;
+    border-radius:50%;
+    background:hsl(var(--primary));
+    border:3px solid hsl(var(--surface));
+    box-shadow:0 0 0 2px hsl(var(--primary-soft));
+    margin-top:0.8rem;
+    z-index:1;
+}
+.trace-card {
+    border:1px solid hsl(var(--border));
+    border-radius:var(--radius-md);
+    background:white;
+    padding:1rem 1.1rem;
+}
+.trace-category {
+    display:inline-flex;
+    color:hsl(var(--primary));
+    background:hsl(var(--primary-soft));
+    border-radius:999px;
+    padding:0.25rem 0.55rem;
+    font-size:0.7rem;
+    font-weight:900;
+    text-transform:uppercase;
+}
+.trace-chip {
+    display:inline-flex;
+    padding:0.3rem 0.55rem;
+    border-radius:999px;
+    background:hsl(var(--bg-main));
+    color:hsl(var(--text-muted));
+    font-size:0.74rem;
+    font-weight:700;
+}
+</style>

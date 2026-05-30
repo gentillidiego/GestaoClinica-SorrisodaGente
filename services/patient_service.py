@@ -1,6 +1,7 @@
 import json
 from database import query
 from constants import Role
+from services.traceability_service import TraceabilityService
 
 class PatientService:
     @staticmethod
@@ -138,6 +139,21 @@ class PatientService:
             WHERE e.patient_id = %s
             ORDER BY e.criado_em DESC
         """, (patient_id,))
+
+    @staticmethod
+    def get_patient_estomatologia(patient_id):
+        estomatologia = query("SELECT * FROM estomatologia WHERE patient_id = %s ORDER BY data_registro DESC LIMIT 1", (patient_id,), one=True)
+        if estomatologia:
+            fotos = query("SELECT * FROM estomatologia_fotos WHERE estomatologia_id = %s ORDER BY data_upload ASC", (estomatologia['id'],))
+            return {
+                'estomatologia': estomatologia,
+                'fotos': fotos
+            }
+        return {'estomatologia': None, 'fotos': []}
+
+    @staticmethod
+    def get_patient_timeline(patient_id):
+        return TraceabilityService.get_patient_traceability_summary(patient_id)
 
     @staticmethod
     def get_patient_full_profile(patient_id):

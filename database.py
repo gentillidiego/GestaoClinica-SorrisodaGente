@@ -112,6 +112,23 @@ def _ensure_columns_exist(table_name, columns):
         if col_name not in existing_columns:
             execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def}")
 
+
+def _acquire_schema_lock():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT pg_advisory_lock(hashtext('gestao_saude_oral_init_db'))")
+    cur.close()
+    return conn
+
+
+def _release_schema_lock(conn):
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT pg_advisory_unlock(hashtext('gestao_saude_oral_init_db'))")
+        cur.close()
+    finally:
+        put_db_connection(conn)
+
 MIGRATIONS = {
     'anamnesis': [
         ('assinatura_base64', 'TEXT')
@@ -130,16 +147,31 @@ MIGRATIONS = {
         ('full_name', 'TEXT'),
         ('matricula', 'TEXT'),
         ('cro', 'TEXT'),
-        ('cro_uf', 'TEXT')
+        ('cro_uf', 'TEXT'),
+        ('active', 'BOOLEAN DEFAULT TRUE'),
+        ('last_login_at', 'TIMESTAMP'),
+        ('last_login_ip', 'TEXT')
     ],
     'exams': [
         ('professor_id', 'INTEGER'),
         ('data_validacao', 'TIMESTAMP')
+    ],
+    'generated_reports': [
+        ('details', 'JSONB')
     ]
 }
 
 def init_db():
     """Inicializa o banco de dados PostgreSQL com a estrutura necessária."""
+    schema_lock_conn = _acquire_schema_lock()
+    try:
+        _init_db_locked()
+    finally:
+        _release_schema_lock(schema_lock_conn)
+
+
+def _init_db_locked():
+    """Executa a criação/atualização do schema com lock global de banco."""
     execute('''
         CREATE TABLE IF NOT EXISTS municipios (
             id SERIAL PRIMARY KEY,
@@ -163,11 +195,14 @@ def init_db():
             id SERIAL PRIMARY KEY,
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
-            role TEXT DEFAULT 'atendimento',
+            role TEXT DEFAULT 'atendente',
             full_name TEXT,
             matricula TEXT,
             cro TEXT,
-            cro_uf TEXT
+            cro_uf TEXT,
+            active BOOLEAN DEFAULT TRUE,
+            last_login_at TIMESTAMP,
+            last_login_ip TEXT
         )
     ''')
 
@@ -210,6 +245,68 @@ def init_db():
             telefone_expedidor_responsavel TEXT,
             email_responsavel TEXT,
             criado_em TIMESTAMP DEFAULT NOW()
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER,
+            username TEXT,
+            user_role TEXT,
+            action TEXT NOT NULL,
+            module TEXT NOT NULL,
+            entity_type TEXT,
+            entity_id TEXT,
+            patient_id INTEGER,
+            ip_address TEXT,
+            user_agent TEXT,
+            method TEXT,
+            path TEXT,
+            status TEXT DEFAULT 'success',
+            details JSONB,
+            created_at TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE SET NULL
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS patient_consents (
+            id SERIAL PRIMARY KEY,
+            patient_id INTEGER NOT NULL,
+            consent_type TEXT NOT NULL,
+            version TEXT NOT NULL,
+            status TEXT DEFAULT 'active',
+            signed_by_name TEXT,
+            signed_by_document TEXT,
+            recorded_by INTEGER,
+            signature_hash TEXT,
+            source_ip TEXT,
+            signed_at TIMESTAMP DEFAULT NOW(),
+            revoked_at TIMESTAMP,
+            notes TEXT,
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
+            FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS digital_signatures (
+            id SERIAL PRIMARY KEY,
+            document_type TEXT NOT NULL,
+            document_id TEXT NOT NULL,
+            patient_id INTEGER,
+            signed_by INTEGER,
+            signer_name TEXT,
+            signer_role TEXT,
+            signature_provider TEXT DEFAULT 'internal',
+            signature_hash TEXT NOT NULL,
+            signed_at TIMESTAMP DEFAULT NOW(),
+            ip_address TEXT,
+            metadata JSONB,
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE SET NULL,
+            FOREIGN KEY (signed_by) REFERENCES users(id) ON DELETE SET NULL
         )
     ''')
 
@@ -566,6 +663,57 @@ def init_db():
         )
     ''')
 
+    execute('''
+        CREATE TABLE IF NOT EXISTS estomatologia (
+            id SERIAL PRIMARY KEY,
+            patient_id INTEGER NOT NULL,
+            dentista_id INTEGER,
+            data_registro TIMESTAMP DEFAULT NOW(),
+            localizacao_lesao TEXT NOT NULL,
+            tamanho_lesao TEXT NOT NULL,
+            caracteristicas_lesao TEXT NOT NULL,
+            habitos_paciente TEXT,
+            tempo_evolucao TEXT NOT NULL,
+            hipotese_diagnostica TEXT,
+            suspeita_neoplasia BOOLEAN DEFAULT FALSE,
+            conduta_clinica TEXT,
+            encaminhado_para_biopsia BOOLEAN DEFAULT FALSE,
+            FOREIGN KEY (patient_id) REFERENCES patients (id) ON DELETE CASCADE,
+            FOREIGN KEY (dentista_id) REFERENCES users (id) ON DELETE SET NULL
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS estomatologia_fotos (
+            id SERIAL PRIMARY KEY,
+            estomatologia_id INTEGER NOT NULL,
+            filename TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            legenda TEXT,
+            data_upload TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (estomatologia_id) REFERENCES estomatologia (id) ON DELETE CASCADE
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS generated_reports (
+            id SERIAL PRIMARY KEY,
+            report_type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            period_start DATE NOT NULL,
+            period_end DATE NOT NULL,
+            filename TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            task_id TEXT,
+            generated_by INTEGER,
+            status TEXT DEFAULT 'queued',
+            details JSONB,
+            created_at TIMESTAMP DEFAULT NOW(),
+            completed_at TIMESTAMP,
+            FOREIGN KEY (generated_by) REFERENCES users(id) ON DELETE SET NULL
+        )
+    ''')
+
     # Colunas adicionadas em atualizações graduais (já incorporadas no DDL acima,
     # mas mantido para retrocompatibilidade caso o schema já exista)
     for table, cols in MIGRATIONS.items():
@@ -583,6 +731,9 @@ def init_db():
         "CREATE INDEX IF NOT EXISTS idx_anamnesis_patient_id ON anamnesis(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_exams_patient_id ON exams(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_patient_id ON atendimentos(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_estomatologia_patient_id ON estomatologia(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_estomatologia_suspeita ON estomatologia(suspeita_neoplasia)",
+        "CREATE INDEX IF NOT EXISTS idx_estomatologia_fotos_est_id ON estomatologia_fotos(estomatologia_id)",
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_professor_id ON atendimentos(professor_id)",
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_aluno_executor_id ON atendimentos(aluno_executor_id)",
         "CREATE INDEX IF NOT EXISTS idx_tratamento_patient_id ON tratamento_procedimentos(patient_id)",
@@ -597,6 +748,16 @@ def init_db():
         "CREATE INDEX IF NOT EXISTS idx_atestados_patient_id ON atestados(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_patient_tcle_patient_id ON patient_tcle(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)",
+        "CREATE INDEX IF NOT EXISTS idx_users_active ON users(active)",
+        "CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_audit_logs_patient_id ON audit_logs(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action)",
+        "CREATE INDEX IF NOT EXISTS idx_audit_logs_module ON audit_logs(module)",
+        "CREATE INDEX IF NOT EXISTS idx_patient_consents_patient_id ON patient_consents(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_patient_consents_status ON patient_consents(status)",
+        "CREATE INDEX IF NOT EXISTS idx_digital_signatures_document ON digital_signatures(document_type, document_id)",
+        "CREATE INDEX IF NOT EXISTS idx_digital_signatures_patient_id ON digital_signatures(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_exam_fisico_exam_id ON exam_fisico(exam_id)",
         "CREATE INDEX IF NOT EXISTS idx_exam_odontograma_exam_id ON exam_odontograma(exam_id)",
         "CREATE INDEX IF NOT EXISTS idx_exam_placa_exam_id ON exam_controle_placa(exam_id)",
@@ -605,6 +766,9 @@ def init_db():
         "CREATE INDEX IF NOT EXISTS idx_triagem_senhas_patient_id ON triagem_senhas(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_triagem_senhas_mun_esp ON triagem_senhas(municipio_id, especialidade_id)",
         "CREATE INDEX IF NOT EXISTS idx_triagem_acoes_municipio ON triagem_acoes(municipio_id)",
+        "CREATE INDEX IF NOT EXISTS idx_generated_reports_type ON generated_reports(report_type)",
+        "CREATE INDEX IF NOT EXISTS idx_generated_reports_period ON generated_reports(period_start, period_end)",
+        "CREATE INDEX IF NOT EXISTS idx_generated_reports_status ON generated_reports(status)",
     ]
     for idx_sql in indexes:
         execute(idx_sql)

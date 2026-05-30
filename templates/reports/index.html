@@ -13,17 +13,22 @@
                 Painel administrativo para prestação de contas e análise de produtividade.
             </p>
         </div>
-        <form method="POST" action="{{ url_for('reports.export_pdf') }}" target="_blank">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="data_inicio" value="{{ data_inicio }}">
-            <input type="hidden" name="data_fim" value="{{ data_fim }}">
-            <input type="hidden" name="dentista_id" value="{{ dentista_id }}">
-            <input type="hidden" name="tipo_procedimento" value="{{ tipo_procedimento }}">
-            <input type="hidden" name="status_procedimento" value="{{ status_procedimento }}">
-            <button type="submit" class="btn btn-primary" style="gap: 0.5rem;">
-                📄 Exportar PDF
-            </button>
-        </form>
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            <a href="{{ url_for('reports.institutional') }}" class="btn btn-outline" style="gap: 0.5rem;">
+                Relatório Institucional
+            </a>
+            <form method="POST" action="{{ url_for('reports.export_pdf') }}" target="_blank">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="data_inicio" value="{{ data_inicio }}">
+                <input type="hidden" name="data_fim" value="{{ data_fim }}">
+                <input type="hidden" name="dentista_id" value="{{ dentista_id }}">
+                <input type="hidden" name="tipo_procedimento" value="{{ tipo_procedimento }}">
+                <input type="hidden" name="status_procedimento" value="{{ status_procedimento }}">
+                <button type="submit" class="btn btn-primary" style="gap: 0.5rem;">
+                    📄 Exportar PDF
+                </button>
+            </form>
+        </div>
     </div>
 
     <!-- FILTROS -->

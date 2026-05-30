@@ -45,10 +45,17 @@
                 <label for="role" class="form-label">Nível de Acesso (Perfil)</label>
                 <select name="role" id="role" class="form-control" required onchange="toggleCro()">
                     <option value="" disabled selected>Selecione um perfil...</option>
-                    <option value="admin">Administrador (Acesso Total)</option>
-                    <option value="dentista">Cirurgião-Dentista</option>
-                    <option value="tsb">TSB / ASB</option>
-                    <option value="atendente">Atendente (Recepção)</option>
+                    {% for role_value, role_name in role_choices %}
+                    <option value="{{ role_value }}">{{ role_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <label for="active" class="form-label">Status do Acesso</label>
+                <select name="active" id="active" class="form-control" required>
+                    <option value="1" selected>Ativo</option>
+                    <option value="0">Inativo</option>
                 </select>
             </div>
 
@@ -79,7 +86,7 @@
     function toggleCro() {
         var role = document.getElementById('role').value;
         var croContainer = document.getElementById('cro_container');
-        if (role === 'dentista' || role === 'admin') {
+        if (['dentista', 'admin', 'clinica_geral', 'endodontia', 'cirurgia', 'implantes', 'estomatologia'].includes(role)) {
             croContainer.style.display = 'grid';
         } else {
             croContainer.style.display = 'none';

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ report.meta.title }}</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 18mm;
+            @bottom-center {
+                content: "Página " counter(page) " de " counter(pages);
+                font-family: Arial, sans-serif;
+                font-size: 8pt;
+                color: #64748b;
+            }
+        }
+        body {
+            font-family: Arial, sans-serif;
+            color: #1f2937;
+            font-size: 9.5pt;
+            line-height: 1.45;
+            margin: 0;
+        }
+        .header {
+            border-bottom: 3px solid #002d73;
+            padding-bottom: 12px;
+            margin-bottom: 18px;
+        }
+        .header h1 {
+            margin: 0;
+            color: #002d73;
+            font-size: 22pt;
+            text-transform: uppercase;
+        }
+        .header p {
+            margin: 5px 0 0;
+            color: #475569;
+        }
+        .meta {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 10px;
+            margin-bottom: 16px;
+        }
+        .kpi-grid {
+            display: table;
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 6px;
+            margin-bottom: 18px;
+        }
+        .kpi-row {
+            display: table-row;
+        }
+        .kpi {
+            display: table-cell;
+            width: 33.33%;
+            border: 1px solid #dbe3ef;
+            background: #f8fafc;
+            padding: 11px;
+        }
+        .kpi-label {
+            color: #64748b;
+            font-size: 8pt;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+        .kpi-value {
+            display: block;
+            color: #002d73;
+            font-size: 19pt;
+            font-weight: bold;
+            margin: 4px 0;
+        }
+        .section-title {
+            color: #002d73;
+            border-bottom: 1px solid #cbd5e1;
+            padding-bottom: 5px;
+            margin: 18px 0 10px;
+            font-size: 13pt;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 14px;
+        }
+        th, td {
+            border: 1px solid #e2e8f0;
+            padding: 7px;
+            text-align: left;
+            font-size: 8.5pt;
+        }
+        th {
+            background: #eef2ff;
+            color: #1e3a8a;
+        }
+        .recommendation {
+            border-left: 4px solid #ff6a00;
+            background: #fff7ed;
+            padding: 8px 10px;
+            margin-bottom: 7px;
+        }
+        .note {
+            color: #64748b;
+            font-size: 8.5pt;
+            margin: 4px 0;
+        }
+        .signature {
+            margin-top: 38px;
+            text-align: center;
+            page-break-inside: avoid;
+        }
+        .signature-line {
+            width: 310px;
+            border-top: 1px solid #111827;
+            margin: 0 auto 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{ report.meta.title }}</h1>
+        <p>{{ report.meta.subtitle }}</p>
+    </div>
+
+    <div class="meta">
+        <strong>Período:</strong> {{ report.period.start.strftime('%d/%m/%Y') }} a {{ report.period.end.strftime('%d/%m/%Y') }}<br>
+        <strong>Perfil:</strong> {{ report.profile.label }} — {{ report.meta.audience }}<br>
+        <strong>Gerado por:</strong> {{ generated_by }}<br>
+        <strong>Gerado em:</strong> {{ report.generated_at.strftime('%d/%m/%Y %H:%M') }}
+    </div>
+
+    <h2 class="section-title">Foco do Relatório</h2>
+    <table>
+        <tbody>
+            {% for item in report.meta.focus %}
+            <tr>
+                <td>{{ item }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="kpi-grid">
+        {% for chunk in report.highlights|batch(3, none) %}
+        <div class="kpi-row">
+            {% for item in chunk %}
+            {% if item %}
+            <div class="kpi">
+                <div class="kpi-label">{{ item.label }}</div>
+                <span class="kpi-value">{{ item.value }}</span>
+                <div>{{ item.detail }}</div>
+            </div>
+            {% else %}
+            <div class="kpi"></div>
+            {% endif %}
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <h2 class="section-title">Recomendações Executivas</h2>
+    {% for item in report.recommendations %}
+    <div class="recommendation">{{ item }}</div>
+    {% endfor %}
+
+    <h2 class="section-title">Comparativo Mensal</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Mês</th>
+                <th>Cadastros</th>
+                <th>Produção</th>
+                <th>Atendimentos</th>
+                <th>Faltas</th>
+                <th>Suspeitas</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in report.monthly_comparison %}
+            <tr>
+                <td>{{ row.label }}</td>
+                <td>{{ row.new_patients }}</td>
+                <td>{{ row.completed_procedures }}</td>
+                <td>{{ row.appointments_done }}</td>
+                <td>{{ row.no_shows }}</td>
+                <td>{{ row.cancer_suspicions }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2 class="section-title">Bairros com Maior Alcance</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Bairro</th>
+                <th>Pacientes alcançados</th>
+                <th>Suspeitas oncológicas</th>
+                <th>Faltas</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in report.top_neighborhoods %}
+            <tr>
+                <td>{{ row.bairro }}</td>
+                <td>{{ row.reached_patients }}</td>
+                <td>{{ row.cancer_suspicions }}</td>
+                <td>{{ row.no_shows }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2 class="section-title">Especialidades Críticas</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Especialidade</th>
+                <th>Demanda</th>
+                <th>Encaminhada/atendida</th>
+                <th>Reprimida</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in report.top_specialties %}
+            <tr>
+                <td>{{ row.especialidade }}</td>
+                <td>{{ row.demand }}</td>
+                <td>{{ row.scheduled_or_seen }}</td>
+                <td>{{ row.repressed }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2 class="section-title">Observações Técnicas</h2>
+    {% for note in report.meta.notes %}
+    <p class="note">{{ note }}</p>
+    {% endfor %}
+    <p class="note"><strong>Fontes:</strong> {{ report.meta.data_sources|join(', ') }}.</p>
+
+    <div class="signature">
+        <div class="signature-line"></div>
+        <strong>Responsável pela emissão</strong><br>
+        <span style="font-size: 8pt; color: #64748b;">Programa Sorriso da Gente</span>
+    </div>
+</body>
+</html>

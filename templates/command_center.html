@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Central de Comando — Gestão Saúde Oral{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:2rem;">
+    <div>
+      <h1 class="page-title">Central de Comando</h1>
+      <p class="page-subtitle">Operação clínica diária, alertas críticos, fila e produção.</p>
+    </div>
+    <a href="{{ url_for('agenda.agenda_index') }}" class="btn btn-outline" style="height:40px;">Agenda</a>
+  </div>
+
+  <div class="stat-grid" style="margin-bottom:1.5rem;">
+    <div class="stat-card" style="border-bottom:4px solid #2563eb;">
+      <div class="stat-icon" style="background:#dbeafe;">📅</div>
+      <div class="stat-info">
+        <span class="stat-value">{{ data.patients_today|length }}</span>
+        <span class="stat-label">Pacientes do Dia</span>
+      </div>
+    </div>
+    <div class="stat-card" style="border-bottom:4px solid #ef4444;">
+      <div class="stat-icon" style="background:#fee2e2;">🚨</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#dc2626;">{{ data.critical_alert_count }}</span>
+        <span class="stat-label">Alertas Críticos</span>
+      </div>
+    </div>
+    <div class="stat-card" style="border-bottom:4px solid #7c3aed;">
+      <div class="stat-icon" style="background:#ede9fe;">🦷</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#7c3aed;">{{ data.production.today }}</span>
+        <span class="stat-label">Produção Hoje</span>
+      </div>
+    </div>
+    <div class="stat-card" style="border-bottom:4px solid #f97316;">
+      <div class="stat-icon" style="background:#ffedd5;">🟠</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#ea580c;">{{ data.agenda.no_show }}</span>
+        <span class="stat-label">Faltas</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:minmax(0,1.3fr) minmax(320px,0.7fr); gap:1.5rem; align-items:start;">
+    <div style="display:flex; flex-direction:column; gap:1.5rem;">
+      <section class="card" style="margin:0;">
+        <div style="display:flex; justify-content:space-between; gap:1rem; align-items:center; margin-bottom:1rem;">
+          <h2 class="section-header" style="margin:0;">Fila Inteligente de Urgência</h2>
+          <span style="font-size:0.8rem; color:hsl(var(--text-muted));">{{ data.priority_queue|length }} caso(s)</span>
+        </div>
+
+        {% if data.priority_queue %}
+        <div style="overflow-x:auto;">
+          <table style="width:100%; border-collapse:collapse;">
+            <thead>
+              <tr style="text-align:left; border-bottom:1px solid hsl(var(--border));">
+                <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Paciente</th>
+                <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Risco</th>
+                <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Pontuação</th>
+                <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Motivos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for patient in data.priority_queue %}
+              <tr style="border-bottom:1px solid hsl(var(--border));">
+                <td style="padding:0.85rem;">
+                  <a href="{{ url_for('patients.view_patient', id=patient.id) }}" style="font-weight:700; color:hsl(var(--primary)); text-decoration:none;">{{ patient.nome }}</a>
+                  {% if patient.age %}<div style="font-size:0.75rem; color:hsl(var(--text-muted));">{{ patient.age }} anos</div>{% endif %}
+                </td>
+                <td style="padding:0.85rem;">
+                  <span class="risk-badge risk-{{ patient.risk_level }}">
+                    {% if patient.risk_level == 'critical' %}Crítico
+                    {% elif patient.risk_level == 'high' %}Alto
+                    {% elif patient.risk_level == 'medium' %}Médio
+                    {% else %}Rotina{% endif %}
+                  </span>
+                </td>
+                <td style="padding:0.85rem; font-weight:800;">{{ patient.score }}</td>
+                <td style="padding:0.85rem; color:hsl(var(--text-muted)); font-size:0.85rem;">{{ patient.reasons|join(', ') }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">Nenhum paciente em fila prioritária neste momento.</div>
+        {% endif %}
+      </section>
+
+      <section class="card" style="margin:0;">
+        <h2 class="section-header">Pacientes do Dia</h2>
+        {% if data.patients_today %}
+        <div style="display:flex; flex-direction:column; gap:0.6rem;">
+          {% for item in data.patients_today %}
+          <div style="display:grid; grid-template-columns:72px minmax(0,1fr) 120px; gap:0.75rem; align-items:center; padding:0.8rem 1rem; border:1px solid hsl(var(--border)); border-radius:var(--radius-md);">
+            <strong style="color:hsl(var(--primary));">{{ item.data_consulta.strftime('%H:%M') }}</strong>
+            <div style="min-width:0;">
+              <a href="{{ url_for('patients.view_patient', id=item.patient_id) }}" style="font-weight:700; color:hsl(var(--text-main)); text-decoration:none;">{{ item.patient_nome }}</a>
+              <div style="font-size:0.78rem; color:hsl(var(--text-muted));">{{ item.professional_name or 'Profissional não informado' }}</div>
+            </div>
+            <span class="badge-status badge-{{ item.status|lower }}">{{ item.status }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">Nenhum paciente agendado para hoje.</div>
+        {% endif %}
+      </section>
+    </div>
+
+    <aside style="display:flex; flex-direction:column; gap:1.5rem;">
+      <section class="card" style="margin:0;">
+        <h2 class="section-header">Alertas Operacionais</h2>
+        {% if data.alerts %}
+        <div style="display:flex; flex-direction:column; gap:0.75rem;">
+          {% for alert in data.alerts %}
+          <div class="command-alert command-alert-{{ alert.severity }}">
+            <strong>{{ alert.title }}</strong>
+            <span>{{ alert.message }}</span>
+            <a href="{{ url_for(alert.endpoint, **(alert.endpoint_params or {})) }}">Abrir</a>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="padding:1.5rem; text-align:center; color:hsl(var(--text-muted));">Nenhum alerta ativo.</div>
+        {% endif %}
+      </section>
+
+      <section class="card" style="margin:0;">
+        <h2 class="section-header">Agenda</h2>
+        <div class="mini-grid">
+          <span>Pendentes <strong>{{ data.agenda.pending }}</strong></span>
+          <span>Confirmadas <strong>{{ data.agenda.confirmed }}</strong></span>
+          <span>Realizadas <strong>{{ data.agenda.done }}</strong></span>
+          <span>Canceladas <strong>{{ data.agenda.canceled }}</strong></span>
+        </div>
+      </section>
+
+      <section class="card" style="margin:0;">
+        <h2 class="section-header">Bairros Atendidos</h2>
+        {% for row in data.neighborhoods %}
+        <div class="rank-row"><span>{{ row.bairro }}</span><strong>{{ row.total }}</strong></div>
+        {% else %}
+        <p style="color:hsl(var(--text-muted));">Sem dados de bairro.</p>
+        {% endfor %}
+      </section>
+
+      <section class="card" style="margin:0;">
+        <h2 class="section-header">Especialidades</h2>
+        {% for row in data.specialty_queue %}
+        <div class="rank-row"><span>{{ row.especialidade }}</span><strong>{{ row.total }}</strong></div>
+        {% else %}
+        <p style="color:hsl(var(--text-muted));">Sem fila por especialidade.</p>
+        {% endfor %}
+      </section>
+    </aside>
+  </div>
+</div>
+
+<style>
+.risk-badge {
+  display:inline-flex;
+  padding:0.35rem 0.65rem;
+  border-radius:999px;
+  font-size:0.72rem;
+  font-weight:800;
+}
+.risk-critical { background:#fee2e2; color:#991b1b; }
+.risk-high { background:#ffedd5; color:#9a3412; }
+.risk-medium { background:#fef3c7; color:#92400e; }
+.risk-routine { background:#e0f2fe; color:#075985; }
+.command-alert {
+  display:flex;
+  flex-direction:column;
+  gap:0.35rem;
+  padding:0.9rem 1rem;
+  border-radius:var(--radius-md);
+  border-left:5px solid #94a3b8;
+  background:#f8fafc;
+}
+.command-alert strong { color:hsl(var(--text-main)); }
+.command-alert span { color:hsl(var(--text-muted)); font-size:0.86rem; }
+.command-alert a { font-size:0.82rem; font-weight:800; color:hsl(var(--primary)); text-decoration:none; }
+.command-alert-critical { background:#fef2f2; border-left-color:#ef4444; }
+.command-alert-warning { background:#fffbeb; border-left-color:#f59e0b; }
+.mini-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; }
+.mini-grid span {
+  display:flex;
+  flex-direction:column;
+  gap:0.25rem;
+  padding:0.8rem;
+  border-radius:var(--radius-md);
+  background:hsl(var(--bg-main));
+  color:hsl(var(--text-muted));
+  font-size:0.78rem;
+}
+.mini-grid strong { color:hsl(var(--text-main)); font-size:1.25rem; }
+.rank-row {
+  display:flex;
+  justify-content:space-between;
+  gap:1rem;
+  padding:0.65rem 0;
+  border-bottom:1px solid hsl(var(--border));
+}
+.rank-row:last-child { border-bottom:none; }
+.rank-row span { color:hsl(var(--text-main)); font-weight:600; }
+.rank-row strong { color:hsl(var(--primary)); }
+@media (max-width: 980px) {
+  div[style*="grid-template-columns:minmax(0,1.3fr)"] { grid-template-columns:1fr !important; }
+}
+</style>
+{% endblock %}

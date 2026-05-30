@@ -12,10 +12,15 @@
       <p class="page-subtitle">Aqui está um resumo do que acontece hoje na clínica.</p>
     </div>
     <div style="display:flex; gap:0.75rem; align-items:center; flex-shrink:0;">
-      {% if current_user.role in ['admin','atendimento','professor'] %}
+      {% if can('agenda:view') %}
       <a href="{{ url_for('agenda.agenda_index') }}" class="btn btn-outline" style="height:40px; font-size:0.85rem;">
         📅 Ver Agenda
       </a>
+      {% if can('command_center:view') %}
+      <a href="{{ url_for('main.command_center') }}" class="btn btn-outline" style="height:40px; font-size:0.85rem;">
+        📡 Central
+      </a>
+      {% endif %}
       <a href="{{ url_for('patients.register') }}" class="btn btn-primary" style="height:40px; font-size:0.85rem;">
         ➕ Novo Paciente
       </a>
@@ -170,7 +175,7 @@
         <div style="text-align:center; padding:2rem; color:hsl(var(--text-muted));">
           <div style="font-size:2.5rem; margin-bottom:0.5rem;">📅</div>
           <p style="font-size:0.9rem;">Nenhuma consulta agendada para hoje.</p>
-          {% if current_user.role in ['admin','atendimento','professor'] %}
+          {% if can('agenda:write') %}
           <a href="{{ url_for('agenda.agenda_index') }}" class="btn btn-primary" style="margin-top:1rem; font-size:0.85rem;">
             ➕ Agendar Consulta
           </a>
@@ -183,6 +188,14 @@
       <div class="card" style="margin-bottom:0;">
         <h2 class="section-header">🔔 Alertas Operacionais</h2>
         <div style="display:flex; flex-direction:column; gap:0.75rem;">
+
+          {% if stats.red_alert_patients_count > 0 %}
+          <div class="alert-row alert-danger" style="background:#fef2f2; border-left:6px solid #ef4444; border-width: 6px; animation: blink-danger 1.5s infinite alternate;">
+            <span style="font-size:1.25rem;">🚨</span>
+            <span style="color:#b91c1c; font-weight:800;">ALERTA VERMELHO: {{ stats.red_alert_patients_count }} paciente(s) com suspeita grave de neoplasia necessitam de atenção imediata!</span>
+            <a href="{{ url_for('patients.red_alert_list') }}" class="alert-link" style="color:#b91c1c; font-weight:800;">Fila Vermelha →</a>
+          </div>
+          {% endif %}
 
           {% if stats.pending_treatments > 0 %}
           <div class="alert-row alert-danger">
@@ -200,7 +213,7 @@
           </div>
           {% endif %}
 
-          {% if stats.pending_signatures == 0 and stats.pending_treatments == 0 and stats.agenda_canceladas == 0 %}
+          {% if stats.pending_signatures == 0 and stats.pending_treatments == 0 and stats.agenda_canceladas == 0 and stats.red_alert_patients_count == 0 %}
           <div style="text-align:center; padding:1.5rem; color:hsl(var(--text-muted)); font-size:0.9rem;">
             ✅ Nenhum alerta no momento. Tudo em dia!
           </div>
@@ -375,6 +388,10 @@
   font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
+}
+@keyframes blink-danger {
+  from { opacity: 1; box-shadow: 0 0 8px rgba(239, 68, 68, 0.6); }
+  to { opacity: 0.4; box-shadow: 0 0 2px rgba(239, 68, 68, 0.2); }
 }
 </style>
 {% endblock %}
