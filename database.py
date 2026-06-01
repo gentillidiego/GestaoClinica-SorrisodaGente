@@ -186,6 +186,13 @@ MIGRATIONS = {
         ('ledi_version', 'TEXT'),
         ('cnes', 'TEXT'),
         ('ine', 'TEXT')
+    ],
+    'esus_export_batches': [
+        ('payload_json', 'JSONB'),
+        ('records_incomplete', 'INTEGER DEFAULT 0'),
+        ('validated_by', 'INTEGER'),
+        ('validated_at', 'TIMESTAMP'),
+        ('validation_notes', 'TEXT')
     ]
 }
 
@@ -642,15 +649,21 @@ def _init_db_locked():
             status TEXT DEFAULT 'draft',
             endpoint_url TEXT,
             payload_hash TEXT,
+            payload_json JSONB,
             records_total INTEGER DEFAULT 0,
             records_ready INTEGER DEFAULT 0,
             records_missing_sigtap INTEGER DEFAULT 0,
+            records_incomplete INTEGER DEFAULT 0,
             generated_by INTEGER,
             generated_at TIMESTAMP DEFAULT NOW(),
+            validated_by INTEGER,
+            validated_at TIMESTAMP,
+            validation_notes TEXT,
             sent_at TIMESTAMP,
             response_status TEXT,
             response_body TEXT,
-            FOREIGN KEY (generated_by) REFERENCES users(id) ON DELETE SET NULL
+            FOREIGN KEY (generated_by) REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY (validated_by) REFERENCES users(id) ON DELETE SET NULL
         )
     ''')
 
@@ -891,6 +904,8 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_sigtap_procedures_name ON sigtap_procedures(name)",
         "CREATE INDEX IF NOT EXISTS idx_sigtap_procedures_competence ON sigtap_procedures(competence)",
         "CREATE INDEX IF NOT EXISTS idx_esus_batches_reference_month ON esus_export_batches(reference_month)",
+        "CREATE INDEX IF NOT EXISTS idx_esus_batches_status ON esus_export_batches(status)",
+        "CREATE INDEX IF NOT EXISTS idx_esus_batches_validated_at ON esus_export_batches(validated_at)",
         "CREATE INDEX IF NOT EXISTS idx_demo_seed_runs_created_at ON demo_seed_runs(created_at)",
     ]
     for idx_sql in indexes:

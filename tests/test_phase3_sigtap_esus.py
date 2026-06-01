@@ -12,9 +12,13 @@ from services.esus_export_service import (
     build_esus_payload,
     build_homologation_status,
     classify_esus_missing_fields,
+    get_esus_batch_detail,
     get_esus_dashboard,
     month_period,
+    procedure_locked_by_validated_batch,
+    register_esus_export_batch,
     update_treatment_sigtap,
+    validate_esus_export_batch,
 )
 from services.sigtap_service import (
     normalize_sigtap_code,
@@ -183,6 +187,7 @@ def test_update_treatment_sigtap_uses_loaded_catalog(monkeypatch):
     }
 
     monkeypatch.setattr(esus_export_service, 'get_sigtap_procedure', lambda code, competence=None: sigtap)
+    monkeypatch.setattr(esus_export_service, 'procedure_locked_by_validated_batch', lambda procedure_id: None)
 
     def fake_execute(sql, params=()):
         captured['sql'] = sql
@@ -195,6 +200,118 @@ def test_update_treatment_sigtap_uses_loaded_catalog(monkeypatch):
     assert result == sigtap
     assert 'UPDATE tratamento_procedimentos' in captured['sql']
     assert captured['params'] == ('0307030040', '202605', 'PROFILAXIA / REMOÇÃO DA PLACA BACTERIANA', 88)
+
+
+def test_update_treatment_sigtap_blocks_validated_batch_record(monkeypatch):
+    monkeypatch.setattr(esus_export_service, 'procedure_locked_by_validated_batch', lambda procedure_id: 5)
+
+    try:
+        update_treatment_sigtap(88, '0307030040', '202605')
+    except ValueError as exc:
+        assert 'lote e-SUS validado internamente #5' in str(exc)
+    else:
+        raise AssertionError('Expected validated batch lock error')
+
+
+def test_register_esus_export_batch_stores_payload_snapshot(monkeypatch):
+    payload = {
+        'reference_month': '2026-05',
+        'records': [{'local_procedure_id': 1}],
+        'summary': {'total': 2, 'ready': 1, 'missing_sigtap': 1, 'incomplete': 0},
+    }
+    captured = {}
+
+    monkeypatch.setattr(esus_export_service, 'build_esus_payload', lambda month_value=None: (payload, 'abc123'))
+
+    def fake_execute(sql, params=()):
+        captured['sql'] = sql
+        captured['params'] = params
+        return 42
+
+    monkeypatch.setattr(esus_export_service, 'execute', fake_execute)
+
+    batch_id, result_payload = register_esus_export_batch('2026-05', generated_by=7)
+
+    assert batch_id == 42
+    assert result_payload == payload
+    assert 'payload_json' in captured['sql']
+    assert captured['params'][0] == '2026-05'
+    assert captured['params'][2] == 'abc123'
+    assert '"local_procedure_id": 1' in captured['params'][3]
+    assert captured['params'][7] == 0
+    assert captured['params'][8] == 7
+
+
+def test_get_esus_batch_detail_uses_stored_payload_and_pending_records(monkeypatch):
+    payload = {
+        'reference_month': '2026-05',
+        'records': [{'local_procedure_id': 1}],
+        'summary': {'total': 1, 'ready': 1, 'missing_sigtap': 0, 'incomplete': 0},
+    }
+    monkeypatch.setattr(
+        esus_export_service,
+        'get_esus_batch',
+        lambda batch_id: {
+            'id': batch_id,
+            'reference_month': '2026-05',
+            'payload_json': payload,
+            'payload_hash': None,
+            'status': 'draft',
+        },
+    )
+    monkeypatch.setattr(
+        esus_export_service,
+        'build_esus_readiness',
+        lambda month_value=None: {
+            'missing_sigtap_records': [{'id': 2}],
+            'incomplete_records': [{'id': 3}],
+        },
+    )
+
+    detail = get_esus_batch_detail(9)
+
+    assert detail['batch']['id'] == 9
+    assert detail['records'] == payload['records']
+    assert detail['pending_records'] == [{'id': 2}, {'id': 3}]
+    assert detail['legacy_payload'] is False
+
+
+def test_validate_esus_export_batch_marks_internal_validation(monkeypatch):
+    payload = {
+        'summary': {'total': 4, 'ready': 3, 'missing_sigtap': 1, 'incomplete': 0},
+        'records': [{'local_procedure_id': 1}],
+    }
+    calls = []
+    batches = [
+        {'id': 12, 'status': 'draft', 'reference_month': '2026-05', 'payload_json': payload, 'payload_hash': 'hash-1'},
+        {'id': 12, 'status': 'validated_internally', 'reference_month': '2026-05', 'payload_hash': 'hash-1'},
+    ]
+
+    monkeypatch.setattr(esus_export_service, 'get_esus_batch', lambda batch_id: batches.pop(0))
+    monkeypatch.setattr(esus_export_service, 'execute', lambda sql, params=(): calls.append((sql, params)))
+
+    validated = validate_esus_export_batch(12, validated_by=7, notes='Conferido')
+
+    assert validated['status'] == 'validated_internally'
+    assert 'validated_by' in calls[0][0]
+    assert calls[0][1][0] == 'hash-1'
+    assert calls[0][1][1:5] == (4, 3, 1, 0)
+    assert calls[0][1][5] == 7
+    assert calls[0][1][6] == 'Conferido'
+
+
+def test_procedure_locked_by_validated_batch_detects_record(monkeypatch):
+    monkeypatch.setattr(
+        esus_export_service,
+        'query',
+        lambda *args, **kwargs: [{
+            'id': 3,
+            'payload_json': {'records': [{'local_procedure_id': 88}]},
+        }],
+    )
+
+    assert procedure_locked_by_validated_batch(88) == 3
+    assert procedure_locked_by_validated_batch(99) is None
 
 
 def test_get_esus_dashboard_composes_operational_context(monkeypatch):

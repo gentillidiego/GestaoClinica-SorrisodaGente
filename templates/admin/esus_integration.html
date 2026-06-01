@@ -154,10 +154,15 @@
             </section>
 
             <section class="card" style="margin:0; padding:1.5rem;">
-                <h2 class="section-header">Lotes Draft</h2>
+                <h2 class="section-header">Lotes e-SUS</h2>
                 {% for batch in dashboard.batches %}
                 <div class="rank-row">
-                    <span>{{ batch.reference_month }} · {{ batch.status }}</span>
+                    <span>
+                        <a href="{{ url_for('admin.esus_batch_detail', batch_id=batch.id) }}" style="color:hsl(var(--primary)); font-weight:800; text-decoration:none;">
+                            #{{ batch.id }} · {{ batch.reference_month }}
+                        </a>
+                        · {{ batch.status }}
+                    </span>
                     <strong>{{ batch.records_ready }}/{{ batch.records_total }}</strong>
                 </div>
                 {% else %}

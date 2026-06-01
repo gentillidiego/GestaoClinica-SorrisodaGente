@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash
+import json
+
+from flask import Blueprint, Response, render_template, redirect, url_for, request, flash
 from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash
 from database import query, execute, execute_returning
@@ -11,10 +13,12 @@ from constants import (
 )
 from services.security_service import audit_log, list_audit_logs, permission_required
 from services.esus_export_service import (
+    get_esus_batch_detail,
     get_esus_dashboard,
     register_esus_export_batch,
     update_esus_settings,
     update_treatment_sigtap,
+    validate_esus_export_batch,
 )
 from services.sigtap_service import build_sigtap_options, get_sigtap_summary
 
@@ -354,4 +358,86 @@ def create_esus_batch():
         details=payload.get('summary'),
     )
     flash('Lote draft e-SUS gerado para conferência.', 'success')
-    return redirect(url_for('admin.esus_integration', month=month))
+    return redirect(url_for('admin.esus_batch_detail', batch_id=batch_id))
+
+
+@admin_bp.route('/integrations/esus/batches/<int:batch_id>')
+@login_required
+@permission_required('integrations:view')
+def esus_batch_detail(batch_id):
+    detail = get_esus_batch_detail(batch_id)
+    if not detail:
+        flash('Lote e-SUS não encontrado.', 'danger')
+        return redirect(url_for('admin.esus_integration'))
+
+    audit_log(
+        action='esus_batch_opened',
+        module='integrations',
+        entity_type='esus_export_batch',
+        entity_id=batch_id,
+        details={
+            'reference_month': detail['batch']['reference_month'],
+            'status': detail['batch']['status'],
+        },
+    )
+    return render_template(
+        'admin/esus_batch_detail.html',
+        detail=detail,
+        can_write=current_user.can('integrations:write'),
+    )
+
+
+@admin_bp.route('/integrations/esus/batches/<int:batch_id>/download')
+@login_required
+@permission_required('integrations:view')
+def download_esus_batch(batch_id):
+    detail = get_esus_batch_detail(batch_id)
+    if not detail:
+        flash('Lote e-SUS não encontrado.', 'danger')
+        return redirect(url_for('admin.esus_integration'))
+
+    audit_log(
+        action='esus_batch_downloaded',
+        module='integrations',
+        entity_type='esus_export_batch',
+        entity_id=batch_id,
+        details={
+            'reference_month': detail['batch']['reference_month'],
+            'status': detail['batch']['status'],
+            'payload_hash': detail['batch']['payload_hash'],
+        },
+    )
+    filename = f"esus_lote_{batch_id}_{detail['batch']['reference_month']}.json"
+    payload_json = json.dumps(detail['payload'], ensure_ascii=False, indent=2, default=str)
+    return Response(
+        payload_json,
+        mimetype='application/json; charset=utf-8',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+@admin_bp.route('/integrations/esus/batches/<int:batch_id>/validate', methods=['POST'])
+@login_required
+@permission_required('integrations:write')
+def validate_esus_batch(batch_id):
+    try:
+        batch = validate_esus_export_batch(
+            batch_id,
+            validated_by=current_user.id,
+            notes=request.form.get('validation_notes'),
+        )
+        audit_log(
+            action='esus_batch_validated_internally',
+            module='integrations',
+            entity_type='esus_export_batch',
+            entity_id=batch_id,
+            details={
+                'reference_month': batch['reference_month'],
+                'records_ready': batch['records_ready'],
+                'payload_hash': batch['payload_hash'],
+            },
+        )
+        flash('Lote validado internamente e bloqueado para conferência.', 'success')
+    except Exception as exc:
+        flash(f'Erro ao validar lote: {str(exc)}', 'danger')
+    return redirect(url_for('admin.esus_batch_detail', batch_id=batch_id))

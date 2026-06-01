@@ -882,6 +882,66 @@ Validações em Docker:
 | `estomatologia` vinculada a pacientes demo | 25 registros |
 | `prosthesis` vinculada a pacientes demo | 24 registros |
 
+#### Entregas implementadas em 01/06/2026 — Conferência de Lote Draft e-SUS APS
+
+- [x] **Tela de detalhe do lote draft**
+  - [x] Rota `/admin/integrations/esus/batches/<id>` criada para abrir um lote específico.
+  - [x] Tela exibe competência, status, totais apurados, registros incluídos, pendências, gerador, validador e hash SHA-256 do payload.
+  - [x] Histórico de lotes no painel `/admin/integrations/esus` agora possui link direto para abrir cada lote.
+- [x] **Snapshot e download de JSON de conferência**
+  - [x] `esus_export_batches` ampliada com `payload_json`, `records_incomplete`, `validated_by`, `validated_at` e `validation_notes`.
+  - [x] A geração do lote passou a salvar snapshot JSON do payload, além do hash.
+  - [x] Rota `/admin/integrations/esus/batches/<id>/download` criada para baixar o JSON draft.
+  - [x] O payload inclui paciente, profissional, procedimento, SIGTAP, competência, dente e data do procedimento.
+- [x] **Validação interna**
+  - [x] Rota `POST /admin/integrations/esus/batches/<id>/validate` criada para marcar lote como `validated_internally`.
+  - [x] Validação registra usuário, horário e observação interna.
+  - [x] Lote validado preserva o hash e o snapshot de conferência.
+  - [x] Alteração de SIGTAP é bloqueada quando o procedimento já está incluído em lote validado internamente.
+- [x] **Auditoria completa do fluxo**
+  - [x] Geração registra `esus_batch_created`.
+  - [x] Abertura registra `esus_batch_opened`.
+  - [x] Download registra `esus_batch_downloaded`.
+  - [x] Validação registra `esus_batch_validated_internally`.
+- [x] **Validação técnica da sessão**
+  - [x] Testes automatizados ampliados para 60 casos.
+  - [x] Renderização da tela de detalhe validada no Docker.
+  - [x] Download JSON validado no Docker.
+  - [x] Validação interna e bloqueio de edição pós-validação confirmados no Docker.
+
+#### Testes executados após Conferência de Lote e-SUS
+
+```bash
+.venv/bin/python -m pytest -q
+# Resultado: 60 passed
+
+.venv/bin/python -m pytest -q tests/test_phase3_sigtap_esus.py
+# Resultado: 16 passed
+
+.venv/bin/python -m compileall database.py services/esus_export_service.py blueprints/admin.py tests/test_phase3_sigtap_esus.py
+# Resultado: compilação sem erro
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+```
+
+Validações em Docker:
+
+| Ação | Resultado |
+|---|---|
+| Colunas novas em `esus_export_batches` | `payload_json`, `records_incomplete`, `validated_by`, `validated_at`, `validation_notes` presentes |
+| `GET /admin/integrations/esus?month=2026-06` autenticado | HTTP 200 |
+| `POST /admin/integrations/esus/batches` | HTTP 302 para detalhe do lote |
+| `GET /admin/integrations/esus/batches/<id>` | HTTP 200 com registros incluídos e hash |
+| `GET /admin/integrations/esus/batches/<id>/download` | HTTP 200, JSON com `local_procedure_id` |
+| `POST /admin/integrations/esus/batches/<id>/validate` | Lote marcado como `validated_internally` |
+| Auditoria do lote | `created`, `opened`, `downloaded` e `validated_internally` registrados |
+| Bloqueio pós-validação | Alteração de SIGTAP bloqueada para procedimento incluído no lote validado |
+
 #### Pendências da Fase 3
 
 - [ ] **Mapa Epidemiológico em Tempo Real avançado**
@@ -922,6 +982,7 @@ Validações em Docker:
   - [x] Estrutura de configuração aguardando URL, credenciais, instalação e ambiente da prefeitura.
   - [x] Painel operacional para correção de SIGTAP, conferência de pendências e geração de lote draft.
   - [x] Checklist de homologação e dados obrigatórios de pacientes/profissionais.
+  - [x] Tela de detalhe, download JSON, validação interna e auditoria do lote draft e-SUS.
   - [ ] Validar versão do PEC/e-SUS APS instalada na prefeitura e compatibilidade LEDI.
   - [ ] Implementar transmissão real quando a prefeitura fornecer endpoint, HTTPS, autenticação, CNES/INE e regras de homologação.
   - [ ] Validar campos obrigatórios finais: CNS/CPF, profissional, CBO, CNES, equipe/INE, data de atendimento, procedimento SIGTAP e compatibilidades.

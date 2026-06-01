@@ -63,9 +63,12 @@ def list_completed_procedures_for_esus(month_value=None):
 def list_esus_batches(limit=20):
     return query(
         """
-        SELECT b.*, u.username, u.full_name
+        SELECT b.*, u.username, u.full_name,
+               validator.username as validator_username,
+               validator.full_name as validator_full_name
         FROM esus_export_batches b
         LEFT JOIN users u ON u.id = b.generated_by
+        LEFT JOIN users validator ON validator.id = b.validated_by
         ORDER BY b.generated_at DESC
         LIMIT %s
         """,
@@ -276,9 +279,11 @@ def build_esus_payload(month_value=None):
         records.append({
             'local_procedure_id': row['id'],
             'patient_id': row['patient_id'],
+            'patient_name': row.get('patient_name'),
             'patient_cns': row.get('cns'),
             'patient_cpf': row.get('cpf'),
             'professional_id': row.get('professor_id'),
+            'professional_name': row.get('professional_name'),
             'professional_cns': row.get('professional_cns'),
             'professional_cbo': row.get('professional_cbo'),
             'professional_cro': row.get('cro'),
@@ -311,29 +316,169 @@ def build_esus_payload(month_value=None):
     return payload, hashlib.sha256(payload_json.encode('utf-8')).hexdigest()
 
 
+def _as_payload(payload_json):
+    if not payload_json:
+        return None
+    if isinstance(payload_json, str):
+        return json.loads(payload_json)
+    return payload_json
+
+
+def get_esus_batch(batch_id):
+    return query(
+        """
+        SELECT b.*, u.username, u.full_name,
+               validator.username as validator_username,
+               validator.full_name as validator_full_name
+        FROM esus_export_batches b
+        LEFT JOIN users u ON u.id = b.generated_by
+        LEFT JOIN users validator ON validator.id = b.validated_by
+        WHERE b.id = %s
+        """,
+        (batch_id,),
+        one=True,
+    )
+
+
+def get_esus_batch_detail(batch_id):
+    batch = get_esus_batch(batch_id)
+    if not batch:
+        return None
+
+    payload = _as_payload(batch.get('payload_json'))
+    legacy_payload = payload is None
+    if payload is None:
+        payload, _ = build_esus_payload(batch['reference_month'])
+
+    payload_json = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+    computed_hash = hashlib.sha256(payload_json.encode('utf-8')).hexdigest()
+    readiness = build_esus_readiness(batch['reference_month'])
+
+    return {
+        'batch': batch,
+        'payload': payload,
+        'records': payload.get('records', []),
+        'pending_records': readiness['missing_sigtap_records'] + readiness['incomplete_records'],
+        'computed_hash': computed_hash,
+        'hash_matches': not batch.get('payload_hash') or batch.get('payload_hash') == computed_hash,
+        'legacy_payload': legacy_payload,
+    }
+
+
+def _snapshot_payload_if_missing(batch):
+    payload = _as_payload(batch.get('payload_json'))
+    if payload is not None:
+        payload_hash = batch.get('payload_hash')
+        if not payload_hash:
+            payload_json = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+            payload_hash = hashlib.sha256(payload_json.encode('utf-8')).hexdigest()
+        return payload, payload_hash
+
+    payload, payload_hash = build_esus_payload(batch['reference_month'])
+    summary = payload['summary']
+    execute(
+        """
+        UPDATE esus_export_batches
+        SET payload_json = %s::jsonb,
+            payload_hash = %s,
+            records_total = %s,
+            records_ready = %s,
+            records_missing_sigtap = %s,
+            records_incomplete = %s
+        WHERE id = %s
+        """,
+        (
+            json.dumps(payload, ensure_ascii=False, default=str),
+            payload_hash,
+            summary['total'],
+            summary['ready'],
+            summary['missing_sigtap'],
+            summary['incomplete'],
+            batch['id'],
+        )
+    )
+    return payload, payload_hash
+
+
 def register_esus_export_batch(month_value=None, generated_by=None):
     payload, payload_hash = build_esus_payload(month_value)
     summary = payload['summary']
     batch_id = execute(
         """
         INSERT INTO esus_export_batches (
-            reference_month, status, payload_hash, records_total, records_ready,
-            records_missing_sigtap, generated_by
+            reference_month, status, payload_hash, payload_json, records_total,
+            records_ready, records_missing_sigtap, records_incomplete, generated_by
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s)
         RETURNING id
         """,
         (
             payload['reference_month'],
             'draft',
             payload_hash,
+            json.dumps(payload, ensure_ascii=False, default=str),
             summary['total'],
             summary['ready'],
             summary['missing_sigtap'],
+            summary['incomplete'],
             generated_by,
         )
     )
     return batch_id, payload
+
+
+def procedure_locked_by_validated_batch(procedure_id):
+    batches = query(
+        """
+        SELECT id, payload_json
+        FROM esus_export_batches
+        WHERE status = 'validated_internally'
+          AND payload_json IS NOT NULL
+        """
+    )
+    for batch in batches:
+        payload = _as_payload(batch.get('payload_json')) or {}
+        for record in payload.get('records', []):
+            if int(record.get('local_procedure_id') or 0) == int(procedure_id):
+                return batch['id']
+    return None
+
+
+def validate_esus_export_batch(batch_id, validated_by, notes=None):
+    batch = get_esus_batch(batch_id)
+    if not batch:
+        raise ValueError('Lote e-SUS não encontrado.')
+    if batch['status'] != 'draft':
+        raise ValueError('Apenas lotes em draft podem ser validados internamente.')
+
+    payload, payload_hash = _snapshot_payload_if_missing(batch)
+    summary = payload.get('summary', {})
+    execute(
+        """
+        UPDATE esus_export_batches
+        SET status = 'validated_internally',
+            payload_hash = %s,
+            records_total = %s,
+            records_ready = %s,
+            records_missing_sigtap = %s,
+            records_incomplete = %s,
+            validated_by = %s,
+            validated_at = NOW(),
+            validation_notes = %s
+        WHERE id = %s
+        """,
+        (
+            payload_hash,
+            summary.get('total', 0),
+            summary.get('ready', 0),
+            summary.get('missing_sigtap', 0),
+            summary.get('incomplete', 0),
+            validated_by,
+            notes or None,
+            batch_id,
+        )
+    )
+    return get_esus_batch(batch_id)
 
 
 def build_homologation_status(settings, readiness, sigtap_summary, patient_gaps, missing_professionals):
@@ -417,6 +562,10 @@ def list_procedures_missing_sigtap(limit=80):
 
 
 def update_treatment_sigtap(procedure_id, sigtap_code, sigtap_competence=None):
+    locked_batch_id = procedure_locked_by_validated_batch(procedure_id)
+    if locked_batch_id:
+        raise ValueError(f'Procedimento bloqueado por lote e-SUS validado internamente #{locked_batch_id}. Gere um novo lote para nova conferência.')
+
     sigtap = get_sigtap_procedure(sigtap_code, sigtap_competence)
     if not sigtap:
         raise ValueError('Código SIGTAP não encontrado na competência carregada.')
