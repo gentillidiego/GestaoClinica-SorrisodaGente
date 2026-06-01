@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}Relatório de Homologação e-SUS{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; flex-wrap:wrap; margin-bottom:1.5rem;">
+        <div>
+            <h1 class="page-title">Relatório de Homologação e-SUS</h1>
+            <p class="page-subtitle">Competência {{ report.month }} · {{ report.status_label }}</p>
+        </div>
+        <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+            <a class="btn btn-outline" href="{{ url_for('admin.esus_integration', month=report.month) }}">Voltar</a>
+            <button class="btn btn-outline" type="button" onclick="window.print()">Imprimir</button>
+            <form method="POST" action="{{ url_for('admin.export_esus_homologation_report') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="month" value="{{ report.month }}">
+                {% if report.batch_detail %}
+                <input type="hidden" name="batch_id" value="{{ report.batch_detail.batch.id }}">
+                {% endif %}
+                <button class="btn btn-primary" type="submit">Gerar PDF</button>
+            </form>
+        </div>
+    </div>
+
+    <section class="card report-section">
+        <h2 class="section-header">Resumo Técnico</h2>
+        <div class="report-grid">
+            <div class="report-meta"><span>Ambiente</span><strong>{{ report.settings.environment }}</strong></div>
+            <div class="report-meta"><span>Endpoint</span><strong>{{ report.settings.base_url or 'pendente' }}</strong></div>
+            <div class="report-meta"><span>PEC / LEDI</span><strong>{{ report.settings.pec_version or '-' }} / {{ report.settings.ledi_version or '-' }}</strong></div>
+            <div class="report-meta"><span>CNES / INE</span><strong>{{ report.settings.cnes or '-' }} / {{ report.settings.ine or '-' }}</strong></div>
+            <div class="report-meta"><span>Credenciais</span><strong>{{ report.settings.credential_status }}</strong></div>
+            <div class="report-meta"><span>Integração ativa</span><strong>{% if report.settings.active %}Sim{% else %}Não{% endif %}</strong></div>
+        </div>
+        <p class="report-note">{{ report.external_dependency_note }}</p>
+    </section>
+
+    <section class="card report-section">
+        <h2 class="section-header">Lote de Referência</h2>
+        {% if report.batch_detail %}
+        {% set batch = report.batch_detail.batch %}
+        <div class="report-grid">
+            <div class="report-meta"><span>Lote</span><strong>#{{ batch.id }}</strong></div>
+            <div class="report-meta"><span>Status</span><strong>{{ batch.status }}</strong></div>
+            <div class="report-meta"><span>Registros prontos</span><strong>{{ batch.records_ready }}/{{ batch.records_total }}</strong></div>
+            <div class="report-meta"><span>Validador</span><strong>{{ batch.validator_full_name or batch.validator_username or '-' }}</strong></div>
+        </div>
+        <div style="margin-top:1rem;">
+            <span class="hash-label">Hash SHA-256</span>
+            <code class="hash-box">{{ batch.payload_hash or report.batch_detail.computed_hash }}</code>
+        </div>
+        {% else %}
+        <p class="report-note">Nenhum lote encontrado para a competência selecionada.</p>
+        {% endif %}
+    </section>
+
+    <section class="card report-section">
+        <h2 class="section-header">Checklist para Prefeitura</h2>
+        {% for group, items in report.checklist.groups.items() %}
+        <h3 class="subsection-title">{{ group }}</h3>
+        <div class="checklist">
+            {% for item in items %}
+            <div class="check-row">
+                <span>{% if item.ok %}OK{% else %}Pendente{% endif %} · {{ item.label }}</span>
+                <strong>{{ item.detail }}</strong>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </section>
+
+    <section class="card report-section">
+        <h2 class="section-header">Tentativas de Pré-envio</h2>
+        {% if report.batch_detail and report.batch_detail.attempts %}
+        <div style="overflow-x:auto;">
+            <table class="report-table">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Modo</th>
+                        <th>Status</th>
+                        <th>HTTP</th>
+                        <th>Endpoint</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for attempt in report.batch_detail.attempts %}
+                    <tr>
+                        <td>{{ attempt.attempted_at.strftime('%d/%m/%Y %H:%M') if attempt.attempted_at else '-' }}</td>
+                        <td>{{ attempt.mode }}</td>
+                        <td>{{ attempt.status }}</td>
+                        <td>{{ attempt.http_status or '-' }}</td>
+                        <td>{{ attempt.endpoint_url or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="report-note">Nenhuma tentativa registrada para o lote selecionado.</p>
+        {% endif %}
+    </section>
+
+    <section class="card report-section">
+        <h2 class="section-header">Pendências</h2>
+        {% for item in report.pending_items %}
+        <div class="check-row"><span>{{ item }}</span><strong>Pendente</strong></div>
+        {% else %}
+        <p class="report-note">Nenhuma pendência local identificada. Aguardando apenas homologação externa para envio real.</p>
+        {% endfor %}
+    </section>
+
+    <section class="card report-section">
+        <h2 class="section-header">Manual Rápido</h2>
+        <ol class="manual-list">
+            {% for step in report.manual_steps %}
+            <li>{{ step }}</li>
+            {% endfor %}
+        </ol>
+    </section>
+</div>
+
+<style>
+.report-section { padding:1.5rem; margin-bottom:1.5rem; }
+.report-grid {
+    display:grid;
+    grid-template-columns:repeat(3, minmax(0, 1fr));
+    gap:1rem;
+}
+.report-meta {
+    padding:0.85rem;
+    border:1px solid hsl(var(--border));
+    border-radius:8px;
+    background:hsl(var(--bg-soft));
+}
+.report-meta span, .hash-label {
+    display:block;
+    color:hsl(var(--text-muted));
+    font-size:0.78rem;
+    font-weight:800;
+    margin-bottom:0.25rem;
+}
+.report-meta strong { color:hsl(var(--text-main)); word-break:break-word; }
+.report-note { color:hsl(var(--text-muted)); margin:1rem 0 0; }
+.subsection-title {
+    margin:1rem 0 0.5rem;
+    font-size:1rem;
+    color:hsl(var(--text-main));
+}
+.check-row {
+    display:flex;
+    justify-content:space-between;
+    gap:1rem;
+    padding:0.65rem 0;
+    border-bottom:1px solid hsl(var(--border));
+}
+.check-row span { font-weight:600; color:hsl(var(--text-main)); }
+.check-row strong { color:hsl(var(--primary)); text-align:right; word-break:break-word; }
+.hash-box {
+    display:block;
+    white-space:normal;
+    word-break:break-all;
+    padding:0.75rem;
+    background:hsl(var(--bg-soft));
+    border:1px solid hsl(var(--border));
+    border-radius:8px;
+}
+.report-table { width:100%; border-collapse:collapse; }
+.report-table th, .report-table td {
+    padding:0.75rem;
+    border-bottom:1px solid hsl(var(--border));
+    text-align:left;
+}
+.manual-list { color:hsl(var(--text-main)); line-height:1.8; }
+@media print {
+    .sidebar, .top-bar, .btn, form { display:none !important; }
+    .main-content { margin-left:0 !important; padding:0 !important; }
+    .card { box-shadow:none !important; border:1px solid #ddd !important; break-inside:avoid; }
+}
+@media (max-width: 900px) {
+    .report-grid { grid-template-columns:1fr !important; }
+}
+</style>
+{% endblock %}

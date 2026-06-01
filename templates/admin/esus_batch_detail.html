@@ -11,6 +11,7 @@
         </div>
         <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
             <a class="btn btn-outline" href="{{ url_for('admin.esus_integration', month=detail.batch.reference_month) }}">Voltar</a>
+            <a class="btn btn-outline" href="{{ url_for('admin.esus_homologation_report', month=detail.batch.reference_month, batch_id=detail.batch.id) }}">Relatório de Homologação</a>
             <a class="btn btn-primary" href="{{ url_for('admin.download_esus_batch', batch_id=detail.batch.id) }}">Baixar JSON</a>
         </div>
     </div>

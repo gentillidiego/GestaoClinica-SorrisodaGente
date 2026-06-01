@@ -998,6 +998,57 @@ Validações em Docker:
 | Histórico de tentativas | Registros de simulação bloqueada e aprovada persistidos |
 | Auditoria do pré-envio | `esus_batch_preflight_simulated` registrado com status `blocked` e `success` |
 
+#### Entregas implementadas em 01/06/2026 — Relatório de Homologação e-SUS APS
+
+- [x] **Relatório operacional de homologação**
+  - [x] Rota `/admin/integrations/esus/homologation-report` criada.
+  - [x] Relatório consolida configuração atual, checklist de homologação, lote de referência, hash SHA-256, tentativas de pré-envio, pendências e observação de dependência externa.
+  - [x] Link de acesso adicionado no painel `/admin/integrations/esus`.
+  - [x] Link de acesso adicionado na tela de detalhe do lote.
+- [x] **Checklist imprimível para reunião com prefeitura**
+  - [x] Checklist agrupado por dados da prefeitura, identificação unidade/equipe, qualidade da produção e pré-envio.
+  - [x] Itens cobrem ambiente, endpoint, versão PEC, versão LEDI, credenciais, CNES, INE, checklist sem bloqueios, lote validado, hash do payload e pré-envio simulado.
+  - [x] Tela possui ação de impressão via navegador.
+- [x] **PDF de homologação**
+  - [x] Template `templates/pdfs/esus_homologation_report_pdf.html` criado.
+  - [x] Rota `POST /admin/integrations/esus/homologation-report/export` gera PDF assíncrono por Celery/WeasyPrint.
+  - [x] Arquivo segue padrão `esus_homologacao_<competencia>_<lote>.pdf`.
+- [x] **Manual rápido do fluxo e-SUS**
+  - [x] Relatório inclui passo a passo: dados obrigatórios, SIGTAP, lote draft, conferência JSON, validação interna, pré-envio simulado e aguardo de liberação do envio real.
+- [x] **Auditoria**
+  - [x] Abertura registra `esus_homologation_report_opened`.
+  - [x] Exportação registra `esus_homologation_report_exported`.
+
+#### Testes executados após Relatório de Homologação e-SUS
+
+```bash
+.venv/bin/python -m pytest -q
+# Resultado: 66 passed
+
+.venv/bin/python -m pytest -q tests/test_phase3_sigtap_esus.py
+# Resultado: 22 passed
+
+.venv/bin/python -m compileall services/esus_export_service.py blueprints/admin.py tests/test_phase3_sigtap_esus.py
+# Resultado: compilação sem erro
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+```
+
+Validações em Docker:
+
+| Ação | Resultado |
+|---|---|
+| `GET /admin/integrations/esus/homologation-report?month=2026-06&batch_id=<id>` autenticado | HTTP 200 |
+| Conteúdo da tela | `Relatório de Homologação` e `Manual Rápido` renderizados |
+| `POST /admin/integrations/esus/homologation-report/export` | HTTP 302 para `/documents/status/.../esus_homologacao_2026-06_<id>.pdf` |
+| `pdf_temp/esus_homologacao_2026-06_<id>.pdf` | PDF gerado com sucesso |
+| Auditoria | `esus_homologation_report_opened` e `esus_homologation_report_exported` registrados |
+
 #### Pendências da Fase 3
 
 - [ ] **Mapa Epidemiológico em Tempo Real avançado**
@@ -1040,6 +1091,7 @@ Validações em Docker:
   - [x] Checklist de homologação e dados obrigatórios de pacientes/profissionais.
   - [x] Tela de detalhe, download JSON, validação interna e auditoria do lote draft e-SUS.
   - [x] Pré-envio simulado, status `ready_to_send` e histórico de tentativas.
+  - [x] Relatório/checklist de homologação e-SUS com PDF e manual rápido do fluxo.
   - [ ] Validar versão do PEC/e-SUS APS instalada na prefeitura e compatibilidade LEDI.
   - [ ] Implementar transmissão real quando a prefeitura fornecer endpoint, HTTPS, autenticação, CNES/INE e regras de homologação.
   - [ ] Validar campos obrigatórios finais: CNS/CPF, profissional, CBO, CNES, equipe/INE, data de atendimento, procedimento SIGTAP e compatibilidades.

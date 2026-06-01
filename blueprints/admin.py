@@ -1,4 +1,5 @@
 import json
+import os
 
 from flask import Blueprint, Response, render_template, redirect, url_for, request, flash
 from flask_login import login_required, current_user
@@ -15,6 +16,7 @@ from services.security_service import audit_log, list_audit_logs, permission_req
 from services.esus_export_service import (
     get_esus_batch_detail,
     get_esus_dashboard,
+    get_esus_homologation_report,
     register_esus_export_batch,
     simulate_esus_transmission_preflight,
     update_esus_settings,
@@ -22,6 +24,7 @@ from services.esus_export_service import (
     validate_esus_export_batch,
 )
 from services.sigtap_service import build_sigtap_options, get_sigtap_summary
+from tasks.pdf_tasks import generate_pdf_task
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -469,3 +472,54 @@ def simulate_esus_preflight(batch_id):
     except Exception as exc:
         flash(f'Erro no pré-envio simulado: {str(exc)}', 'danger')
     return redirect(url_for('admin.esus_batch_detail', batch_id=batch_id))
+
+
+@admin_bp.route('/integrations/esus/homologation-report')
+@login_required
+@permission_required('integrations:view')
+def esus_homologation_report():
+    report = get_esus_homologation_report(
+        month_value=request.args.get('month') or None,
+        batch_id=request.args.get('batch_id') or None,
+    )
+    audit_log(
+        action='esus_homologation_report_opened',
+        module='integrations',
+        entity_type='esus_homologation_report',
+        entity_id=report['batch_detail']['batch']['id'] if report['batch_detail'] else None,
+        details={
+            'month': report['month'],
+            'status_label': report['status_label'],
+        },
+    )
+    return render_template('admin/esus_homologation_report.html', report=report)
+
+
+@admin_bp.route('/integrations/esus/homologation-report/export', methods=['POST'])
+@login_required
+@permission_required('integrations:view')
+def export_esus_homologation_report():
+    report = get_esus_homologation_report(
+        month_value=request.form.get('month') or None,
+        batch_id=request.form.get('batch_id') or None,
+    )
+    html = render_template('pdfs/esus_homologation_report_pdf.html', report=report)
+    pdf_dir = os.path.join(os.getcwd(), 'pdf_temp')
+    os.makedirs(pdf_dir, exist_ok=True)
+    batch_suffix = report['batch_detail']['batch']['id'] if report['batch_detail'] else 'sem_lote'
+    filename = f"esus_homologacao_{report['month']}_{batch_suffix}.pdf"
+    output_path = os.path.join(pdf_dir, filename)
+    task = generate_pdf_task.delay(html, output_path)
+
+    audit_log(
+        action='esus_homologation_report_exported',
+        module='integrations',
+        entity_type='esus_homologation_report',
+        entity_id=batch_suffix,
+        details={
+            'month': report['month'],
+            'filename': filename,
+            'pending_count': len(report['pending_items']),
+        },
+    )
+    return redirect(url_for('documents.pdf_status', task_id=task.id, filename=filename))

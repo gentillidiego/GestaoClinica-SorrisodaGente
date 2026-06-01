@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <title>Relatório de Homologação e-SUS</title>
+    <style>
+        body { font-family: Arial, sans-serif; color:#1f2937; font-size:12px; line-height:1.45; }
+        h1 { color:#002D73; font-size:24px; margin:0 0 4px; }
+        h2 { color:#002D73; font-size:16px; margin:20px 0 8px; border-bottom:2px solid #e5e7eb; padding-bottom:4px; }
+        h3 { font-size:13px; margin:14px 0 6px; color:#374151; }
+        .muted { color:#6b7280; }
+        .grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; }
+        .box { border:1px solid #d1d5db; padding:8px; border-radius:4px; }
+        .label { display:block; color:#6b7280; font-size:10px; text-transform:uppercase; }
+        .value { font-weight:bold; word-break:break-word; }
+        .hash { word-break:break-all; font-family:monospace; background:#f3f4f6; padding:8px; border:1px solid #d1d5db; }
+        table { width:100%; border-collapse:collapse; margin-top:6px; }
+        th, td { border-bottom:1px solid #e5e7eb; padding:6px; text-align:left; vertical-align:top; }
+        th { background:#f3f4f6; color:#374151; font-size:10px; text-transform:uppercase; }
+        .ok { color:#166534; font-weight:bold; }
+        .pending { color:#92400e; font-weight:bold; }
+        ol { padding-left:18px; }
+        li { margin-bottom:5px; }
+    </style>
+</head>
+<body>
+    <h1>Relatório de Homologação e-SUS APS</h1>
+    <div class="muted">Competência {{ report.month }} · Gerado em {{ report.generated_at.strftime('%d/%m/%Y %H:%M') }}</div>
+    <p>{{ report.external_dependency_note }}</p>
+
+    <h2>Resumo Técnico</h2>
+    <div class="grid">
+        <div class="box"><span class="label">Ambiente</span><span class="value">{{ report.settings.environment }}</span></div>
+        <div class="box"><span class="label">Endpoint</span><span class="value">{{ report.settings.base_url or 'pendente' }}</span></div>
+        <div class="box"><span class="label">PEC / LEDI</span><span class="value">{{ report.settings.pec_version or '-' }} / {{ report.settings.ledi_version or '-' }}</span></div>
+        <div class="box"><span class="label">CNES / INE</span><span class="value">{{ report.settings.cnes or '-' }} / {{ report.settings.ine or '-' }}</span></div>
+    </div>
+
+    <h2>Lote de Referência</h2>
+    {% if report.batch_detail %}
+    {% set batch = report.batch_detail.batch %}
+    <div class="grid">
+        <div class="box"><span class="label">Lote</span><span class="value">#{{ batch.id }}</span></div>
+        <div class="box"><span class="label">Status</span><span class="value">{{ batch.status }}</span></div>
+        <div class="box"><span class="label">Registros</span><span class="value">{{ batch.records_ready }}/{{ batch.records_total }}</span></div>
+        <div class="box"><span class="label">Validador</span><span class="value">{{ batch.validator_full_name or batch.validator_username or '-' }}</span></div>
+    </div>
+    <p class="label">Hash SHA-256</p>
+    <div class="hash">{{ batch.payload_hash or report.batch_detail.computed_hash }}</div>
+    {% else %}
+    <p>Nenhum lote encontrado para a competência.</p>
+    {% endif %}
+
+    <h2>Checklist para Prefeitura</h2>
+    {% for group, items in report.checklist.groups.items() %}
+    <h3>{{ group }}</h3>
+    <table>
+        <thead><tr><th>Item</th><th>Status</th><th>Detalhe</th></tr></thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.label }}</td>
+                <td class="{% if item.ok %}ok{% else %}pending{% endif %}">{% if item.ok %}OK{% else %}Pendente{% endif %}</td>
+                <td>{{ item.detail }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endfor %}
+
+    <h2>Tentativas de Pré-envio</h2>
+    {% if report.batch_detail and report.batch_detail.attempts %}
+    <table>
+        <thead><tr><th>Data</th><th>Modo</th><th>Status</th><th>HTTP</th><th>Endpoint</th></tr></thead>
+        <tbody>
+            {% for attempt in report.batch_detail.attempts %}
+            <tr>
+                <td>{{ attempt.attempted_at.strftime('%d/%m/%Y %H:%M') if attempt.attempted_at else '-' }}</td>
+                <td>{{ attempt.mode }}</td>
+                <td>{{ attempt.status }}</td>
+                <td>{{ attempt.http_status or '-' }}</td>
+                <td>{{ attempt.endpoint_url or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>Nenhuma tentativa registrada.</p>
+    {% endif %}
+
+    <h2>Pendências</h2>
+    {% if report.pending_items %}
+    <ul>
+        {% for item in report.pending_items %}
+        <li>{{ item }}</li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>Nenhuma pendência local identificada.</p>
+    {% endif %}
+
+    <h2>Manual Rápido do Fluxo</h2>
+    <ol>
+        {% for step in report.manual_steps %}
+        <li>{{ step }}</li>
+        {% endfor %}
+    </ol>
+</body>
+</html>

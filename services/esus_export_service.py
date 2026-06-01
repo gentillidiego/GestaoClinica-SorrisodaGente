@@ -76,6 +76,30 @@ def list_esus_batches(limit=20):
     )
 
 
+def get_latest_esus_batch(month_value=None):
+    where_sql = ''
+    params = []
+    if month_value:
+        where_sql = 'WHERE b.reference_month = %s'
+        params.append(month_value)
+
+    return query(
+        f"""
+        SELECT b.*, u.username, u.full_name,
+               validator.username as validator_username,
+               validator.full_name as validator_full_name
+        FROM esus_export_batches b
+        LEFT JOIN users u ON u.id = b.generated_by
+        LEFT JOIN users validator ON validator.id = b.validated_by
+        {where_sql}
+        ORDER BY b.generated_at DESC, b.id DESC
+        LIMIT 1
+        """,
+        tuple(params),
+        one=True,
+    )
+
+
 def get_patient_identifier_gaps():
     row = query(
         """
@@ -629,6 +653,149 @@ def simulate_esus_transmission_preflight(batch_id, attempted_by=None):
         'status': status,
         'ready_to_send': readiness['ready'],
         'response': response,
+    }
+
+
+def build_esus_meeting_checklist(settings, homologation, batch_detail=None):
+    transmission = batch_detail.get('transmission_readiness') if batch_detail else None
+    batch = batch_detail.get('batch') if batch_detail else None
+
+    items = [
+        {
+            'group': 'Dados da prefeitura',
+            'label': 'Ambiente de homologação definido',
+            'ok': settings.get('environment') in {'homologacao', 'producao'},
+            'detail': settings.get('environment') or 'pendente',
+        },
+        {
+            'group': 'Dados da prefeitura',
+            'label': 'Endpoint PEC/e-SUS informado',
+            'ok': bool(settings.get('base_url')),
+            'detail': settings.get('base_url') or 'pendente',
+        },
+        {
+            'group': 'Dados da prefeitura',
+            'label': 'Versão PEC confirmada',
+            'ok': bool(settings.get('pec_version')),
+            'detail': settings.get('pec_version') or 'pendente',
+        },
+        {
+            'group': 'Dados da prefeitura',
+            'label': 'Versão LEDI confirmada',
+            'ok': bool(settings.get('ledi_version')),
+            'detail': settings.get('ledi_version') or 'pendente',
+        },
+        {
+            'group': 'Dados da prefeitura',
+            'label': 'Credenciais recebidas/validadas',
+            'ok': settings.get('credential_status') in {'received', 'validated'},
+            'detail': settings.get('credential_status') or 'pending',
+        },
+        {
+            'group': 'Identificação da unidade/equipe',
+            'label': 'CNES configurado',
+            'ok': bool(settings.get('cnes')),
+            'detail': settings.get('cnes') or 'pendente',
+        },
+        {
+            'group': 'Identificação da unidade/equipe',
+            'label': 'INE/equipe configurado',
+            'ok': bool(settings.get('ine')),
+            'detail': settings.get('ine') or 'pendente',
+        },
+        {
+            'group': 'Qualidade da produção',
+            'label': 'Checklist de homologação sem bloqueios',
+            'ok': homologation.get('ready', False),
+            'detail': f"{homologation.get('blocking_count', 0)} bloqueio(s)",
+        },
+        {
+            'group': 'Qualidade da produção',
+            'label': 'Lote validado internamente',
+            'ok': bool(batch and batch.get('status') in {'validated_internally', 'ready_to_send', 'sent'}),
+            'detail': batch.get('status') if batch else 'sem lote',
+        },
+        {
+            'group': 'Qualidade da produção',
+            'label': 'Payload com hash SHA-256',
+            'ok': bool(batch and batch.get('payload_hash')),
+            'detail': (batch.get('payload_hash') or 'pendente') if batch else 'pendente',
+        },
+        {
+            'group': 'Pré-envio',
+            'label': 'Pré-envio simulado aprovado',
+            'ok': bool(batch and batch.get('status') in {'ready_to_send', 'sent'}),
+            'detail': batch.get('response_status') if batch else 'pendente',
+        },
+        {
+            'group': 'Pré-envio',
+            'label': 'Sem bloqueios para envio real',
+            'ok': bool(transmission and transmission.get('ready')),
+            'detail': f"{len(transmission.get('blockers', [])) if transmission else 0} bloqueio(s)",
+        },
+    ]
+
+    grouped = {}
+    for item in items:
+        grouped.setdefault(item['group'], []).append(item)
+
+    return {
+        'items': items,
+        'groups': grouped,
+        'pending': [item for item in items if not item['ok']],
+    }
+
+
+def get_esus_quick_manual_steps():
+    return [
+        'Preencher dados obrigatórios de pacientes: CNS e CPF.',
+        'Preencher dados obrigatórios dos profissionais: CNS, CBO, CNES, INE/equipe e CRO quando aplicável.',
+        'Carregar ou conferir catálogo SIGTAP da competência.',
+        'Vincular cada procedimento concluído ao código SIGTAP correto.',
+        'Gerar lote draft da competência no painel SIGTAP/e-SUS.',
+        'Abrir o detalhe do lote, conferir registros e baixar JSON para conferência técnica.',
+        'Validar internamente o lote após conferência clínica/administrativa.',
+        'Executar o pré-envio simulado e corrigir bloqueios apontados.',
+        'Aguardar endpoint, autenticação e homologação oficial da prefeitura para ativar envio real.',
+    ]
+
+
+def get_esus_homologation_report(month_value=None, batch_id=None):
+    month_value = month_value or current_month_value()
+    dashboard = get_esus_dashboard(month_value)
+
+    batch = get_esus_batch(batch_id) if batch_id else get_latest_esus_batch(month_value)
+    batch_detail = get_esus_batch_detail(batch['id']) if batch else None
+    checklist = build_esus_meeting_checklist(
+        dashboard['settings'],
+        dashboard['homologation'],
+        batch_detail=batch_detail,
+    )
+
+    pending_items = []
+    pending_items.extend(item['label'] for item in checklist['pending'])
+    if batch_detail:
+        pending_items.extend(batch_detail['transmission_readiness']['blockers'])
+    else:
+        pending_items.append('nenhum lote selecionado para homologação')
+
+    return {
+        'generated_at': dt.datetime.now(),
+        'month': month_value,
+        'settings': dashboard['settings'],
+        'homologation': dashboard['homologation'],
+        'readiness': dashboard['readiness'],
+        'sigtap_summary': get_sigtap_summary(),
+        'patient_gaps': dashboard['patient_gaps'],
+        'missing_professionals': dashboard['missing_professionals'],
+        'batch_detail': batch_detail,
+        'checklist': checklist,
+        'manual_steps': get_esus_quick_manual_steps(),
+        'pending_items': pending_items,
+        'status_label': 'Pronto para reunião técnica' if not pending_items else 'Com pendências para reunião técnica',
+        'external_dependency_note': (
+            'A transmissão real permanece aguardando endpoint, credenciais e regras oficiais de homologação da prefeitura.'
+        ),
     }
 
 

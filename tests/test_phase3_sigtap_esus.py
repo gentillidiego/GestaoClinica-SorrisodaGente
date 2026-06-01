@@ -11,10 +11,12 @@ from constants import (
 from services.esus_export_service import (
     build_esus_payload,
     build_batch_transmission_readiness,
+    build_esus_meeting_checklist,
     build_homologation_status,
     classify_esus_missing_fields,
     get_esus_batch_detail,
     get_esus_dashboard,
+    get_esus_homologation_report,
     month_period,
     procedure_locked_by_validated_batch,
     register_esus_export_batch,
@@ -416,6 +418,81 @@ def test_simulate_esus_transmission_preflight_marks_ready_to_send(monkeypatch):
     assert calls[0]['http_status'] == 200
     assert "status = 'ready_to_send'" in calls[1]['sql']
     assert calls[1]['params'][0] == 'https://esus.local'
+
+
+def test_build_esus_meeting_checklist_groups_prefecture_items():
+    checklist = build_esus_meeting_checklist(
+        settings={
+            'environment': 'homologacao',
+            'base_url': 'https://esus.local',
+            'pec_version': '5.4.36',
+            'ledi_version': '7.4.1',
+            'credential_status': 'received',
+            'cnes': '1234567',
+            'ine': '0000000000',
+            'active': True,
+        },
+        homologation={'ready': True, 'blocking_count': 0},
+        batch_detail={
+            'batch': {
+                'status': 'ready_to_send',
+                'payload_hash': 'hash-1',
+                'response_status': 'simulation_success',
+            },
+            'transmission_readiness': {'ready': True, 'blockers': []},
+        },
+    )
+
+    assert checklist['pending'] == []
+    assert 'Dados da prefeitura' in checklist['groups']
+    assert any(item['label'] == 'Endpoint PEC/e-SUS informado' for item in checklist['items'])
+
+
+def test_esus_homologation_report_composes_batch_manual_and_pending(monkeypatch):
+    dashboard = {
+        'settings': {
+            'environment': 'aguardando_prefeitura',
+            'base_url': '',
+            'pec_version': '',
+            'ledi_version': '',
+            'credential_status': 'pending',
+            'cnes': '',
+            'ine': '',
+            'active': False,
+        },
+        'homologation': {'ready': False, 'blocking_count': 2, 'items': []},
+        'readiness': {'total': 1, 'ready': 1},
+        'patient_gaps': {'missing_cns_or_cpf': 0},
+        'missing_professionals': [],
+    }
+    batch = {'id': 4, 'reference_month': '2026-06'}
+    batch_detail = {
+        'batch': {
+            'id': 4,
+            'status': 'validated_internally',
+            'payload_hash': 'hash-4',
+            'response_status': 'simulation_blocked',
+        },
+        'attempts': [{'id': 1}],
+        'transmission_readiness': {
+            'ready': False,
+            'blockers': ['URL PEC/e-SUS não informada'],
+        },
+    }
+
+    monkeypatch.setattr(esus_export_service, 'get_esus_dashboard', lambda month_value=None: dashboard)
+    monkeypatch.setattr(esus_export_service, 'get_esus_batch', lambda batch_id: batch)
+    monkeypatch.setattr(esus_export_service, 'get_esus_batch_detail', lambda batch_id: batch_detail)
+    monkeypatch.setattr(esus_export_service, 'get_latest_esus_batch', lambda month_value=None: batch)
+    monkeypatch.setattr(esus_export_service, 'get_sigtap_summary', lambda: {'latest': {'total': 10}})
+
+    report = get_esus_homologation_report(month_value='2026-06', batch_id=4)
+
+    assert report['month'] == '2026-06'
+    assert report['batch_detail']['batch']['id'] == 4
+    assert 'URL PEC/e-SUS não informada' in report['pending_items']
+    assert len(report['manual_steps']) >= 8
+    assert 'endpoint' in report['external_dependency_note']
 
 
 def test_get_esus_dashboard_composes_operational_context(monkeypatch):

@@ -9,6 +9,7 @@
             <h1 class="page-title">SIGTAP / e-SUS APS</h1>
             <p class="page-subtitle">Preparação da produção odontológica para integração municipal.</p>
         </div>
+        <a class="btn btn-outline" href="{{ url_for('admin.esus_homologation_report', month=dashboard.month) }}">Relatório de Homologação</a>
         {% if can_write %}
         <form method="POST" action="{{ url_for('admin.create_esus_batch') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
