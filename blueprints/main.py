@@ -154,6 +154,12 @@ def epidemiologia_dashboard():
         start_date=request.args.get('inicio'),
         end_date=request.args.get('fim'),
         neighborhood=request.args.get('bairro'),
+        municipality=request.args.get('municipio'),
+        specialty=request.args.get('especialidade'),
+        professional_id=request.args.get('profissional'),
+        gender=request.args.get('sexo'),
+        age_group=request.args.get('faixa_etaria'),
+        treatment_status=request.args.get('status_tratamento'),
     )
     return render_template('epidemiologia.html', data=data)
 

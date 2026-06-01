@@ -193,6 +193,11 @@ MIGRATIONS = {
         ('validated_by', 'INTEGER'),
         ('validated_at', 'TIMESTAMP'),
         ('validation_notes', 'TEXT')
+    ],
+    'estomatologia': [
+        ('cancer_confirmed', 'BOOLEAN DEFAULT FALSE'),
+        ('cancer_confirmed_at', 'TIMESTAMP'),
+        ('diagnostico_confirmado', 'TEXT')
     ]
 }
 
@@ -816,6 +821,9 @@ def _init_db_locked():
             tempo_evolucao TEXT NOT NULL,
             hipotese_diagnostica TEXT,
             suspeita_neoplasia BOOLEAN DEFAULT FALSE,
+            cancer_confirmed BOOLEAN DEFAULT FALSE,
+            cancer_confirmed_at TIMESTAMP,
+            diagnostico_confirmado TEXT,
             conduta_clinica TEXT,
             encaminhado_para_biopsia BOOLEAN DEFAULT FALSE,
             FOREIGN KEY (patient_id) REFERENCES patients (id) ON DELETE CASCADE,
@@ -867,6 +875,20 @@ def _init_db_locked():
     # Normaliza valores legados gravados sem acento para o padrão exibido na UI.
     execute("UPDATE tratamento_procedimentos SET status = 'Concluído' WHERE status = 'Concluido'")
     execute("UPDATE atendimentos SET status = 'Concluído' WHERE status = 'Concluido'")
+    execute("""
+        UPDATE estomatologia e
+        SET cancer_confirmed = TRUE,
+            cancer_confirmed_at = COALESCE(e.cancer_confirmed_at, e.data_registro + INTERVAL '2 days'),
+            diagnostico_confirmado = COALESCE(
+                e.diagnostico_confirmado,
+                'Carcinoma espinocelular confirmado em acompanhamento demo.'
+            )
+        FROM patients p
+        WHERE p.id = e.patient_id
+          AND p.is_demo = TRUE
+          AND p.demo_profile = 'idoso_oncologico'
+          AND e.cancer_confirmed = FALSE
+    """)
 
     # === ÍNDICES DE PERFORMANCE ===
     indexes = [
@@ -880,6 +902,7 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_patient_id ON atendimentos(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_estomatologia_patient_id ON estomatologia(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_estomatologia_suspeita ON estomatologia(suspeita_neoplasia)",
+        "CREATE INDEX IF NOT EXISTS idx_estomatologia_cancer_confirmed ON estomatologia(cancer_confirmed)",
         "CREATE INDEX IF NOT EXISTS idx_estomatologia_fotos_est_id ON estomatologia_fotos(estomatologia_id)",
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_professor_id ON atendimentos(professor_id)",
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_aluno_executor_id ON atendimentos(aluno_executor_id)",

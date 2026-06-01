@@ -5,8 +5,10 @@ import services.epidemiology_service as epidemiology_service
 from services.epidemiology_service import (
     get_demographic_profile,
     get_epidemiology_dashboard,
+    get_tooth_loss_metrics,
     normalize_period,
     percentage,
+    _missing_teeth_from_odontogram,
 )
 
 
@@ -60,10 +62,37 @@ def test_demographic_profile_groups_age_gender_and_occupation(monkeypatch):
     assert occupations['Não informada'] == 2
 
 
+def test_tooth_loss_metrics_parse_demo_and_odontogram_colors(monkeypatch):
+    rows = [
+        {'patient_id': 1, 'bairro': 'Centro', 'dentes_data': '{"ausentes": ["36", "46"]}'},
+        {'patient_id': 2, 'bairro': 'Centro', 'dentes_data': '{"11": {"vestibular": "#2563eb"}}'},
+        {'patient_id': 2, 'bairro': 'Centro', 'dentes_data': '{"11": {"palatina": "#2563eb"}, "12": {"oclusal": "#dc2626"}}'},
+    ]
+
+    monkeypatch.setattr(epidemiology_service, 'query', lambda *args, **kwargs: rows)
+
+    assert _missing_teeth_from_odontogram('{"ausentes": ["36"], "11": {"vestibular": "#2563eb"}}') == {'36', '11'}
+
+    metrics = get_tooth_loss_metrics(
+        dt.date(2026, 5, 1),
+        dt.date(2026, 5, 30),
+        filters={'neighborhood': 'Centro'},
+        today=dt.date(2026, 5, 30),
+    )
+
+    assert metrics == {
+        'patients_with_tooth_loss': 2,
+        'missing_teeth': 3,
+        'avg_missing_teeth': 1.5,
+    }
+
+
 def test_epidemiology_dashboard_builds_summary_and_lists(monkeypatch):
     def fake_query(sql, params=(), one=False):
         if 'SELECT DISTINCT COALESCE' in sql:
             return [{'bairro': 'Centro'}, {'bairro': 'Tabuleiro'}]
+        if 'FROM exam_odontograma' in sql:
+            return [{'patient_id': 1, 'bairro': 'Centro', 'dentes_data': '{"ausentes": ["36", "46"]}'}]
         if 'FROM patients p' in sql and 'p.criado_em::date' in sql and one:
             return {'total': 4}
         if 'FROM estomatologia e' in sql and 'lesion_records' in sql and one:
@@ -71,6 +100,7 @@ def test_epidemiology_dashboard_builds_summary_and_lists(monkeypatch):
                 'lesion_records': 5,
                 'lesion_patients': 3,
                 'cancer_suspicions': 2,
+                'cancer_confirmed': 1,
                 'biopsy_referrals': 1,
             }
         if 'FROM consultas c' in sql and one:
@@ -85,6 +115,7 @@ def test_epidemiology_dashboard_builds_summary_and_lists(monkeypatch):
                 'total_patients': 10,
                 'lesion_records': 4,
                 'cancer_suspicions': 2,
+                'cancer_confirmed': 1,
                 'no_shows': 3,
                 'appointments': 12,
                 'prosthetic_need': 2,
@@ -93,7 +124,7 @@ def test_epidemiology_dashboard_builds_summary_and_lists(monkeypatch):
         if 'GROUP BY esp.nome' in sql:
             return [{'especialidade': 'Prótese Dentária', 'linked_patients': 8, 'repressed_demand': 6}]
         if 'GROUP BY localizacao' in sql:
-            return [{'localizacao': 'Língua', 'lesion_records': 3, 'cancer_suspicions': 1, 'biopsy_referrals': 1}]
+            return [{'localizacao': 'Língua', 'lesion_records': 3, 'cancer_suspicions': 1, 'cancer_confirmed': 1, 'biopsy_referrals': 1}]
         if 'SELECT data_nascimento, genero, profissao' in sql:
             return [{'data_nascimento': '1970-01-01', 'genero': 'Fem', 'profissao': 'Autônoma'}]
         return []
@@ -104,13 +135,25 @@ def test_epidemiology_dashboard_builds_summary_and_lists(monkeypatch):
         start_date='2026-05-01',
         end_date='2026-05-30',
         neighborhood='Centro',
+        municipality='Maceió',
+        specialty='P',
+        professional_id='7',
+        gender='Fem',
+        age_group='40-59',
+        treatment_status='Concluído',
         today=dt.date(2026, 5, 30),
     )
 
     assert dashboard['period']['start'] == dt.date(2026, 5, 1)
     assert dashboard['filters']['neighborhood'] == 'Centro'
+    assert dashboard['filters']['municipality'] == 'Maceió'
+    assert dashboard['filters']['gender'] == 'Fem'
     assert dashboard['summary']['no_show_rate'] == 30.0
     assert dashboard['summary']['cancer_suspicion_rate'] == 40.0
+    assert dashboard['summary']['cancer_confirmed'] == 1
+    assert dashboard['summary']['missing_teeth'] == 2
     assert dashboard['neighborhoods'][0]['no_show_rate'] == 25.0
+    assert dashboard['neighborhoods'][0]['risk_label'] == 'Crítico'
+    assert dashboard['critical_areas'][0]['bairro'] == 'Centro'
     assert dashboard['specialties'][0]['especialidade'] == 'Prótese Dentária'
     assert dashboard['lesion_locations'][0]['localizacao'] == 'Língua'

@@ -474,14 +474,16 @@ def _create_appointments(patient_id, professional_id, created_at, index):
 def _create_stomatology(patient_id, profile, professional_id, created_at):
     if not profile['lesion']:
         return
+    cancer_confirmed = profile['key'] == 'idoso_oncologico'
     est_id = execute(
         """
         INSERT INTO estomatologia (
             patient_id, dentista_id, data_registro, localizacao_lesao, tamanho_lesao,
             caracteristicas_lesao, habitos_paciente, tempo_evolucao, hipotese_diagnostica,
-            suspeita_neoplasia, conduta_clinica, encaminhado_para_biopsia
+            suspeita_neoplasia, cancer_confirmed, cancer_confirmed_at, diagnostico_confirmado,
+            conduta_clinica, encaminhado_para_biopsia
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, TRUE)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s, %s, TRUE)
         RETURNING id
         """,
         (
@@ -494,6 +496,9 @@ def _create_stomatology(patient_id, profile, professional_id, created_at):
             'Tabagismo relatado',
             'Mais de 20 dias',
             'Lesao suspeita - descartar neoplasia',
+            cancer_confirmed,
+            created_at + dt.timedelta(days=2) if cancer_confirmed else None,
+            'Carcinoma espinocelular confirmado em acompanhamento demo.' if cancer_confirmed else None,
             'Encaminhamento prioritario para biopsia e acompanhamento estomatologico.',
         )
     )

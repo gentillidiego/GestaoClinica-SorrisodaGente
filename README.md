@@ -55,7 +55,7 @@ Acessível via `/dashboard` após login:
 - **Agenda Semanal** — Controle de consultas com badges de status e vinculação paciente/dentista
 - **Dashboard Gerencial** — Métricas de produtividade e taxa de conclusão de agendamentos
 - **Central de Comando** — Painel operacional em `/command-center` com pacientes do dia, fila inteligente, alertas, bairros, especialidades e produção
-- **Epidemiologia** — Painel inicial em `/epidemiologia` com indicadores por bairro, lesões, suspeitas oncológicas, absenteísmo, demanda reprimida e perfil demográfico
+- **Epidemiologia** — Painel avançado em `/epidemiologia` com filtros por bairro, município, especialidade, profissional, sexo, faixa etária e status do tratamento; indicadores de lesões, câncer confirmado, perda dentária, absenteísmo, demanda reprimida e áreas críticas
 - **BI Executivo** — Painel em `/bi` com produção, filas, impacto social, metas automáticas, comparativos mensais e rankings executivos
 - **Relatórios Institucionais** — Prévia, geração assíncrona de PDF, histórico e recortes Institucional/SSA/SMS em `/reports/institutional`
 - **Linha do Tempo do Paciente** — Rastreabilidade inicial por prontuário reunindo cadastro, triagem, agenda, exames, procedimentos, documentos, estomatologia, fotos clínicas e auditoria
@@ -424,7 +424,7 @@ Validações autenticadas em Docker:
 ### **Fase 3: Inteligência Epidemiológica, Painel Executivo (BI) e Integrações — 🟡 INICIADA** *(Sessões registradas em 30/05/2026 e 01/06/2026)*
 
 > Objetivo: transformar os dados clínicos e operacionais já capturados pelo sistema em inteligência epidemiológica, painéis executivos e relatórios institucionais.
-> Status atual: Mapa Epidemiológico v1, BI Executivo v1 e Relatórios Institucionais/SSA/SMS com automação mensal v1 implementados e validados. O painel epidemiológico ainda é territorial/tabular por bairro, sem georreferenciamento cartográfico avançado.
+> Status atual: Mapa Epidemiológico v2, BI Executivo v1, Relatórios Institucionais/SSA/SMS e preparação e-SUS APS implementados e validados. O painel epidemiológico já possui filtros avançados, perda dentária por odontograma, câncer confirmado e áreas críticas, mas ainda não possui mapa cartográfico/georreferenciado real.
 
 #### Entregas implementadas em 30/05/2026
 
@@ -1049,14 +1049,63 @@ Validações em Docker:
 | `pdf_temp/esus_homologacao_2026-06_<id>.pdf` | PDF gerado com sucesso |
 | Auditoria | `esus_homologation_report_opened` e `esus_homologation_report_exported` registrados |
 
+#### Entregas implementadas em 01/06/2026 — Mapa Epidemiológico v2
+
+- [x] **Filtros epidemiológicos avançados**
+  - [x] `/epidemiologia` ampliado com filtros por período, bairro, município, especialidade, profissional, sexo, faixa etária e status do tratamento.
+  - [x] Serviço `services/epidemiology_service.py` centraliza a composição dos filtros e reaproveita a mesma regra para pacientes, lesões, consultas, triagem, odontogramas e procedimentos.
+  - [x] Bairros passaram a ser normalizados a partir de `patients.atendido_em`, separando o bairro do município quando o dado vem no padrão `Bairro - Município`.
+- [x] **Perda dentária epidemiológica**
+  - [x] Odontogramas em `exam_odontograma.dentes_data` passaram a alimentar indicador territorial de dentes ausentes.
+  - [x] O cálculo reconhece a lista estruturada `ausentes` usada na carga demo e marcações visuais de dente extraído em azul no odontograma.
+  - [x] O painel mostra total de dentes ausentes, pacientes com perda dentária, média por paciente afetado e ranking de perda dentária por bairro.
+- [x] **Câncer de boca confirmado**
+  - [x] Tabela `estomatologia` ampliada com `cancer_confirmed`, `cancer_confirmed_at` e `diagnostico_confirmado`.
+  - [x] Indicadores passam a diferenciar suspeita oncológica de diagnóstico confirmado.
+  - [x] A rotina de dados demonstrativos marca parte dos perfis oncológicos fictícios como câncer confirmado para apresentação institucional.
+- [x] **Áreas críticas para mutirão móvel e prevenção**
+  - [x] Indicador `critical_score` criado por bairro combinando câncer confirmado, suspeita oncológica, lesões, demanda reprimida, necessidade protética, perda dentária e faltas.
+  - [x] Tela exibe risco territorial como `Crítico`, `Atenção` ou `Monitorar`.
+  - [x] Painel lateral lista as áreas críticas e os principais motivos para busca ativa, mutirão móvel ou ação preventiva.
+- [x] **Validação técnica da sessão**
+  - [x] Testes automatizados da epidemiologia ampliados para cobrir filtros, perda dentária e áreas críticas.
+  - [x] Renderização autenticada da rota `/epidemiologia` com filtros avançados validada em Docker.
+  - [x] Migração das colunas de câncer confirmado validada no PostgreSQL.
+
+#### Testes executados após Mapa Epidemiológico v2
+
+```bash
+.venv/bin/pytest -q
+# Resultado: 67 passed
+
+.venv/bin/python -m compileall services/epidemiology_service.py database.py services/demo_data_service.py blueprints/main.py tests/test_phase3_epidemiology.py
+# Resultado: compilação sem erro
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+```
+
+Validações em Docker:
+
+| Ação | Resultado |
+|---|---|
+| Colunas novas em `estomatologia` | `cancer_confirmed`, `cancer_confirmed_at` e `diagnostico_confirmado` presentes |
+| `GET /epidemiologia` autenticado | HTTP 200 |
+| `GET /epidemiologia?municipio=Maceió&sexo=Fem&faixa_etaria=60%2B` autenticado | HTTP 200 com filtros avançados renderizados |
+
 #### Pendências da Fase 3
 
 - [ ] **Mapa Epidemiológico em Tempo Real avançado**
-  - [ ] Painel georreferenciado real por bairro, município, unidade e ação de triagem.
-  - [ ] Inclusão de perda dentária quando o odontograma estiver estruturado para esse indicador.
-  - [ ] Indicador formal de diagnóstico confirmado de câncer de boca, além da suspeita oncológica.
-  - [ ] Filtros por faixa etária, sexo, especialidade, profissional, município e status do tratamento.
-  - [ ] Identificação automática de áreas críticas para mutirões móveis e ações preventivas.
+  - [ ] Painel georreferenciado real/cartográfico por bairro, município, unidade e ação de triagem.
+  - [x] Inclusão de perda dentária a partir do odontograma estruturado.
+  - [x] Indicador formal de diagnóstico confirmado de câncer de boca, além da suspeita oncológica.
+  - [x] Filtros por faixa etária, sexo, especialidade, profissional, município e status do tratamento.
+  - [x] Identificação automática de áreas críticas para mutirões móveis e ações preventivas.
+  - [ ] Drill-down por unidade/ação de triagem com visualização própria, além do recorte territorial por bairro/município.
 - [ ] **Dashboard Executivo (BI) Governamental**
   - [x] Rota `/bi` protegida por permissão `bi:view`.
   - [x] Cards executivos de produção clínica, pacientes atendidos, fila encaminhada e absenteísmo.
@@ -1098,8 +1147,10 @@ Validações em Docker:
 
 #### Observações para manuais futuros
 
-- Manual da epidemiologia deve explicar leitura dos filtros de período e bairro, diferença entre lesão registrada e suspeita oncológica, e interpretação da taxa de absenteísmo.
-- Manual da gestão deve reforçar que o v1 é territorial por bairro, não um mapa cartográfico georreferenciado.
+- Manual da epidemiologia deve explicar leitura dos filtros de período, bairro, município, especialidade, profissional, sexo, faixa etária e status do tratamento.
+- Manual da epidemiologia deve explicar a diferença entre lesão registrada, suspeita oncológica e câncer confirmado, além de deixar claro que confirmação exige registro clínico qualificado em estomatologia.
+- Manual da epidemiologia deve explicar como a perda dentária é derivada do odontograma e como interpretar pacientes afetados, dentes ausentes e média por paciente.
+- Manual da gestão deve reforçar que o v2 já aponta áreas críticas, mas ainda não é um mapa cartográfico/georreferenciado real.
 - Manual do BI deve explicar metas automáticas, crescimento contra mês anterior, ranking de produção e diferença entre valor estimado/aprovado e economia pública formal.
 - Manual de relatórios deve explicar como gerar a prévia institucional, aplicar período, exportar PDF e interpretar recomendações automáticas.
 - Manual de relatórios deve explicar a rotina automática mensal, horário configurado, tipos de relatório, reprocessamento com `--force`, status no histórico, hash SHA-256 e regras de acesso por Prefeitura/SSA/SMS.

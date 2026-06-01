@@ -30,6 +30,60 @@
         {% endfor %}
       </select>
     </div>
+    <div>
+      <label class="form-label" for="municipio">Município</label>
+      <select class="form-control" id="municipio" name="municipio">
+        <option value="">Todos</option>
+        {% for item in data.filters.municipalities %}
+        <option value="{{ item.nome }}" {% if data.filters.municipality == item.nome %}selected{% endif %}>{{ item.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label" for="especialidade">Especialidade</label>
+      <select class="form-control" id="especialidade" name="especialidade">
+        <option value="">Todas</option>
+        {% for item in data.filters.specialties %}
+        <option value="{{ item.id }}" {% if data.filters.specialty == item.id|string or data.filters.specialty == item.codigo or data.filters.specialty == item.nome %}selected{% endif %}>{{ item.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label" for="profissional">Profissional</label>
+      <select class="form-control" id="profissional" name="profissional">
+        <option value="">Todos</option>
+        {% for item in data.filters.professionals %}
+        <option value="{{ item.id }}" {% if data.filters.professional_id == item.id|string %}selected{% endif %}>{{ item.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label" for="sexo">Sexo</label>
+      <select class="form-control" id="sexo" name="sexo">
+        <option value="">Todos</option>
+        {% for item in data.filters.genders %}
+        <option value="{{ item.genero }}" {% if data.filters.gender == item.genero %}selected{% endif %}>{{ item.genero }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label" for="faixa_etaria">Faixa etária</label>
+      <select class="form-control" id="faixa_etaria" name="faixa_etaria">
+        <option value="">Todas</option>
+        {% for item in data.filters.age_groups %}
+        <option value="{{ item.value }}" {% if data.filters.age_group == item.value %}selected{% endif %}>{{ item.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label" for="status_tratamento">Tratamento</label>
+      <select class="form-control" id="status_tratamento" name="status_tratamento">
+        <option value="">Todos</option>
+        {% for item in data.filters.treatment_statuses %}
+        <option value="{{ item.status }}" {% if data.filters.treatment_status == item.status %}selected{% endif %}>{{ item.status }}</option>
+        {% endfor %}
+      </select>
+    </div>
     <button type="submit" class="btn btn-primary" style="height:48px;">Filtrar</button>
     <a href="{{ url_for('main.epidemiologia_dashboard') }}" class="btn btn-outline" style="height:48px;">Limpar</a>
   </form>
@@ -49,6 +103,13 @@
         <span class="stat-label">Suspeitas Oncológicas</span>
       </div>
     </div>
+    <div class="stat-card" style="border-bottom:4px solid #991b1b;">
+      <div class="stat-icon" style="background:#fee2e2;">C</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#991b1b;">{{ data.summary.cancer_confirmed }}</span>
+        <span class="stat-label">Câncer Confirmado</span>
+      </div>
+    </div>
     <div class="stat-card" style="border-bottom:4px solid #f97316;">
       <div class="stat-icon" style="background:#ffedd5;">F</div>
       <div class="stat-info">
@@ -61,6 +122,13 @@
       <div class="stat-info">
         <span class="stat-value" style="color:#7c3aed;">{{ data.summary.repressed_demand }}</span>
         <span class="stat-label">Demanda Reprimida</span>
+      </div>
+    </div>
+    <div class="stat-card" style="border-bottom:4px solid #0f766e;">
+      <div class="stat-icon" style="background:#ccfbf1;">D</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#0f766e;">{{ data.summary.missing_teeth }}</span>
+        <span class="stat-label">Dentes Ausentes</span>
       </div>
     </div>
   </div>
@@ -81,10 +149,13 @@
               <th>Pacientes</th>
               <th>Lesões</th>
               <th>Suspeitas</th>
+              <th>Confirmados</th>
+              <th>Perda Dentária</th>
               <th>Faltas</th>
               <th>Absenteísmo</th>
               <th>Prótese</th>
               <th>Demanda</th>
+              <th>Risco</th>
             </tr>
           </thead>
           <tbody>
@@ -94,6 +165,8 @@
               <td>{{ row.total_patients }}</td>
               <td>{{ row.lesion_records }}</td>
               <td><span class="{% if row.cancer_suspicions %}epi-danger{% endif %}">{{ row.cancer_suspicions }}</span></td>
+              <td><span class="{% if row.cancer_confirmed %}epi-danger{% endif %}">{{ row.cancer_confirmed }}</span></td>
+              <td>{{ row.missing_teeth }} <small>({{ row.patients_with_tooth_loss }} pac.)</small></td>
               <td>{{ row.no_shows }}</td>
               <td>
                 <div class="epi-rate">
@@ -103,6 +176,7 @@
               </td>
               <td>{{ row.prosthetic_need }}</td>
               <td>{{ row.repressed_demand }}</td>
+              <td><span class="epi-risk epi-risk-{{ row.risk_label|lower|replace('í','i')|replace('ç','c')|replace('ã','a') }}">{{ row.risk_label }}</span></td>
             </tr>
             {% endfor %}
           </tbody>
@@ -119,9 +193,26 @@
         <div class="epi-mini-grid">
           <span>Lesões registradas <strong>{{ data.summary.lesion_records }}</strong></span>
           <span>Pacientes com lesão <strong>{{ data.summary.lesion_patients }}</strong></span>
+          <span>Câncer confirmado <strong>{{ data.summary.cancer_confirmed }}</strong></span>
           <span>Encaminhamentos <strong>{{ data.summary.biopsy_referrals }}</strong></span>
           <span>Necessidade protética <strong>{{ data.summary.prosthetic_need }}</strong></span>
+          <span>Média dentes ausentes <strong>{{ data.summary.avg_missing_teeth }}</strong></span>
         </div>
+      </section>
+
+      <section class="card" style="margin:0;">
+        <h2 class="section-header">Áreas Críticas</h2>
+        {% for row in data.critical_areas %}
+        <div class="epi-critical-row">
+          <div>
+            <strong>{{ row.bairro }}</strong>
+            <span>{{ row.reasons }}</span>
+          </div>
+          <em>{{ row.critical_score }}</em>
+        </div>
+        {% else %}
+        <p style="color:hsl(var(--text-muted));">Sem área crítica no período filtrado.</p>
+        {% endfor %}
       </section>
 
       <section class="card" style="margin:0;">
@@ -129,10 +220,22 @@
         {% for row in data.lesion_locations %}
         <div class="epi-rank-row">
           <span>{{ row.localizacao }}</span>
-          <strong>{{ row.lesion_records }}</strong>
+          <strong>{{ row.lesion_records }}{% if row.cancer_confirmed %} / {{ row.cancer_confirmed }} conf.{% endif %}</strong>
         </div>
         {% else %}
         <p style="color:hsl(var(--text-muted));">Sem registros de lesões no período.</p>
+        {% endfor %}
+      </section>
+
+      <section class="card" style="margin:0;">
+        <h2 class="section-header">Perda Dentária por Bairro</h2>
+        {% for row in data.tooth_loss_areas %}
+        <div class="epi-rank-row">
+          <span>{{ row.bairro }}</span>
+          <strong>{{ row.missing_teeth }}</strong>
+        </div>
+        {% else %}
+        <p style="color:hsl(var(--text-muted));">Sem odontogramas com dentes ausentes no período.</p>
         {% endfor %}
       </section>
 
@@ -201,7 +304,7 @@
 }
 .epi-filter {
   display:grid;
-  grid-template-columns:repeat(3, minmax(160px, 1fr)) auto auto;
+  grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));
   gap:1rem;
   align-items:end;
   padding:1rem;
@@ -256,9 +359,36 @@
   color:hsl(var(--text-main));
   font-size:0.88rem;
 }
+.epi-table small {
+  color:hsl(var(--text-muted));
+  font-weight:700;
+  white-space:nowrap;
+}
 .epi-danger {
   color:#dc2626;
   font-weight:800;
+}
+.epi-risk {
+  display:inline-flex;
+  align-items:center;
+  min-height:24px;
+  padding:0.15rem 0.5rem;
+  border-radius:999px;
+  font-size:0.72rem;
+  font-weight:800;
+  white-space:nowrap;
+}
+.epi-risk-critico {
+  color:#991b1b;
+  background:#fee2e2;
+}
+.epi-risk-atencao {
+  color:#9a3412;
+  background:#ffedd5;
+}
+.epi-risk-monitorar {
+  color:#166534;
+  background:#dcfce7;
 }
 .epi-rate {
   min-width:100px;
@@ -318,6 +448,41 @@
 }
 .epi-rank-row strong {
   color:hsl(var(--primary));
+}
+.epi-critical-row {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  padding:0.75rem 0;
+  border-bottom:1px solid hsl(var(--border));
+}
+.epi-critical-row:last-child {
+  border-bottom:none;
+}
+.epi-critical-row div {
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+}
+.epi-critical-row strong {
+  color:hsl(var(--text-main));
+  font-size:0.92rem;
+}
+.epi-critical-row span {
+  color:hsl(var(--text-muted));
+  font-size:0.76rem;
+  font-weight:700;
+}
+.epi-critical-row em {
+  min-width:42px;
+  text-align:center;
+  border-radius:999px;
+  padding:0.2rem 0.55rem;
+  color:#991b1b;
+  background:#fee2e2;
+  font-style:normal;
+  font-weight:900;
 }
 .epi-bar-row {
   display:grid;
