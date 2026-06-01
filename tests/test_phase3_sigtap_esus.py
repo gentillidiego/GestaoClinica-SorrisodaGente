@@ -2,9 +2,15 @@ import datetime as dt
 
 import services.esus_export_service as esus_export_service
 import services.sigtap_service as sigtap_service
-from constants import Role, role_has_permission
+from constants import (
+    Role,
+    role_has_permission,
+    role_requires_dental_license,
+    role_requires_professional_data,
+)
 from services.esus_export_service import (
     build_esus_payload,
+    build_homologation_status,
     classify_esus_missing_fields,
     get_esus_dashboard,
     month_period,
@@ -78,6 +84,10 @@ def test_build_esus_payload_uses_only_sigtap_ready_records(monkeypatch):
             'cns': '123',
             'cpf': '000',
             'patient_name': 'Paciente Teste',
+            'professional_cns': '700000000000000',
+            'professional_cbo': '223208',
+            'professional_cnes': '1234567',
+            'professional_ine': '0000000000',
             'cro': '1234',
             'cro_uf': 'AL',
             'professional_name': 'Dra. Teste',
@@ -95,6 +105,10 @@ def test_build_esus_payload_uses_only_sigtap_ready_records(monkeypatch):
             'cns': '456',
             'cpf': '111',
             'patient_name': 'Paciente Sem Código',
+            'professional_cns': '700000000000000',
+            'professional_cbo': '223208',
+            'professional_cnes': '1234567',
+            'professional_ine': '0000000000',
             'cro': '1234',
             'cro_uf': 'AL',
             'professional_name': 'Dra. Teste',
@@ -127,6 +141,14 @@ def test_integrations_permissions_are_restricted():
     assert role_has_permission(Role.SSA, 'integrations:view') is False
 
 
+def test_professional_roles_require_esus_identification_fields():
+    assert role_requires_professional_data(Role.DENTISTA)
+    assert role_requires_professional_data(Role.TRIAGEM)
+    assert role_requires_dental_license(Role.DENTISTA)
+    assert role_requires_dental_license(Role.TRIAGEM) is False
+    assert role_requires_professional_data(Role.RECEPCAO) is False
+
+
 def test_classify_esus_missing_fields_flags_city_and_patient_data():
     row = {
         'sigtap_code': '0307030040',
@@ -134,6 +156,10 @@ def test_classify_esus_missing_fields_flags_city_and_patient_data():
         'cns': None,
         'cpf': None,
         'professor_id': None,
+        'professional_cns': None,
+        'professional_cbo': None,
+        'professional_cnes': None,
+        'professional_ine': None,
         'cro': None,
     }
 
@@ -141,6 +167,8 @@ def test_classify_esus_missing_fields_flags_city_and_patient_data():
 
     assert 'CNS/CPF' in missing
     assert 'profissional' in missing
+    assert 'CNS profissional' in missing
+    assert 'CBO' in missing
     assert 'CRO' in missing
     assert 'CNES' in missing
     assert 'INE/equipe' in missing
@@ -175,7 +203,26 @@ def test_get_esus_dashboard_composes_operational_context(monkeypatch):
         'build_esus_readiness',
         lambda month_value=None: {'total': 1, 'ready': 1, 'missing_sigtap': 0, 'incomplete': 0},
     )
-    monkeypatch.setattr(esus_export_service, 'get_esus_settings', lambda: {'environment': 'homologacao'})
+    monkeypatch.setattr(
+        esus_export_service,
+        'get_esus_settings',
+        lambda: {
+            'environment': 'homologacao',
+            'base_url': 'https://esus.local',
+            'pec_version': '5.4.36',
+            'ledi_version': '7.4.1',
+            'credential_status': 'received',
+            'cnes': '1234567',
+            'ine': '0000000000',
+        },
+    )
+    monkeypatch.setattr(
+        esus_export_service,
+        'get_sigtap_summary',
+        lambda: {'latest': {'total': 10, 'competence': '202605'}},
+    )
+    monkeypatch.setattr(esus_export_service, 'get_patient_identifier_gaps', lambda: {'total': 2, 'missing_cns_or_cpf': 0})
+    monkeypatch.setattr(esus_export_service, 'list_professionals_missing_required_data', lambda limit=80: [])
     monkeypatch.setattr(esus_export_service, 'list_procedures_missing_sigtap', lambda limit=80: [])
     monkeypatch.setattr(esus_export_service, 'list_esus_batches', lambda limit=12: [{'id': 1}])
 
@@ -184,4 +231,26 @@ def test_get_esus_dashboard_composes_operational_context(monkeypatch):
     assert dashboard['month'] == '2026-05'
     assert dashboard['readiness']['ready'] == 1
     assert dashboard['settings']['environment'] == 'homologacao'
+    assert dashboard['homologation']['ready']
     assert dashboard['batches'][0]['id'] == 1
+
+
+def test_homologation_status_reports_blockers():
+    status = build_homologation_status(
+        settings={
+            'environment': 'aguardando_prefeitura',
+            'base_url': '',
+            'pec_version': '',
+            'ledi_version': '',
+            'credential_status': 'pending',
+            'cnes': '',
+            'ine': '',
+        },
+        readiness={'missing_sigtap': 1, 'incomplete': 2},
+        sigtap_summary={'latest': {'total': 0}},
+        patient_gaps={'missing_cns_or_cpf': 3},
+        missing_professionals=[{'id': 1}],
+    )
+
+    assert status['ready'] is False
+    assert status['blocking_count'] == len(status['items'])

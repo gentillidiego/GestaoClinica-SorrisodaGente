@@ -42,7 +42,7 @@
 
             <div style="margin-bottom: 2.5rem;">
                 <label for="role" class="form-label">Nível de Acesso (Perfil)</label>
-                <select name="role" id="role" class="form-control" required onchange="toggleCro()">
+                <select name="role" id="role" class="form-control" required onchange="toggleProfessionalFields()">
                     {% for role_value, role_name in role_choices %}
                     <option value="{{ role_value }}" {% if user.role==role_value %}selected{% endif %}>{{ role_name }}</option>
                     {% endfor %}
@@ -57,16 +57,40 @@
                 </select>
             </div>
 
+            <div id="professional_container"
+                style="{% if user.role in ['triagem', 'clinica_geral', 'dentista', 'endodontia', 'cirurgia', 'implantes', 'estomatologia', 'radiologia', 'laboratorio', 'mutirao_movel', 'tsb'] %}display: grid;{% else %}display: none;{% endif %} grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div>
+                    <label for="cns" class="form-label">CNS do Profissional</label>
+                    <input type="text" name="cns" id="cns" class="form-control professional-required" placeholder="Cartão Nacional de Saúde"
+                        value="{{ user.cns or '' }}">
+                </div>
+                <div>
+                    <label for="cbo" class="form-label">CBO</label>
+                    <input type="text" name="cbo" id="cbo" class="form-control professional-required" placeholder="Ex: 223208"
+                        value="{{ user.cbo or '' }}">
+                </div>
+                <div>
+                    <label for="cnes" class="form-label">CNES</label>
+                    <input type="text" name="cnes" id="cnes" class="form-control professional-required" placeholder="CNES da unidade"
+                        value="{{ user.cnes or '' }}">
+                </div>
+                <div>
+                    <label for="ine" class="form-label">INE / Equipe</label>
+                    <input type="text" name="ine" id="ine" class="form-control professional-required" placeholder="INE da equipe"
+                        value="{{ user.ine or '' }}">
+                </div>
+            </div>
+
             <div id="cro_container"
-                style="{% if user.role in ['admin', 'dentista', 'clinica_geral', 'endodontia', 'cirurgia', 'implantes', 'estomatologia'] %}display: grid;{% else %}display: none;{% endif %} grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 2.5rem;">
+                style="{% if user.role in ['dentista', 'clinica_geral', 'endodontia', 'cirurgia', 'implantes', 'estomatologia'] %}display: grid;{% else %}display: none;{% endif %} grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 2.5rem;">
                 <div>
                     <label for="cro" class="form-label">Número CRO</label>
-                    <input type="text" name="cro" id="cro" class="form-control" placeholder="Ex: 12345"
+                    <input type="text" name="cro" id="cro" class="form-control cro-required" placeholder="Ex: 12345"
                         value="{{ user.cro or '' }}">
                 </div>
                 <div>
                     <label for="cro_uf" class="form-label">CRO-UF</label>
-                    <input type="text" name="cro_uf" id="cro_uf" class="form-control" placeholder="Ex: AL"
+                    <input type="text" name="cro_uf" id="cro_uf" class="form-control cro-required" placeholder="Ex: AL"
                         value="{{ user.cro_uf or '' }}">
                 </div>
             </div>
@@ -84,14 +108,37 @@
 </div>
 
 <script>
-    function toggleCro() {
+    const professionalRoles = ['triagem', 'clinica_geral', 'dentista', 'endodontia', 'cirurgia', 'implantes', 'estomatologia', 'radiologia', 'laboratorio', 'mutirao_movel', 'tsb'];
+    const dentalRoles = ['dentista', 'clinica_geral', 'endodontia', 'cirurgia', 'implantes', 'estomatologia'];
+
+    function setRequired(selector, required) {
+        document.querySelectorAll(selector).forEach((field) => {
+            field.required = required;
+        });
+    }
+
+    function toggleProfessionalFields() {
         var role = document.getElementById('role').value;
+        var professionalContainer = document.getElementById('professional_container');
         var croContainer = document.getElementById('cro_container');
-        if (['dentista', 'admin', 'clinica_geral', 'endodontia', 'cirurgia', 'implantes', 'estomatologia'].includes(role)) {
+
+        if (professionalRoles.includes(role)) {
+            professionalContainer.style.display = 'grid';
+            setRequired('.professional-required', true);
+        } else {
+            professionalContainer.style.display = 'none';
+            setRequired('.professional-required', false);
+        }
+
+        if (dentalRoles.includes(role)) {
             croContainer.style.display = 'grid';
+            setRequired('.cro-required', true);
         } else {
             croContainer.style.display = 'none';
+            setRequired('.cro-required', false);
         }
     }
+
+    toggleProfessionalFields();
 </script>
 {% endblock %}

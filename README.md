@@ -756,6 +756,57 @@ Validações em Docker:
 | Conteúdo da tela | `SIGTAP / e-SUS APS` renderizado |
 | `information_schema.columns` | Colunas `cnes`, `ine`, `ledi_version` e `pec_version` presentes |
 
+#### Entregas implementadas em 01/06/2026 — Checklist de Homologação e Dados Obrigatórios e-SUS
+
+- [x] **Dados obrigatórios no cadastro de pacientes**
+  - [x] `CNS` e `CPF` tornados obrigatórios no cadastro de paciente.
+  - [x] `CNS` e `CPF` tornados obrigatórios na edição de paciente.
+  - [x] Validação de backend adicionada em `blueprints/patients.py`, além do `required` no HTML.
+- [x] **Dados obrigatórios no cadastro de profissionais**
+  - [x] Tabela `users` ampliada com `cns`, `cbo`, `cnes` e `ine`.
+  - [x] Perfis profissionais passam a exigir CNS profissional, CBO, CNES e INE/equipe.
+  - [x] Perfis odontológicos passam a exigir também CRO e CRO-UF.
+  - [x] Cadastro e edição de usuário bloqueiam gravação quando o perfil profissional está incompleto.
+  - [x] `utils.User` e login atualizados para carregar os novos campos profissionais.
+- [x] **Validador de prontidão para homologação**
+  - [x] Painel `/admin/integrations/esus` agora mostra bloco `Homologação`.
+  - [x] Checklist indica se a integração está pronta para homologação: sim/não.
+  - [x] Checklist avalia ambiente, URL PEC/e-SUS, versão PEC, versão LEDI, credenciais, CNES, INE, catálogo SIGTAP, pacientes, profissionais e bloqueios de produção.
+  - [x] Painel lista profissionais com dados obrigatórios pendentes e link para correção.
+  - [x] Serviço `services/esus_export_service.py` ampliado com apuração de pacientes sem CNS/CPF, profissionais incompletos e bloqueadores de homologação.
+- [x] **Validação técnica da sessão**
+  - [x] Testes automatizados ampliados para 51 casos.
+  - [x] Renderização autenticada da rota `/admin/integrations/esus` validada em Docker com os blocos `Homologação` e `Profissionais com Dados Pendentes`.
+  - [x] Migração das colunas `cns`, `cbo`, `cnes` e `ine` em `users` validada no PostgreSQL.
+
+#### Testes executados após Checklist de Homologação
+
+```bash
+.venv/bin/python -m pytest -q
+# Resultado: 51 passed
+
+.venv/bin/python -m pytest tests/test_phase3_sigtap_esus.py tests/test_phase1_security.py -q
+# Resultado: 17 passed
+
+.venv/bin/python -m compileall constants.py database.py utils.py blueprints/auth.py blueprints/admin.py blueprints/patients.py services/esus_export_service.py templates/admin/add_user.html templates/admin/edit_user.html templates/admin/esus_integration.html templates/patients/register.html templates/patients/edit.html tests/test_phase3_sigtap_esus.py
+# Resultado: compilação sem erro
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+```
+
+Validações em Docker:
+
+| Ação | Resultado |
+|---|---|
+| `information_schema.columns` em `users` | Colunas `cns`, `cbo`, `cnes` e `ine` presentes |
+| `GET /admin/integrations/esus?month=2026-05` autenticado como admin | HTTP 200 |
+| Conteúdo da tela | Blocos `Homologação` e `Profissionais com Dados Pendentes` renderizados |
+
 #### Pendências da Fase 3
 
 - [ ] **Mapa Epidemiológico em Tempo Real avançado**
@@ -795,6 +846,7 @@ Validações em Docker:
   - [x] Payload preliminar e lotes draft para e-SUS APS.
   - [x] Estrutura de configuração aguardando URL, credenciais, instalação e ambiente da prefeitura.
   - [x] Painel operacional para correção de SIGTAP, conferência de pendências e geração de lote draft.
+  - [x] Checklist de homologação e dados obrigatórios de pacientes/profissionais.
   - [ ] Validar versão do PEC/e-SUS APS instalada na prefeitura e compatibilidade LEDI.
   - [ ] Implementar transmissão real quando a prefeitura fornecer endpoint, HTTPS, autenticação, CNES/INE e regras de homologação.
   - [ ] Validar campos obrigatórios finais: CNS/CPF, profissional, CBO, CNES, equipe/INE, data de atendimento, procedimento SIGTAP e compatibilidades.
@@ -808,6 +860,7 @@ Validações em Docker:
 - Manual de relatórios deve explicar a rotina automática mensal, horário configurado, tipos de relatório, reprocessamento com `--force`, status no histórico, hash SHA-256 e regras de acesso por Prefeitura/SSA/SMS.
 - Manual de integração deve explicar como atualizar a competência SIGTAP, como escolher código SUS/SIGTAP no plano de tratamento, como localizar procedimentos sem código e como gerar lote draft para validação da prefeitura.
 - Manual de integração deve explicar a tela `/admin/integrations/esus`, permissões de visualização/escrita, configuração da prefeitura, leitura dos cards e correção de pendências por registro.
+- Manual de cadastro deve reforçar que CNS/CPF do paciente e CNS/CBO/CNES/INE do profissional são obrigatórios para prontidão e-SUS; perfis odontológicos também exigem CRO/CRO-UF.
 - Manual técnico deve documentar a origem de cada indicador para evitar uso institucional de métricas proxy sem explicação.
 
 ---

@@ -36,6 +36,10 @@ def login():
                 matricula=user_data.get('matricula'),
                 cro=user_data.get('cro'),
                 cro_uf=user_data.get('cro_uf'),
+                cns=user_data.get('cns'),
+                cbo=user_data.get('cbo'),
+                cnes=user_data.get('cnes'),
+                ine=user_data.get('ine'),
                 active=user_data.get('active', True)
             )
             login_user(user)

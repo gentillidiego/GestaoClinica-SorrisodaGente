@@ -51,6 +51,31 @@ ROLE_LABELS = {
 }
 
 
+PROFESSIONAL_DATA_REQUIRED_ROLES = {
+    Role.TRIAGEM,
+    Role.CLINICA_GERAL,
+    Role.DENTISTA,
+    Role.ENDODONTIA,
+    Role.CIRURGIA,
+    Role.IMPLANTES,
+    Role.ESTOMATOLOGIA,
+    Role.RADIOLOGIA,
+    Role.LABORATORIO,
+    Role.MUTIRAO_MOVEL,
+    Role.TSB,
+}
+
+
+DENTAL_LICENSE_REQUIRED_ROLES = {
+    Role.CLINICA_GERAL,
+    Role.DENTISTA,
+    Role.ENDODONTIA,
+    Role.CIRURGIA,
+    Role.IMPLANTES,
+    Role.ESTOMATOLOGIA,
+}
+
+
 MODULE_PERMISSIONS = {
     'dashboard:view',
     'patients:view',
@@ -199,3 +224,11 @@ def get_role_label(role):
 
 def role_has_permission(role, permission):
     return permission in ROLE_PERMISSIONS.get(role, set())
+
+
+def role_requires_professional_data(role):
+    return role in PROFESSIONAL_DATA_REQUIRED_ROLES
+
+
+def role_requires_dental_license(role):
+    return role in DENTAL_LICENSE_REQUIRED_ROLES

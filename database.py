@@ -150,7 +150,11 @@ MIGRATIONS = {
         ('cro_uf', 'TEXT'),
         ('active', 'BOOLEAN DEFAULT TRUE'),
         ('last_login_at', 'TIMESTAMP'),
-        ('last_login_ip', 'TEXT')
+        ('last_login_ip', 'TEXT'),
+        ('cns', 'TEXT'),
+        ('cbo', 'TEXT'),
+        ('cnes', 'TEXT'),
+        ('ine', 'TEXT')
     ],
     'exams': [
         ('professor_id', 'INTEGER'),
@@ -219,6 +223,10 @@ def _init_db_locked():
             matricula TEXT,
             cro TEXT,
             cro_uf TEXT,
+            cns TEXT,
+            cbo TEXT,
+            cnes TEXT,
+            ine TEXT,
             active BOOLEAN DEFAULT TRUE,
             last_login_at TIMESTAMP,
             last_login_ip TEXT

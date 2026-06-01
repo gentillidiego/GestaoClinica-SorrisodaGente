@@ -3,7 +3,12 @@ from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash
 from database import query, execute, execute_returning
 from functools import wraps
-from constants import Role, get_role_choices
+from constants import (
+    Role,
+    get_role_choices,
+    role_requires_dental_license,
+    role_requires_professional_data,
+)
 from services.security_service import audit_log, list_audit_logs, permission_required
 from services.esus_export_service import (
     get_esus_dashboard,
@@ -34,12 +39,38 @@ def admin_or_atendente_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+
+def _clean_form_value(name):
+    return (request.form.get(name) or '').strip()
+
+
+def _validate_required_professional_fields(role):
+    required_fields = []
+    if role_requires_professional_data(role):
+        required_fields.extend([
+            ('cns', 'CNS do profissional'),
+            ('cbo', 'CBO'),
+            ('cnes', 'CNES'),
+            ('ine', 'INE/equipe'),
+        ])
+    if role_requires_dental_license(role):
+        required_fields.extend([
+            ('cro', 'CRO'),
+            ('cro_uf', 'CRO-UF'),
+        ])
+
+    missing = [label for field, label in required_fields if not _clean_form_value(field)]
+    if missing:
+        return f"Preencha os dados obrigatórios do profissional: {', '.join(missing)}."
+    return None
+
 @admin_bp.route('/users')
 @login_required
 @admin_or_atendente_required
 def list_users():
     users = query("""
-        SELECT id, username, role, full_name, active, last_login_at, last_login_ip
+        SELECT id, username, role, full_name, active, last_login_at, last_login_ip,
+               cns, cbo, cnes, ine, cro, cro_uf
         FROM users
         ORDER BY role, username
     """)
@@ -50,18 +81,27 @@ def list_users():
 @admin_required
 def add_user():
     if request.method == 'POST':
-        full_name = request.form.get('full_name')
-        username = request.form.get('username')
+        full_name = _clean_form_value('full_name')
+        username = _clean_form_value('username')
         password = request.form.get('password')
         role = request.form.get('role')
         active = request.form.get('active') == '1'
         # matricula não é mais usada — campo removido
-        cro = request.form.get('cro')
-        cro_uf = request.form.get('cro_uf')
+        cro = _clean_form_value('cro')
+        cro_uf = _clean_form_value('cro_uf')
+        cns = _clean_form_value('cns')
+        cbo = _clean_form_value('cbo')
+        cnes = _clean_form_value('cnes')
+        ine = _clean_form_value('ine')
 
         valid_roles = {role_value for role_value, _ in get_role_choices()}
         if role not in valid_roles:
             flash('Perfil de acesso inválido.', 'danger')
+            return render_template('admin/add_user.html', role_choices=get_role_choices())
+
+        validation_error = _validate_required_professional_fields(role)
+        if validation_error:
+            flash(validation_error, 'danger')
             return render_template('admin/add_user.html', role_choices=get_role_choices())
 
         hashed_password = generate_password_hash(password)
@@ -69,17 +109,25 @@ def add_user():
         try:
             user_id = execute_returning(
                 """
-                INSERT INTO users (username, password, role, full_name, cro, cro_uf, active)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO users (
+                    username, password, role, full_name, cro, cro_uf,
+                    cns, cbo, cnes, ine, active
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
-                (username, hashed_password, role, full_name, cro, cro_uf, active)
+                (username, hashed_password, role, full_name, cro, cro_uf, cns, cbo, cnes, ine, active)
             )
             audit_log(
                 action='user_created',
                 module='admin',
                 entity_type='user',
                 entity_id=user_id,
-                details={'username': username, 'role': role, 'active': active}
+                details={
+                    'username': username,
+                    'role': role,
+                    'active': active,
+                    'professional_data_required': role_requires_professional_data(role),
+                }
             )
             flash(f'Usuário {full_name or username} criado com sucesso!', 'success')
             return redirect(url_for('admin.list_users'))
@@ -111,36 +159,76 @@ def delete_user(user_id):
 @login_required
 @admin_required
 def edit_user(user_id):
-    user = query("SELECT id, username, role, full_name, cro, cro_uf, active FROM users WHERE id = %s", (user_id,), one=True)
+    user = query(
+        """
+        SELECT id, username, role, full_name, cro, cro_uf, cns, cbo, cnes, ine, active
+        FROM users
+        WHERE id = %s
+        """,
+        (user_id,),
+        one=True,
+    )
     if not user:
         flash('Usuário não encontrado.', 'danger')
         return redirect(url_for('admin.list_users'))
 
     if request.method == 'POST':
-        full_name = request.form.get('full_name')
-        username = request.form.get('username')
+        full_name = _clean_form_value('full_name')
+        username = _clean_form_value('username')
         password = request.form.get('password')
         role = request.form.get('role')
         active = request.form.get('active') == '1'
-        cro = request.form.get('cro')
-        cro_uf = request.form.get('cro_uf')
+        cro = _clean_form_value('cro')
+        cro_uf = _clean_form_value('cro_uf')
+        cns = _clean_form_value('cns')
+        cbo = _clean_form_value('cbo')
+        cnes = _clean_form_value('cnes')
+        ine = _clean_form_value('ine')
 
         valid_roles = {role_value for role_value, _ in get_role_choices()}
         if role not in valid_roles:
             flash('Perfil de acesso inválido.', 'danger')
             return render_template('admin/edit_user.html', user=user, role_choices=get_role_choices())
 
+        validation_error = _validate_required_professional_fields(role)
+        if validation_error:
+            flash(validation_error, 'danger')
+            form_user = dict(user)
+            form_user.update({
+                'username': username,
+                'role': role,
+                'full_name': full_name,
+                'cro': cro,
+                'cro_uf': cro_uf,
+                'cns': cns,
+                'cbo': cbo,
+                'cnes': cnes,
+                'ine': ine,
+                'active': active,
+            })
+            return render_template('admin/edit_user.html', user=form_user, role_choices=get_role_choices())
+
         try:
             if password:
                 hashed_password = generate_password_hash(password)
                 execute(
-                    "UPDATE users SET username=%s, password=%s, role=%s, full_name=%s, cro=%s, cro_uf=%s, active=%s WHERE id=%s",
-                    (username, hashed_password, role, full_name, cro, cro_uf, active, user_id)
+                    """
+                    UPDATE users
+                    SET username=%s, password=%s, role=%s, full_name=%s,
+                        cro=%s, cro_uf=%s, cns=%s, cbo=%s, cnes=%s, ine=%s, active=%s
+                    WHERE id=%s
+                    """,
+                    (username, hashed_password, role, full_name, cro, cro_uf, cns, cbo, cnes, ine, active, user_id)
                 )
             else:
                 execute(
-                    "UPDATE users SET username=%s, role=%s, full_name=%s, cro=%s, cro_uf=%s, active=%s WHERE id=%s",
-                    (username, role, full_name, cro, cro_uf, active, user_id)
+                    """
+                    UPDATE users
+                    SET username=%s, role=%s, full_name=%s,
+                        cro=%s, cro_uf=%s, cns=%s, cbo=%s, cnes=%s, ine=%s, active=%s
+                    WHERE id=%s
+                    """,
+                    (username, role, full_name, cro, cro_uf, cns, cbo, cnes, ine, active, user_id)
                 )
             audit_log(
                 action='user_updated',

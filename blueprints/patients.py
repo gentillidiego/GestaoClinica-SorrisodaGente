@@ -12,6 +12,26 @@ patients_bp = Blueprint('patients', __name__, url_prefix='/patients')
 def _normalize_triage_code(value):
     return (value or '').strip().upper()
 
+
+def _strip_form_data(data):
+    return {
+        key: value.strip() if isinstance(value, str) else value
+        for key, value in data.items()
+    }
+
+
+def _validate_patient_required_data(data):
+    missing = []
+    if not data.get('cns'):
+        missing.append('CNS')
+    if not data.get('cpf'):
+        missing.append('CPF')
+    if not data.get('nome'):
+        missing.append('nome completo')
+    if missing:
+        return f"Preencha os dados obrigatórios do paciente: {', '.join(missing)}."
+    return None
+
 @patients_bp.route('/register', methods=['GET', 'POST'])
 @login_required
 def register():
@@ -39,7 +59,7 @@ def register():
                 return render_template('patients/register.html', senha_triagem=senha_triagem)
 
         # Coleta de dados do formulário
-        data = {
+        data = _strip_form_data({
             'cns': request.form.get('cns'),
             'nome': request.form.get('nome'),
             'rg': request.form.get('rg'),
@@ -60,7 +80,11 @@ def register():
             'rg_responsavel': request.form.get('rg_responsavel'),
             'telefone_expedidor_responsavel': request.form.get('telefone_expedidor_responsavel'),
             'email_responsavel': request.form.get('email_responsavel')
-        }
+        })
+        validation_error = _validate_patient_required_data(data)
+        if validation_error:
+            flash(validation_error, 'danger')
+            return render_template('patients/register.html', senha_triagem=senha_triagem)
         
         try:
             if triage_ticket:
@@ -182,7 +206,7 @@ def edit_patient(id):
             flash('Senha de confirmação incorreta.', 'danger')
             return render_template('patients/edit.html', patient=patient)
             
-        data = {
+        data = _strip_form_data({
             'cns': request.form.get('cns'),
             'nome': request.form.get('nome'),
             'rg': request.form.get('rg'),
@@ -204,7 +228,13 @@ def edit_patient(id):
             'telefone_expedidor_responsavel': request.form.get('telefone_expedidor_responsavel'),
             'email_responsavel': request.form.get('email_responsavel'),
             'id': id
-        }
+        })
+        validation_error = _validate_patient_required_data(data)
+        if validation_error:
+            flash(validation_error, 'danger')
+            patient = dict(patient)
+            patient.update(data)
+            return render_template('patients/edit.html', patient=patient)
         
         try:
             execute('''

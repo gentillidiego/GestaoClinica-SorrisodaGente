@@ -24,8 +24,8 @@
             <!-- Coluna da Esquerda -->
             <div class="form-column">
                 <div class="form-group-inline">
-                    <label for="cns" class="form-label">CNS:</label>
-                    <input type="text" name="cns" id="cns" class="form-control" value="{{ patient.cns or '' }}">
+                    <label for="cns" class="form-label">CNS: *</label>
+                    <input type="text" name="cns" id="cns" class="form-control" value="{{ patient.cns or '' }}" required>
                 </div>
 
                 <div class="form-group-inline">
@@ -39,8 +39,8 @@
                 </div>
 
                 <div class="form-group-inline">
-                    <label for="cpf" class="form-label">CPF:</label>
-                    <input type="text" name="cpf" id="cpf" class="form-control" value="{{ patient.cpf or '' }}">
+                    <label for="cpf" class="form-label">CPF: *</label>
+                    <input type="text" name="cpf" id="cpf" class="form-control" value="{{ patient.cpf or '' }}" required>
                 </div>
 
                 <div class="form-group-inline">

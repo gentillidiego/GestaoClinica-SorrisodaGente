@@ -3,7 +3,21 @@ from database import query
 from constants import Role, get_role_label, role_has_permission
 
 class User(UserMixin):
-    def __init__(self, id, username, role, full_name=None, matricula=None, cro=None, cro_uf=None, active=True):
+    def __init__(
+        self,
+        id,
+        username,
+        role,
+        full_name=None,
+        matricula=None,
+        cro=None,
+        cro_uf=None,
+        cns=None,
+        cbo=None,
+        cnes=None,
+        ine=None,
+        active=True,
+    ):
         self.id = id
         self.username = username
         self.role = role
@@ -11,6 +25,10 @@ class User(UserMixin):
         self.matricula = matricula
         self.cro = cro
         self.cro_uf = cro_uf
+        self.cns = cns
+        self.cbo = cbo
+        self.cnes = cnes
+        self.ine = ine
         self.active = active
 
     @staticmethod
@@ -25,6 +43,10 @@ class User(UserMixin):
                 matricula=user_data.get('matricula'),
                 cro=user_data.get('cro'),
                 cro_uf=user_data.get('cro_uf'),
+                cns=user_data.get('cns'),
+                cbo=user_data.get('cbo'),
+                cnes=user_data.get('cnes'),
+                ine=user_data.get('ine'),
                 active=user_data.get('active', True)
             )
         return None

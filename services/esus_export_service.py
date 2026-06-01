@@ -2,8 +2,9 @@ import datetime as dt
 import hashlib
 import json
 
+from constants import PROFESSIONAL_DATA_REQUIRED_ROLES, role_requires_dental_license
 from database import execute, query
-from services.sigtap_service import get_sigtap_procedure
+from services.sigtap_service import get_sigtap_procedure, get_sigtap_summary
 
 
 def month_period(month_value=None, today=None):
@@ -41,6 +42,10 @@ def list_completed_procedures_for_esus(month_value=None):
                p.cns,
                p.cpf,
                p.nome as patient_name,
+               u.cns as professional_cns,
+               u.cbo as professional_cbo,
+               u.cnes as professional_cnes,
+               u.ine as professional_ine,
                u.cro,
                u.cro_uf,
                u.full_name as professional_name
@@ -66,6 +71,64 @@ def list_esus_batches(limit=20):
         """,
         (limit,)
     )
+
+
+def get_patient_identifier_gaps():
+    row = query(
+        """
+        SELECT COUNT(*) as total,
+               COUNT(*) FILTER (
+                   WHERE COALESCE(NULLIF(TRIM(cns), ''), '') = ''
+                      OR COALESCE(NULLIF(TRIM(cpf), ''), '') = ''
+               ) as missing_cns_or_cpf
+        FROM patients
+        """,
+        one=True,
+    )
+    return row or {'total': 0, 'missing_cns_or_cpf': 0}
+
+
+def _missing_professional_fields(row):
+    missing = []
+    if not row.get('cns'):
+        missing.append('CNS profissional')
+    if not row.get('cbo'):
+        missing.append('CBO')
+    if not row.get('cnes'):
+        missing.append('CNES')
+    if not row.get('ine'):
+        missing.append('INE/equipe')
+    if role_requires_dental_license(row.get('role')):
+        if not row.get('cro'):
+            missing.append('CRO')
+        if not row.get('cro_uf'):
+            missing.append('CRO-UF')
+    return missing
+
+
+def list_professionals_missing_required_data(limit=80):
+    roles = tuple(PROFESSIONAL_DATA_REQUIRED_ROLES)
+    placeholders = ', '.join(['%s'] * len(roles))
+    rows = query(
+        f"""
+        SELECT id, username, full_name, role, cns, cbo, cnes, ine, cro, cro_uf
+        FROM users
+        WHERE role IN ({placeholders})
+          AND active = TRUE
+        ORDER BY role, full_name, username
+        LIMIT %s
+        """,
+        (*roles, limit),
+    )
+
+    missing_rows = []
+    for row in rows:
+        missing = _missing_professional_fields(row)
+        if missing:
+            row = dict(row)
+            row['missing_fields'] = missing
+            missing_rows.append(row)
+    return missing_rows
 
 
 def get_esus_settings():
@@ -161,11 +224,15 @@ def classify_esus_missing_fields(row, settings=None):
         missing.append('CNS/CPF')
     if not row.get('professor_id'):
         missing.append('profissional')
+    if not row.get('professional_cns'):
+        missing.append('CNS profissional')
+    if not row.get('professional_cbo'):
+        missing.append('CBO')
     if not row.get('cro'):
         missing.append('CRO')
-    if not settings.get('cnes'):
+    if not (row.get('professional_cnes') or settings.get('cnes')):
         missing.append('CNES')
-    if not settings.get('ine'):
+    if not (row.get('professional_ine') or settings.get('ine')):
         missing.append('INE/equipe')
     return missing
 
@@ -212,8 +279,12 @@ def build_esus_payload(month_value=None):
             'patient_cns': row.get('cns'),
             'patient_cpf': row.get('cpf'),
             'professional_id': row.get('professor_id'),
+            'professional_cns': row.get('professional_cns'),
+            'professional_cbo': row.get('professional_cbo'),
             'professional_cro': row.get('cro'),
             'professional_cro_uf': row.get('cro_uf'),
+            'professional_cnes': row.get('professional_cnes'),
+            'professional_ine': row.get('professional_ine'),
             'procedure': {
                 'sigtap_code': row['sigtap_code'],
                 'sigtap_competence': row['sigtap_competence'],
@@ -265,6 +336,71 @@ def register_esus_export_batch(month_value=None, generated_by=None):
     return batch_id, payload
 
 
+def build_homologation_status(settings, readiness, sigtap_summary, patient_gaps, missing_professionals):
+    items = [
+        {
+            'label': 'Ambiente definido',
+            'ok': settings.get('environment') in {'homologacao', 'producao'},
+            'detail': settings.get('environment') or 'aguardando prefeitura',
+        },
+        {
+            'label': 'URL PEC/e-SUS informada',
+            'ok': bool(settings.get('base_url')),
+            'detail': settings.get('base_url') or 'pendente',
+        },
+        {
+            'label': 'Versão PEC informada',
+            'ok': bool(settings.get('pec_version')),
+            'detail': settings.get('pec_version') or 'pendente',
+        },
+        {
+            'label': 'Versão LEDI informada',
+            'ok': bool(settings.get('ledi_version')),
+            'detail': settings.get('ledi_version') or 'pendente',
+        },
+        {
+            'label': 'Credenciais recebidas/validadas',
+            'ok': settings.get('credential_status') in {'received', 'validated'},
+            'detail': settings.get('credential_status') or 'pending',
+        },
+        {
+            'label': 'CNES configurado',
+            'ok': bool(settings.get('cnes')),
+            'detail': settings.get('cnes') or 'pendente',
+        },
+        {
+            'label': 'INE/equipe configurado',
+            'ok': bool(settings.get('ine')),
+            'detail': settings.get('ine') or 'pendente',
+        },
+        {
+            'label': 'Catálogo SIGTAP carregado',
+            'ok': bool(sigtap_summary['latest']['total']),
+            'detail': f"{sigtap_summary['latest']['total']} procedimento(s)",
+        },
+        {
+            'label': 'Pacientes com CNS e CPF',
+            'ok': patient_gaps['missing_cns_or_cpf'] == 0,
+            'detail': f"{patient_gaps['missing_cns_or_cpf']} pendente(s)",
+        },
+        {
+            'label': 'Profissionais com CNS/CBO/CNES/INE',
+            'ok': len(missing_professionals) == 0,
+            'detail': f"{len(missing_professionals)} pendente(s)",
+        },
+        {
+            'label': 'Produção da competência sem bloqueios',
+            'ok': readiness['missing_sigtap'] == 0 and readiness['incomplete'] == 0,
+            'detail': f"{readiness['missing_sigtap'] + readiness['incomplete']} bloqueio(s)",
+        },
+    ]
+    return {
+        'ready': all(item['ok'] for item in items),
+        'items': items,
+        'blocking_count': sum(1 for item in items if not item['ok']),
+    }
+
+
 def list_procedures_missing_sigtap(limit=80):
     return query(
         """
@@ -304,11 +440,24 @@ def update_treatment_sigtap(procedure_id, sigtap_code, sigtap_competence=None):
 
 def get_esus_dashboard(month_value=None):
     month_value = month_value or current_month_value()
+    settings = get_esus_settings()
     readiness = build_esus_readiness(month_value)
+    sigtap_summary = get_sigtap_summary()
+    patient_gaps = get_patient_identifier_gaps()
+    missing_professionals = list_professionals_missing_required_data(limit=80)
     return {
         'month': month_value,
         'readiness': readiness,
-        'settings': get_esus_settings(),
+        'settings': settings,
+        'patient_gaps': patient_gaps,
+        'missing_professionals': missing_professionals,
+        'homologation': build_homologation_status(
+            settings,
+            readiness,
+            sigtap_summary,
+            patient_gaps,
+            missing_professionals,
+        ),
         'missing_sigtap': list_procedures_missing_sigtap(limit=80),
         'batches': list_esus_batches(limit=12),
     }
