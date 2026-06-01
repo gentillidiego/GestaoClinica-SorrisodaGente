@@ -156,6 +156,11 @@ MIGRATIONS = {
         ('cnes', 'TEXT'),
         ('ine', 'TEXT')
     ],
+    'patients': [
+        ('is_demo', 'BOOLEAN DEFAULT FALSE'),
+        ('demo_profile', 'TEXT'),
+        ('demo_seed_run_id', 'INTEGER')
+    ],
     'exams': [
         ('professor_id', 'INTEGER'),
         ('data_validacao', 'TIMESTAMP')
@@ -271,7 +276,25 @@ def _init_db_locked():
             rg_responsavel TEXT,
             telefone_expedidor_responsavel TEXT,
             email_responsavel TEXT,
+            is_demo BOOLEAN DEFAULT FALSE,
+            demo_profile TEXT,
+            demo_seed_run_id INTEGER,
             criado_em TIMESTAMP DEFAULT NOW()
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS demo_seed_runs (
+            id SERIAL PRIMARY KEY,
+            label TEXT,
+            requested_count INTEGER DEFAULT 0,
+            created_count INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'running',
+            created_by INTEGER,
+            details JSONB,
+            created_at TIMESTAMP DEFAULT NOW(),
+            completed_at TIMESTAMP,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
         )
     ''')
 
@@ -818,6 +841,8 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_patients_nome ON patients(nome)",
         "CREATE INDEX IF NOT EXISTS idx_patients_cpf ON patients(cpf)",
         "CREATE INDEX IF NOT EXISTS idx_patients_cns ON patients(cns)",
+        "CREATE INDEX IF NOT EXISTS idx_patients_is_demo ON patients(is_demo)",
+        "CREATE INDEX IF NOT EXISTS idx_patients_demo_seed_run ON patients(demo_seed_run_id)",
         "CREATE INDEX IF NOT EXISTS idx_anamnesis_patient_id ON anamnesis(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_exams_patient_id ON exams(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_patient_id ON atendimentos(patient_id)",
@@ -866,6 +891,7 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_sigtap_procedures_name ON sigtap_procedures(name)",
         "CREATE INDEX IF NOT EXISTS idx_sigtap_procedures_competence ON sigtap_procedures(competence)",
         "CREATE INDEX IF NOT EXISTS idx_esus_batches_reference_month ON esus_export_batches(reference_month)",
+        "CREATE INDEX IF NOT EXISTS idx_demo_seed_runs_created_at ON demo_seed_runs(created_at)",
     ]
     for idx_sql in indexes:
         execute(idx_sql)

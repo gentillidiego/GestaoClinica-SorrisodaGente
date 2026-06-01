@@ -62,6 +62,7 @@ Acessível via `/dashboard` após login:
 - **Auditoria Administrativa** — Tela com filtros de logs por usuário, módulo, ação, paciente e status
 - **Segurança** — Rate limiting integrado (20 logins/hora por IP) e isolamento de dados via PostgreSQL
 - **🚨 Módulo de Estomatologia (Câncer de Boca)** — Ficha clínica especializada, evolução fotográfica de lesões, Fila Vermelha de regulação oncológica e Encaminhamento Expresso em PDF
+- **Dados Demonstrativos (CLI)** — Rotina técnica sem frontend para criar pacientes fictícios completos, com anamnese, TCLE, exames, plano de tratamento, agenda, estomatologia, prótese e produção SIGTAP/e-SUS pronta para demonstrações.
 
 ## 🚨 Módulo de Estomatologia — Câncer de Boca
 
@@ -163,6 +164,13 @@ docker compose run --rm gestaoclinica python scripts/check_env.py
 ```bash
 curl http://localhost:5003/health
 # Esperado: {"status": "healthy", "database": "ok", ...}
+```
+
+### Povoar dados fictícios para demonstração
+```bash
+# Cria até 100 pacientes fictícios por execução.
+# Todos ficam marcados com is_demo=TRUE e a execução é registrada em demo_seed_runs.
+docker compose exec -T gestaoclinica flask --app app:app seed-demo-data --count 100 --label "Demonstração institucional"
 ```
 
 ### Visualizar logs
@@ -806,6 +814,73 @@ Validações em Docker:
 | `information_schema.columns` em `users` | Colunas `cns`, `cbo`, `cnes` e `ine` presentes |
 | `GET /admin/integrations/esus?month=2026-05` autenticado como admin | HTTP 200 |
 | Conteúdo da tela | Blocos `Homologação` e `Profissionais com Dados Pendentes` renderizados |
+
+#### Entregas implementadas em 01/06/2026 — Dados Demonstrativos para Apresentação
+
+- [x] **Rotina de povoamento sem frontend**
+  - [x] Comando Flask CLI `seed-demo-data` registrado em `app.py`.
+  - [x] Execução via Docker: `docker compose exec -T gestaoclinica flask --app app:app seed-demo-data --count 100 --label "Demonstração institucional"`.
+  - [x] Limite operacional de 1 a 100 pacientes por execução para evitar carga acidental excessiva.
+  - [x] Cada execução fica registrada na tabela `demo_seed_runs`, com label, quantidade solicitada, quantidade criada, status, data e detalhes.
+  - [x] Pacientes fictícios ficam marcados em `patients.is_demo=TRUE`, com `demo_profile` e `demo_seed_run_id`.
+- [x] **Perfis clínicos fictícios**
+  - [x] Oito perfis iniciais: idoso com necessidade protética, diabético periodontal, criança com cárie ativa, tabagista com lesão suspeita, dor endodôntica, reabilitação com implante, gestante em preventivo e paciente oncológico em acompanhamento.
+  - [x] Dados pessoais fictícios com CPF formatado e dígitos verificadores válidos para demonstração, CNS fictício, telefone, endereço, profissão, gênero e data de nascimento.
+  - [x] Municípios de Alagoas reaproveitados da base de referência e bairros/áreas de atendimento distribuídos para alimentar indicadores territoriais.
+- [x] **Prontuário completo para demonstração**
+  - [x] TCLE fictício assinado.
+  - [x] Anamnese completa com condições variáveis: hipertensão, diabetes, tabagismo, gestação, suspeita/risco oncológico, dor e perfil infantil.
+  - [x] Exames físico, odontograma e periograma.
+  - [x] Plano de tratamento com procedimentos vinculados ao catálogo SIGTAP odontológico.
+  - [x] Atendimentos/evoluções clínicas iniciais assinadas.
+  - [x] Agenda com consultas em estados variados, incluindo faltas para alimentar absenteísmo.
+  - [x] Casos de estomatologia com lesão suspeita, foto fictícia e encaminhamento para biópsia.
+  - [x] Casos de prótese/reabilitação com etapa de moldagem.
+  - [x] Alguns receituários e atestados fictícios para compor a linha do tempo do paciente.
+- [x] **Base de demonstração gerada no Docker local**
+  - [x] Carga final validada com 100 pacientes demo.
+  - [x] Distribuição validada em 8 perfis clínicos.
+  - [x] Registros validados: 100 anamneses, 300 exames, 200 procedimentos, 25 registros de lesão/estomatologia e 24 registros de prótese.
+  - [x] Dados já alimentam Epidemiologia, BI, Central de Comando, prontuário, linha do tempo, absenteísmo, demanda reprimida e preparação SIGTAP/e-SUS.
+- [x] **Validação técnica da sessão**
+  - [x] Serviço `services/demo_data_service.py` criado.
+  - [x] Testes automatizados adicionados em `tests/test_demo_data_service.py`.
+  - [x] Sem tela administrativa e sem item de menu, conforme decisão de produto desta sessão.
+
+#### Testes executados após Dados Demonstrativos
+
+```bash
+.venv/bin/python -m pytest -q
+# Resultado: 55 passed
+
+.venv/bin/python -m compileall app.py database.py services/demo_data_service.py tests/test_demo_data_service.py
+# Resultado: compilação sem erro
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+
+docker compose exec -T gestaoclinica flask --app app:app seed-demo-data --count 1 --label "Smoke demo Codex"
+# Resultado: 1 paciente demo criado com prontuário completo
+
+docker compose exec -T gestaoclinica flask --app app:app seed-demo-data --count 99 --label "Carga demo inicial 100 pacientes"
+# Resultado: 99 pacientes demo criados; total local validado: 100 pacientes demo
+```
+
+Validações em Docker:
+
+| Ação | Resultado |
+|---|---|
+| `patients WHERE is_demo = TRUE` | 100 pacientes |
+| `demo_seed_runs` | Execuções `success` com 1 e 99 pacientes |
+| `anamnesis` vinculada a pacientes demo | 100 registros |
+| `exams` vinculados a pacientes demo | 300 registros |
+| `tratamento_procedimentos` vinculados a pacientes demo | 200 registros |
+| `estomatologia` vinculada a pacientes demo | 25 registros |
+| `prosthesis` vinculada a pacientes demo | 24 registros |
 
 #### Pendências da Fase 3
 

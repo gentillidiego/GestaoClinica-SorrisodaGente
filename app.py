@@ -2,6 +2,7 @@ import os
 import time
 import logging
 from logging.handlers import RotatingFileHandler
+import click
 import redis
 from flask import Flask, render_template, g, request
 from flask_session import Session
@@ -60,6 +61,27 @@ def register_request_hooks(app):
             f"{request.method} {request.path} → {response.status_code} [{duration}ms]"
         )
         return response
+
+
+def register_cli_commands(app):
+    """Registra automações operacionais sem depender de telas administrativas."""
+    @app.cli.command('seed-demo-data')
+    @click.option('--count', default=1, type=click.IntRange(1, 100), show_default=True)
+    @click.option('--label', default='Carga demo via CLI', show_default=True)
+    def seed_demo_data(count, label):
+        """Cria pacientes fictícios completos para demonstrações."""
+        from services.demo_data_service import create_demo_patients
+
+        result = create_demo_patients(count=count, label=label)
+        click.echo(
+            f"Carga demo concluída: run_id={result['run_id']} "
+            f"pacientes_criados={result['created_count']}"
+        )
+        for patient in result['patients']:
+            click.echo(
+                f"- #{patient['patient_id']} {patient['name']} | "
+                f"{patient['profile']} | {patient['municipality']}"
+            )
 
 def create_app():
     app = Flask(__name__)
@@ -145,6 +167,7 @@ def create_app():
     # Configura logging e hooks de monitoramento
     configure_logging(app)
     register_request_hooks(app)
+    register_cli_commands(app)
 
     return app
 
