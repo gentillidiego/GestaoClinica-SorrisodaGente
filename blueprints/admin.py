@@ -16,6 +16,7 @@ from services.esus_export_service import (
     get_esus_batch_detail,
     get_esus_dashboard,
     register_esus_export_batch,
+    simulate_esus_transmission_preflight,
     update_esus_settings,
     update_treatment_sigtap,
     validate_esus_export_batch,
@@ -440,4 +441,31 @@ def validate_esus_batch(batch_id):
         flash('Lote validado internamente e bloqueado para conferência.', 'success')
     except Exception as exc:
         flash(f'Erro ao validar lote: {str(exc)}', 'danger')
+    return redirect(url_for('admin.esus_batch_detail', batch_id=batch_id))
+
+
+@admin_bp.route('/integrations/esus/batches/<int:batch_id>/preflight', methods=['POST'])
+@login_required
+@permission_required('integrations:write')
+def simulate_esus_preflight(batch_id):
+    try:
+        result = simulate_esus_transmission_preflight(batch_id, attempted_by=current_user.id)
+        audit_log(
+            action='esus_batch_preflight_simulated',
+            module='integrations',
+            entity_type='esus_export_batch',
+            entity_id=batch_id,
+            status='success' if result['ready_to_send'] else 'blocked',
+            details={
+                'attempt_id': result['attempt_id'],
+                'ready_to_send': result['ready_to_send'],
+                'blockers': result['response'].get('blockers', []),
+            },
+        )
+        if result['ready_to_send']:
+            flash('Pré-envio simulado aprovado. Lote marcado como pronto para envio real.', 'success')
+        else:
+            flash('Pré-envio simulado bloqueado. Revise as pendências exibidas no lote.', 'warning')
+    except Exception as exc:
+        flash(f'Erro no pré-envio simulado: {str(exc)}', 'danger')
     return redirect(url_for('admin.esus_batch_detail', batch_id=batch_id))

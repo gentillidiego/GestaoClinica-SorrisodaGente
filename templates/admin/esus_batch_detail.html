@@ -80,6 +80,39 @@
         {% endif %}
     </section>
 
+    <section class="card" style="padding:1.5rem; margin-bottom:1.5rem; border-left:6px solid {% if detail.transmission_readiness.ready %}#16a34a{% else %}#f59e0b{% endif %};">
+        <h2 class="section-header">Pré-envio e-SUS</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+            <div>
+                <strong style="display:block; color:hsl(var(--text-main));">
+                    {% if detail.transmission_readiness.ready %}Pronto para envio real{% else %}Envio real bloqueado{% endif %}
+                </strong>
+                <span style="color:hsl(var(--text-muted));">Endpoint: {{ detail.transmission_readiness.endpoint_url or 'pendente' }}</span>
+            </div>
+            <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+                {% if can_write and detail.batch.status in ['validated_internally', 'ready_to_send'] %}
+                <form method="POST" action="{{ url_for('admin.simulate_esus_preflight', batch_id=detail.batch.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-primary" type="submit">Simular Pré-envio</button>
+                </form>
+                {% endif %}
+                <button class="btn btn-outline" type="button" disabled>Enviar para e-SUS APS</button>
+            </div>
+        </div>
+        {% if detail.transmission_readiness.blockers %}
+        <div style="margin-top:1rem;">
+            {% for blocker in detail.transmission_readiness.blockers %}
+            <div class="rank-row">
+                <span>{{ blocker }}</span>
+                <strong>Pendente</strong>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="margin:1rem 0 0; color:hsl(var(--text-muted));">O lote passou na checagem local. A transmissão real permanece desativada até homologação do conector com a prefeitura.</p>
+        {% endif %}
+    </section>
+
     <section class="card" style="padding:1.5rem; margin-bottom:1.5rem;">
         <h2 class="section-header">Registros Incluídos</h2>
         <div style="overflow-x:auto;">
@@ -117,6 +150,43 @@
                     {% else %}
                     <tr>
                         <td colspan="5" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">Nenhum registro pronto neste lote.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="card" style="padding:1.5rem; margin-bottom:1.5rem;">
+        <h2 class="section-header">Histórico de Tentativas</h2>
+        <div style="overflow-x:auto;">
+            <table class="batch-table">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Modo</th>
+                        <th>Status</th>
+                        <th>Responsável</th>
+                        <th>Endpoint</th>
+                        <th>Resposta</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for attempt in detail.attempts %}
+                    <tr>
+                        <td>{{ attempt.attempted_at.strftime('%d/%m/%Y %H:%M') if attempt.attempted_at else '-' }}</td>
+                        <td>{{ attempt.mode }}</td>
+                        <td>{{ attempt.status }}{% if attempt.http_status %}<br><small>HTTP {{ attempt.http_status }}</small>{% endif %}</td>
+                        <td>{{ attempt.full_name or attempt.username or '-' }}</td>
+                        <td>{{ attempt.endpoint_url or '-' }}</td>
+                        <td>
+                            {{ attempt.error_message or 'Registrada' }}<br>
+                            <small>{{ attempt.request_hash or '-' }}</small>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">Nenhuma tentativa registrada.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -193,6 +263,16 @@
     text-decoration:none;
 }
 .batch-table small { color:hsl(var(--text-muted)); }
+.rank-row {
+    display:flex;
+    justify-content:space-between;
+    gap:1rem;
+    padding:0.65rem 0;
+    border-bottom:1px solid hsl(var(--border));
+}
+.rank-row:last-child { border-bottom:none; }
+.rank-row span { color:hsl(var(--text-main)); font-weight:600; }
+.rank-row strong { color:#92400e; }
 @media (max-width: 760px) {
     section div[style*="grid-template-columns:repeat(2"] {
         grid-template-columns:1fr !important;

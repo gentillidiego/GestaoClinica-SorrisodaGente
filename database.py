@@ -668,6 +668,25 @@ def _init_db_locked():
     ''')
 
     execute('''
+        CREATE TABLE IF NOT EXISTS esus_transmission_attempts (
+            id SERIAL PRIMARY KEY,
+            batch_id INTEGER NOT NULL,
+            mode TEXT DEFAULT 'simulation',
+            status TEXT DEFAULT 'blocked',
+            endpoint_url TEXT,
+            http_status INTEGER,
+            request_hash TEXT,
+            response_body TEXT,
+            error_message TEXT,
+            attempted_by INTEGER,
+            attempted_at TIMESTAMP DEFAULT NOW(),
+            details JSONB,
+            FOREIGN KEY (batch_id) REFERENCES esus_export_batches(id) ON DELETE CASCADE,
+            FOREIGN KEY (attempted_by) REFERENCES users(id) ON DELETE SET NULL
+        )
+    ''')
+
+    execute('''
         CREATE TABLE IF NOT EXISTS exam_controle_placa (
             id SERIAL PRIMARY KEY,
             exam_id INTEGER NOT NULL,
@@ -906,6 +925,8 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_esus_batches_reference_month ON esus_export_batches(reference_month)",
         "CREATE INDEX IF NOT EXISTS idx_esus_batches_status ON esus_export_batches(status)",
         "CREATE INDEX IF NOT EXISTS idx_esus_batches_validated_at ON esus_export_batches(validated_at)",
+        "CREATE INDEX IF NOT EXISTS idx_esus_attempts_batch_id ON esus_transmission_attempts(batch_id)",
+        "CREATE INDEX IF NOT EXISTS idx_esus_attempts_attempted_at ON esus_transmission_attempts(attempted_at)",
         "CREATE INDEX IF NOT EXISTS idx_demo_seed_runs_created_at ON demo_seed_runs(created_at)",
     ]
     for idx_sql in indexes:

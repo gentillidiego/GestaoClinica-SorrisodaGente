@@ -340,6 +340,20 @@ def get_esus_batch(batch_id):
     )
 
 
+def list_esus_transmission_attempts(batch_id, limit=20):
+    return query(
+        """
+        SELECT a.*, u.username, u.full_name
+        FROM esus_transmission_attempts a
+        LEFT JOIN users u ON u.id = a.attempted_by
+        WHERE a.batch_id = %s
+        ORDER BY a.attempted_at DESC, a.id DESC
+        LIMIT %s
+        """,
+        (batch_id, limit),
+    )
+
+
 def get_esus_batch_detail(batch_id):
     batch = get_esus_batch(batch_id)
     if not batch:
@@ -353,12 +367,16 @@ def get_esus_batch_detail(batch_id):
     payload_json = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
     computed_hash = hashlib.sha256(payload_json.encode('utf-8')).hexdigest()
     readiness = build_esus_readiness(batch['reference_month'])
+    attempts = list_esus_transmission_attempts(batch_id)
+    transmission_readiness = build_batch_transmission_readiness(batch, payload, computed_hash)
 
     return {
         'batch': batch,
         'payload': payload,
         'records': payload.get('records', []),
         'pending_records': readiness['missing_sigtap_records'] + readiness['incomplete_records'],
+        'attempts': attempts,
+        'transmission_readiness': transmission_readiness,
         'computed_hash': computed_hash,
         'hash_matches': not batch.get('payload_hash') or batch.get('payload_hash') == computed_hash,
         'legacy_payload': legacy_payload,
@@ -479,6 +497,139 @@ def validate_esus_export_batch(batch_id, validated_by, notes=None):
         )
     )
     return get_esus_batch(batch_id)
+
+
+def build_batch_transmission_readiness(batch, payload, computed_hash=None, settings=None):
+    settings = settings or get_esus_settings()
+    blockers = []
+    records = payload.get('records', []) if payload else []
+    computed_hash = computed_hash or hashlib.sha256(
+        json.dumps(payload or {}, ensure_ascii=False, sort_keys=True, default=str).encode('utf-8')
+    ).hexdigest()
+
+    if batch.get('status') not in {'validated_internally', 'ready_to_send'}:
+        blockers.append('lote ainda não validado internamente')
+    if batch.get('payload_hash') and batch.get('payload_hash') != computed_hash:
+        blockers.append('hash do payload divergente')
+    if not records:
+        blockers.append('payload sem registros prontos')
+    if settings.get('environment') not in {'homologacao', 'producao'}:
+        blockers.append('ambiente não definido para homologação/produção')
+    if not settings.get('base_url'):
+        blockers.append('URL PEC/e-SUS não informada')
+    if settings.get('credential_status') not in {'received', 'validated'}:
+        blockers.append('credenciais não recebidas/validadas')
+    if not settings.get('cnes'):
+        blockers.append('CNES não configurado')
+    if not settings.get('ine'):
+        blockers.append('INE/equipe não configurado')
+    if not settings.get('active'):
+        blockers.append('integração e-SUS inativa')
+
+    return {
+        'ready': not blockers,
+        'blockers': blockers,
+        'settings': settings,
+        'endpoint_url': settings.get('base_url') or '',
+        'records_count': len(records),
+        'payload_hash': batch.get('payload_hash') or computed_hash,
+    }
+
+
+def register_esus_transmission_attempt(batch_id, mode, status, endpoint_url=None, http_status=None,
+                                       request_hash=None, response_body=None, error_message=None,
+                                       attempted_by=None, details=None):
+    return execute(
+        """
+        INSERT INTO esus_transmission_attempts (
+            batch_id, mode, status, endpoint_url, http_status, request_hash,
+            response_body, error_message, attempted_by, details
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+        RETURNING id
+        """,
+        (
+            batch_id,
+            mode,
+            status,
+            endpoint_url,
+            http_status,
+            request_hash,
+            response_body,
+            error_message,
+            attempted_by,
+            json.dumps(details, ensure_ascii=False, default=str) if details is not None else None,
+        )
+    )
+
+
+def simulate_esus_transmission_preflight(batch_id, attempted_by=None):
+    detail = get_esus_batch_detail(batch_id)
+    if not detail:
+        raise ValueError('Lote e-SUS não encontrado.')
+
+    readiness = detail['transmission_readiness']
+    response = {
+        'simulated': True,
+        'ready_to_send': readiness['ready'],
+        'message': (
+            'Pré-envio simulado aprovado. Lote pronto para transmissão real quando o conector for homologado.'
+            if readiness['ready']
+            else 'Pré-envio simulado bloqueado por pendências de configuração ou payload.'
+        ),
+        'blockers': readiness['blockers'],
+        'records_count': readiness['records_count'],
+        'payload_hash': readiness['payload_hash'],
+        'endpoint_url': readiness['endpoint_url'],
+    }
+    status = 'success' if readiness['ready'] else 'blocked'
+    http_status = 200 if readiness['ready'] else 428
+    attempt_id = register_esus_transmission_attempt(
+        batch_id=batch_id,
+        mode='simulation',
+        status=status,
+        endpoint_url=readiness['endpoint_url'] or None,
+        http_status=http_status,
+        request_hash=readiness['payload_hash'],
+        response_body=json.dumps(response, ensure_ascii=False, default=str),
+        error_message='; '.join(readiness['blockers']) if readiness['blockers'] else None,
+        attempted_by=attempted_by,
+        details={
+            'batch_status': detail['batch']['status'],
+            'simulated': True,
+            'blockers': readiness['blockers'],
+        },
+    )
+
+    if readiness['ready']:
+        execute(
+            """
+            UPDATE esus_export_batches
+            SET status = 'ready_to_send',
+                endpoint_url = %s,
+                response_status = 'simulation_success',
+                response_body = %s
+            WHERE id = %s
+            """,
+            (readiness['endpoint_url'], json.dumps(response, ensure_ascii=False, default=str), batch_id)
+        )
+    else:
+        execute(
+            """
+            UPDATE esus_export_batches
+            SET response_status = 'simulation_blocked',
+                response_body = %s
+            WHERE id = %s
+            """,
+            (json.dumps(response, ensure_ascii=False, default=str), batch_id)
+        )
+
+    return {
+        'attempt_id': attempt_id,
+        'status': status,
+        'ready_to_send': readiness['ready'],
+        'response': response,
+    }
 
 
 def build_homologation_status(settings, readiness, sigtap_summary, patient_gaps, missing_professionals):

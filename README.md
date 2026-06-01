@@ -942,6 +942,62 @@ Validações em Docker:
 | Auditoria do lote | `created`, `opened`, `downloaded` e `validated_internally` registrados |
 | Bloqueio pós-validação | Alteração de SIGTAP bloqueada para procedimento incluído no lote validado |
 
+#### Entregas implementadas em 01/06/2026 — Pré-envio Simulado e-SUS APS
+
+- [x] **Estados de fechamento do lote**
+  - [x] Fluxo de status formalizado para `draft`, `validated_internally`, `ready_to_send`, `sent` e `failed`.
+  - [x] Lote validado internamente pode passar por pré-envio simulado antes de qualquer transmissão real.
+  - [x] Quando a simulação local é aprovada, o lote muda para `ready_to_send`.
+  - [x] Transmissão real permanece desativada até a prefeitura fornecer conector/endpoint/credenciais homologados.
+- [x] **Histórico de tentativas**
+  - [x] Tabela `esus_transmission_attempts` criada.
+  - [x] Cada tentativa registra lote, modo (`simulation`), status, endpoint, HTTP simulado, hash do payload, resposta, erro, usuário e horário.
+  - [x] Tela do lote exibe o histórico de tentativas.
+- [x] **Pré-envio simulado**
+  - [x] Rota `POST /admin/integrations/esus/batches/<id>/preflight` criada.
+  - [x] Simulação valida status do lote, hash, existência de registros, ambiente, URL PEC/e-SUS, credenciais, CNES, INE/equipe e integração ativa.
+  - [x] Simulação bloqueada grava tentativa com `status='blocked'` e HTTP simulado `428`.
+  - [x] Simulação aprovada grava tentativa com `status='success'`, HTTP simulado `200` e marca o lote como `ready_to_send`.
+- [x] **Preparação do botão de envio real**
+  - [x] Tela do lote mostra a seção `Pré-envio e-SUS`.
+  - [x] Botão `Simular Pré-envio` disponível para lotes `validated_internally` ou `ready_to_send`.
+  - [x] Botão `Enviar para e-SUS APS` aparece desabilitado, deixando claro que a chamada real ainda depende da homologação externa.
+  - [x] Quando houver bloqueio, a tela lista exatamente quais requisitos impedem o envio real.
+- [x] **Auditoria**
+  - [x] Pré-envio simulado registra `esus_batch_preflight_simulated`.
+  - [x] Auditoria diferencia tentativa aprovada (`success`) e bloqueada (`blocked`).
+
+#### Testes executados após Pré-envio Simulado e-SUS
+
+```bash
+.venv/bin/python -m pytest -q
+# Resultado: 64 passed
+
+.venv/bin/python -m pytest -q tests/test_phase3_sigtap_esus.py
+# Resultado: 20 passed
+
+.venv/bin/python -m compileall database.py services/esus_export_service.py blueprints/admin.py templates/admin/esus_batch_detail.html tests/test_phase3_sigtap_esus.py
+# Resultado: compilação sem erro
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+```
+
+Validações em Docker:
+
+| Ação | Resultado |
+|---|---|
+| Tabela `esus_transmission_attempts` | 12 colunas criadas e indexadas |
+| `GET /admin/integrations/esus?month=2026-06` autenticado | HTTP 200 |
+| `POST /admin/integrations/esus/batches/<id>/preflight` sem configuração completa | Tentativa `blocked`, HTTP simulado `428`, lote permanece `validated_internally` |
+| `POST /admin/integrations/esus/batches/<id>/preflight` com configuração simulada completa | Tentativa `success`, HTTP simulado `200`, lote marcado `ready_to_send` |
+| Histórico de tentativas | Registros de simulação bloqueada e aprovada persistidos |
+| Auditoria do pré-envio | `esus_batch_preflight_simulated` registrado com status `blocked` e `success` |
+
 #### Pendências da Fase 3
 
 - [ ] **Mapa Epidemiológico em Tempo Real avançado**
@@ -983,6 +1039,7 @@ Validações em Docker:
   - [x] Painel operacional para correção de SIGTAP, conferência de pendências e geração de lote draft.
   - [x] Checklist de homologação e dados obrigatórios de pacientes/profissionais.
   - [x] Tela de detalhe, download JSON, validação interna e auditoria do lote draft e-SUS.
+  - [x] Pré-envio simulado, status `ready_to_send` e histórico de tentativas.
   - [ ] Validar versão do PEC/e-SUS APS instalada na prefeitura e compatibilidade LEDI.
   - [ ] Implementar transmissão real quando a prefeitura fornecer endpoint, HTTPS, autenticação, CNES/INE e regras de homologação.
   - [ ] Validar campos obrigatórios finais: CNS/CPF, profissional, CBO, CNES, equipe/INE, data de atendimento, procedimento SIGTAP e compatibilidades.

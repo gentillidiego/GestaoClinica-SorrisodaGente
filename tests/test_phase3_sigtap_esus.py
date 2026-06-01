@@ -10,6 +10,7 @@ from constants import (
 )
 from services.esus_export_service import (
     build_esus_payload,
+    build_batch_transmission_readiness,
     build_homologation_status,
     classify_esus_missing_fields,
     get_esus_batch_detail,
@@ -17,6 +18,7 @@ from services.esus_export_service import (
     month_period,
     procedure_locked_by_validated_batch,
     register_esus_export_batch,
+    simulate_esus_transmission_preflight,
     update_treatment_sigtap,
     validate_esus_export_batch,
 )
@@ -267,12 +269,19 @@ def test_get_esus_batch_detail_uses_stored_payload_and_pending_records(monkeypat
             'incomplete_records': [{'id': 3}],
         },
     )
+    monkeypatch.setattr(esus_export_service, 'list_esus_transmission_attempts', lambda batch_id: [{'id': 4}])
+    monkeypatch.setattr(
+        esus_export_service,
+        'build_batch_transmission_readiness',
+        lambda batch, payload, computed_hash=None: {'ready': False, 'blockers': ['bloqueio']},
+    )
 
     detail = get_esus_batch_detail(9)
 
     assert detail['batch']['id'] == 9
     assert detail['records'] == payload['records']
     assert detail['pending_records'] == [{'id': 2}, {'id': 3}]
+    assert detail['attempts'] == [{'id': 4}]
     assert detail['legacy_payload'] is False
 
 
@@ -312,6 +321,101 @@ def test_procedure_locked_by_validated_batch_detects_record(monkeypatch):
 
     assert procedure_locked_by_validated_batch(88) == 3
     assert procedure_locked_by_validated_batch(99) is None
+
+
+def test_batch_transmission_readiness_requires_validated_payload_and_settings():
+    result = build_batch_transmission_readiness(
+        batch={'status': 'draft', 'payload_hash': 'hash'},
+        payload={'records': []},
+        computed_hash='different',
+        settings={
+            'environment': 'aguardando_prefeitura',
+            'base_url': '',
+            'credential_status': 'pending',
+            'cnes': '',
+            'ine': '',
+            'active': False,
+        },
+    )
+
+    assert result['ready'] is False
+    assert 'lote ainda não validado internamente' in result['blockers']
+    assert 'hash do payload divergente' in result['blockers']
+    assert 'payload sem registros prontos' in result['blockers']
+    assert 'URL PEC/e-SUS não informada' in result['blockers']
+
+
+def test_batch_transmission_readiness_accepts_ready_configuration():
+    result = build_batch_transmission_readiness(
+        batch={'status': 'validated_internally', 'payload_hash': 'hash'},
+        payload={'records': [{'local_procedure_id': 1}]},
+        computed_hash='hash',
+        settings={
+            'environment': 'homologacao',
+            'base_url': 'https://esus.local',
+            'credential_status': 'received',
+            'cnes': '1234567',
+            'ine': '0000000000',
+            'active': True,
+        },
+    )
+
+    assert result['ready'] is True
+    assert result['blockers'] == []
+    assert result['endpoint_url'] == 'https://esus.local'
+
+
+def test_simulate_esus_transmission_preflight_blocks_when_not_ready(monkeypatch):
+    calls = []
+    detail = {
+        'batch': {'id': 7, 'status': 'validated_internally'},
+        'transmission_readiness': {
+            'ready': False,
+            'blockers': ['URL PEC/e-SUS não informada'],
+            'records_count': 10,
+            'payload_hash': 'hash-7',
+            'endpoint_url': '',
+        },
+    }
+
+    monkeypatch.setattr(esus_export_service, 'get_esus_batch_detail', lambda batch_id: detail)
+    monkeypatch.setattr(esus_export_service, 'register_esus_transmission_attempt', lambda **kwargs: calls.append(kwargs) or 99)
+    monkeypatch.setattr(esus_export_service, 'execute', lambda sql, params=(): calls.append({'sql': sql, 'params': params}))
+
+    result = simulate_esus_transmission_preflight(7, attempted_by=3)
+
+    assert result['status'] == 'blocked'
+    assert result['ready_to_send'] is False
+    assert calls[0]['status'] == 'blocked'
+    assert calls[0]['http_status'] == 428
+    assert 'simulation_blocked' in calls[1]['sql']
+
+
+def test_simulate_esus_transmission_preflight_marks_ready_to_send(monkeypatch):
+    calls = []
+    detail = {
+        'batch': {'id': 8, 'status': 'validated_internally'},
+        'transmission_readiness': {
+            'ready': True,
+            'blockers': [],
+            'records_count': 12,
+            'payload_hash': 'hash-8',
+            'endpoint_url': 'https://esus.local',
+        },
+    }
+
+    monkeypatch.setattr(esus_export_service, 'get_esus_batch_detail', lambda batch_id: detail)
+    monkeypatch.setattr(esus_export_service, 'register_esus_transmission_attempt', lambda **kwargs: calls.append(kwargs) or 100)
+    monkeypatch.setattr(esus_export_service, 'execute', lambda sql, params=(): calls.append({'sql': sql, 'params': params}))
+
+    result = simulate_esus_transmission_preflight(8, attempted_by=3)
+
+    assert result['status'] == 'success'
+    assert result['ready_to_send'] is True
+    assert calls[0]['status'] == 'success'
+    assert calls[0]['http_status'] == 200
+    assert "status = 'ready_to_send'" in calls[1]['sql']
+    assert calls[1]['params'][0] == 'https://esus.local'
 
 
 def test_get_esus_dashboard_composes_operational_context(monkeypatch):
