@@ -6,6 +6,7 @@ import weasyprint
 from tasks.pdf_tasks import generate_pdf_task
 from celery.result import AsyncResult
 from celery_app import celery
+from services.institutional_report_service import role_can_access_report_type
 
 documents_bp = Blueprint('documents', __name__, url_prefix='/documents')
 
@@ -195,6 +196,25 @@ def pdf_status(task_id, filename):
 def download_pdf(filename):
     pdf_dir = os.path.join(os.getcwd(), 'pdf_temp')
     path = os.path.join(pdf_dir, filename)
+
+    if filename.startswith('relatorio_'):
+        report = query(
+            """
+            SELECT report_type
+            FROM generated_reports
+            WHERE filename = %s
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (filename,),
+            one=True,
+        )
+        if not current_user.can('reports:view'):
+            flash('Acesso negado para relatórios institucionais.', 'danger')
+            return redirect(url_for('main.dashboard'))
+        if report and not role_can_access_report_type(current_user.role, report['report_type']):
+            flash('Seu perfil não pode acessar este relatório.', 'danger')
+            return redirect(url_for('reports.institutional'))
     
     if not os.path.exists(path):
         flash('Arquivo PDF não foi encontrado', 'danger')

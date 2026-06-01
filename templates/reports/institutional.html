@@ -123,6 +123,7 @@
             <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Período</th>
             <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Arquivo</th>
             <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Status</th>
+            <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Assinatura</th>
             <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Gerado por</th>
           </tr>
         </thead>
@@ -135,6 +136,13 @@
               <a href="{{ url_for('documents.download_pdf', filename=item.filename) }}" target="_blank" style="color:hsl(var(--primary)); font-weight:700; text-decoration:none;">{{ item.filename }}</a>
             </td>
             <td style="padding:0.8rem;">{{ item.status }}</td>
+            <td style="padding:0.8rem;">
+              {% if item.signature_hash %}
+              <code title="{{ item.signature_hash }}">{{ item.signature_hash[:12] }}...</code>
+              {% else %}
+              {{ item.signature_status or 'pending' }}
+              {% endif %}
+            </td>
             <td style="padding:0.8rem;">{{ item.full_name or item.username or 'Sistema' }}</td>
           </tr>
           {% endfor %}

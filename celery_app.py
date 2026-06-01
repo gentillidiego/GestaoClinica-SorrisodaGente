@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.schedules import crontab
 import os
 from flask import Flask
 
@@ -8,12 +9,34 @@ celery = Celery(
     'gestaoclinica',
     backend=redis_url,
     broker=redis_url,
-    include=['tasks.pdf_tasks']
+    include=['tasks.pdf_tasks', 'tasks.report_tasks']
 )
 
 # Evita DeprecationWarning no Celery 6+ e falha silenciosa no boot
 # quando o broker (Redis) ainda não está disponível.
 celery.conf.broker_connection_retry_on_startup = True
+celery.conf.timezone = os.getenv('TZ', 'America/Maceio')
+
+
+def _env_enabled(name, default='true'):
+    return os.getenv(name, default).strip().lower() in {'1', 'true', 'yes', 'sim', 'on'}
+
+
+if _env_enabled('REPORTS_SCHEDULER_ENABLED'):
+    celery.conf.beat_schedule = {
+        'generate-monthly-government-reports': {
+            'task': 'tasks.report_tasks.generate_monthly_reports_task',
+            'schedule': crontab(
+                minute=os.getenv('REPORTS_SCHEDULE_MINUTE', '20'),
+                hour=os.getenv('REPORTS_SCHEDULE_HOUR', '2'),
+                day_of_month=os.getenv('REPORTS_SCHEDULE_DAY', '1'),
+            ),
+            'kwargs': {
+                'report_type': os.getenv('REPORTS_SCHEDULE_TYPES', 'all'),
+                'output_dir': os.getenv('REPORTS_OUTPUT_DIR', 'pdf_temp'),
+            },
+        },
+    }
 
 def make_celery(app):
     celery.conf.update(app.config)

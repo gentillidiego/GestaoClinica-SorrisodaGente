@@ -12,11 +12,20 @@
                 style="font-size: 0.95rem; font-weight: 700; color: hsl(var(--text-main)); margin-bottom: 1rem;">
                 Adicionar Procedimento</h4>
             <form action="{{ url_for('patients.add_treatment', id=patient.id) }}" method="POST"
-                style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 1rem; align-items: end;">
+                style="display: grid; grid-template-columns: 0.8fr minmax(220px, 1.4fr) minmax(260px, 1.8fr) auto; gap: 1rem; align-items: end;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div>
                     <label class="form-label" style="font-size: 0.8rem;">Dente</label>
                     <input type="text" name="dente" class="form-control" placeholder="Ex: 46">
+                </div>
+                <div>
+                    <label class="form-label" style="font-size: 0.8rem;">Código SUS/SIGTAP</label>
+                    <select name="sigtap_code" class="form-control">
+                        <option value="">Selecionar código</option>
+                        {% for item in sigtap_procedures or [] %}
+                        <option value="{{ item.code }}">{{ item.code }} - {{ item.name }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
                 <div>
                     <label class="form-label" style="font-size: 0.8rem;">Procedimento a ser realizado</label>
@@ -46,6 +55,9 @@
                             style="padding: 1rem; font-size: 0.85rem; font-weight: 700; color: hsl(var(--text-muted)); text-transform: uppercase;">
                             Procedimento a ser realizado</th>
                         <th
+                            style="padding: 1rem; font-size: 0.85rem; font-weight: 700; color: hsl(var(--text-muted)); text-transform: uppercase;">
+                            SUS/SIGTAP</th>
+                        <th
                             style="padding: 1rem; font-size: 0.85rem; font-weight: 700; color: hsl(var(--text-muted)); text-transform: uppercase; text-align: center;">
                             Dentista Responsável (Assinatura)</th>
                         <th
@@ -60,6 +72,14 @@
                         <td style="padding: 1rem;">{{ loop.index }}</td>
                         <td style="padding: 1rem; font-weight: 600;">{{ proc.dente }}</td>
                         <td style="padding: 1rem;">{{ proc.descricao }}</td>
+                        <td style="padding: 1rem;">
+                            {% if proc.sigtap_code %}
+                            <div style="font-weight:700;">{{ proc.sigtap_code }}</div>
+                            <small style="color:hsl(var(--text-muted));">{{ proc.sigtap_name }}</small>
+                            {% else %}
+                            <span style="color:hsl(var(--warning)); font-weight:700;">Pendente</span>
+                            {% endif %}
+                        </td>
                         <td style="padding: 1rem; text-align: center;">
                             {% if proc.status == 'Pendente' %}
                             <button
@@ -83,7 +103,7 @@
                         <td style="padding: 1rem; text-align: right; white-space: nowrap;">
                             <button class="btn btn-outline" style="padding: 0.4rem; font-size: 0.85rem;"
                                 title="Editar" data-id="{{ proc.id }}" data-dente="{{ proc.dente }}"
-                                data-desc="{{ proc.descricao }}"
+                                data-desc="{{ proc.descricao }}" data-sigtap-code="{{ proc.sigtap_code or '' }}"
                                 onclick="openEditTreatmentModal(this)">✏️</button>
 
                             <form
@@ -99,7 +119,7 @@
                     {% endfor %}
                     {% else %}
                     <tr class="no-paginate">
-                        <td colspan="4"
+                        <td colspan="6"
                             style="padding: 3rem; text-align: center; color: hsl(var(--text-muted));">
                             <span style="font-size: 1.5rem; display: block; margin-bottom: 0.5rem;">📋</span>
                             Nenhum procedimento registrado neste plano de tratamento.

@@ -1,6 +1,7 @@
 import json
 from database import query
 from constants import Role
+from services.sigtap_service import build_sigtap_options
 from services.traceability_service import TraceabilityService
 
 class PatientService:
@@ -73,7 +74,11 @@ class PatientService:
             WHERE tp.patient_id = %s
             ORDER BY tp.criado_em ASC
         """, (patient_id,))
-        return {'plans': plans, 'treatments': treatments}
+        return {
+            'plans': plans,
+            'treatments': treatments,
+            'sigtap_procedures': build_sigtap_options(),
+        }
 
     @staticmethod
     def get_patient_documents(patient_id):

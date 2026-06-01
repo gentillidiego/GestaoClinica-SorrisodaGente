@@ -157,7 +157,20 @@ MIGRATIONS = {
         ('data_validacao', 'TIMESTAMP')
     ],
     'generated_reports': [
-        ('details', 'JSONB')
+        ('details', 'JSONB'),
+        ('signature_hash', 'TEXT'),
+        ('signature_status', "TEXT DEFAULT 'pending'"),
+        ('signed_at', 'TIMESTAMP'),
+        ('scheduled_key', 'TEXT'),
+        ('delivery_channel', "TEXT DEFAULT 'painel_seguro'")
+    ],
+    'tratamento_procedimentos': [
+        ('sigtap_code', 'TEXT'),
+        ('sigtap_competence', 'TEXT'),
+        ('sigtap_name', 'TEXT'),
+        ('esus_export_status', "TEXT DEFAULT 'pending'"),
+        ('esus_exported_at', 'TIMESTAMP'),
+        ('esus_export_batch_id', 'INTEGER')
     ]
 }
 
@@ -538,11 +551,65 @@ def _init_db_locked():
             data_sessao TEXT,
             dente TEXT,
             descricao TEXT,
+            sigtap_code TEXT,
+            sigtap_competence TEXT,
+            sigtap_name TEXT,
+            esus_export_status TEXT DEFAULT 'pending',
+            esus_exported_at TIMESTAMP,
+            esus_export_batch_id INTEGER,
             professor_id INTEGER,
             status TEXT DEFAULT 'Pendente',
             criado_em TIMESTAMP DEFAULT NOW(),
             FOREIGN KEY (patient_id) REFERENCES patients (id),
             FOREIGN KEY (professor_id) REFERENCES users (id)
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS sigtap_procedures (
+            code TEXT NOT NULL,
+            competence TEXT NOT NULL,
+            name TEXT NOT NULL,
+            group_code TEXT,
+            subgroup_code TEXT,
+            form_code TEXT,
+            source TEXT DEFAULT 'seed',
+            active BOOLEAN DEFAULT TRUE,
+            imported_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (code, competence)
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS esus_integration_settings (
+            id SERIAL PRIMARY KEY,
+            environment TEXT DEFAULT 'aguardando_prefeitura',
+            base_url TEXT,
+            installation_id TEXT,
+            client_id TEXT,
+            credential_status TEXT DEFAULT 'pending',
+            notes TEXT,
+            active BOOLEAN DEFAULT FALSE,
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS esus_export_batches (
+            id SERIAL PRIMARY KEY,
+            reference_month TEXT NOT NULL,
+            status TEXT DEFAULT 'draft',
+            endpoint_url TEXT,
+            payload_hash TEXT,
+            records_total INTEGER DEFAULT 0,
+            records_ready INTEGER DEFAULT 0,
+            records_missing_sigtap INTEGER DEFAULT 0,
+            generated_by INTEGER,
+            generated_at TIMESTAMP DEFAULT NOW(),
+            sent_at TIMESTAMP,
+            response_status TEXT,
+            response_body TEXT,
+            FOREIGN KEY (generated_by) REFERENCES users(id) ON DELETE SET NULL
         )
     ''')
 
@@ -708,6 +775,11 @@ def _init_db_locked():
             generated_by INTEGER,
             status TEXT DEFAULT 'queued',
             details JSONB,
+            signature_hash TEXT,
+            signature_status TEXT DEFAULT 'pending',
+            signed_at TIMESTAMP,
+            scheduled_key TEXT,
+            delivery_channel TEXT DEFAULT 'painel_seguro',
             created_at TIMESTAMP DEFAULT NOW(),
             completed_at TIMESTAMP,
             FOREIGN KEY (generated_by) REFERENCES users(id) ON DELETE SET NULL
@@ -738,6 +810,8 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_aluno_executor_id ON atendimentos(aluno_executor_id)",
         "CREATE INDEX IF NOT EXISTS idx_tratamento_patient_id ON tratamento_procedimentos(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_tratamento_status ON tratamento_procedimentos(status)",
+        "CREATE INDEX IF NOT EXISTS idx_tratamento_sigtap_code ON tratamento_procedimentos(sigtap_code)",
+        "CREATE INDEX IF NOT EXISTS idx_tratamento_esus_status ON tratamento_procedimentos(esus_export_status)",
         "CREATE INDEX IF NOT EXISTS idx_prosthesis_patient_id ON prosthesis(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_prosthesis_etapas_id ON prosthesis_etapas(prosthesis_id)",
         "CREATE INDEX IF NOT EXISTS idx_prosthesis_pag_id ON prosthesis_pagamentos(prosthesis_id)",
@@ -769,6 +843,11 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_generated_reports_type ON generated_reports(report_type)",
         "CREATE INDEX IF NOT EXISTS idx_generated_reports_period ON generated_reports(period_start, period_end)",
         "CREATE INDEX IF NOT EXISTS idx_generated_reports_status ON generated_reports(status)",
+        "CREATE INDEX IF NOT EXISTS idx_generated_reports_scheduled_key ON generated_reports(scheduled_key)",
+        "CREATE INDEX IF NOT EXISTS idx_generated_reports_signature_hash ON generated_reports(signature_hash)",
+        "CREATE INDEX IF NOT EXISTS idx_sigtap_procedures_name ON sigtap_procedures(name)",
+        "CREATE INDEX IF NOT EXISTS idx_sigtap_procedures_competence ON sigtap_procedures(competence)",
+        "CREATE INDEX IF NOT EXISTS idx_esus_batches_reference_month ON esus_export_batches(reference_month)",
     ]
     for idx_sql in indexes:
         execute(idx_sql)

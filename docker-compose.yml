@@ -53,6 +53,27 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
 
+  celery-beat:
+    build: .
+    container_name: gestaosaudeoral-beat
+    restart: always
+    command: celery -A celery_app.celery beat --loglevel=info --schedule=/app/celerybeat-schedule/celerybeat-schedule
+    volumes:
+      - pdf_temp_oral:/app/pdf_temp
+      - logs_oral:/app/logs
+      - uploads_oral:/app/uploads
+      - backups_oral:/app/backups
+      - celerybeat_oral:/app/celerybeat-schedule
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+
   postgres:
     image: postgres:16-alpine
     container_name: gestaosaudeoral-postgres
@@ -78,3 +99,4 @@ volumes:
   logs_oral:
   uploads_oral:
   backups_oral:
+  celerybeat_oral:

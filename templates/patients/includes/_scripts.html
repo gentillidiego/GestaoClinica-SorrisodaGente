@@ -366,6 +366,7 @@
         const procId = btn.getAttribute('data-id');
         const dente = btn.getAttribute('data-dente');
         const desc = btn.getAttribute('data-desc');
+        const sigtapCode = btn.getAttribute('data-sigtap-code');
 
         const modal = document.getElementById('editTreatmentModal');
         const form = document.getElementById('editTreatmentForm');
@@ -375,6 +376,10 @@
 
         document.getElementById('edit_proc_dente').value = dente;
         document.getElementById('edit_proc_desc').value = desc;
+        const sigtapSelect = document.getElementById('edit_proc_sigtap_code');
+        if (sigtapSelect) {
+            sigtapSelect.value = sigtapCode || '';
+        }
 
         modal.style.display = 'flex';
     }

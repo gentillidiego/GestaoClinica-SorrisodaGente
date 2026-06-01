@@ -413,10 +413,10 @@ Validações autenticadas em Docker:
 
 ---
 
-### **Fase 3: Inteligência Epidemiológica, Painel Executivo (BI) e Integrações — 🟡 INICIADA** *(Sessão registrada em 30/05/2026)*
+### **Fase 3: Inteligência Epidemiológica, Painel Executivo (BI) e Integrações — 🟡 INICIADA** *(Sessões registradas em 30/05/2026 e 01/06/2026)*
 
 > Objetivo: transformar os dados clínicos e operacionais já capturados pelo sistema em inteligência epidemiológica, painéis executivos e relatórios institucionais.
-> Status atual: Mapa Epidemiológico v1 implementado e validado. O painel ainda é territorial/tabular por bairro, sem georreferenciamento cartográfico avançado.
+> Status atual: Mapa Epidemiológico v1, BI Executivo v1 e Relatórios Institucionais/SSA/SMS com automação mensal v1 implementados e validados. O painel epidemiológico ainda é territorial/tabular por bairro, sem georreferenciamento cartográfico avançado.
 
 #### Entregas implementadas em 30/05/2026
 
@@ -568,6 +568,137 @@ Validações autenticadas em Docker:
 | `pdf_temp/relatorio_sms_20260501_20260531_auto.pdf` | PDF automático gerado com sucesso |
 | `generated_reports` | Registros `ssa` e `sms` com status `success` |
 
+#### Entregas implementadas em 01/06/2026 — Automação Governamental de Relatórios v1
+
+- [x] **Agendamento mensal em produção**
+  - [x] Task `tasks.report_tasks.generate_monthly_reports_task` criada para gerar relatórios mensais em background.
+  - [x] Celery configurado com `beat_schedule` para execução mensal automática.
+  - [x] Serviço `celery-beat` adicionado ao `docker-compose.yml`, com volume persistente `celerybeat_oral`.
+  - [x] Variáveis de ambiente documentadas em `.env.example`: `REPORTS_SCHEDULER_ENABLED`, `REPORTS_SCHEDULE_DAY`, `REPORTS_SCHEDULE_HOUR`, `REPORTS_SCHEDULE_MINUTE`, `REPORTS_SCHEDULE_TYPES`, `REPORTS_OUTPUT_DIR` e `TZ`.
+  - [x] Script `scripts/generate_monthly_reports.py` reaproveita o mesmo serviço de geração e aceita `--force` para reprocessamento controlado.
+- [x] **Serviço centralizado de geração**
+  - [x] Serviço `services/report_generation_service.py` criado para consolidar parsing de mês, tipos de relatório, chave agendada, geração PDF, idempotência e retorno operacional.
+  - [x] Geração automática evita duplicar relatório mensal já concluído quando executada pelo scheduler.
+  - [x] Relatórios gerados ficam disponíveis no histórico seguro do painel institucional.
+- [x] **Assinatura técnica e rastreabilidade do PDF**
+  - [x] `generated_reports` ampliada com `signature_hash`, `signature_status`, `signed_at`, `scheduled_key` e `delivery_channel`.
+  - [x] Hash SHA-256 do PDF calculado após a gravação do arquivo.
+  - [x] Registro formal criado também em `digital_signatures` com `document_type='generated_report'`.
+  - [x] Histórico da tela institucional exibe a assinatura/hash resumida do arquivo.
+- [x] **Acesso por público/perfil governamental**
+  - [x] Perfis `prefeitura`, `ssa` e `sms` adicionados à matriz de papéis.
+  - [x] Prefeitura acessa relatório institucional; SSA acessa relatório SSA; SMS acessa relatório SMS.
+  - [x] Perfis internos de BI, auditoria, epidemiologia e administração mantêm visão ampla conforme governança interna.
+  - [x] Download de PDFs institucionais passa a validar permissão `reports:view` e o tipo de relatório registrado.
+- [x] **Gráficos no PDF**
+  - [x] PDF institucional recebeu gráficos renderizados por barras para produção mensal, bairros alcançados, demanda reprimida e lesões por localização.
+  - [x] Gráficos usam os dados já consolidados pelo BI Executivo e Epidemiologia, sem dependência externa adicional.
+- [x] **Validação técnica da sessão**
+  - [x] Testes automatizados ampliados para 40 casos.
+  - [x] Compilação dos módulos alterados validada.
+  - [x] Checagem de whitespace validada por `git diff --check`.
+
+#### Testes executados após Automação Governamental v1
+
+```bash
+.venv/bin/python -m pytest -q
+# Resultado: 40 passed
+
+.venv/bin/python -m compileall constants.py database.py celery_app.py services/institutional_report_service.py services/report_generation_service.py tasks/pdf_tasks.py tasks/report_tasks.py scripts/generate_monthly_reports.py blueprints/reports_bp.py blueprints/documents.py tests/test_phase3_institutional_report.py
+# Resultado: compilação sem erro
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: serviços web, worker e beat ativos; HTTP 200, database ok
+
+docker compose exec -T gestaoclinica python scripts/generate_monthly_reports.py --type institucional --month 2026-05 --force
+# Resultado: relatorio_institucional_20260501_20260531_auto.pdf gerado com hash SHA-256 registrado
+```
+
+Validações em Docker:
+
+| Ação | Resultado |
+|---|---|
+| `docker compose ps` | `gestaoclinica`, `celery-worker`, `celery-beat`, `redis` e `postgres` ativos |
+| `docker compose logs --tail=80 celery-beat` | Beat iniciado com sucesso |
+| `generated_reports` | Registro `institucional` com `status=success`, `signature_status=hash_internal` e `delivery_channel=painel_seguro` |
+| `digital_signatures` | Registro `generated_report` com provedor `sha256-internal` |
+| Reexecução sem `--force` | Relatório existente detectado e não duplicado |
+
+#### Entregas implementadas em 01/06/2026 — Prontidão SIGTAP/DataSUS e e-SUS APS
+
+- [x] **Pesquisa técnica oficial**
+  - [x] Confirmado que a Tabela de Procedimentos, Medicamentos e OPM do SUS é a referência oficial para codificação de procedimentos.
+  - [x] Confirmado que o procedimento SIGTAP usa identificador numérico de 10 dígitos, estruturado por grupo, subgrupo e forma de organização.
+  - [x] Confirmado que a integração futura com e-SUS APS deve seguir o LEDI APS, camada que define as informações e formatos aceitos no envio de dados de sistemas próprios para o PEC e-SUS APS.
+  - [x] Fontes oficiais para documentação futura:
+    - `https://sigtap.datasus.gov.br/tabela-unificada/app/download.jsp`
+    - `https://wiki.datasus.gov.br/sigtap/index.php/Procedimento`
+    - `https://datasus.saude.gov.br/interoperabilidade-catalogo-de-servicos/`
+    - `https://integracao.esusaps.bridge.ufsc.tech/ledi/index.html`
+- [x] **Catálogo local SIGTAP**
+  - [x] Tabela `sigtap_procedures` criada com código, competência, nome, grupo, subgrupo, forma de organização, origem, status e data de importação.
+  - [x] Pré-carga odontológica inicial criada em `services/sigtap_service.py` para permitir uso imediato enquanto a competência oficial da prefeitura não for homologada.
+  - [x] `SIGTAP_DEFAULT_COMPETENCE` documentado no `.env.example`.
+  - [x] Importador oficial criado em `scripts/import_sigtap.py`.
+  - [x] Importador aceita ZIP oficial SIGTAP ou `TB_PROCEDIMENTO.TXT` extraído.
+  - [x] Importador permite recorte odontológico por padrão ou carga completa com `--all-procedures`.
+- [x] **Vínculo do procedimento clínico ao código SUS**
+  - [x] Tabela `tratamento_procedimentos` ampliada com `sigtap_code`, `sigtap_competence`, `sigtap_name`, `esus_export_status`, `esus_exported_at` e `esus_export_batch_id`.
+  - [x] Aba Plano de Tratamento recebeu seleção de código SUS/SIGTAP ao adicionar ou editar procedimento.
+  - [x] Procedimento assinado/concluído passa a marcar prontidão de exportação e sinaliza `missing_sigtap` quando estiver sem código.
+  - [x] Evolução importada após assinatura inclui referência SIGTAP quando disponível.
+- [x] **Base de espera para e-SUS APS**
+  - [x] Tabela `esus_integration_settings` criada para guardar dados futuros da prefeitura: ambiente, URL base, instalação, client id e status de credencial.
+  - [x] Tabela `esus_export_batches` criada para lotes de exportação preliminares.
+  - [x] Serviço `services/esus_export_service.py` criado para apurar produção concluída, separar registros prontos de registros sem SIGTAP e montar payload preliminar.
+  - [x] Script `scripts/build_esus_payload.py` criado para gerar JSON preliminar e/ou registrar lote draft.
+- [x] **Validação técnica da sessão**
+  - [x] Testes automatizados adicionados em `tests/test_phase3_sigtap_esus.py`.
+  - [x] Suíte total validada com 45 testes.
+
+#### Comandos operacionais SIGTAP/e-SUS
+
+```bash
+# Carregar apenas a pré-carga odontológica local para uma competência
+docker compose exec -T gestaoclinica python scripts/import_sigtap.py --competence 202603 --seed-only
+
+# Importar ZIP oficial SIGTAP/DataSUS quando a competência for baixada
+docker compose exec -T gestaoclinica python scripts/import_sigtap.py --competence AAAAMM --zip /app/uploads/sigtap/SIGTAP_AAAAMM.zip
+
+# Importar arquivo TB_PROCEDIMENTO.TXT extraído
+docker compose exec -T gestaoclinica python scripts/import_sigtap.py --competence AAAAMM --tb-procedimento /app/uploads/sigtap/TB_PROCEDIMENTO.TXT
+
+# Gerar payload preliminar de produção para validação antes da integração real com a prefeitura
+docker compose exec -T gestaoclinica python scripts/build_esus_payload.py --month 2026-05 --register
+```
+
+#### Testes executados após prontidão SIGTAP/e-SUS
+
+```bash
+.venv/bin/python -m pytest -q
+# Resultado: 45 passed
+
+.venv/bin/python -m pytest tests/test_phase3_sigtap_esus.py tests/test_phase3_institutional_report.py -q
+# Resultado: 15 passed
+
+.venv/bin/python -m compileall app.py database.py blueprints/patients.py services/sigtap_service.py services/esus_export_service.py scripts/import_sigtap.py scripts/build_esus_payload.py tests/test_phase3_sigtap_esus.py
+# Resultado: compilação sem erro
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+
+docker compose exec -T postgres psql -U clinica_user -d clinica -c "SELECT COUNT(*) AS sigtap_seed FROM sigtap_procedures;"
+# Resultado: 32 procedimentos odontológicos na pré-carga inicial
+
+docker compose exec -T gestaoclinica python scripts/build_esus_payload.py --month 2026-05 --register
+# Resultado: lote draft registrado em esus_export_batches aguardando credenciais/endpoint da prefeitura
+```
+
 #### Pendências da Fase 3
 
 - [ ] **Mapa Epidemiológico em Tempo Real avançado**
@@ -594,13 +725,21 @@ Validações autenticadas em Docker:
   - [x] Prévia filtrável por período.
   - [x] Script agendável para geração mensal automática.
   - [x] Histórico inicial de geração.
-  - [ ] Serviço de scheduler interno ou cron configurado no ambiente de produção.
-  - [ ] Gráficos renderizados no PDF.
-  - [ ] Assinatura digital e histórico formal de geração.
-  - [ ] Agendamento de envio por e-mail ou disponibilização segura no painel executivo.
+  - [x] Serviço de scheduler interno configurado com Celery Beat no ambiente Docker.
+  - [x] Gráficos renderizados no PDF.
+  - [x] Assinatura técnica com hash SHA-256 e histórico formal em `digital_signatures`.
+  - [x] Disponibilização segura no painel executivo/institucional com controle por perfil.
+  - [ ] Assinatura digital ICP-Brasil/Gov.br ou provedor institucional homologado.
+  - [ ] Agendamento de envio por e-mail institucional.
 - [ ] **Integração Governamental (API do SUS)**
-  - [ ] Barramento de comunicação para exportação e sincronização com bases de dados e APIs oficiais de saúde do SUS.
-  - [ ] Preparação de modelo de dados para interoperabilidade, anonimização estatística e exportação auditável.
+  - [x] Catálogo local SIGTAP/DataSUS para procedimentos odontológicos.
+  - [x] Importador para competência oficial SIGTAP por ZIP/TXT.
+  - [x] Vínculo de procedimentos clínicos com código, competência e nome SIGTAP.
+  - [x] Payload preliminar e lotes draft para e-SUS APS.
+  - [x] Estrutura de configuração aguardando URL, credenciais, instalação e ambiente da prefeitura.
+  - [ ] Validar versão do PEC/e-SUS APS instalada na prefeitura e compatibilidade LEDI.
+  - [ ] Implementar transmissão real quando a prefeitura fornecer endpoint, HTTPS, autenticação, CNES/INE e regras de homologação.
+  - [ ] Validar campos obrigatórios finais: CNS/CPF, profissional, CBO, CNES, equipe/INE, data de atendimento, procedimento SIGTAP e compatibilidades.
 
 #### Observações para manuais futuros
 
@@ -608,6 +747,8 @@ Validações autenticadas em Docker:
 - Manual da gestão deve reforçar que o v1 é territorial por bairro, não um mapa cartográfico georreferenciado.
 - Manual do BI deve explicar metas automáticas, crescimento contra mês anterior, ranking de produção e diferença entre valor estimado/aprovado e economia pública formal.
 - Manual de relatórios deve explicar como gerar a prévia institucional, aplicar período, exportar PDF e interpretar recomendações automáticas.
+- Manual de relatórios deve explicar a rotina automática mensal, horário configurado, tipos de relatório, reprocessamento com `--force`, status no histórico, hash SHA-256 e regras de acesso por Prefeitura/SSA/SMS.
+- Manual de integração deve explicar como atualizar a competência SIGTAP, como escolher código SUS/SIGTAP no plano de tratamento, como localizar procedimentos sem código e como gerar lote draft para validação da prefeitura.
 - Manual técnico deve documentar a origem de cada indicador para evitar uso institucional de métricas proxy sem explicação.
 
 ---

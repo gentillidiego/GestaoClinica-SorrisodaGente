@@ -5,9 +5,19 @@ import services.institutional_report_service as institutional_report_service
 from services.institutional_report_service import (
     build_highlights,
     build_recommendations,
+    build_report_charts,
+    calculate_file_sha256,
+    finalize_generated_report,
     get_institutional_report,
     get_report_profile,
+    get_report_types_for_role,
     register_generated_report,
+    role_can_access_report_type,
+)
+from services.report_generation_service import (
+    build_scheduled_key,
+    parse_month_period,
+    resolve_report_types,
 )
 
 
@@ -45,7 +55,19 @@ def test_reports_permission_allows_management_roles():
     assert role_has_permission(Role.ADMIN, 'reports:view')
     assert role_has_permission(Role.BI, 'reports:view')
     assert role_has_permission(Role.EPIDEMIOLOGIA, 'reports:view')
+    assert role_has_permission(Role.PREFEITURA, 'reports:view')
+    assert role_has_permission(Role.SSA, 'reports:view')
+    assert role_has_permission(Role.SMS, 'reports:view')
     assert role_has_permission(Role.RECEPCAO, 'reports:view') is False
+
+
+def test_report_type_access_is_limited_by_government_role():
+    assert get_report_types_for_role(Role.PREFEITURA) == ['institucional']
+    assert get_report_types_for_role(Role.SSA) == ['ssa']
+    assert get_report_types_for_role(Role.SMS) == ['sms']
+    assert set(get_report_types_for_role(Role.BI)) == {'institucional', 'ssa', 'sms'}
+    assert role_can_access_report_type(Role.SSA, 'ssa')
+    assert role_can_access_report_type(Role.SSA, 'sms') is False
 
 
 def test_institutional_highlights_use_executive_and_epidemiology_data():
@@ -104,6 +126,25 @@ def test_get_institutional_report_composes_pdf_context(monkeypatch):
     assert report['top_neighborhoods'][0]['bairro'] == 'Centro'
     assert report['top_specialties'][0]['especialidade'] == 'Prótese'
     assert report['top_lesions'][0]['localizacao'] == 'Língua'
+    assert report['charts']['neighborhoods'][0]['percent'] == 100.0
+
+
+def test_build_report_charts_normalizes_percentages():
+    executive = _executive_fixture()
+    executive['monthly_comparison'] = [
+        {'label': '04/2026', 'completed_procedures': 20},
+        {'label': '05/2026', 'completed_procedures': 40},
+    ]
+    executive['neighborhood_ranking'] = [
+        {'bairro': 'Centro', 'reached_patients': 10},
+        {'bairro': 'Farol', 'reached_patients': 5},
+    ]
+
+    charts = build_report_charts(executive, _epidemiology_fixture())
+
+    assert charts['monthly_production'][0]['percent'] == 50.0
+    assert charts['monthly_production'][1]['percent'] == 100.0
+    assert charts['neighborhoods'][1]['percent'] == 50.0
 
 
 def test_register_generated_report_persists_metadata(monkeypatch):
@@ -144,3 +185,36 @@ def test_register_generated_report_persists_metadata(monkeypatch):
     assert captured['params'][4] == 'relatorio.pdf'
     assert captured['params'][7] == 7
     assert captured['params'][8] == 'queued'
+    assert captured['params'][10] is None
+    assert captured['params'][11] == 'painel_seguro'
+
+
+def test_finalize_generated_report_hashes_file_and_registers_signature(monkeypatch, tmp_path):
+    calls = []
+    pdf = tmp_path / 'relatorio.pdf'
+    pdf.write_bytes(b'conteudo-pdf')
+
+    def fake_execute(sql, params=()):
+        calls.append((sql, params))
+
+    monkeypatch.setattr(institutional_report_service, 'execute', fake_execute)
+
+    signature_hash = finalize_generated_report(42, str(pdf), signed_by=7, signer_name='Gestor')
+
+    assert signature_hash == calculate_file_sha256(str(pdf))
+    assert len(calls) == 2
+    assert 'UPDATE generated_reports' in calls[0][0]
+    assert calls[0][1][0] == signature_hash
+    assert 'INSERT INTO digital_signatures' in calls[1][0]
+    assert calls[1][1][1] == '42'
+    assert calls[1][1][6] == signature_hash
+
+
+def test_monthly_report_generation_helpers():
+    start, end = parse_month_period('2026-05')
+
+    assert start == dt.date(2026, 5, 1)
+    assert end == dt.date(2026, 5, 31)
+    assert resolve_report_types('all') == ['institucional', 'ssa', 'sms']
+    assert resolve_report_types('ssa') == ['ssa']
+    assert build_scheduled_key('ssa', start, end) == 'scheduler:ssa:20260501:20260531'

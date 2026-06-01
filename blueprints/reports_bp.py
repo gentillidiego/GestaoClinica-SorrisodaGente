@@ -5,9 +5,11 @@ from database import query
 from services.institutional_report_service import (
     get_institutional_report,
     get_report_profile,
+    get_report_types_for_role,
     get_report_type_choices,
     list_generated_reports,
     register_generated_report,
+    role_can_access_report_type,
     update_generated_report_task,
 )
 from tasks.pdf_tasks import generate_pdf_task
@@ -226,17 +228,26 @@ def export_pdf():
 
 @reports_bp.route('/institutional')
 def institutional():
+    allowed_report_types = get_report_types_for_role(current_user.role)
+    if not allowed_report_types:
+        flash('Seu perfil não possui acesso aos relatórios institucionais.', 'danger')
+        return redirect(url_for('main.dashboard'))
+
     report_type = request.args.get('tipo') or 'institucional'
+    if report_type not in allowed_report_types:
+        report_type = allowed_report_types[0]
+        flash('Perfil de relatório ajustado conforme sua permissão de acesso.', 'warning')
+
     report = get_institutional_report(
         start_date=request.args.get('inicio'),
         end_date=request.args.get('fim'),
         report_type=report_type,
     )
-    generated_reports = list_generated_reports(limit=12)
+    generated_reports = list_generated_reports(limit=12, report_types=allowed_report_types)
     return render_template(
         'reports/institutional.html',
         report=report,
-        report_type_choices=get_report_type_choices(),
+        report_type_choices=get_report_type_choices(allowed_report_types),
         generated_reports=generated_reports,
     )
 
@@ -244,6 +255,10 @@ def institutional():
 @reports_bp.route('/institutional/export', methods=['POST'])
 def export_institutional_pdf():
     report_type = request.form.get('tipo') or 'institucional'
+    if not role_can_access_report_type(current_user.role, report_type):
+        flash('Seu perfil não pode gerar este tipo de relatório.', 'danger')
+        return redirect(url_for('reports.institutional'))
+
     report = get_institutional_report(
         start_date=request.form.get('inicio'),
         end_date=request.form.get('fim'),
@@ -269,6 +284,8 @@ def export_institutional_pdf():
         filename=filename,
         file_path=output_path,
         generated_by=current_user.id,
+        source='manual',
+        delivery_channel='painel_seguro',
     )
     task = generate_pdf_task.delay(html, output_path, report_id)
     update_generated_report_task(report_id, task.id)

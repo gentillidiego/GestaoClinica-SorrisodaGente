@@ -223,6 +223,7 @@ def edit_patient(id):
     return render_template('patients/edit.html', patient=patient)
 
 from services.patient_service import PatientService
+from services.sigtap_service import get_sigtap_procedure, normalize_sigtap_code, build_sigtap_options
 
 @patients_bp.route('/view/<int:id>')
 @login_required
@@ -231,7 +232,7 @@ def view_patient(id):
     if not data or not data.get('patient'):
         flash('Paciente não encontrado.', 'danger')
         return redirect(url_for('patients.list_patients'))
-        
+    data['sigtap_procedures'] = build_sigtap_options()
     return render_template('patients/view.html', **data)
 
 from extensions import cache
@@ -318,6 +319,9 @@ def get_tab_content(id, tab_name):
     if tab_name in ['tab-atendimento', 'tab-tratamento', 'tab-endodontia', 'tab-protese']:
         context['students'] = get_students_cached()
 
+    if tab_name == 'tab-tratamento':
+        context['sigtap_procedures'] = data.get('sigtap_procedures', build_sigtap_options())
+
     context['now'] = datetime.now()
 
     return render_template(config['template'], **context)
@@ -365,16 +369,31 @@ def patient_tcle(id):
 def add_treatment(id):
     dente = request.form.get('dente')
     descricao = request.form.get('descricao')
+    sigtap_code = normalize_sigtap_code(request.form.get('sigtap_code'))
+    sigtap_competence = request.form.get('sigtap_competence') or None
+    sigtap = get_sigtap_procedure(sigtap_code, sigtap_competence) if sigtap_code else None
     
     if not descricao:
         flash('Por favor, preencha o procedimento.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-tratamento')
+    if request.form.get('sigtap_code') and not sigtap:
+        flash('Código SIGTAP não encontrado na competência carregada.', 'danger')
+        return redirect(url_for('patients.view_patient', id=id) + '#tab-tratamento')
         
     try:
         execute('''
-            INSERT INTO tratamento_procedimentos (patient_id, dente, descricao)
-            VALUES (%s, %s, %s)
-        ''', (id, dente, descricao))
+            INSERT INTO tratamento_procedimentos (
+                patient_id, dente, descricao, sigtap_code, sigtap_competence, sigtap_name
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+        ''', (
+            id,
+            dente,
+            descricao,
+            sigtap['code'] if sigtap else None,
+            sigtap['competence'] if sigtap else None,
+            sigtap['name'] if sigtap else None,
+        ))
         flash('Procedimento adicionado ao plano de tratamento.', 'success')
     except Exception as e:
         flash(f'Erro ao adicionar procedimento: {str(e)}', 'danger')
@@ -386,17 +405,39 @@ def add_treatment(id):
 def edit_treatment(id, proc_id):
     dente = request.form.get('dente')
     descricao = request.form.get('descricao')
+    sigtap_code = normalize_sigtap_code(request.form.get('sigtap_code'))
+    sigtap_competence = request.form.get('sigtap_competence') or None
+    sigtap = get_sigtap_procedure(sigtap_code, sigtap_competence) if sigtap_code else None
     
     if not descricao:
         flash('Por favor, preencha o procedimento.', 'danger')
+        return redirect(url_for('patients.view_patient', id=id) + '#tab-tratamento')
+    if request.form.get('sigtap_code') and not sigtap:
+        flash('Código SIGTAP não encontrado na competência carregada.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-tratamento')
         
     try:
         execute('''
             UPDATE tratamento_procedimentos 
-            SET dente = %s, descricao = %s
+            SET dente = %s,
+                descricao = %s,
+                sigtap_code = %s,
+                sigtap_competence = %s,
+                sigtap_name = %s,
+                esus_export_status = CASE
+                    WHEN status = 'Concluído' THEN 'pending'
+                    ELSE esus_export_status
+                END
             WHERE id = %s AND patient_id = %s
-        ''', (dente, descricao, proc_id, id))
+        ''', (
+            dente,
+            descricao,
+            sigtap['code'] if sigtap else None,
+            sigtap['competence'] if sigtap else None,
+            sigtap['name'] if sigtap else None,
+            proc_id,
+            id,
+        ))
         flash('Procedimento atualizado com sucesso!', 'success')
     except Exception as e:
         flash(f'Erro ao atualizar procedimento: {str(e)}', 'danger')
@@ -436,13 +477,24 @@ def sign_treatment(id, proc_id):
     try:
         execute('''
             UPDATE tratamento_procedimentos 
-            SET professor_id = %s, status = 'Concluído'
+            SET professor_id = %s,
+                status = 'Concluído',
+                esus_export_status = CASE
+                    WHEN sigtap_code IS NULL THEN 'missing_sigtap'
+                    ELSE 'pending'
+                END
             WHERE id = %s AND patient_id = %s
         ''', (prof['id'], proc_id, id))
         
         # Busca o procedimento para pegar os detalhes
-        proc = query("SELECT dente, descricao FROM tratamento_procedimentos WHERE id = %s", (proc_id,), one=True)
+        proc = query(
+            "SELECT dente, descricao, sigtap_code, sigtap_name FROM tratamento_procedimentos WHERE id = %s",
+            (proc_id,),
+            one=True,
+        )
         obs = f"Dente {proc['dente']}: {proc['descricao']}" if proc['dente'] else proc['descricao']
+        if proc.get('sigtap_code'):
+            obs = f"{obs}\nSIGTAP {proc['sigtap_code']} - {proc.get('sigtap_name') or ''}".strip()
         
         # Importa automaticamente para a aba Atendimento (Evolução)
         # Data fica em branco até que paciente também assine

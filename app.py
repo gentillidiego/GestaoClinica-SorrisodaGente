@@ -15,6 +15,7 @@ from utils import User
 from extensions import limiter
 from constants import get_role_label
 from services.security_service import can
+from services.sigtap_service import seed_odontology_sigtap
 from blueprints.admin import admin_bp
 from blueprints.patients import patients_bp
 from blueprints.anamnesis import anamnesis_bp
@@ -116,6 +117,7 @@ def create_app():
     # Inicializar Banco de Dados
     with app.app_context():
         init_db()
+        seed_odontology_sigtap()
 
     # Criação dos diretórios de upload
     os.makedirs('uploads/exames', exist_ok=True)

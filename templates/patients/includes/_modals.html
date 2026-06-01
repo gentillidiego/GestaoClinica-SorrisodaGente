@@ -197,6 +197,15 @@
                 <label class="form-label">Procedimento</label>
                 <input type="text" name="descricao" id="edit_proc_desc" class="form-control" required>
             </div>
+            <div style="margin-bottom: 1.5rem;">
+                <label class="form-label">Código SUS/SIGTAP</label>
+                <select name="sigtap_code" id="edit_proc_sigtap_code" class="form-control">
+                    <option value="">Selecionar código</option>
+                    {% for item in sigtap_procedures or [] %}
+                    <option value="{{ item.code }}">{{ item.code }} - {{ item.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <div style="display: flex; gap: 1rem;">
                 <button type="button" class="btn btn-outline" style="flex: 1;"
                     onclick="closeEditTreatmentModal()">Cancelar</button>

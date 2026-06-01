@@ -14,6 +14,9 @@ class Role:
     AUDITORIA = 'auditoria'
     EPIDEMIOLOGIA = 'epidemiologia'
     BI = 'bi'
+    PREFEITURA = 'prefeitura'
+    SSA = 'ssa'
+    SMS = 'sms'
     COMUNICACAO = 'comunicacao'
     MUTIRAO_MOVEL = 'mutirao_movel'
     TSB = 'tsb'
@@ -37,6 +40,9 @@ ROLE_LABELS = {
     Role.AUDITORIA: 'Auditoria',
     Role.EPIDEMIOLOGIA: 'Epidemiologia',
     Role.BI: 'BI',
+    Role.PREFEITURA: 'Prefeitura',
+    Role.SSA: 'SSA',
+    Role.SMS: 'SMS',
     Role.COMUNICACAO: 'Comunicação',
     Role.MUTIRAO_MOVEL: 'Mutirão Móvel',
     Role.TSB: 'TSB / ASB',
@@ -149,6 +155,17 @@ ROLE_PERMISSIONS = {
         'command_center:view'
     },
     Role.BI: {
+        'dashboard:view', 'reports:view', 'bi:view', 'epidemiologia:view',
+        'command_center:view'
+    },
+    Role.PREFEITURA: {
+        'dashboard:view', 'reports:view', 'bi:view', 'command_center:view'
+    },
+    Role.SSA: {
+        'dashboard:view', 'reports:view', 'bi:view', 'epidemiologia:view',
+        'command_center:view'
+    },
+    Role.SMS: {
         'dashboard:view', 'reports:view', 'bi:view', 'epidemiologia:view',
         'command_center:view'
     },
