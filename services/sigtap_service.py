@@ -171,6 +171,32 @@ def get_latest_sigtap_competence():
     return row['competence'] if row else DEFAULT_COMPETENCE
 
 
+def get_sigtap_summary():
+    rows = query(
+        """
+        SELECT competence,
+               COUNT(*) as total,
+               COUNT(*) FILTER (WHERE source = 'seed_odontologia') as seed_total,
+               COUNT(*) FILTER (WHERE source = 'sigtap_txt') as official_total
+        FROM sigtap_procedures
+        WHERE active = TRUE
+        GROUP BY competence
+        ORDER BY competence DESC
+        LIMIT 6
+        """
+    )
+    latest = rows[0] if rows else {
+        'competence': DEFAULT_COMPETENCE,
+        'total': 0,
+        'seed_total': 0,
+        'official_total': 0,
+    }
+    return {
+        'latest': latest,
+        'competences': rows,
+    }
+
+
 def parse_tb_procedimento_line(line):
     raw = line.rstrip('\n\r')
     code = normalize_sigtap_code(raw[:10])

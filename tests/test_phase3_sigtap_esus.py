@@ -2,7 +2,14 @@ import datetime as dt
 
 import services.esus_export_service as esus_export_service
 import services.sigtap_service as sigtap_service
-from services.esus_export_service import build_esus_payload, month_period
+from constants import Role, role_has_permission
+from services.esus_export_service import (
+    build_esus_payload,
+    classify_esus_missing_fields,
+    get_esus_dashboard,
+    month_period,
+    update_treatment_sigtap,
+)
 from services.sigtap_service import (
     normalize_sigtap_code,
     parse_tb_procedimento_line,
@@ -95,6 +102,11 @@ def test_build_esus_payload_uses_only_sigtap_ready_records(monkeypatch):
     ]
 
     monkeypatch.setattr(esus_export_service, 'list_completed_procedures_for_esus', lambda month_value=None: rows)
+    monkeypatch.setattr(
+        esus_export_service,
+        'get_esus_settings',
+        lambda: {'cnes': '1234567', 'ine': '0000000000'},
+    )
 
     payload, payload_hash = build_esus_payload('2026-05')
 
@@ -104,3 +116,72 @@ def test_build_esus_payload_uses_only_sigtap_ready_records(monkeypatch):
     assert payload['summary']['ready'] == 1
     assert payload['summary']['missing_sigtap'] == 1
     assert len(payload_hash) == 64
+
+
+def test_integrations_permissions_are_restricted():
+    assert role_has_permission(Role.ADMIN, 'integrations:view')
+    assert role_has_permission(Role.ADMIN, 'integrations:write')
+    assert role_has_permission(Role.AUDITORIA, 'integrations:view')
+    assert role_has_permission(Role.AUDITORIA, 'integrations:write') is False
+    assert role_has_permission(Role.BI, 'integrations:view')
+    assert role_has_permission(Role.SSA, 'integrations:view') is False
+
+
+def test_classify_esus_missing_fields_flags_city_and_patient_data():
+    row = {
+        'sigtap_code': '0307030040',
+        'sigtap_competence': '202605',
+        'cns': None,
+        'cpf': None,
+        'professor_id': None,
+        'cro': None,
+    }
+
+    missing = classify_esus_missing_fields(row, settings={'cnes': '', 'ine': ''})
+
+    assert 'CNS/CPF' in missing
+    assert 'profissional' in missing
+    assert 'CRO' in missing
+    assert 'CNES' in missing
+    assert 'INE/equipe' in missing
+
+
+def test_update_treatment_sigtap_uses_loaded_catalog(monkeypatch):
+    captured = {}
+    sigtap = {
+        'code': '0307030040',
+        'competence': '202605',
+        'name': 'PROFILAXIA / REMOÇÃO DA PLACA BACTERIANA',
+    }
+
+    monkeypatch.setattr(esus_export_service, 'get_sigtap_procedure', lambda code, competence=None: sigtap)
+
+    def fake_execute(sql, params=()):
+        captured['sql'] = sql
+        captured['params'] = params
+
+    monkeypatch.setattr(esus_export_service, 'execute', fake_execute)
+
+    result = update_treatment_sigtap(88, '0307030040', '202605')
+
+    assert result == sigtap
+    assert 'UPDATE tratamento_procedimentos' in captured['sql']
+    assert captured['params'] == ('0307030040', '202605', 'PROFILAXIA / REMOÇÃO DA PLACA BACTERIANA', 88)
+
+
+def test_get_esus_dashboard_composes_operational_context(monkeypatch):
+    monkeypatch.setattr(
+        esus_export_service,
+        'build_esus_readiness',
+        lambda month_value=None: {'total': 1, 'ready': 1, 'missing_sigtap': 0, 'incomplete': 0},
+    )
+    monkeypatch.setattr(esus_export_service, 'get_esus_settings', lambda: {'environment': 'homologacao'})
+    monkeypatch.setattr(esus_export_service, 'list_procedures_missing_sigtap', lambda limit=80: [])
+    monkeypatch.setattr(esus_export_service, 'list_esus_batches', lambda limit=12: [{'id': 1}])
+
+    dashboard = get_esus_dashboard('2026-05')
+
+    assert dashboard['month'] == '2026-05'
+    assert dashboard['readiness']['ready'] == 1
+    assert dashboard['settings']['environment'] == 'homologacao'
+    assert dashboard['batches'][0]['id'] == 1

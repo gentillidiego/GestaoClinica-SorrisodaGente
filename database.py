@@ -171,6 +171,12 @@ MIGRATIONS = {
         ('esus_export_status', "TEXT DEFAULT 'pending'"),
         ('esus_exported_at', 'TIMESTAMP'),
         ('esus_export_batch_id', 'INTEGER')
+    ],
+    'esus_integration_settings': [
+        ('pec_version', 'TEXT'),
+        ('ledi_version', 'TEXT'),
+        ('cnes', 'TEXT'),
+        ('ine', 'TEXT')
     ]
 }
 
@@ -585,6 +591,10 @@ def _init_db_locked():
             id SERIAL PRIMARY KEY,
             environment TEXT DEFAULT 'aguardando_prefeitura',
             base_url TEXT,
+            pec_version TEXT,
+            ledi_version TEXT,
+            cnes TEXT,
+            ine TEXT,
             installation_id TEXT,
             client_id TEXT,
             credential_status TEXT DEFAULT 'pending',

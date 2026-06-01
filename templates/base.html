@@ -88,7 +88,7 @@
             </a>
             {% endif %}
 
-            {% if can('users:view') or can('audit:view') %}
+            {% if can('users:view') or can('audit:view') or can('integrations:view') %}
             <div class="nav-divider">ADMINISTRAÇÃO</div>
             {% endif %}
             {% if can('users:view') %}
@@ -99,6 +99,11 @@
             {% if can('audit:view') %}
             <a href="{{ url_for('admin.audit_logs') }}" class="nav-item {% if request.endpoint == 'admin.audit_logs' %}active{% endif %}">
                 <span class="nav-icon">🛡️</span> Auditoria
+            </a>
+            {% endif %}
+            {% if can('integrations:view') %}
+            <a href="{{ url_for('admin.esus_integration') }}" class="nav-item {% if request.endpoint and request.endpoint.startswith('admin.esus') %}active{% endif %}">
+                <span class="nav-icon">🔗</span> SIGTAP/e-SUS
             </a>
             {% endif %}
             

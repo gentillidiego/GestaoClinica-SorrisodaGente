@@ -75,6 +75,8 @@ MODULE_PERMISSIONS = {
     'bi:view',
     'epidemiologia:view',
     'audit:view',
+    'integrations:view',
+    'integrations:write',
     'users:view',
     'users:write',
     'command_center:view',
@@ -148,7 +150,7 @@ ROLE_PERMISSIONS = {
     },
     Role.AUDITORIA: {
         'dashboard:view', 'patients:view', 'reports:view', 'audit:view',
-        'command_center:view'
+        'integrations:view', 'command_center:view'
     },
     Role.EPIDEMIOLOGIA: {
         'dashboard:view', 'patients:view', 'reports:view', 'epidemiologia:view',
@@ -156,7 +158,7 @@ ROLE_PERMISSIONS = {
     },
     Role.BI: {
         'dashboard:view', 'reports:view', 'bi:view', 'epidemiologia:view',
-        'command_center:view'
+        'integrations:view', 'command_center:view'
     },
     Role.PREFEITURA: {
         'dashboard:view', 'reports:view', 'bi:view', 'command_center:view'

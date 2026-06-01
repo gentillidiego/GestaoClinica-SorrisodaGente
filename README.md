@@ -699,6 +699,63 @@ docker compose exec -T gestaoclinica python scripts/build_esus_payload.py --mont
 # Resultado: lote draft registrado em esus_export_batches aguardando credenciais/endpoint da prefeitura
 ```
 
+#### Entregas implementadas em 01/06/2026 — Painel Operacional SIGTAP/e-SUS APS
+
+- [x] **Tela administrativa de integração**
+  - [x] Rota `/admin/integrations/esus` criada para acompanhamento operacional da preparação e-SUS APS.
+  - [x] Menu lateral atualizado com item `SIGTAP/e-SUS` para perfis autorizados.
+  - [x] Permissões `integrations:view` e `integrations:write` adicionadas à matriz de acesso.
+  - [x] Administrador pode visualizar e operar; auditoria e BI visualizam sem permissão de escrita.
+- [x] **Painel de prontidão da produção**
+  - [x] Cards de procedimentos concluídos, prontos para lote, sem SIGTAP e com dados pendentes.
+  - [x] Filtro por competência de produção.
+  - [x] Listagem de procedimentos sem código SIGTAP.
+  - [x] Listagem de pendências de envio por registro: SIGTAP, competência, CNS/CPF, profissional, CRO, CNES e INE/equipe.
+  - [x] Histórico dos lotes draft gerados.
+- [x] **Correção operacional de procedimentos**
+  - [x] Vinculação/alteração de código SIGTAP diretamente pelo painel.
+  - [x] Procedimento corrigido volta para `esus_export_status='pending'` quando já estiver concluído.
+  - [x] Auditoria registra alteração de código SIGTAP em `audit_logs`.
+- [x] **Configuração de espera da prefeitura**
+  - [x] Formulário para ambiente, URL PEC/e-SUS, versão PEC, versão LEDI, CNES, INE/equipe, instalação, client id, status de credenciais e observações.
+  - [x] Tabela `esus_integration_settings` ampliada com `pec_version`, `ledi_version`, `cnes` e `ine`.
+  - [x] Auditoria registra atualização da configuração.
+- [x] **Geração de lote pela interface**
+  - [x] Botão `Gerar Lote Draft` cria lote em `esus_export_batches` para conferência.
+  - [x] Serviço `services/esus_export_service.py` centraliza dashboard, pendências, configuração, correção e criação de lote.
+- [x] **Validação técnica da sessão**
+  - [x] Testes automatizados ampliados para 49 casos.
+  - [x] Renderização autenticada da rota `/admin/integrations/esus` validada em Docker.
+  - [x] Migração das colunas `pec_version`, `ledi_version`, `cnes` e `ine` validada no PostgreSQL.
+
+#### Testes executados após Painel Operacional SIGTAP/e-SUS
+
+```bash
+.venv/bin/python -m pytest -q
+# Resultado: 49 passed
+
+.venv/bin/python -m pytest tests/test_phase3_sigtap_esus.py -q
+# Resultado: 9 passed
+
+.venv/bin/python -m compileall blueprints/admin.py constants.py database.py services/esus_export_service.py services/sigtap_service.py tests/test_phase3_sigtap_esus.py
+# Resultado: compilação sem erro
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+```
+
+Validações em Docker:
+
+| Ação | Resultado |
+|---|---|
+| `GET /admin/integrations/esus?month=2026-05` autenticado como admin | HTTP 200 |
+| Conteúdo da tela | `SIGTAP / e-SUS APS` renderizado |
+| `information_schema.columns` | Colunas `cnes`, `ine`, `ledi_version` e `pec_version` presentes |
+
 #### Pendências da Fase 3
 
 - [ ] **Mapa Epidemiológico em Tempo Real avançado**
@@ -737,6 +794,7 @@ docker compose exec -T gestaoclinica python scripts/build_esus_payload.py --mont
   - [x] Vínculo de procedimentos clínicos com código, competência e nome SIGTAP.
   - [x] Payload preliminar e lotes draft para e-SUS APS.
   - [x] Estrutura de configuração aguardando URL, credenciais, instalação e ambiente da prefeitura.
+  - [x] Painel operacional para correção de SIGTAP, conferência de pendências e geração de lote draft.
   - [ ] Validar versão do PEC/e-SUS APS instalada na prefeitura e compatibilidade LEDI.
   - [ ] Implementar transmissão real quando a prefeitura fornecer endpoint, HTTPS, autenticação, CNES/INE e regras de homologação.
   - [ ] Validar campos obrigatórios finais: CNS/CPF, profissional, CBO, CNES, equipe/INE, data de atendimento, procedimento SIGTAP e compatibilidades.
@@ -749,6 +807,7 @@ docker compose exec -T gestaoclinica python scripts/build_esus_payload.py --mont
 - Manual de relatórios deve explicar como gerar a prévia institucional, aplicar período, exportar PDF e interpretar recomendações automáticas.
 - Manual de relatórios deve explicar a rotina automática mensal, horário configurado, tipos de relatório, reprocessamento com `--force`, status no histórico, hash SHA-256 e regras de acesso por Prefeitura/SSA/SMS.
 - Manual de integração deve explicar como atualizar a competência SIGTAP, como escolher código SUS/SIGTAP no plano de tratamento, como localizar procedimentos sem código e como gerar lote draft para validação da prefeitura.
+- Manual de integração deve explicar a tela `/admin/integrations/esus`, permissões de visualização/escrita, configuração da prefeitura, leitura dos cards e correção de pendências por registro.
 - Manual técnico deve documentar a origem de cada indicador para evitar uso institucional de métricas proxy sem explicação.
 
 ---
@@ -761,6 +820,7 @@ docker compose exec -T gestaoclinica python scripts/build_esus_payload.py --mont
 - **Epidemiologia:** `/epidemiologia`
 - **BI Executivo:** `/bi`
 - **Relatórios Institucionais:** `/reports/institutional`
+- **SIGTAP/e-SUS APS:** `/admin/integrations/esus`
 - **Health Check:** `/health`
 - **Banco de Dados (host):** porta `5433`
 
