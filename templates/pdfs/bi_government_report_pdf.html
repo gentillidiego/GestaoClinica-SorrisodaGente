@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ report.meta.title }}</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 17mm;
+            @bottom-center {
+                content: "Página " counter(page) " de " counter(pages);
+                font-family: Arial, sans-serif;
+                font-size: 8pt;
+                color: #64748b;
+            }
+        }
+        body {
+            font-family: Arial, sans-serif;
+            color: #1f2937;
+            font-size: 9.3pt;
+            line-height: 1.42;
+            margin: 0;
+        }
+        .header {
+            border-bottom: 3px solid #002d73;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+        }
+        .header h1 {
+            margin: 0;
+            color: #002d73;
+            font-size: 21pt;
+            text-transform: uppercase;
+        }
+        .header p {
+            margin: 5px 0 0;
+            color: #475569;
+        }
+        .meta, .note-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 10px;
+            margin-bottom: 14px;
+        }
+        .warning {
+            border-left: 4px solid #f97316;
+            background: #fff7ed;
+        }
+        .kpi-grid {
+            display: table;
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 6px;
+            margin-bottom: 16px;
+        }
+        .kpi-row {
+            display: table-row;
+        }
+        .kpi {
+            display: table-cell;
+            width: 33.33%;
+            border: 1px solid #dbe3ef;
+            background: #f8fafc;
+            padding: 10px;
+        }
+        .kpi-label {
+            color: #64748b;
+            font-size: 7.8pt;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+        .kpi-value {
+            display: block;
+            color: #002d73;
+            font-size: 17pt;
+            font-weight: bold;
+            margin: 4px 0;
+        }
+        .section-title {
+            color: #002d73;
+            border-bottom: 1px solid #cbd5e1;
+            padding-bottom: 5px;
+            margin: 17px 0 9px;
+            font-size: 12.5pt;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 13px;
+        }
+        th, td {
+            border: 1px solid #e2e8f0;
+            padding: 7px;
+            text-align: left;
+            font-size: 8.4pt;
+        }
+        th {
+            background: #eef2ff;
+            color: #1e3a8a;
+        }
+        .recommendation {
+            border-left: 4px solid #2563eb;
+            background: #eff6ff;
+            padding: 8px 10px;
+            margin-bottom: 7px;
+        }
+        .signature {
+            margin-top: 34px;
+            text-align: center;
+            page-break-inside: avoid;
+        }
+        .signature-line {
+            width: 310px;
+            border-top: 1px solid #111827;
+            margin: 0 auto 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{ report.meta.title }}</h1>
+        <p>{{ report.meta.subtitle }}</p>
+    </div>
+
+    <div class="meta">
+        <strong>Período:</strong> {{ report.period.start.strftime('%d/%m/%Y') }} a {{ report.period.end.strftime('%d/%m/%Y') }}<br>
+        <strong>Visão:</strong> {{ report.dashboard.government_view.label }} — {{ report.dashboard.government_view.description }}<br>
+        <strong>Gerado por:</strong> {{ generated_by }}<br>
+        <strong>Gerado em:</strong> {{ report.generated_at.strftime('%d/%m/%Y %H:%M') }}
+    </div>
+
+    <div class="note-box warning">
+        <strong>Status da metodologia de economia:</strong> {{ report.dashboard.economy.methodology_status }}<br>
+        {{ report.dashboard.economy.methodology_note }}
+    </div>
+
+    <div class="kpi-grid">
+        {% for chunk in report.highlights|batch(3, none) %}
+        <div class="kpi-row">
+            {% for item in chunk %}
+            {% if item %}
+            <div class="kpi">
+                <div class="kpi-label">{{ item.label }}</div>
+                <span class="kpi-value">{{ item.value }}</span>
+                <div>{{ item.detail }}</div>
+            </div>
+            {% else %}
+            <div class="kpi"></div>
+            {% endif %}
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <h2 class="section-title">Resumo da Visão Governamental</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Indicador</th>
+                <th>Valor</th>
+                <th>Observação</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for card in report.dashboard.government_view.cards %}
+            <tr>
+                <td>{{ card.label }}</td>
+                <td>{{ card.value }}</td>
+                <td>{{ card.note }}</td>
+            </tr>
+            {% endfor %}
+            {% for item in report.dashboard.government_view.focus %}
+            <tr>
+                <td>{{ item.label }}</td>
+                <td>{{ item.value }}</td>
+                <td>{{ item.detail }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2 class="section-title">Recomendações Executivas</h2>
+    {% for item in report.recommendations %}
+    <div class="recommendation">{{ item }}</div>
+    {% endfor %}
+
+    <h2 class="section-title">Fila SUS, Impacto Social e Conformidade</h2>
+    <table>
+        <tbody>
+            <tr><th>Demanda triada</th><td>{{ report.dashboard.summary.queue_total }}</td><th>Demanda reprimida</th><td>{{ report.dashboard.summary.queue_repressed }}</td></tr>
+            <tr><th>Encaminhada/atendida</th><td>{{ report.dashboard.summary.queue_scheduled_or_seen }}</td><th>Taxa de encaminhamento</th><td>{{ report.dashboard.summary.queue_resolution_rate }}%</td></tr>
+            <tr><th>Pacientes alcançados</th><td>{{ report.dashboard.summary.reached_patients }}</td><th>Bairros atendidos</th><td>{{ report.dashboard.summary.neighborhoods }}</td></tr>
+            <tr><th>Municípios vinculados</th><td>{{ report.dashboard.summary.municipalities }}</td><th>Cobertura SIGTAP</th><td>{{ report.dashboard.summary.sigtap_coverage_rate }}%</td></tr>
+            <tr><th>Sem SIGTAP</th><td>{{ report.dashboard.summary.completed_without_sigtap }}</td><th>Absenteísmo</th><td>{{ report.dashboard.summary.no_show_rate }}%</td></tr>
+        </tbody>
+    </table>
+
+    <h2 class="section-title">Oncologia Bucal</h2>
+    <table>
+        <tbody>
+            <tr><th>Lesões registradas</th><td>{{ report.dashboard.summary.lesion_records }}</td><th>Suspeitas de câncer</th><td>{{ report.dashboard.summary.cancer_suspicions }}</td></tr>
+            <tr><th>Câncer confirmado</th><td>{{ report.dashboard.summary.cancer_confirmed }}</td><th>Encaminhamentos para biópsia</th><td>{{ report.dashboard.summary.biopsy_referrals }}</td></tr>
+        </tbody>
+    </table>
+
+    <h2 class="section-title">Economia Gerada Estimada</h2>
+    <table>
+        <tbody>
+            <tr><th>Valor público</th><td>R$ {{ "%.2f"|format(report.dashboard.economy.public_value) }}</td><th>Referência privada</th><td>R$ {{ "%.2f"|format(report.dashboard.economy.reference_value) }}</td></tr>
+            <tr><th>Economia estimada</th><td>R$ {{ "%.2f"|format(report.dashboard.economy.estimated_savings) }}</td><th>Cobertura de referência</th><td>{{ report.dashboard.economy.reference_coverage_rate }}%</td></tr>
+            <tr><th>Procedimentos sem referência</th><td>{{ report.dashboard.economy.missing_reference }}</td><th>Status</th><td>{{ report.dashboard.economy.methodology_status }}</td></tr>
+        </tbody>
+    </table>
+
+    <h2 class="section-title">Procedimentos com Maior Economia Estimada</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>SIGTAP</th>
+                <th>Procedimento</th>
+                <th>Qtd.</th>
+                <th>Economia</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in report.dashboard.economy['items'] %}
+            <tr>
+                <td>{{ row.sigtap_code }}</td>
+                <td>{{ row.procedure_name }}</td>
+                <td>{{ row.completed_procedures }}</td>
+                <td>R$ {{ "%.2f"|format(row.estimated_savings) }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4">Sem produção concluída com referência de custo no período.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2 class="section-title">Ranking Territorial e Clínico</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Bairros com maior alcance</th>
+                <th>Pacientes</th>
+                <th>Especialidades críticas</th>
+                <th>Demanda reprimida</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for idx in range(0, 8) %}
+            {% set bairro = report.dashboard.neighborhood_ranking[idx] if report.dashboard.neighborhood_ranking|length > idx else none %}
+            {% set esp = report.dashboard.specialty_ranking[idx] if report.dashboard.specialty_ranking|length > idx else none %}
+            {% if bairro or esp %}
+            <tr>
+                <td>{{ bairro.bairro if bairro else '-' }}</td>
+                <td>{{ bairro.reached_patients if bairro else '-' }}</td>
+                <td>{{ esp.especialidade if esp else '-' }}</td>
+                <td>{{ esp.repressed if esp else '-' }}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2 class="section-title">Observações Institucionais</h2>
+    {% for note in report.meta.notes %}
+    <p class="note-box">{{ note }}</p>
+    {% endfor %}
+
+    <div class="signature">
+        <div class="signature-line"></div>
+        <strong>Assinatura / Validação Institucional</strong><br>
+        <span>Relatório com hash técnico registrado após geração do PDF</span>
+    </div>
+</body>
+</html>

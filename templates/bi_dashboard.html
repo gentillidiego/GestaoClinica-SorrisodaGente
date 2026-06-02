@@ -9,7 +9,16 @@
       <h1 class="page-title">BI Executivo</h1>
       <p class="page-subtitle">Produção, filas, impacto territorial, metas e comparativos mensais.</p>
     </div>
-    <a href="{{ url_for('main.epidemiologia_dashboard') }}" class="btn btn-outline" style="height:40px;">Epidemiologia</a>
+    <div class="bi-actions">
+      <a href="{{ url_for('main.epidemiologia_dashboard') }}" class="btn btn-outline" style="height:40px;">Epidemiologia</a>
+      <form method="POST" action="{{ url_for('main.export_bi_government_pdf') }}" target="_blank">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="inicio" value="{{ data.period.start.isoformat() }}">
+        <input type="hidden" name="fim" value="{{ data.period.end.isoformat() }}">
+        <input type="hidden" name="visao" value="{{ data.filters.view }}">
+        <button type="submit" class="btn btn-primary" style="height:40px;">Gerar PDF</button>
+      </form>
+    </div>
   </div>
 
   <form method="GET" class="bi-filter">
@@ -260,6 +269,48 @@
       {% endfor %}
     </section>
   </div>
+
+  <section class="card" style="margin-top:1.5rem;">
+    <h2 class="section-header">Histórico de PDFs do BI</h2>
+    {% if generated_bi_reports %}
+    <div style="overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr style="text-align:left; border-bottom:1px solid hsl(var(--border));">
+            <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Visão</th>
+            <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Período</th>
+            <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Arquivo</th>
+            <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Status</th>
+            <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Assinatura</th>
+            <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Gerado por</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in generated_bi_reports %}
+          <tr style="border-bottom:1px solid hsl(var(--border));">
+            <td style="padding:0.8rem;">{{ item.details.view if item.details else '-' }}</td>
+            <td style="padding:0.8rem;">{{ item.period_start.strftime('%d/%m/%Y') }} a {{ item.period_end.strftime('%d/%m/%Y') }}</td>
+            <td style="padding:0.8rem;">
+              <a href="{{ url_for('documents.download_pdf', filename=item.filename) }}" target="_blank" style="color:hsl(var(--primary)); font-weight:700; text-decoration:none;">{{ item.filename }}</a>
+            </td>
+            <td style="padding:0.8rem;">{{ item.status }}</td>
+            <td style="padding:0.8rem;">
+              {% if item.signature_hash %}
+              <code title="{{ item.signature_hash }}">{{ item.signature_hash[:12] }}...</code>
+              {% else %}
+              {{ item.signature_status or 'pending' }}
+              {% endif %}
+            </td>
+            <td style="padding:0.8rem;">{{ item.full_name or item.username or 'Sistema' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="color:hsl(var(--text-muted));">Nenhum PDF governamental do BI registrado ainda.</p>
+    {% endif %}
+  </section>
 </div>
 
 <style>
@@ -270,6 +321,12 @@
   gap:1rem;
   flex-wrap:wrap;
   margin-bottom:1.5rem;
+}
+.bi-actions {
+  display:flex;
+  align-items:center;
+  gap:0.75rem;
+  flex-wrap:wrap;
 }
 .bi-filter {
   display:grid;

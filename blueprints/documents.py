@@ -7,6 +7,7 @@ from tasks.pdf_tasks import generate_pdf_task
 from celery.result import AsyncResult
 from celery_app import celery
 from services.institutional_report_service import role_can_access_report_type
+from services.bi_report_service import BI_REPORT_TYPE
 
 documents_bp = Blueprint('documents', __name__, url_prefix='/documents')
 
@@ -209,10 +210,14 @@ def download_pdf(filename):
             (filename,),
             one=True,
         )
-        if not current_user.can('reports:view'):
+        if report and report['report_type'] == BI_REPORT_TYPE:
+            if not current_user.can('bi:view'):
+                flash('Acesso negado para relatórios do BI.', 'danger')
+                return redirect(url_for('main.dashboard'))
+        elif not current_user.can('reports:view'):
             flash('Acesso negado para relatórios institucionais.', 'danger')
             return redirect(url_for('main.dashboard'))
-        if report and not role_can_access_report_type(current_user.role, report['report_type']):
+        elif report and not role_can_access_report_type(current_user.role, report['report_type']):
             flash('Seu perfil não pode acessar este relatório.', 'danger')
             return redirect(url_for('reports.institutional'))
     

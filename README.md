@@ -56,7 +56,7 @@ Acessível via `/dashboard` após login:
 - **Dashboard Gerencial** — Métricas de produtividade e taxa de conclusão de agendamentos
 - **Central de Comando** — Painel operacional em `/command-center` com pacientes do dia, fila inteligente, alertas, bairros, especialidades e produção
 - **Epidemiologia** — Painel avançado em `/epidemiologia` com filtros por bairro, município, especialidade, profissional, sexo, faixa etária e status do tratamento; indicadores de lesões, câncer confirmado, perda dentária, absenteísmo, demanda reprimida e áreas críticas
-- **BI Executivo** — Painel em `/bi` com produção, filas, impacto social, metas automáticas, comparativos mensais, rankings executivos, visões governamentais por perfil e economia gerada estimada
+- **BI Executivo** — Painel em `/bi` com produção, filas, impacto social, metas automáticas, comparativos mensais, rankings executivos, visões governamentais por perfil, economia gerada estimada e PDF governamental da visão atual
 - **Custos SIGTAP** — Tela administrativa em `/admin/finance/cost-references` para revisar, importar, auditar e homologar referências de custo usadas no BI
 - **Relatórios Institucionais** — Prévia, geração assíncrona de PDF, histórico e recortes Institucional/SSA/SMS em `/reports/institutional`
 - **Linha do Tempo do Paciente** — Rastreabilidade inicial por prontuário reunindo cadastro, triagem, agenda, exames, procedimentos, documentos, estomatologia, fotos clínicas e auditoria
@@ -437,7 +437,7 @@ Validações autenticadas em Docker:
 ### **Fase 3: Inteligência Epidemiológica, Painel Executivo (BI) e Integrações — 🟡 INICIADA** *(Sessões registradas em 30/05/2026, 01/06/2026 e 02/06/2026)*
 
 > Objetivo: transformar os dados clínicos e operacionais já capturados pelo sistema em inteligência epidemiológica, painéis executivos e relatórios institucionais.
-> Status atual: Mapa Epidemiológico v3, BI Governamental v2, Gestão de Referências de Custo SIGTAP, Relatórios Institucionais/SSA/SMS e preparação e-SUS APS implementados e validados. O painel epidemiológico já possui filtros avançados, perda dentária por odontograma, câncer confirmado, áreas críticas, mapa georreferenciado inicial, coordenadas municipais de Alagoas e drill-down territorial. O BI já possui visões específicas para gestão, Prefeitura, SSA, SMS, coordenação clínica e auditoria, com economia gerada estimada por referência operacional SIGTAP e tela financeira para homologação progressiva dos valores.
+> Status atual: Mapa Epidemiológico v3, BI Governamental v2, PDF Governamental do BI, Gestão de Referências de Custo SIGTAP, Relatórios Institucionais/SSA/SMS e preparação e-SUS APS implementados e validados. O painel epidemiológico já possui filtros avançados, perda dentária por odontograma, câncer confirmado, áreas críticas, mapa georreferenciado inicial, coordenadas municipais de Alagoas e drill-down territorial. O BI já possui visões específicas para gestão, Prefeitura, SSA, SMS, coordenação clínica e auditoria, com economia gerada estimada por referência operacional SIGTAP, tela financeira para homologação progressiva dos valores e relatório em PDF da visão governamental atual.
 
 #### Entregas implementadas em 30/05/2026
 
@@ -1280,6 +1280,65 @@ Validações em Docker:
 
 > Observação metodológica: a tela permite homologação operacional progressiva, mas a metodologia oficial de economia ainda depende de aprovação formal da gestão pública e substituição dos valores demonstrativos por referências oficiais.
 
+#### Entregas implementadas em 02/06/2026 — PDF Governamental do BI
+
+- [x] **Exportação PDF por visão governamental**
+  - [x] Botão `Gerar PDF` incluído em `/bi`, respeitando período e visão atual.
+  - [x] Rota `POST /bi/export` criada para gerar PDF governamental do BI.
+  - [x] Visões suportadas: Geral, Prefeitura, SSA, SMS, Coordenação Clínica e Auditoria.
+  - [x] Nome do arquivo inclui visão, período e usuário: `relatorio_bi_governamental_<visao>_<inicio>_<fim>_<usuario>.pdf`.
+- [x] **Conteúdo do PDF**
+  - [x] Produção clínica, pacientes atendidos, fila encaminhada, absenteísmo e cobertura SIGTAP.
+  - [x] Impacto social, bairros/municípios atendidos e rankings territoriais.
+  - [x] Oncologia bucal: lesões, suspeitas, câncer confirmado e biópsias.
+  - [x] Economia gerada estimada, cobertura de referência, itens sem referência e ranking de procedimentos por economia.
+  - [x] Nota metodológica clara informando quando economia ainda é estimativa operacional não homologada.
+  - [x] Recomendações automáticas por fila reprimida, absenteísmo, oncologia, SIGTAP, referência de custo e homologação.
+- [x] **Histórico, auditoria e assinatura técnica**
+  - [x] PDFs do BI são registrados em `generated_reports` com `report_type='bi_governamental'`.
+  - [x] Tela `/bi` exibe histórico dos PDFs governamentais do BI.
+  - [x] Download dos PDFs do BI é protegido por `bi:view`.
+  - [x] Geração registra auditoria `bi_government_report_exported`.
+  - [x] A task de PDF reaproveita assinatura técnica SHA-256 já existente em `generated_reports`/`digital_signatures`.
+- [x] **Arquivos e componentes impactados**
+  - [x] `services/bi_report_service.py`: composição do relatório, recomendações e registro do histórico.
+  - [x] `blueprints/main.py`: rota `POST /bi/export`, auditoria e integração com Celery.
+  - [x] `blueprints/documents.py`: autorização de download para `bi_governamental` por `bi:view`.
+  - [x] `templates/bi_dashboard.html`: botão de PDF e histórico de PDFs do BI.
+  - [x] `templates/pdfs/bi_government_report_pdf.html`: layout PDF governamental.
+  - [x] `tests/test_phase3_bi_government_report.py`: cobertura do serviço, recomendações e registro.
+
+#### Testes executados após PDF Governamental do BI
+
+```bash
+.venv/bin/python -m compileall services/bi_report_service.py blueprints/main.py blueprints/documents.py tests/test_phase3_bi_government_report.py
+# Resultado: compilação sem erro
+
+.venv/bin/pytest -q tests/test_phase3_bi_government_report.py
+# Resultado: 3 passed
+
+.venv/bin/pytest -q
+# Resultado: 78 passed
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+```
+
+Validações em Docker:
+
+| Ação | Resultado |
+|---|---|
+| `GET /bi?visao=prefeitura&inicio=2026-06-01&fim=2026-06-02` autenticado | HTTP 200 com botão `Gerar PDF` e histórico renderizados |
+| `POST /bi/export` autenticado em test client com task stub | HTTP 302 para `/documents/status/...`, registro em `generated_reports` e auditoria criada |
+| Artefato fake de validação | Removido de `generated_reports` e `audit_logs` após teste |
+| Renderização WeasyPrint do template `bi_government_report_pdf.html` | PDF temporário gerado com sucesso (`25139` bytes) e removido |
+
+> Observação metodológica: o PDF é adequado para reunião e demonstração institucional, mas a seção de economia continua exibindo o status metodológico para evitar leitura formal antes de homologação pública.
+
 #### Pendências da Fase 3
 
 - [ ] **Mapa Epidemiológico em Tempo Real avançado**
@@ -1307,6 +1366,7 @@ Validações em Docker:
   - [x] Cobertura SIGTAP e indicadores oncológicos incorporados ao resumo executivo.
   - [x] Tela financeira para revisar, importar e homologar referências de custo SIGTAP.
   - [x] Auditoria de alterações manuais, homologações e importações CSV de referências de custo.
+  - [x] PDF governamental da visão atual do BI com histórico, auditoria e assinatura técnica SHA-256.
   - [ ] Homologar metodologia formal de economia gerada com a gestão pública.
   - [ ] Substituir valores demonstrativos por referências oficiais aprovadas pela Prefeitura/SSA/SMS.
   - [ ] Definir calendário institucional de revisão dos valores e responsável técnico pela metodologia.
@@ -1349,10 +1409,13 @@ Validações em Docker:
 - Manual do BI deve explicar metas automáticas, crescimento contra mês anterior, ranking de produção e diferença entre valor estimado/aprovado e economia pública formal.
 - Manual do BI deve explicar o seletor de visão (`Geral`, `Prefeitura`, `SSA`, `SMS`, `Coordenação Clínica` e `Auditoria`) e quando usar cada recorte.
 - Manual do BI deve deixar claro que `Economia Gerada Estimada` usa referência operacional configurável por SIGTAP e só deve ser tratada como economia formal após homologação da metodologia e dos valores pela gestão pública.
+- Manual do BI deve explicar o botão `Gerar PDF`, o histórico de PDFs, o download seguro e o significado do hash técnico gerado após conclusão.
+- Manual do BI deve orientar que o PDF da visão atual é material de conferência/apresentação e deve preservar a nota metodológica de economia até homologação pública.
 - Manual técnico/financeiro deve explicar a tabela `procedure_cost_references`, seus campos, a diferença entre referência demonstrativa e referência homologada, e o cuidado para não sobrescrever valores editados manualmente.
 - Manual financeiro deve explicar como acessar `/admin/finance/cost-references`, filtrar referências, editar custos, marcar metodologia como validada, informar notas de validação e importar CSV.
 - Manual financeiro deve documentar o layout de CSV aceito e reforçar que arquivos com erro são rejeitados integralmente antes da gravação.
 - Manual de auditoria deve explicar os eventos `cost_reference_updated`, `cost_reference_validated`, `cost_reference_import_completed`, `cost_reference_import_created`, `cost_reference_import_updated` e `cost_reference_import_rejected`.
+- Manual de auditoria deve explicar o evento `bi_government_report_exported` e como conferir `generated_reports`/`digital_signatures` para PDFs do BI.
 - Manual de relatórios deve explicar como gerar a prévia institucional, aplicar período, exportar PDF e interpretar recomendações automáticas.
 - Manual de relatórios deve explicar a rotina automática mensal, horário configurado, tipos de relatório, reprocessamento com `--force`, status no histórico, hash SHA-256 e regras de acesso por Prefeitura/SSA/SMS.
 - Manual de integração deve explicar como atualizar a competência SIGTAP, como escolher código SUS/SIGTAP no plano de tratamento, como localizar procedimentos sem código e como gerar lote draft para validação da prefeitura.
@@ -1369,6 +1432,7 @@ Validações em Docker:
 - **Fila Vermelha (Oncologia):** `/patients/red-alerts`
 - **Epidemiologia:** `/epidemiologia`
 - **BI Executivo:** `/bi`
+- **PDF Governamental do BI:** `POST /bi/export`
 - **Custos SIGTAP:** `/admin/finance/cost-references`
 - **Relatórios Institucionais:** `/reports/institutional`
 - **SIGTAP/e-SUS APS:** `/admin/integrations/esus`

@@ -1,12 +1,21 @@
-from flask import Blueprint, render_template, jsonify, request
+import os
+
+from flask import Blueprint, render_template, jsonify, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from database import query
 import datetime
 from extensions import limiter
+from services.bi_report_service import (
+    get_bi_report,
+    list_bi_government_reports,
+    register_bi_government_report,
+)
 from services.command_center_service import get_command_center_data
 from services.epidemiology_service import get_epidemiology_dashboard
 from services.executive_bi_service import get_executive_bi_dashboard
-from services.security_service import permission_required
+from services.institutional_report_service import update_generated_report_task
+from services.security_service import audit_log, permission_required
+from tasks.pdf_tasks import generate_pdf_task
 
 main_bp = Blueprint('main', __name__)
 
@@ -173,4 +182,56 @@ def bi_dashboard():
         end_date=request.args.get('fim'),
         view=request.args.get('visao'),
     )
-    return render_template('bi_dashboard.html', data=data)
+    return render_template(
+        'bi_dashboard.html',
+        data=data,
+        generated_bi_reports=list_bi_government_reports(limit=8),
+    )
+
+
+@main_bp.route('/bi/export', methods=['POST'])
+@login_required
+@permission_required('bi:view')
+def export_bi_government_pdf():
+    report = get_bi_report(
+        start_date=request.form.get('inicio'),
+        end_date=request.form.get('fim'),
+        view=request.form.get('visao'),
+    )
+    generated_by = current_user.full_name or current_user.username
+    html = render_template(
+        'pdfs/bi_government_report_pdf.html',
+        report=report,
+        generated_by=generated_by,
+    )
+
+    pdf_dir = os.path.join(os.getcwd(), 'pdf_temp')
+    os.makedirs(pdf_dir, exist_ok=True)
+    start = report['period']['start'].strftime('%Y%m%d')
+    end = report['period']['end'].strftime('%Y%m%d')
+    filename = f"relatorio_bi_governamental_{report['view']}_{start}_{end}_{current_user.id}.pdf"
+    output_path = os.path.join(pdf_dir, filename)
+
+    report_id = register_bi_government_report(
+        report,
+        filename=filename,
+        file_path=output_path,
+        generated_by=current_user.id,
+    )
+    task = generate_pdf_task.delay(html, output_path, report_id)
+    update_generated_report_task(report_id, task.id)
+    audit_log(
+        action='bi_government_report_exported',
+        module='bi',
+        entity_type='generated_report',
+        entity_id=report_id,
+        details={
+            'view': report['view'],
+            'period_start': report['period']['start'],
+            'period_end': report['period']['end'],
+            'filename': filename,
+            'economy_methodology_status': report['dashboard']['economy']['methodology_status'],
+        },
+    )
+    flash('Relatório governamental do BI enviado para geração em PDF.', 'success')
+    return redirect(url_for('documents.pdf_status', task_id=task.id, filename=filename))
