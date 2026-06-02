@@ -171,5 +171,6 @@ def bi_dashboard():
     data = get_executive_bi_dashboard(
         start_date=request.args.get('inicio'),
         end_date=request.args.get('fim'),
+        view=request.args.get('visao'),
     )
     return render_template('bi_dashboard.html', data=data)

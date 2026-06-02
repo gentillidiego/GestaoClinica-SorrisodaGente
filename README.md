@@ -56,7 +56,7 @@ Acessível via `/dashboard` após login:
 - **Dashboard Gerencial** — Métricas de produtividade e taxa de conclusão de agendamentos
 - **Central de Comando** — Painel operacional em `/command-center` com pacientes do dia, fila inteligente, alertas, bairros, especialidades e produção
 - **Epidemiologia** — Painel avançado em `/epidemiologia` com filtros por bairro, município, especialidade, profissional, sexo, faixa etária e status do tratamento; indicadores de lesões, câncer confirmado, perda dentária, absenteísmo, demanda reprimida e áreas críticas
-- **BI Executivo** — Painel em `/bi` com produção, filas, impacto social, metas automáticas, comparativos mensais e rankings executivos
+- **BI Executivo** — Painel em `/bi` com produção, filas, impacto social, metas automáticas, comparativos mensais, rankings executivos, visões governamentais por perfil e economia gerada estimada
 - **Relatórios Institucionais** — Prévia, geração assíncrona de PDF, histórico e recortes Institucional/SSA/SMS em `/reports/institutional`
 - **Linha do Tempo do Paciente** — Rastreabilidade inicial por prontuário reunindo cadastro, triagem, agenda, exames, procedimentos, documentos, estomatologia, fotos clínicas e auditoria
 - **Auditoria Administrativa** — Tela com filtros de logs por usuário, módulo, ação, paciente e status
@@ -433,10 +433,10 @@ Validações autenticadas em Docker:
 
 ---
 
-### **Fase 3: Inteligência Epidemiológica, Painel Executivo (BI) e Integrações — 🟡 INICIADA** *(Sessões registradas em 30/05/2026 e 01/06/2026)*
+### **Fase 3: Inteligência Epidemiológica, Painel Executivo (BI) e Integrações — 🟡 INICIADA** *(Sessões registradas em 30/05/2026, 01/06/2026 e 02/06/2026)*
 
 > Objetivo: transformar os dados clínicos e operacionais já capturados pelo sistema em inteligência epidemiológica, painéis executivos e relatórios institucionais.
-> Status atual: Mapa Epidemiológico v3, BI Executivo v1, Relatórios Institucionais/SSA/SMS e preparação e-SUS APS implementados e validados. O painel epidemiológico já possui filtros avançados, perda dentária por odontograma, câncer confirmado, áreas críticas, mapa georreferenciado inicial, coordenadas municipais de Alagoas e drill-down territorial.
+> Status atual: Mapa Epidemiológico v3, BI Governamental v2, Relatórios Institucionais/SSA/SMS e preparação e-SUS APS implementados e validados. O painel epidemiológico já possui filtros avançados, perda dentária por odontograma, câncer confirmado, áreas críticas, mapa georreferenciado inicial, coordenadas municipais de Alagoas e drill-down territorial. O BI já possui visões específicas para gestão, Prefeitura, SSA, SMS, coordenação clínica e auditoria, com economia gerada estimada por referência operacional SIGTAP.
 
 #### Entregas implementadas em 30/05/2026
 
@@ -1161,6 +1161,63 @@ Validações em Docker:
 | `GET /epidemiologia?municipio=Maceió&sexo=Fem&faixa_etaria=60%2B` autenticado | HTTP 200 com mapa e filtros avançados |
 | Payload `geo` | 142 pontos renderizáveis no teste local: municípios, bairros e ações de triagem |
 
+#### Entregas implementadas em 02/06/2026 — BI Governamental v2
+
+- [x] **Visões executivas por perfil institucional**
+  - [x] Seletor `visao` incluído em `/bi`, com opções: Geral, Prefeitura, SSA, SMS, Coordenação Clínica e Auditoria.
+  - [x] Cada visão reorganiza os cards e o bloco de foco executivo conforme o público: produção, impacto social, fila SUS, indicadores oncológicos, conformidade SIGTAP/e-SUS e auditoria.
+  - [x] Rota `/bi` continua protegida por `bi:view`, preservando o controle de acesso por perfil.
+  - [x] URL permite acesso direto por visão, por exemplo: `/bi?visao=prefeitura`, `/bi?visao=ssa` e `/bi?visao=auditoria`.
+- [x] **Economia gerada estimada**
+  - [x] Tabela `procedure_cost_references` criada para referência configurável de custo por procedimento SIGTAP.
+  - [x] Carga inicial com 32 procedimentos odontológicos de referência demonstrativa.
+  - [x] Serviço de BI calcula valor público, valor de referência, economia estimada, cobertura de referência e procedimentos sem referência.
+  - [x] Tela `/bi` mostra cards financeiros, nota metodológica e ranking dos procedimentos com maior economia estimada.
+  - [x] Regra de negócio preserva valores editados manualmente: a carga demonstrativa só atualiza registros ainda marcados como `demo_reference_internal`.
+- [x] **Indicadores assistenciais reforçados**
+  - [x] Resumo executivo passou a exibir cobertura SIGTAP da produção concluída.
+  - [x] BI passou a diferenciar procedimentos concluídos com SIGTAP, sem SIGTAP e pendências que impactam prontidão e-SUS.
+  - [x] Indicadores oncológicos incorporados: lesões registradas, suspeitas de câncer, câncer confirmado e encaminhamentos para biópsia.
+- [x] **Arquivos e componentes impactados**
+  - [x] `database.py`: criação/migração/seed de `procedure_cost_references`.
+  - [x] `services/executive_bi_service.py`: visão governamental, economia estimada, cobertura SIGTAP e indicadores oncológicos.
+  - [x] `blueprints/main.py`: repasse do filtro `visao` para o serviço.
+  - [x] `templates/bi_dashboard.html`: seletor de visão, cards governamentais e bloco de economia.
+  - [x] `tests/test_phase3_executive_bi.py`: cobertura unitária da economia estimada, normalização de visão e composição do dashboard.
+
+#### Testes executados após BI Governamental v2
+
+```bash
+.venv/bin/python -m compileall services/executive_bi_service.py blueprints/main.py database.py tests/test_phase3_executive_bi.py
+# Resultado: compilação sem erro
+
+.venv/bin/pytest -q
+# Resultado: 70 passed
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+```
+
+Validações em Docker:
+
+| Ação | Resultado |
+|---|---|
+| `procedure_cost_references` | 32 referências ativas carregadas |
+| `GET /bi` autenticado | HTTP 200 com visão e economia renderizadas |
+| `GET /bi?visao=prefeitura&inicio=2026-06-01&fim=2026-06-02` autenticado | HTTP 200 |
+| `GET /bi?visao=ssa&inicio=2026-06-01&fim=2026-06-02` autenticado | HTTP 200 |
+| `GET /bi?visao=sms&inicio=2026-06-01&fim=2026-06-02` autenticado | HTTP 200 |
+| `GET /bi?visao=coordenacao_clinica&inicio=2026-06-01&fim=2026-06-02` autenticado | HTTP 200 |
+| `GET /bi?visao=auditoria&inicio=2026-06-01&fim=2026-06-02` autenticado | HTTP 200 |
+| `GET /bi?visao=invalida&inicio=2026-06-01&fim=2026-06-02` autenticado | HTTP 200 com fallback para visão Geral |
+| Serviço `get_executive_bi_dashboard(..., view='prefeitura')` | Retorna visão `prefeitura`, economia estimada, cobertura de referência e cards governamentais |
+
+> Observação metodológica: os valores de `procedure_cost_references` são referência operacional demonstrativa para apresentação e validação interna. Para uso institucional formal, a Prefeitura/SSA/SMS deve homologar fonte, metodologia, valores, periodicidade de revisão e responsável técnico.
+
 #### Pendências da Fase 3
 
 - [ ] **Mapa Epidemiológico em Tempo Real avançado**
@@ -1182,8 +1239,13 @@ Validações em Docker:
   - [x] Metas automáticas v1 baseadas no mês anterior e meta fixa de comparecimento.
   - [x] Comparativo mensal de produção, atendimentos, cadastros, faltas e suspeitas oncológicas.
   - [x] Rankings de produção por profissional, bairros com maior alcance e especialidades críticas por demanda reprimida.
-  - [ ] Economia gerada formal com metodologia validada pela gestão pública.
-  - [ ] Visões específicas separadas para Prefeitura, SSA, SMS, coordenação clínica e auditoria.
+  - [x] Visões específicas separadas para Prefeitura, SSA, SMS, coordenação clínica e auditoria.
+  - [x] Base operacional de economia gerada estimada por procedimento SIGTAP.
+  - [x] Tabela configurável de referência de custos em `procedure_cost_references`.
+  - [x] Cobertura SIGTAP e indicadores oncológicos incorporados ao resumo executivo.
+  - [ ] Homologar metodologia formal de economia gerada com a gestão pública.
+  - [ ] Substituir valores demonstrativos por referências oficiais aprovadas pela Prefeitura/SSA/SMS.
+  - [ ] Definir rotina institucional de revisão dos valores e responsável técnico pela metodologia.
 - [ ] **Relatórios automáticos e PDFs institucionais**
   - [x] PDF institucional v1 com síntese executiva, epidemiológica e operacional.
   - [x] Recortes SSA e SMS.
@@ -1221,6 +1283,9 @@ Validações em Docker:
 - Manual técnico deve explicar como cadastrar ou corrigir coordenadas em `territorial_locations` usando `scripts/upsert_territorial_location.py`.
 - Manual da gestão deve reforçar que o mapa v3 já apoia decisão territorial, mas polígonos oficiais/tiles cartográficos e coordenadas finas de bairro/unidade ainda são refinamentos futuros.
 - Manual do BI deve explicar metas automáticas, crescimento contra mês anterior, ranking de produção e diferença entre valor estimado/aprovado e economia pública formal.
+- Manual do BI deve explicar o seletor de visão (`Geral`, `Prefeitura`, `SSA`, `SMS`, `Coordenação Clínica` e `Auditoria`) e quando usar cada recorte.
+- Manual do BI deve deixar claro que `Economia Gerada Estimada` usa referência operacional configurável por SIGTAP e só deve ser tratada como economia formal após homologação da metodologia e dos valores pela gestão pública.
+- Manual técnico/financeiro deve explicar a tabela `procedure_cost_references`, seus campos, a diferença entre referência demonstrativa e referência homologada, e o cuidado para não sobrescrever valores editados manualmente.
 - Manual de relatórios deve explicar como gerar a prévia institucional, aplicar período, exportar PDF e interpretar recomendações automáticas.
 - Manual de relatórios deve explicar a rotina automática mensal, horário configurado, tipos de relatório, reprocessamento com `--force`, status no histórico, hash SHA-256 e regras de acesso por Prefeitura/SSA/SMS.
 - Manual de integração deve explicar como atualizar a competência SIGTAP, como escolher código SUS/SIGTAP no plano de tratamento, como localizar procedimentos sem código e como gerar lote draft para validação da prefeitura.

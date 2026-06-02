@@ -21,6 +21,14 @@
       <label class="form-label" for="fim">Fim</label>
       <input class="form-control" type="date" id="fim" name="fim" value="{{ data.period.end.isoformat() }}">
     </div>
+    <div>
+      <label class="form-label" for="visao">Visão</label>
+      <select class="form-control" id="visao" name="visao">
+        {% for item in data.filters.views %}
+        <option value="{{ item.value }}" {% if data.filters.view == item.value %}selected{% endif %}>{{ item.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
     <button type="submit" class="btn btn-primary" style="height:48px;">Filtrar</button>
     <a href="{{ url_for('main.bi_dashboard') }}" class="btn btn-outline" style="height:48px;">Limpar</a>
   </form>
@@ -54,7 +62,44 @@
         <span class="stat-label">Absenteísmo</span>
       </div>
     </div>
+    <div class="stat-card" style="border-bottom:4px solid #0f766e;">
+      <div class="stat-icon" style="background:#ccfbf1;">R$</div>
+      <div class="stat-info">
+        <span class="stat-value" style="color:#0f766e;">{{ "R$ %.0f"|format(data.economy.estimated_savings) }}</span>
+        <span class="stat-label">Economia Estimada</span>
+      </div>
+    </div>
   </div>
+
+  <section class="card bi-gov-panel" style="margin:0 0 1.5rem 0;">
+    <div class="bi-section-heading">
+      <div>
+        <h2 class="section-header" style="margin:0;">Visão {{ data.government_view.label }}</h2>
+        <span>{{ data.government_view.description }}</span>
+      </div>
+      <span class="bi-method-badge">{{ data.economy.methodology_status }}</span>
+    </div>
+
+    <div class="bi-gov-cards">
+      {% for card in data.government_view.cards %}
+      <div class="bi-gov-card bi-gov-card-{{ card.tone }}">
+        <span>{{ card.label }}</span>
+        <strong>{{ card.value }}</strong>
+        <small>{{ card.note }}</small>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="bi-gov-focus">
+      {% for item in data.government_view.focus %}
+      <div>
+        <span>{{ item.label }}</span>
+        <strong>{{ item.value }}</strong>
+        <small>{{ item.detail }}</small>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
 
   <div class="bi-layout">
     <section class="card" style="margin:0;">
@@ -150,6 +195,34 @@
     </section>
   </div>
 
+  <div class="bi-economy-row">
+    <section class="card" style="margin:0;">
+      <div class="bi-section-heading">
+        <h2 class="section-header" style="margin:0;">Economia Gerada Estimada</h2>
+        <span>{{ data.economy.reference_coverage_rate }}% da produção com referência</span>
+      </div>
+      <div class="bi-kpi-list">
+        <span>Valor público <strong>R$ {{ "%.2f"|format(data.economy.public_value) }}</strong></span>
+        <span>Referência privada <strong>R$ {{ "%.2f"|format(data.economy.reference_value) }}</strong></span>
+        <span>Economia estimada <strong>R$ {{ "%.2f"|format(data.economy.estimated_savings) }}</strong></span>
+        <span>Sem referência <strong>{{ data.economy.missing_reference }}</strong></span>
+      </div>
+      <p class="bi-method-note">{{ data.economy.methodology_note }}</p>
+    </section>
+
+    <section class="card" style="margin:0;">
+      <h2 class="section-header">Procedimentos por Economia</h2>
+      {% for row in data.economy['items'] %}
+      <div class="bi-rank-row">
+        <span>{{ row.procedure_name }}</span>
+        <strong>R$ {{ "%.2f"|format(row.estimated_savings) }}</strong>
+      </div>
+      {% else %}
+      <p style="color:hsl(var(--text-muted));">Sem produção concluída com referência de custo no período.</p>
+      {% endfor %}
+    </section>
+  </div>
+
   <div class="bi-rankings">
     <section class="card" style="margin:0;">
       <h2 class="section-header">Ranking de Produção</h2>
@@ -200,7 +273,7 @@
 }
 .bi-filter {
   display:grid;
-  grid-template-columns:repeat(2, minmax(160px, 1fr)) auto auto;
+  grid-template-columns:repeat(3, minmax(160px, 1fr)) auto auto;
   gap:1rem;
   align-items:end;
   padding:1rem;
@@ -231,6 +304,85 @@
   color:hsl(var(--text-muted));
   font-size:0.82rem;
   font-weight:700;
+}
+.bi-method-badge {
+  display:inline-flex;
+  align-items:center;
+  min-height:28px;
+  padding:0.25rem 0.65rem;
+  border-radius:999px;
+  background:#ffedd5;
+  color:#9a3412;
+  font-size:0.72rem;
+  font-weight:900;
+  text-align:right;
+}
+.bi-gov-panel {
+  overflow:hidden;
+}
+.bi-gov-cards {
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:1rem;
+}
+.bi-gov-card {
+  min-height:120px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  gap:0.6rem;
+  padding:1rem;
+  border:1px solid hsl(var(--border));
+  border-radius:var(--radius-md);
+  background:#fff;
+}
+.bi-gov-card span,
+.bi-gov-card small {
+  color:hsl(var(--text-muted));
+  font-size:0.78rem;
+  font-weight:800;
+}
+.bi-gov-card strong {
+  color:hsl(var(--text-main));
+  font-size:1.35rem;
+  line-height:1.1;
+  overflow-wrap:anywhere;
+}
+.bi-gov-card-success {
+  border-bottom:4px solid #16a34a;
+}
+.bi-gov-card-warning {
+  border-bottom:4px solid #f97316;
+}
+.bi-gov-card-danger {
+  border-bottom:4px solid #dc2626;
+}
+.bi-gov-card-primary {
+  border-bottom:4px solid #2563eb;
+}
+.bi-gov-focus {
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:1rem;
+  margin-top:1rem;
+}
+.bi-gov-focus div {
+  display:flex;
+  flex-direction:column;
+  gap:0.25rem;
+  padding:0.8rem;
+  border-radius:var(--radius-md);
+  background:hsl(var(--bg-main));
+}
+.bi-gov-focus span,
+.bi-gov-focus small {
+  color:hsl(var(--text-muted));
+  font-size:0.76rem;
+  font-weight:800;
+}
+.bi-gov-focus strong {
+  color:hsl(var(--text-main));
+  font-size:1rem;
 }
 .bi-month-grid {
   display:grid;
@@ -321,11 +473,22 @@
   font-size:1rem;
 }
 .bi-summary-row,
-.bi-rankings {
+.bi-rankings,
+.bi-economy-row {
   display:grid;
   grid-template-columns:repeat(3, minmax(0, 1fr));
   gap:1.5rem;
   margin-top:1.5rem;
+}
+.bi-economy-row {
+  grid-template-columns:minmax(0, 1.05fr) minmax(320px, 0.95fr);
+}
+.bi-method-note {
+  margin:0.9rem 0 0;
+  color:hsl(var(--text-muted));
+  font-size:0.82rem;
+  font-weight:700;
+  line-height:1.45;
 }
 .bi-rank-row {
   display:flex;
@@ -353,7 +516,10 @@
   .bi-layout,
   .bi-summary-row,
   .bi-rankings,
-  .bi-month-grid {
+  .bi-month-grid,
+  .bi-gov-cards,
+  .bi-gov-focus,
+  .bi-economy-row {
     grid-template-columns:1fr;
   }
 }

@@ -198,6 +198,10 @@ MIGRATIONS = {
         ('cancer_confirmed', 'BOOLEAN DEFAULT FALSE'),
         ('cancer_confirmed_at', 'TIMESTAMP'),
         ('diagnostico_confirmado', 'TEXT')
+    ],
+    'procedure_cost_references': [
+        ('methodology_status', "TEXT DEFAULT 'draft'"),
+        ('notes', 'TEXT')
     ]
 }
 
@@ -651,6 +655,23 @@ def _init_db_locked():
     ''')
 
     execute('''
+        CREATE TABLE IF NOT EXISTS procedure_cost_references (
+            id SERIAL PRIMARY KEY,
+            sigtap_code TEXT NOT NULL UNIQUE,
+            sigtap_name TEXT,
+            public_cost NUMERIC(12, 2) DEFAULT 0,
+            private_reference NUMERIC(12, 2) DEFAULT 0,
+            reference_label TEXT DEFAULT 'Referência operacional interna',
+            source TEXT DEFAULT 'manual',
+            methodology_status TEXT DEFAULT 'draft',
+            notes TEXT,
+            active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    ''')
+
+    execute('''
         CREATE TABLE IF NOT EXISTS esus_integration_settings (
             id SERIAL PRIMARY KEY,
             environment TEXT DEFAULT 'aguardando_prefeitura',
@@ -970,6 +991,8 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_generated_reports_signature_hash ON generated_reports(signature_hash)",
         "CREATE INDEX IF NOT EXISTS idx_sigtap_procedures_name ON sigtap_procedures(name)",
         "CREATE INDEX IF NOT EXISTS idx_sigtap_procedures_competence ON sigtap_procedures(competence)",
+        "CREATE INDEX IF NOT EXISTS idx_procedure_cost_references_code ON procedure_cost_references(sigtap_code)",
+        "CREATE INDEX IF NOT EXISTS idx_procedure_cost_references_active ON procedure_cost_references(active)",
         "CREATE INDEX IF NOT EXISTS idx_esus_batches_reference_month ON esus_export_batches(reference_month)",
         "CREATE INDEX IF NOT EXISTS idx_esus_batches_status ON esus_export_batches(status)",
         "CREATE INDEX IF NOT EXISTS idx_esus_batches_validated_at ON esus_export_batches(validated_at)",
@@ -1230,6 +1253,40 @@ def seed_reference_data():
         ('União dos Palmares', -9.15921, -36.0223),
         ('Viçosa', -9.36763, -36.2431),
     ]
+    procedure_cost_references = [
+        ('0101020040', 'AÇÃO COLETIVA DE EXAME BUCAL COM FINALIDADE EPIDEMIOLÓGICA', 12.00, 80.00),
+        ('0101020066', 'APLICAÇÃO DE SELANTE (POR DENTE)', 18.00, 120.00),
+        ('0101020074', 'APLICAÇÃO TÓPICA DE FLÚOR (INDIVIDUAL POR SESSÃO)', 15.00, 90.00),
+        ('0101020090', 'SELAMENTO PROVISÓRIO DE CAVIDADE DENTÁRIA', 22.00, 140.00),
+        ('0101020104', 'ORIENTAÇÃO DE HIGIENE BUCAL', 10.00, 70.00),
+        ('0101020112', 'AÇÃO COLETIVA DE PREVENÇÃO DE CÂNCER BUCAL', 14.00, 100.00),
+        ('0201010526', 'BIÓPSIA DOS TECIDOS MOLES DA BOCA', 120.00, 850.00),
+        ('0307010015', 'CAPEAMENTO PULPAR', 45.00, 220.00),
+        ('0307010031', 'RESTAURAÇÃO DE DENTE PERMANENTE ANTERIOR COM RESINA COMPOSTA', 80.00, 350.00),
+        ('0307010074', 'TRATAMENTO RESTAURADOR ATRAUMÁTICO (TRA/ART)', 55.00, 260.00),
+        ('0307010082', 'RESTAURAÇÃO DE DENTE DECÍDUO POSTERIOR COM RESINA COMPOSTA', 65.00, 280.00),
+        ('0307010104', 'RESTAURAÇÃO DE DENTE DECÍDUO POSTERIOR COM IONÔMERO DE VIDRO', 60.00, 250.00),
+        ('0307010120', 'RESTAURAÇÃO DE DENTE PERMANENTE POSTERIOR COM RESINA COMPOSTA', 90.00, 420.00),
+        ('0307020010', 'ACESSO À POLPA DENTÁRIA E MEDICAÇÃO (POR DENTE)', 70.00, 300.00),
+        ('0307020037', 'TRATAMENTO ENDODÔNTICO DE DENTE DECÍDUO', 120.00, 550.00),
+        ('0307020045', 'TRATAMENTO ENDODÔNTICO DE DENTE PERMANENTE BIRRADICULAR', 180.00, 900.00),
+        ('0307020053', 'TRATAMENTO ENDODÔNTICO DE DENTE PERMANENTE COM TRÊS OU MAIS RAÍZES', 220.00, 1200.00),
+        ('0307020061', 'TRATAMENTO ENDODÔNTICO DE DENTE PERMANENTE UNIRRADICULAR', 150.00, 750.00),
+        ('0307030024', 'RASPAGEM ALISAMENTO SUBGENGIVAIS (POR SEXTANTE)', 45.00, 220.00),
+        ('0307030032', 'RASPAGEM CORONO-RADICULAR (POR SEXTANTE)', 50.00, 260.00),
+        ('0307030040', 'PROFILAXIA / REMOÇÃO DA PLACA BACTERIANA', 35.00, 180.00),
+        ('0307030059', 'RASPAGEM ALISAMENTO E POLIMENTO SUPRAGENGIVAIS (POR SEXTANTE)', 40.00, 200.00),
+        ('0307030075', 'TRATAMENTO DE LESÕES DA MUCOSA ORAL', 70.00, 350.00),
+        ('0307030083', 'TRATAMENTO DE PERICORONARITE', 65.00, 300.00),
+        ('0307040070', 'MOLDAGEM DENTO-GENGIVAL P/ CONSTRUÇÃO DE PRÓTESE DENTÁRIA', 110.00, 650.00),
+        ('0307040089', 'REEMBASAMENTO E CONSERTO DE PRÓTESE DENTÁRIA', 95.00, 450.00),
+        ('0414020120', 'EXODONTIA DE DENTE DECÍDUO', 60.00, 250.00),
+        ('0414020138', 'EXODONTIA DE DENTE PERMANENTE', 85.00, 380.00),
+        ('0414020146', 'EXODONTIA MÚLTIPLA COM ALVEOLOPLASTIA POR SEXTANTE', 180.00, 900.00),
+        ('0414020278', 'REMOÇÃO DE DENTE RETIDO (INCLUSO / IMPACTADO)', 220.00, 1400.00),
+        ('0414020375', 'TRATAMENTO CIRÚRGICO PERIODONTAL (POR SEXTANTE)', 130.00, 700.00),
+        ('0414020421', 'IMPLANTE DENTÁRIO OSTEOINTEGRADOR', 850.00, 3500.00),
+    ]
 
     for nome, codigo in especialidades:
         execute(
@@ -1241,6 +1298,48 @@ def seed_reference_data():
         execute(
             "INSERT INTO municipios (nome, codigo) VALUES (%s, %s) ON CONFLICT (codigo) DO UPDATE SET nome = EXCLUDED.nome, ativo = 1",
             (nome, codigo)
+        )
+
+    for code, name, public_cost, private_reference in procedure_cost_references:
+        execute(
+            """
+            INSERT INTO procedure_cost_references (
+                sigtap_code, sigtap_name, public_cost, private_reference,
+                reference_label, source, methodology_status, notes
+            )
+            VALUES (
+                %s, %s, %s, %s,
+                'Referência operacional interna para demonstração',
+                'demo_reference_internal',
+                'draft',
+                'Valores iniciais para demonstrar cálculo de economia; substituir após validação formal da gestão pública.'
+            )
+            ON CONFLICT (sigtap_code)
+            DO UPDATE SET
+                sigtap_name = EXCLUDED.sigtap_name,
+                public_cost = CASE
+                    WHEN procedure_cost_references.source = 'demo_reference_internal'
+                    THEN EXCLUDED.public_cost
+                    ELSE procedure_cost_references.public_cost
+                END,
+                private_reference = CASE
+                    WHEN procedure_cost_references.source = 'demo_reference_internal'
+                    THEN EXCLUDED.private_reference
+                    ELSE procedure_cost_references.private_reference
+                END,
+                reference_label = CASE
+                    WHEN procedure_cost_references.source = 'demo_reference_internal'
+                    THEN EXCLUDED.reference_label
+                    ELSE procedure_cost_references.reference_label
+                END,
+                notes = CASE
+                    WHEN procedure_cost_references.source = 'demo_reference_internal'
+                    THEN EXCLUDED.notes
+                    ELSE procedure_cost_references.notes
+                END,
+                updated_at = NOW()
+            """,
+            (code, name, public_cost, private_reference)
         )
 
     for nome, latitude, longitude in municipio_coordinates:
