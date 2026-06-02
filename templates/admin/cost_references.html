@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}Referências de Custo{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; flex-wrap:wrap; margin-bottom:2rem;">
+        <div>
+            <h1 class="page-title">Referências de Custo SIGTAP</h1>
+            <p class="page-subtitle">Base financeira usada no BI para economia gerada estimada.</p>
+        </div>
+        <a class="btn btn-outline" href="{{ url_for('main.bi_dashboard', visao='prefeitura') }}">Abrir BI</a>
+    </div>
+
+    <div class="stat-grid" style="margin-bottom:1.5rem;">
+        <div class="stat-card" style="border-bottom:4px solid #2563eb;">
+            <div class="stat-icon" style="background:#dbeafe;">R$</div>
+            <div class="stat-info">
+                <span class="stat-value">{{ dashboard.stats.total }}</span>
+                <span class="stat-label">Referências</span>
+            </div>
+        </div>
+        <div class="stat-card" style="border-bottom:4px solid #16a34a;">
+            <div class="stat-icon" style="background:#dcfce7;">OK</div>
+            <div class="stat-info">
+                <span class="stat-value">{{ dashboard.stats.validated }}</span>
+                <span class="stat-label">Validadas</span>
+            </div>
+        </div>
+        <div class="stat-card" style="border-bottom:4px solid #f59e0b;">
+            <div class="stat-icon" style="background:#fef3c7;">%</div>
+            <div class="stat-info">
+                <span class="stat-value">{{ dashboard.stats.validation_rate }}%</span>
+                <span class="stat-label">Homologação</span>
+            </div>
+        </div>
+        <div class="stat-card" style="border-bottom:4px solid #ef4444;">
+            <div class="stat-icon" style="background:#fee2e2;">D</div>
+            <div class="stat-info">
+                <span class="stat-value">{{ dashboard.stats.demo_references }}</span>
+                <span class="stat-label">Demonstrativas</span>
+            </div>
+        </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:minmax(0, 1.15fr) minmax(320px, 0.85fr); gap:1.5rem; align-items:start; margin-bottom:1.5rem;">
+        <form method="GET" class="card" style="padding:1rem; margin:0;">
+            <div style="display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)) auto; gap:1rem; align-items:end;">
+                <div>
+                    <label class="form-label" for="q">Busca</label>
+                    <input class="form-control" id="q" name="q" value="{{ dashboard.filters.q or '' }}" placeholder="Código ou nome">
+                </div>
+                <div>
+                    <label class="form-label" for="methodology_status">Metodologia</label>
+                    <select class="form-control" id="methodology_status" name="methodology_status">
+                        <option value="">Todas</option>
+                        {% for value, label in dashboard.methodology_status_options %}
+                        <option value="{{ value }}" {% if dashboard.filters.methodology_status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label" for="source">Fonte</label>
+                    <select class="form-control" id="source" name="source">
+                        <option value="">Todas</option>
+                        {% for value, label in dashboard.source_options %}
+                        <option value="{{ value }}" {% if dashboard.filters.source == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label" for="active">Status</label>
+                    <select class="form-control" id="active" name="active">
+                        <option value="active" {% if dashboard.filters.active == 'active' %}selected{% endif %}>Ativas</option>
+                        <option value="inactive" {% if dashboard.filters.active == 'inactive' %}selected{% endif %}>Inativas</option>
+                        <option value="all" {% if dashboard.filters.active == 'all' %}selected{% endif %}>Todas</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" type="submit" style="height:48px;">Filtrar</button>
+            </div>
+        </form>
+
+        <section class="card" style="padding:1rem; margin:0;">
+            <h2 class="section-header" style="margin-top:0;">Importar CSV</h2>
+            <form method="POST" action="{{ url_for('admin.import_cost_references') }}" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input class="form-control" type="file" name="cost_csv" accept=".csv,text/csv" {% if not can_write %}disabled{% endif %}>
+                <p style="margin:0.75rem 0; color:hsl(var(--text-muted)); font-size:0.82rem; line-height:1.45;">
+                    Colunas aceitas: sigtap_code, sigtap_name, public_cost, private_reference, methodology_status, source, active, notes.
+                </p>
+                {% if can_write %}
+                <button class="btn btn-primary" type="submit">Importar Referências</button>
+                {% else %}
+                <span style="color:hsl(var(--text-muted)); font-weight:700;">Somente visualização</span>
+                {% endif %}
+            </form>
+        </section>
+    </div>
+
+    <section class="card" style="padding:0; overflow:hidden;">
+        {% for row in dashboard.references %}
+        <form id="cost-reference-form-{{ row.id }}" method="POST" action="{{ url_for('admin.update_cost_reference', reference_id=row.id) }}"></form>
+        {% endfor %}
+        <div class="table-container">
+            <table style="width:100%; border-collapse:collapse; background:white;">
+                <thead>
+                    <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                        <th style="padding:0.85rem; min-width:280px;">Procedimento</th>
+                        <th style="padding:0.85rem; min-width:120px;">Custo Público</th>
+                        <th style="padding:0.85rem; min-width:140px;">Referência</th>
+                        <th style="padding:0.85rem; min-width:130px;">Economia Unit.</th>
+                        <th style="padding:0.85rem; min-width:170px;">Metodologia</th>
+                        <th style="padding:0.85rem; min-width:160px;">Fonte</th>
+                        <th style="padding:0.85rem; min-width:120px;">Status</th>
+                        <th style="padding:0.85rem; min-width:240px;">Observação</th>
+                        {% if can_write %}
+                        <th style="padding:0.85rem; min-width:160px;">Ação</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in dashboard.references %}
+                    {% set form_id = 'cost-reference-form-' ~ row.id %}
+                    <tr style="border-bottom:1px solid hsl(var(--border)); vertical-align:top;">
+                            <td style="padding:0.85rem;">
+                                <input form="{{ form_id }}" type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input form="{{ form_id }}" type="hidden" name="sigtap_code" value="{{ row.sigtap_code }}">
+                                <input form="{{ form_id }}" type="hidden" name="sigtap_name" value="{{ row.sigtap_name or '' }}">
+                                <strong>{{ row.sigtap_code }}</strong><br>
+                                <span style="color:hsl(var(--text-main)); font-weight:700;">{{ row.sigtap_name or 'Sem nome SIGTAP' }}</span>
+                                {% if row.validated_at %}
+                                <br><small style="color:hsl(var(--text-muted));">
+                                    Validada por {{ row.validated_by_name or row.validated_by_username or 'usuário registrado' }}
+                                    em {{ row.validated_at.strftime('%d/%m/%Y %H:%M') }}
+                                </small>
+                                {% endif %}
+                            </td>
+                            <td style="padding:0.85rem;">
+                                <input form="{{ form_id }}" class="form-control" name="public_cost" value="{{ '%.2f'|format(row.public_cost or 0) }}" {% if not can_write %}disabled{% endif %}>
+                            </td>
+                            <td style="padding:0.85rem;">
+                                <input form="{{ form_id }}" class="form-control" name="private_reference" value="{{ '%.2f'|format(row.private_reference or 0) }}" {% if not can_write %}disabled{% endif %}>
+                            </td>
+                            <td style="padding:0.85rem; font-weight:900; color:#0f766e;">
+                                R$ {{ '%.2f'|format(row.unit_savings or 0) }}
+                            </td>
+                            <td style="padding:0.85rem;">
+                                <select form="{{ form_id }}" class="form-control" name="methodology_status" {% if not can_write %}disabled{% endif %}>
+                                    {% for value, label in dashboard.methodology_status_options %}
+                                    <option value="{{ value }}" {% if row.methodology_status == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <textarea form="{{ form_id }}" class="form-control" name="validation_notes" rows="2" placeholder="Notas de validação" style="margin-top:0.5rem;" {% if not can_write %}disabled{% endif %}>{{ row.validation_notes or '' }}</textarea>
+                            </td>
+                            <td style="padding:0.85rem;">
+                                <select form="{{ form_id }}" class="form-control" name="source" {% if not can_write %}disabled{% endif %}>
+                                    {% for value, label in dashboard.source_options %}
+                                    <option value="{{ value }}" {% if row.source == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <input form="{{ form_id }}" class="form-control" name="reference_label" value="{{ row.reference_label or '' }}" placeholder="Rótulo" style="margin-top:0.5rem;" {% if not can_write %}disabled{% endif %}>
+                            </td>
+                            <td style="padding:0.85rem;">
+                                <select form="{{ form_id }}" class="form-control" name="active" {% if not can_write %}disabled{% endif %}>
+                                    <option value="1" {% if row.active %}selected{% endif %}>Ativa</option>
+                                    <option value="0" {% if not row.active %}selected{% endif %}>Inativa</option>
+                                </select>
+                            </td>
+                            <td style="padding:0.85rem;">
+                                <textarea form="{{ form_id }}" class="form-control" name="notes" rows="3" {% if not can_write %}disabled{% endif %}>{{ row.notes or '' }}</textarea>
+                                <input form="{{ form_id }}" class="form-control" name="change_reason" placeholder="Motivo da alteração" style="margin-top:0.5rem;" {% if not can_write %}disabled{% endif %}>
+                            </td>
+                            {% if can_write %}
+                            <td style="padding:0.85rem;">
+                                <button form="{{ form_id }}" class="btn btn-primary" type="submit">Salvar</button>
+                            </td>
+                            {% endif %}
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="{% if can_write %}9{% else %}8{% endif %}" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">
+                            Nenhuma referência encontrada.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<style>
+@media (max-width: 1100px) {
+    .animate-fade > div[style*="grid-template-columns:minmax"] {
+        grid-template-columns:1fr !important;
+    }
+    form.card > div[style*="repeat(4"] {
+        grid-template-columns:1fr !important;
+    }
+}
+</style>
+{% endblock %}

@@ -201,7 +201,10 @@ MIGRATIONS = {
     ],
     'procedure_cost_references': [
         ('methodology_status', "TEXT DEFAULT 'draft'"),
-        ('notes', 'TEXT')
+        ('notes', 'TEXT'),
+        ('validated_by', 'INTEGER'),
+        ('validated_at', 'TIMESTAMP'),
+        ('validation_notes', 'TEXT')
     ]
 }
 
@@ -665,6 +668,9 @@ def _init_db_locked():
             source TEXT DEFAULT 'manual',
             methodology_status TEXT DEFAULT 'draft',
             notes TEXT,
+            validated_by INTEGER,
+            validated_at TIMESTAMP,
+            validation_notes TEXT,
             active BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
@@ -993,6 +999,7 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_sigtap_procedures_competence ON sigtap_procedures(competence)",
         "CREATE INDEX IF NOT EXISTS idx_procedure_cost_references_code ON procedure_cost_references(sigtap_code)",
         "CREATE INDEX IF NOT EXISTS idx_procedure_cost_references_active ON procedure_cost_references(active)",
+        "CREATE INDEX IF NOT EXISTS idx_procedure_cost_references_methodology ON procedure_cost_references(methodology_status)",
         "CREATE INDEX IF NOT EXISTS idx_esus_batches_reference_month ON esus_export_batches(reference_month)",
         "CREATE INDEX IF NOT EXISTS idx_esus_batches_status ON esus_export_batches(status)",
         "CREATE INDEX IF NOT EXISTS idx_esus_batches_validated_at ON esus_export_batches(validated_at)",

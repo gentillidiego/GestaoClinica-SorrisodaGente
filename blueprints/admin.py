@@ -13,6 +13,11 @@ from constants import (
     role_requires_professional_data,
 )
 from services.security_service import audit_log, list_audit_logs, permission_required
+from services.cost_reference_service import (
+    get_cost_reference_dashboard,
+    import_cost_references_csv,
+    update_cost_reference as save_cost_reference,
+)
 from services.esus_export_service import (
     get_esus_batch_detail,
     get_esus_dashboard,
@@ -71,6 +76,48 @@ def _validate_required_professional_fields(role):
     if missing:
         return f"Preencha os dados obrigatórios do profissional: {', '.join(missing)}."
     return None
+
+
+def _decode_uploaded_csv(file_storage):
+    raw = file_storage.read()
+    try:
+        return raw.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        return raw.decode('latin-1')
+
+
+def _cost_reference_form_payload():
+    return {
+        'sigtap_code': request.form.get('sigtap_code'),
+        'sigtap_name': request.form.get('sigtap_name'),
+        'public_cost': request.form.get('public_cost'),
+        'private_reference': request.form.get('private_reference'),
+        'reference_label': request.form.get('reference_label'),
+        'source': request.form.get('source'),
+        'methodology_status': request.form.get('methodology_status'),
+        'notes': request.form.get('notes'),
+        'active': request.form.get('active'),
+        'validation_notes': request.form.get('validation_notes'),
+    }
+
+
+def _audit_cost_reference_change(action, change, status='success', extra=None):
+    reference = change.get('reference') or {}
+    details = {
+        'sigtap_code': change.get('new', {}).get('sigtap_code') or reference.get('sigtap_code'),
+        'created': change.get('created'),
+        'changed_fields': change.get('changed_fields'),
+    }
+    if extra:
+        details.update(extra)
+    audit_log(
+        action=action,
+        module='financeiro',
+        entity_type='procedure_cost_references',
+        entity_id=reference.get('id'),
+        status=status,
+        details=details,
+    )
 
 @admin_bp.route('/users')
 @login_required
@@ -280,6 +327,119 @@ def audit_logs():
         modules=modules,
         filters=filters,
     )
+
+
+@admin_bp.route('/finance/cost-references')
+@login_required
+@permission_required('financeiro:view')
+def cost_references():
+    filters = {
+        'q': request.args.get('q'),
+        'methodology_status': request.args.get('methodology_status'),
+        'source': request.args.get('source'),
+        'active': request.args.get('active'),
+    }
+    dashboard = get_cost_reference_dashboard(filters)
+    return render_template(
+        'admin/cost_references.html',
+        dashboard=dashboard,
+        can_write=current_user.can('financeiro:write'),
+    )
+
+
+@admin_bp.route('/finance/cost-references/<int:reference_id>', methods=['POST'])
+@login_required
+@permission_required('financeiro:write')
+def update_cost_reference(reference_id):
+    try:
+        change = save_cost_reference(
+            reference_id,
+            _cost_reference_form_payload(),
+            actor_id=current_user.id,
+        )
+        action = 'cost_reference_validated'
+        if change['new'].get('methodology_status') != 'validated':
+            action = 'cost_reference_updated'
+        _audit_cost_reference_change(
+            action,
+            change,
+            extra={'change_reason': request.form.get('change_reason')},
+        )
+        flash('Referência de custo atualizada.', 'success')
+    except Exception as exc:
+        audit_log(
+            action='cost_reference_update_failed',
+            module='financeiro',
+            entity_type='procedure_cost_references',
+            entity_id=reference_id,
+            status='failed',
+            details={'error': str(exc)},
+        )
+        flash(f'Erro ao atualizar referência de custo: {str(exc)}', 'danger')
+    return redirect(url_for('admin.cost_references'))
+
+
+@admin_bp.route('/finance/cost-references/import', methods=['POST'])
+@login_required
+@permission_required('financeiro:write')
+def import_cost_references():
+    uploaded = request.files.get('cost_csv')
+    if not uploaded or not uploaded.filename:
+        flash('Selecione um arquivo CSV para importar.', 'danger')
+        return redirect(url_for('admin.cost_references'))
+
+    try:
+        content = _decode_uploaded_csv(uploaded)
+        result = import_cost_references_csv(content, actor_id=current_user.id)
+    except Exception as exc:
+        audit_log(
+            action='cost_reference_import_failed',
+            module='financeiro',
+            entity_type='procedure_cost_references',
+            status='failed',
+            details={'filename': uploaded.filename, 'error': str(exc)},
+        )
+        flash(f'Erro ao importar CSV: {str(exc)}', 'danger')
+        return redirect(url_for('admin.cost_references'))
+
+    if result['errors']:
+        audit_log(
+            action='cost_reference_import_rejected',
+            module='financeiro',
+            entity_type='procedure_cost_references',
+            status='failed',
+            details={'filename': uploaded.filename, 'errors': result['errors'][:20]},
+        )
+        flash('CSV rejeitado. Corrija as linhas indicadas antes de importar.', 'danger')
+        for error in result['errors'][:5]:
+            flash(error, 'warning')
+        return redirect(url_for('admin.cost_references'))
+
+    audit_log(
+        action='cost_reference_import_completed',
+        module='financeiro',
+        entity_type='procedure_cost_references',
+        details={
+            'filename': uploaded.filename,
+            'imported': result['imported'],
+            'created': result['created'],
+            'updated': result['updated'],
+        },
+    )
+    for change in result['changes']:
+        action = 'cost_reference_import_created' if change['created'] else 'cost_reference_import_updated'
+        _audit_cost_reference_change(
+            action,
+            change,
+            extra={'filename': uploaded.filename},
+        )
+
+    flash(
+        f"CSV importado: {result['imported']} referência(s), "
+        f"{result['created']} nova(s) e {result['updated']} atualizada(s).",
+        'success',
+    )
+    return redirect(url_for('admin.cost_references'))
 
 
 @admin_bp.route('/integrations/esus')

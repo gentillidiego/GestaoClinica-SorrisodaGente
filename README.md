@@ -57,6 +57,7 @@ Acessível via `/dashboard` após login:
 - **Central de Comando** — Painel operacional em `/command-center` com pacientes do dia, fila inteligente, alertas, bairros, especialidades e produção
 - **Epidemiologia** — Painel avançado em `/epidemiologia` com filtros por bairro, município, especialidade, profissional, sexo, faixa etária e status do tratamento; indicadores de lesões, câncer confirmado, perda dentária, absenteísmo, demanda reprimida e áreas críticas
 - **BI Executivo** — Painel em `/bi` com produção, filas, impacto social, metas automáticas, comparativos mensais, rankings executivos, visões governamentais por perfil e economia gerada estimada
+- **Custos SIGTAP** — Tela administrativa em `/admin/finance/cost-references` para revisar, importar, auditar e homologar referências de custo usadas no BI
 - **Relatórios Institucionais** — Prévia, geração assíncrona de PDF, histórico e recortes Institucional/SSA/SMS em `/reports/institutional`
 - **Linha do Tempo do Paciente** — Rastreabilidade inicial por prontuário reunindo cadastro, triagem, agenda, exames, procedimentos, documentos, estomatologia, fotos clínicas e auditoria
 - **Auditoria Administrativa** — Tela com filtros de logs por usuário, módulo, ação, paciente e status
@@ -436,7 +437,7 @@ Validações autenticadas em Docker:
 ### **Fase 3: Inteligência Epidemiológica, Painel Executivo (BI) e Integrações — 🟡 INICIADA** *(Sessões registradas em 30/05/2026, 01/06/2026 e 02/06/2026)*
 
 > Objetivo: transformar os dados clínicos e operacionais já capturados pelo sistema em inteligência epidemiológica, painéis executivos e relatórios institucionais.
-> Status atual: Mapa Epidemiológico v3, BI Governamental v2, Relatórios Institucionais/SSA/SMS e preparação e-SUS APS implementados e validados. O painel epidemiológico já possui filtros avançados, perda dentária por odontograma, câncer confirmado, áreas críticas, mapa georreferenciado inicial, coordenadas municipais de Alagoas e drill-down territorial. O BI já possui visões específicas para gestão, Prefeitura, SSA, SMS, coordenação clínica e auditoria, com economia gerada estimada por referência operacional SIGTAP.
+> Status atual: Mapa Epidemiológico v3, BI Governamental v2, Gestão de Referências de Custo SIGTAP, Relatórios Institucionais/SSA/SMS e preparação e-SUS APS implementados e validados. O painel epidemiológico já possui filtros avançados, perda dentária por odontograma, câncer confirmado, áreas críticas, mapa georreferenciado inicial, coordenadas municipais de Alagoas e drill-down territorial. O BI já possui visões específicas para gestão, Prefeitura, SSA, SMS, coordenação clínica e auditoria, com economia gerada estimada por referência operacional SIGTAP e tela financeira para homologação progressiva dos valores.
 
 #### Entregas implementadas em 30/05/2026
 
@@ -1218,6 +1219,67 @@ Validações em Docker:
 
 > Observação metodológica: os valores de `procedure_cost_references` são referência operacional demonstrativa para apresentação e validação interna. Para uso institucional formal, a Prefeitura/SSA/SMS deve homologar fonte, metodologia, valores, periodicidade de revisão e responsável técnico.
 
+#### Entregas implementadas em 02/06/2026 — Gestão de Referências de Custo SIGTAP
+
+- [x] **Tela administrativa financeira**
+  - [x] Rota `/admin/finance/cost-references` criada para listar, filtrar e revisar referências de custo por procedimento SIGTAP.
+  - [x] Acesso protegido por `financeiro:view`; edição/importação protegidas por `financeiro:write`.
+  - [x] Menu lateral `Custos SIGTAP` exibido para perfis com acesso financeiro.
+  - [x] Cards mostram total de referências, validadas, taxa de homologação e referências ainda demonstrativas.
+- [x] **Edição e homologação por procedimento**
+  - [x] Cada referência permite editar custo público, referência privada, fonte, status metodológico, status ativo/inativo, rótulo e observações.
+  - [x] Status metodológico suporta `draft`, `pending_public_validation` e `validated`.
+  - [x] Quando marcada como `validated`, a referência registra `validated_by`, `validated_at` e `validation_notes`.
+  - [x] Valores monetários aceitam formato brasileiro (`1.234,56`) e decimal (`1234.56`).
+- [x] **Importação CSV com validação prévia**
+  - [x] Serviço aceita CSV com separador `;` ou `,`.
+  - [x] Colunas aceitas: `sigtap_code`, `sigtap_name`, `public_cost`, `private_reference`, `methodology_status`, `source`, `active`, `notes` e aliases em português.
+  - [x] O arquivo inteiro é validado antes da gravação; se houver erro ou código SIGTAP inválido, nenhuma linha é aplicada.
+  - [x] Importação cria novas referências ou atualiza existentes por `sigtap_code`.
+- [x] **Auditoria financeira**
+  - [x] Atualização manual registra `cost_reference_updated` ou `cost_reference_validated` em `audit_logs`.
+  - [x] Importação registra resumo `cost_reference_import_completed`.
+  - [x] Cada linha importada registra criação/atualização individual com campos alterados, valor antigo e valor novo.
+  - [x] Importações rejeitadas registram `cost_reference_import_rejected` com erros principais.
+- [x] **Arquivos e componentes impactados**
+  - [x] `database.py`: colunas `validated_by`, `validated_at`, `validation_notes` e índice metodológico.
+  - [x] `services/cost_reference_service.py`: CRUD, parsing monetário, normalização de status/fonte e importação CSV.
+  - [x] `blueprints/admin.py`: rotas financeiras e auditoria das alterações.
+  - [x] `templates/admin/cost_references.html`: tela de filtros, importação e edição inline.
+  - [x] `templates/base.html`: link administrativo `Custos SIGTAP`.
+  - [x] `tests/test_phase3_cost_references.py`: cobertura de permissões, parsing, homologação e importação.
+
+#### Testes executados após Gestão de Referências de Custo SIGTAP
+
+```bash
+.venv/bin/python -m compileall services/cost_reference_service.py blueprints/admin.py database.py tests/test_phase3_cost_references.py
+# Resultado: compilação sem erro
+
+.venv/bin/pytest -q tests/test_phase3_cost_references.py
+# Resultado: 5 passed
+
+.venv/bin/pytest -q
+# Resultado: 75 passed
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+```
+
+Validações em Docker:
+
+| Ação | Resultado |
+|---|---|
+| Colunas novas em `procedure_cost_references` | `validated_by`, `validated_at` e `validation_notes` presentes |
+| `GET /admin/finance/cost-references` autenticado | HTTP 200 com tela e importação CSV renderizadas |
+| `GET /admin/finance/cost-references?methodology_status=draft&active=all` autenticado | HTTP 200 |
+| Serviço `get_cost_reference_dashboard({'active': 'all'})` | Retorna 32 referências e estatísticas de homologação |
+
+> Observação metodológica: a tela permite homologação operacional progressiva, mas a metodologia oficial de economia ainda depende de aprovação formal da gestão pública e substituição dos valores demonstrativos por referências oficiais.
+
 #### Pendências da Fase 3
 
 - [ ] **Mapa Epidemiológico em Tempo Real avançado**
@@ -1243,9 +1305,11 @@ Validações em Docker:
   - [x] Base operacional de economia gerada estimada por procedimento SIGTAP.
   - [x] Tabela configurável de referência de custos em `procedure_cost_references`.
   - [x] Cobertura SIGTAP e indicadores oncológicos incorporados ao resumo executivo.
+  - [x] Tela financeira para revisar, importar e homologar referências de custo SIGTAP.
+  - [x] Auditoria de alterações manuais, homologações e importações CSV de referências de custo.
   - [ ] Homologar metodologia formal de economia gerada com a gestão pública.
   - [ ] Substituir valores demonstrativos por referências oficiais aprovadas pela Prefeitura/SSA/SMS.
-  - [ ] Definir rotina institucional de revisão dos valores e responsável técnico pela metodologia.
+  - [ ] Definir calendário institucional de revisão dos valores e responsável técnico pela metodologia.
 - [ ] **Relatórios automáticos e PDFs institucionais**
   - [x] PDF institucional v1 com síntese executiva, epidemiológica e operacional.
   - [x] Recortes SSA e SMS.
@@ -1286,6 +1350,9 @@ Validações em Docker:
 - Manual do BI deve explicar o seletor de visão (`Geral`, `Prefeitura`, `SSA`, `SMS`, `Coordenação Clínica` e `Auditoria`) e quando usar cada recorte.
 - Manual do BI deve deixar claro que `Economia Gerada Estimada` usa referência operacional configurável por SIGTAP e só deve ser tratada como economia formal após homologação da metodologia e dos valores pela gestão pública.
 - Manual técnico/financeiro deve explicar a tabela `procedure_cost_references`, seus campos, a diferença entre referência demonstrativa e referência homologada, e o cuidado para não sobrescrever valores editados manualmente.
+- Manual financeiro deve explicar como acessar `/admin/finance/cost-references`, filtrar referências, editar custos, marcar metodologia como validada, informar notas de validação e importar CSV.
+- Manual financeiro deve documentar o layout de CSV aceito e reforçar que arquivos com erro são rejeitados integralmente antes da gravação.
+- Manual de auditoria deve explicar os eventos `cost_reference_updated`, `cost_reference_validated`, `cost_reference_import_completed`, `cost_reference_import_created`, `cost_reference_import_updated` e `cost_reference_import_rejected`.
 - Manual de relatórios deve explicar como gerar a prévia institucional, aplicar período, exportar PDF e interpretar recomendações automáticas.
 - Manual de relatórios deve explicar a rotina automática mensal, horário configurado, tipos de relatório, reprocessamento com `--force`, status no histórico, hash SHA-256 e regras de acesso por Prefeitura/SSA/SMS.
 - Manual de integração deve explicar como atualizar a competência SIGTAP, como escolher código SUS/SIGTAP no plano de tratamento, como localizar procedimentos sem código e como gerar lote draft para validação da prefeitura.
@@ -1302,6 +1369,7 @@ Validações em Docker:
 - **Fila Vermelha (Oncologia):** `/patients/red-alerts`
 - **Epidemiologia:** `/epidemiologia`
 - **BI Executivo:** `/bi`
+- **Custos SIGTAP:** `/admin/finance/cost-references`
 - **Relatórios Institucionais:** `/reports/institutional`
 - **SIGTAP/e-SUS APS:** `/admin/integrations/esus`
 - **Health Check:** `/health`
