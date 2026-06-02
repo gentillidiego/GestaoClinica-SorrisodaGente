@@ -3,6 +3,7 @@ import datetime as dt
 from constants import Role, role_has_permission
 import services.epidemiology_service as epidemiology_service
 from services.epidemiology_service import (
+    build_geo_payload,
     get_demographic_profile,
     get_epidemiology_dashboard,
     get_tooth_loss_metrics,
@@ -85,6 +86,89 @@ def test_tooth_loss_metrics_parse_demo_and_odontogram_colors(monkeypatch):
         'missing_teeth': 3,
         'avg_missing_teeth': 1.5,
     }
+
+
+def test_geo_payload_projects_exact_and_fallback_coordinates(monkeypatch):
+    locations = {
+        'municipio': {
+            1: {
+                'latitude': -9.66599,
+                'longitude': -35.735,
+                'source': 'seed',
+                'accuracy': 'centroide municipal',
+            }
+        },
+        'bairro': {},
+        'bairro_any': {},
+        'unidade': {},
+        'triagem_acao': {},
+    }
+    municipality_row = {
+        'municipio_id': 1,
+        'municipio': 'Maceió',
+        'municipio_codigo': 'MCZ',
+        'total_patients': 12,
+        'lesion_records': 2,
+        'cancer_suspicions': 1,
+        'cancer_confirmed': 1,
+        'no_shows': 2,
+        'appointments': 8,
+        'prosthetic_need': 3,
+        'repressed_demand': 4,
+        'patients_with_tooth_loss': 5,
+        'missing_teeth': 8,
+    }
+    action_row = {
+        'triagem_acao_id': 77,
+        'local': 'UBS Centro',
+        'data_acao': dt.date(2026, 5, 10),
+        'municipio_id': 1,
+        'municipio': 'Maceió',
+        'total_patients': 5,
+        'lesion_records': 1,
+        'cancer_suspicions': 0,
+        'cancer_confirmed': 0,
+        'no_shows': 1,
+        'appointments': 4,
+        'prosthetic_need': 1,
+        'repressed_demand': 2,
+        'patients_with_tooth_loss': 1,
+        'missing_teeth': 2,
+    }
+
+    monkeypatch.setattr(epidemiology_service, 'get_territorial_locations', lambda: locations)
+    monkeypatch.setattr(epidemiology_service, 'get_municipality_indicators', lambda *args, **kwargs: [municipality_row])
+    monkeypatch.setattr(epidemiology_service, 'get_triage_action_indicators', lambda *args, **kwargs: [action_row])
+    monkeypatch.setattr(epidemiology_service, '_neighborhood_municipality_lookup', lambda *args, **kwargs: {
+        'Centro': {'municipio_id': 1, 'municipio': 'Maceió'}
+    })
+
+    payload = build_geo_payload(
+        dt.date(2026, 5, 1),
+        dt.date(2026, 5, 30),
+        neighborhoods=[{
+            'bairro': 'Centro',
+            'total_patients': 6,
+            'lesion_records': 1,
+            'cancer_suspicions': 0,
+            'cancer_confirmed': 0,
+            'no_shows': 1,
+            'appointments': 5,
+            'prosthetic_need': 1,
+            'repressed_demand': 2,
+            'patients_with_tooth_loss': 2,
+            'missing_teeth': 3,
+        }],
+        today=dt.date(2026, 5, 30),
+    )
+
+    assert payload['coverage']['total'] == 3
+    assert payload['coverage']['exact_coordinates'] == 1
+    assert payload['coverage']['fallback_coordinates'] == 2
+    assert payload['features'][0]['scope'] == 'municipio'
+    assert payload['features'][0]['has_coordinates'] is True
+    assert payload['features'][1]['map_ready'] is True
+    assert payload['missing_coordinates'][0]['scope'] in {'acao', 'bairro'}
 
 
 def test_epidemiology_dashboard_builds_summary_and_lists(monkeypatch):

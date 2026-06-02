@@ -1,5 +1,6 @@
 import datetime as dt
 import json
+import math
 from collections import Counter
 
 from database import query
@@ -627,6 +628,517 @@ def get_critical_areas(neighborhoods, limit=8):
     return sorted(areas, key=lambda row: (-row['critical_score'], row['bairro']))[:limit]
 
 
+def _normalize_indicator(row):
+    appointments = _as_int(row.get('appointments'))
+    indicator = {
+        **row,
+        'total_patients': _as_int(row.get('total_patients')),
+        'lesion_records': _as_int(row.get('lesion_records')),
+        'cancer_suspicions': _as_int(row.get('cancer_suspicions')),
+        'cancer_confirmed': _as_int(row.get('cancer_confirmed')),
+        'no_shows': _as_int(row.get('no_shows')),
+        'appointments': appointments,
+        'prosthetic_need': _as_int(row.get('prosthetic_need')),
+        'repressed_demand': _as_int(row.get('repressed_demand')),
+        'patients_with_tooth_loss': _as_int(row.get('patients_with_tooth_loss')),
+        'missing_teeth': _as_int(row.get('missing_teeth')),
+        'avg_missing_teeth': row.get('avg_missing_teeth', 0),
+        'no_show_rate': percentage(row.get('no_shows'), appointments),
+    }
+    score = _critical_score(indicator)
+    indicator['critical_score'] = score
+    indicator['risk_label'] = _risk_label(score)
+    indicator['reasons'] = _critical_reasons(indicator)
+    return indicator
+
+
+def get_territorial_locations():
+    rows = query(
+        """
+        SELECT tl.id, tl.scope, tl.municipio_id, m.nome as municipio,
+               tl.neighborhood, tl.unit_name, tl.triagem_acao_id,
+               tl.latitude, tl.longitude, tl.source, tl.accuracy, tl.notes
+        FROM territorial_locations tl
+        LEFT JOIN municipios m ON m.id = tl.municipio_id
+        WHERE tl.active = TRUE
+        """
+    ) or []
+
+    lookup = {
+        'municipio': {},
+        'bairro': {},
+        'bairro_any': {},
+        'unidade': {},
+        'triagem_acao': {},
+    }
+    for row in rows:
+        scope = row.get('scope')
+        if scope == 'municipio' and row.get('municipio_id'):
+            lookup['municipio'][row['municipio_id']] = row
+        elif scope == 'bairro' and row.get('neighborhood'):
+            neighborhood = _clean_label(row.get('neighborhood'), '').lower()
+            municipality = _clean_label(row.get('municipio'), '').lower()
+            if municipality:
+                lookup['bairro'][(municipality, neighborhood)] = row
+            else:
+                lookup['bairro_any'][neighborhood] = row
+        elif scope == 'unidade' and row.get('unit_name'):
+            lookup['unidade'][_clean_label(row.get('unit_name'), '').lower()] = row
+        elif scope == 'triagem_acao' and row.get('triagem_acao_id'):
+            lookup['triagem_acao'][row['triagem_acao_id']] = row
+    return lookup
+
+
+def _coordinate_from_location(location):
+    if not location or location.get('latitude') is None or location.get('longitude') is None:
+        return None
+    return {
+        'latitude': float(location['latitude']),
+        'longitude': float(location['longitude']),
+        'source': location.get('source') or 'manual',
+        'accuracy': location.get('accuracy') or 'não informada',
+    }
+
+
+def _coordinates_for_feature(feature, locations):
+    scope = feature.get('scope')
+    if scope == 'municipio':
+        location = locations['municipio'].get(feature.get('municipio_id'))
+        coordinate = _coordinate_from_location(location)
+        if coordinate:
+            return coordinate, True
+
+    if scope == 'bairro':
+        neighborhood = _clean_label(feature.get('bairro'), '').lower()
+        municipality = _clean_label(feature.get('municipio'), '').lower()
+        location = locations['bairro'].get((municipality, neighborhood)) or locations['bairro_any'].get(neighborhood)
+        coordinate = _coordinate_from_location(location)
+        if coordinate:
+            return coordinate, True
+
+    if scope == 'acao':
+        location = locations['triagem_acao'].get(feature.get('triagem_acao_id'))
+        coordinate = _coordinate_from_location(location)
+        if coordinate:
+            return coordinate, True
+
+    fallback = locations['municipio'].get(feature.get('municipio_id'))
+    coordinate = _coordinate_from_location(fallback)
+    if coordinate:
+        coordinate = {
+            **coordinate,
+            'source': 'municipio_fallback',
+            'accuracy': 'centroide municipal usado até cadastrar coordenada específica',
+        }
+        return coordinate, False
+    return None, False
+
+
+def _feature_size(score):
+    return min(34, max(14, 12 + math.sqrt(max(score, 0))))
+
+
+def _project_features(features):
+    coordinates = [
+        (feature['latitude'], feature['longitude'])
+        for feature in features
+        if feature.get('map_ready')
+    ]
+    if not coordinates:
+        return features, None
+
+    min_lat = min(lat for lat, _ in coordinates)
+    max_lat = max(lat for lat, _ in coordinates)
+    min_lon = min(lon for _, lon in coordinates)
+    max_lon = max(lon for _, lon in coordinates)
+    lat_span = max(max_lat - min_lat, 0.01)
+    lon_span = max(max_lon - min_lon, 0.01)
+
+    for feature in features:
+        if not feature.get('map_ready'):
+            continue
+        feature['x'] = round(7 + ((feature['longitude'] - min_lon) / lon_span) * 86, 2)
+        feature['y'] = round(7 + ((max_lat - feature['latitude']) / lat_span) * 86, 2)
+    return features, {
+        'min_lat': min_lat,
+        'max_lat': max_lat,
+        'min_lon': min_lon,
+        'max_lon': max_lon,
+    }
+
+
+def _build_geo_feature(row, scope, locations):
+    label_key = {
+        'municipio': 'municipio',
+        'bairro': 'bairro',
+        'acao': 'local',
+    }.get(scope, 'label')
+    label = _clean_label(row.get(label_key), 'Não informado')
+    if scope == 'acao':
+        subtitle = f"{_clean_label(row.get('municipio'))} · Ação #{row.get('triagem_acao_id')}"
+    elif scope == 'bairro':
+        subtitle = _clean_label(row.get('municipio'), 'Bairro')
+    else:
+        subtitle = 'Município'
+
+    indicator = _normalize_indicator(row)
+    feature = {
+        **indicator,
+        'scope': scope,
+        'label': label,
+        'subtitle': subtitle,
+        'marker_size': _feature_size(indicator['critical_score']),
+        'has_coordinates': False,
+        'map_ready': False,
+        'latitude': None,
+        'longitude': None,
+        'coordinate_source': None,
+        'coordinate_accuracy': None,
+    }
+    coordinate, exact = _coordinates_for_feature(feature, locations)
+    if coordinate:
+        feature.update({
+            'latitude': coordinate['latitude'],
+            'longitude': coordinate['longitude'],
+            'coordinate_source': coordinate['source'],
+            'coordinate_accuracy': coordinate['accuracy'],
+            'has_coordinates': exact,
+            'map_ready': True,
+        })
+    return feature
+
+
+def get_municipality_indicators(start, end, filters=None, today=None, limit=120):
+    filters, today = _coerce_filters(filters, today=today)
+    patient_clause, patient_params = _patient_filter_clause('p', filters, today=today)
+    params = [
+        start.isoformat(),
+        end.isoformat(),
+        *patient_params,
+        start.isoformat(),
+        end.isoformat(),
+        start.isoformat(),
+        end.isoformat(),
+        limit,
+    ]
+    rows = query(
+        f"""
+        WITH municipality_patients AS (
+            SELECT DISTINCT p.id as patient_id, m.id as municipio_id,
+                   m.nome as municipio, m.codigo as municipio_codigo
+            FROM triagem_senhas s
+            JOIN patients p ON p.id = s.patient_id
+            JOIN municipios m ON m.id = s.municipio_id
+            WHERE s.patient_id IS NOT NULL
+              AND COALESCE(s.vinculada_em, s.entregue_em, s.criado_em)::date BETWEEN %s AND %s
+            {patient_clause}
+        ),
+        prosthetic_need AS (
+            SELECT DISTINCT s.patient_id
+            FROM triagem_senhas s
+            JOIN especialidades esp ON esp.id = s.especialidade_id
+            WHERE s.patient_id IS NOT NULL
+              AND (esp.codigo = 'P' OR esp.nome ILIKE '%%Prótese%%')
+            UNION
+            SELECT DISTINCT patient_id
+            FROM prosthesis
+        ),
+        repressed_demand AS (
+            SELECT DISTINCT s.patient_id
+            FROM triagem_senhas s
+            WHERE s.patient_id IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM consultas c2
+                  WHERE c2.patient_id = s.patient_id
+                    AND c2.status IN ('Confirmado', 'Realizado')
+              )
+        )
+        SELECT mp.municipio_id,
+               mp.municipio,
+               mp.municipio_codigo,
+               COUNT(DISTINCT mp.patient_id) as total_patients,
+               COUNT(DISTINCT e.id) as lesion_records,
+               COUNT(DISTINCT e.patient_id) FILTER (WHERE e.suspeita_neoplasia = TRUE) as cancer_suspicions,
+               COUNT(DISTINCT e.patient_id) FILTER (WHERE e.cancer_confirmed = TRUE) as cancer_confirmed,
+               COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'Faltou') as no_shows,
+               COUNT(DISTINCT c.id) as appointments,
+               COUNT(DISTINCT pn.patient_id) as prosthetic_need,
+               COUNT(DISTINCT rd.patient_id) as repressed_demand
+        FROM municipality_patients mp
+        LEFT JOIN estomatologia e
+          ON e.patient_id = mp.patient_id
+         AND e.data_registro::date BETWEEN %s AND %s
+        LEFT JOIN consultas c
+          ON c.patient_id = mp.patient_id
+         AND c.data_consulta::date BETWEEN %s AND %s
+        LEFT JOIN prosthetic_need pn ON pn.patient_id = mp.patient_id
+        LEFT JOIN repressed_demand rd ON rd.patient_id = mp.patient_id
+        GROUP BY mp.municipio_id, mp.municipio, mp.municipio_codigo
+        ORDER BY cancer_confirmed DESC, cancer_suspicions DESC, lesion_records DESC, total_patients DESC, municipio ASC
+        LIMIT %s
+        """,
+        tuple(params),
+    ) or []
+    tooth_loss_map = {
+        row['municipio_id']: row
+        for row in get_tooth_loss_by_municipality(start, end, filters, today=today)
+    }
+    indicators = []
+    for row in rows:
+        tooth_loss = tooth_loss_map.get(row.get('municipio_id'), {})
+        indicators.append(_normalize_indicator({
+            **row,
+            'patients_with_tooth_loss': tooth_loss.get('patients_with_tooth_loss'),
+            'missing_teeth': tooth_loss.get('missing_teeth'),
+            'avg_missing_teeth': tooth_loss.get('avg_missing_teeth', 0),
+        }))
+    return indicators
+
+
+def get_triage_action_indicators(start, end, filters=None, today=None, limit=80):
+    filters, today = _coerce_filters(filters, today=today)
+    patient_clause, patient_params = _patient_filter_clause('p', filters, today=today)
+    params = [
+        start.isoformat(),
+        end.isoformat(),
+        *patient_params,
+        start.isoformat(),
+        end.isoformat(),
+        start.isoformat(),
+        end.isoformat(),
+        limit,
+    ]
+    rows = query(
+        f"""
+        WITH action_patients AS (
+            SELECT DISTINCT p.id as patient_id, a.id as triagem_acao_id,
+                   COALESCE(NULLIF(TRIM(a.local), ''), 'Ação sem local') as local,
+                   a.data_acao, m.id as municipio_id, m.nome as municipio
+            FROM triagem_senhas s
+            JOIN patients p ON p.id = s.patient_id
+            JOIN triagem_acoes a ON a.id = s.triagem_acao_id
+            JOIN municipios m ON m.id = a.municipio_id
+            WHERE s.patient_id IS NOT NULL
+              AND COALESCE(s.vinculada_em, s.entregue_em, s.criado_em)::date BETWEEN %s AND %s
+            {patient_clause}
+        ),
+        prosthetic_need AS (
+            SELECT DISTINCT s.patient_id
+            FROM triagem_senhas s
+            JOIN especialidades esp ON esp.id = s.especialidade_id
+            WHERE s.patient_id IS NOT NULL
+              AND (esp.codigo = 'P' OR esp.nome ILIKE '%%Prótese%%')
+            UNION
+            SELECT DISTINCT patient_id
+            FROM prosthesis
+        ),
+        repressed_demand AS (
+            SELECT DISTINCT s.patient_id
+            FROM triagem_senhas s
+            WHERE s.patient_id IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM consultas c2
+                  WHERE c2.patient_id = s.patient_id
+                    AND c2.status IN ('Confirmado', 'Realizado')
+              )
+        )
+        SELECT ap.triagem_acao_id,
+               ap.local,
+               ap.data_acao,
+               ap.municipio_id,
+               ap.municipio,
+               COUNT(DISTINCT ap.patient_id) as total_patients,
+               COUNT(DISTINCT e.id) as lesion_records,
+               COUNT(DISTINCT e.patient_id) FILTER (WHERE e.suspeita_neoplasia = TRUE) as cancer_suspicions,
+               COUNT(DISTINCT e.patient_id) FILTER (WHERE e.cancer_confirmed = TRUE) as cancer_confirmed,
+               COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'Faltou') as no_shows,
+               COUNT(DISTINCT c.id) as appointments,
+               COUNT(DISTINCT pn.patient_id) as prosthetic_need,
+               COUNT(DISTINCT rd.patient_id) as repressed_demand
+        FROM action_patients ap
+        LEFT JOIN estomatologia e
+          ON e.patient_id = ap.patient_id
+         AND e.data_registro::date BETWEEN %s AND %s
+        LEFT JOIN consultas c
+          ON c.patient_id = ap.patient_id
+         AND c.data_consulta::date BETWEEN %s AND %s
+        LEFT JOIN prosthetic_need pn ON pn.patient_id = ap.patient_id
+        LEFT JOIN repressed_demand rd ON rd.patient_id = ap.patient_id
+        GROUP BY ap.triagem_acao_id, ap.local, ap.data_acao, ap.municipio_id, ap.municipio
+        ORDER BY cancer_confirmed DESC, cancer_suspicions DESC, lesion_records DESC, total_patients DESC, data_acao DESC
+        LIMIT %s
+        """,
+        tuple(params),
+    ) or []
+    tooth_loss_map = {
+        row['triagem_acao_id']: row
+        for row in get_tooth_loss_by_triage_action(start, end, filters, today=today)
+    }
+    indicators = []
+    for row in rows:
+        tooth_loss = tooth_loss_map.get(row.get('triagem_acao_id'), {})
+        indicators.append(_normalize_indicator({
+            **row,
+            'patients_with_tooth_loss': tooth_loss.get('patients_with_tooth_loss'),
+            'missing_teeth': tooth_loss.get('missing_teeth'),
+            'avg_missing_teeth': tooth_loss.get('avg_missing_teeth', 0),
+        }))
+    return indicators
+
+
+def _tooth_loss_by_group(rows, group_key, label_key=None):
+    groups = {}
+    for row in rows or []:
+        missing = _missing_teeth_from_odontogram(row.get('dentes_data'))
+        if not missing:
+            continue
+        group_id = row.get(group_key)
+        if group_id is None:
+            continue
+        group = groups.setdefault(group_id, {'patients': {}, 'meta': row})
+        group['patients'].setdefault(row['patient_id'], set()).update(missing)
+
+    results = []
+    for group_id, data in groups.items():
+        patients = data['patients']
+        missing_teeth = sum(len(teeth) for teeth in patients.values())
+        result = {
+            group_key: group_id,
+            'patients_with_tooth_loss': len(patients),
+            'missing_teeth': missing_teeth,
+            'avg_missing_teeth': round(missing_teeth / len(patients), 1) if patients else 0,
+        }
+        if label_key:
+            result[label_key] = data['meta'].get(label_key)
+        results.append(result)
+    return results
+
+
+def get_tooth_loss_by_municipality(start, end, filters=None, today=None):
+    filters, today = _coerce_filters(filters, today=today)
+    patient_clause, patient_params = _patient_filter_clause('p', filters, today=today)
+    rows = query(
+        f"""
+        SELECT DISTINCT p.id as patient_id, m.id as municipio_id, eo.dentes_data
+        FROM exam_odontograma eo
+        JOIN exams ex ON ex.id = eo.exam_id
+        LEFT JOIN anamnesis a ON a.id = ex.anamnesis_id
+        JOIN patients p ON p.id = COALESCE(ex.patient_id, a.patient_id)
+        JOIN triagem_senhas s ON s.patient_id = p.id
+        JOIN municipios m ON m.id = s.municipio_id
+        WHERE ex.data_criacao::date BETWEEN %s AND %s
+        {patient_clause}
+        """,
+        (start.isoformat(), end.isoformat(), *patient_params),
+    ) or []
+    return _tooth_loss_by_group(rows, 'municipio_id')
+
+
+def get_tooth_loss_by_triage_action(start, end, filters=None, today=None):
+    filters, today = _coerce_filters(filters, today=today)
+    patient_clause, patient_params = _patient_filter_clause('p', filters, today=today)
+    rows = query(
+        f"""
+        SELECT DISTINCT p.id as patient_id, s.triagem_acao_id, eo.dentes_data
+        FROM exam_odontograma eo
+        JOIN exams ex ON ex.id = eo.exam_id
+        LEFT JOIN anamnesis a ON a.id = ex.anamnesis_id
+        JOIN patients p ON p.id = COALESCE(ex.patient_id, a.patient_id)
+        JOIN triagem_senhas s ON s.patient_id = p.id
+        WHERE ex.data_criacao::date BETWEEN %s AND %s
+        {patient_clause}
+        """,
+        (start.isoformat(), end.isoformat(), *patient_params),
+    ) or []
+    return _tooth_loss_by_group(rows, 'triagem_acao_id')
+
+
+def _neighborhood_municipality_lookup(start, end, filters=None, today=None):
+    filters, today = _coerce_filters(filters, today=today)
+    patient_clause, patient_params = _patient_filter_clause('p', filters, today=today)
+    bairro_expr = _neighborhood_expression('p')
+    rows = query(
+        f"""
+        SELECT {bairro_expr} as bairro,
+               m.id as municipio_id,
+               m.nome as municipio,
+               COUNT(DISTINCT p.id) as total
+        FROM patients p
+        LEFT JOIN triagem_senhas s ON s.patient_id = p.id
+        LEFT JOIN municipios m ON m.id = s.municipio_id
+        WHERE p.criado_em::date BETWEEN %s AND %s
+          AND m.id IS NOT NULL
+        {patient_clause}
+        GROUP BY bairro, m.id, m.nome
+        ORDER BY total DESC
+        """,
+        (start.isoformat(), end.isoformat(), *patient_params),
+    ) or []
+    lookup = {}
+    for row in rows:
+        lookup.setdefault(row['bairro'], row)
+    return lookup
+
+
+def build_geo_payload(start, end, filters=None, neighborhoods=None, today=None):
+    filters, today = _coerce_filters(filters, today=today)
+    locations = get_territorial_locations()
+    neighborhoods = neighborhoods or []
+    neighborhood_municipalities = _neighborhood_municipality_lookup(start, end, filters, today=today)
+
+    municipality_features = [
+        _build_geo_feature(row, 'municipio', locations)
+        for row in get_municipality_indicators(start, end, filters, today=today)
+    ]
+    action_features = [
+        _build_geo_feature(row, 'acao', locations)
+        for row in get_triage_action_indicators(start, end, filters, today=today)
+    ]
+    neighborhood_features = []
+    for row in neighborhoods:
+        municipality = neighborhood_municipalities.get(row.get('bairro'), {})
+        neighborhood_features.append(_build_geo_feature({
+            **row,
+            'municipio_id': municipality.get('municipio_id'),
+            'municipio': municipality.get('municipio'),
+        }, 'bairro', locations))
+
+    features = municipality_features + action_features + neighborhood_features
+    features, bounds = _project_features(features)
+    map_features = sorted(
+        [feature for feature in features if feature.get('map_ready')],
+        key=lambda row: (row.get('scope') != 'municipio', -row.get('critical_score', 0), row.get('label', '')),
+    )
+    missing = [
+        feature for feature in features
+        if not feature.get('has_coordinates') and feature.get('scope') in {'bairro', 'acao'}
+    ]
+
+    return {
+        'features': map_features[:160],
+        'municipalities': municipality_features,
+        'actions': action_features[:20],
+        'neighborhoods': neighborhood_features,
+        'bounds': bounds,
+        'coverage': {
+            'total': len(features),
+            'map_ready': len([feature for feature in features if feature.get('map_ready')]),
+            'exact_coordinates': len([feature for feature in features if feature.get('has_coordinates')]),
+            'fallback_coordinates': len([
+                feature for feature in features
+                if feature.get('map_ready') and not feature.get('has_coordinates')
+            ]),
+            'missing_coordinates': len([feature for feature in features if not feature.get('map_ready')]),
+        },
+        'missing_coordinates': sorted(
+            missing,
+            key=lambda row: (-row.get('critical_score', 0), row.get('scope', ''), row.get('label', '')),
+        )[:12],
+    }
+
+
 def get_neighborhood_indicators(start, end, filters=None, neighborhood=None, limit=12, today=None):
     filters, today = _coerce_filters(filters, neighborhood=neighborhood, today=today)
     where_clause, where_params = _patient_filter_clause('p', filters, today=today, prefix='WHERE')
@@ -690,27 +1202,13 @@ def get_neighborhood_indicators(start, end, filters=None, neighborhood=None, lim
     }
     indicators = []
     for row in rows or []:
-        appointments = _as_int(row.get('appointments'))
         tooth_loss = tooth_loss_map.get(row.get('bairro'), {})
-        indicator = {
+        indicators.append(_normalize_indicator({
             **row,
-            'total_patients': _as_int(row.get('total_patients')),
-            'lesion_records': _as_int(row.get('lesion_records')),
-            'cancer_suspicions': _as_int(row.get('cancer_suspicions')),
-            'cancer_confirmed': _as_int(row.get('cancer_confirmed')),
-            'no_shows': _as_int(row.get('no_shows')),
-            'appointments': appointments,
-            'prosthetic_need': _as_int(row.get('prosthetic_need')),
-            'repressed_demand': _as_int(row.get('repressed_demand')),
-            'patients_with_tooth_loss': _as_int(tooth_loss.get('patients_with_tooth_loss')),
-            'missing_teeth': _as_int(tooth_loss.get('missing_teeth')),
+            'patients_with_tooth_loss': tooth_loss.get('patients_with_tooth_loss'),
+            'missing_teeth': tooth_loss.get('missing_teeth'),
             'avg_missing_teeth': tooth_loss.get('avg_missing_teeth', 0),
-            'no_show_rate': percentage(row.get('no_shows'), appointments),
-        }
-        score = _critical_score(indicator)
-        indicator['critical_score'] = score
-        indicator['risk_label'] = _risk_label(score)
-        indicators.append(indicator)
+        }))
     return indicators
 
 
@@ -851,6 +1349,7 @@ def get_epidemiology_dashboard(
         },
         'summary': summary,
         'neighborhoods': neighborhoods,
+        'geo': build_geo_payload(start, end, selected_filters, neighborhoods, today=today),
         'critical_areas': get_critical_areas(neighborhoods),
         'tooth_loss_areas': get_tooth_loss_by_neighborhood(start, end, selected_filters, today=today, limit=8),
         'specialties': get_specialty_demand(start, end, selected_filters, today=today),

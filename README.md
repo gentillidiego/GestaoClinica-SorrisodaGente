@@ -173,6 +173,18 @@ curl http://localhost:5003/health
 docker compose exec -T gestaoclinica flask --app app:app seed-demo-data --count 100 --label "Demonstração institucional"
 ```
 
+### Cadastrar coordenada territorial manual
+```bash
+# Exemplo para refinar a posição de um bairro no mapa epidemiológico.
+docker compose exec -T gestaoclinica python scripts/upsert_territorial_location.py \
+  --scope bairro \
+  --municipio "Maceió" \
+  --bairro "Centro" \
+  --lat -9.66599 \
+  --lon -35.735 \
+  --source manual
+```
+
 ### Visualizar logs
 ```bash
 docker logs gestaosaudeoral-web -f
@@ -424,7 +436,7 @@ Validações autenticadas em Docker:
 ### **Fase 3: Inteligência Epidemiológica, Painel Executivo (BI) e Integrações — 🟡 INICIADA** *(Sessões registradas em 30/05/2026 e 01/06/2026)*
 
 > Objetivo: transformar os dados clínicos e operacionais já capturados pelo sistema em inteligência epidemiológica, painéis executivos e relatórios institucionais.
-> Status atual: Mapa Epidemiológico v2, BI Executivo v1, Relatórios Institucionais/SSA/SMS e preparação e-SUS APS implementados e validados. O painel epidemiológico já possui filtros avançados, perda dentária por odontograma, câncer confirmado e áreas críticas, mas ainda não possui mapa cartográfico/georreferenciado real.
+> Status atual: Mapa Epidemiológico v3, BI Executivo v1, Relatórios Institucionais/SSA/SMS e preparação e-SUS APS implementados e validados. O painel epidemiológico já possui filtros avançados, perda dentária por odontograma, câncer confirmado, áreas críticas, mapa georreferenciado inicial, coordenadas municipais de Alagoas e drill-down territorial.
 
 #### Entregas implementadas em 30/05/2026
 
@@ -1097,15 +1109,70 @@ Validações em Docker:
 | `GET /epidemiologia` autenticado | HTTP 200 |
 | `GET /epidemiologia?municipio=Maceió&sexo=Fem&faixa_etaria=60%2B` autenticado | HTTP 200 com filtros avançados renderizados |
 
+#### Entregas implementadas em 02/06/2026 — Mapa georreferenciado e drill-down territorial
+
+- [x] **Base territorial inicial**
+  - [x] Tabela `territorial_locations` criada para armazenar coordenadas de município, bairro, unidade/local e ação de triagem.
+  - [x] Coordenadas iniciais dos 102 municípios de Alagoas carregadas como centroides municipais.
+  - [x] Fonte inicial de coordenadas municipais documentada: `kelvins/municipios-brasileiros`, arquivo `csv/municipios.csv`.
+  - [x] Fallback manual criado por script para cadastrar ou corrigir coordenadas específicas depois.
+- [x] **Payload geográfico epidemiológico**
+  - [x] `services/epidemiology_service.py` passou a gerar `geo.features` para município, bairro e ação de triagem.
+  - [x] Cada ponto geográfico inclui pacientes, lesões, suspeitas, câncer confirmado, perda dentária, absenteísmo, necessidade protética, demanda reprimida, pontuação crítica e risco.
+  - [x] Pontos com coordenada própria são marcados como exatos; bairros e ações sem coordenada específica usam fallback no centroide municipal até refinamento manual.
+  - [x] Payload informa cobertura: total de pontos, coordenadas exatas, fallback municipal e pendências.
+- [x] **Mapa visual em `/epidemiologia`**
+  - [x] Painel `Mapa Georreferenciado` criado acima da tabela epidemiológica.
+  - [x] Marcadores por risco: `Crítico`, `Atenção` e `Monitorar`.
+  - [x] Clique no marcador abre detalhe territorial com métricas clínicas e operacionais.
+  - [x] Drill-down por ação de triagem exibido com local, pacientes e nível de risco.
+  - [x] Lista de coordenadas a refinar mostra bairros/ações que ainda dependem de coordenada específica.
+- [x] **Cadastro técnico de coordenadas manuais**
+  - [x] Script `scripts/upsert_territorial_location.py` criado para cadastrar/atualizar coordenadas de município, bairro, unidade ou ação de triagem.
+  - [x] O script preserva o modelo offline, sem depender de API externa em runtime.
+- [x] **Validação técnica da sessão**
+  - [x] Testes automatizados da epidemiologia ampliados para cobrir projeção geográfica, coordenada exata e fallback municipal.
+  - [x] Renderização autenticada de `/epidemiologia` validada em Docker com mapa e drill-down.
+  - [x] Criação da tabela `territorial_locations` e carga de 102 coordenadas municipais validadas no PostgreSQL.
+
+#### Testes executados após Mapa Georreferenciado
+
+```bash
+.venv/bin/pytest -q
+# Resultado: 68 passed
+
+.venv/bin/python -m compileall services/epidemiology_service.py database.py scripts/upsert_territorial_location.py tests/test_phase3_epidemiology.py
+# Resultado: compilação sem erro
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+```
+
+Validações em Docker:
+
+| Ação | Resultado |
+|---|---|
+| `territorial_locations` | 102 registros de município com latitude/longitude |
+| `GET /epidemiologia` autenticado | HTTP 200 com `Mapa Georreferenciado` renderizado |
+| `GET /epidemiologia?municipio=Maceió&sexo=Fem&faixa_etaria=60%2B` autenticado | HTTP 200 com mapa e filtros avançados |
+| Payload `geo` | 142 pontos renderizáveis no teste local: municípios, bairros e ações de triagem |
+
 #### Pendências da Fase 3
 
 - [ ] **Mapa Epidemiológico em Tempo Real avançado**
-  - [ ] Painel georreferenciado real/cartográfico por bairro, município, unidade e ação de triagem.
+  - [x] Painel georreferenciado inicial por bairro, município e ação de triagem.
+  - [x] Coordenadas municipais reais dos 102 municípios de Alagoas.
   - [x] Inclusão de perda dentária a partir do odontograma estruturado.
   - [x] Indicador formal de diagnóstico confirmado de câncer de boca, além da suspeita oncológica.
   - [x] Filtros por faixa etária, sexo, especialidade, profissional, município e status do tratamento.
   - [x] Identificação automática de áreas críticas para mutirões móveis e ações preventivas.
-  - [ ] Drill-down por unidade/ação de triagem com visualização própria, além do recorte territorial por bairro/município.
+  - [x] Drill-down por município, bairro e ação de triagem, mantendo a tabela como apoio operacional.
+  - [ ] Cadastrar coordenadas reais específicas de bairros, unidades/locais e ações de triagem para reduzir uso de fallback municipal.
+  - [ ] Evoluir para mapa cartográfico com base oficial de polígonos/tiles, caso a gestão deseje inspeção territorial mais precisa que o mapa offline atual.
 - [ ] **Dashboard Executivo (BI) Governamental**
   - [x] Rota `/bi` protegida por permissão `bi:view`.
   - [x] Cards executivos de produção clínica, pacientes atendidos, fila encaminhada e absenteísmo.
@@ -1150,7 +1217,9 @@ Validações em Docker:
 - Manual da epidemiologia deve explicar leitura dos filtros de período, bairro, município, especialidade, profissional, sexo, faixa etária e status do tratamento.
 - Manual da epidemiologia deve explicar a diferença entre lesão registrada, suspeita oncológica e câncer confirmado, além de deixar claro que confirmação exige registro clínico qualificado em estomatologia.
 - Manual da epidemiologia deve explicar como a perda dentária é derivada do odontograma e como interpretar pacientes afetados, dentes ausentes e média por paciente.
-- Manual da gestão deve reforçar que o v2 já aponta áreas críticas, mas ainda não é um mapa cartográfico/georreferenciado real.
+- Manual da epidemiologia deve explicar que o mapa v3 usa coordenadas municipais reais e fallback municipal para bairros/ações sem coordenada específica.
+- Manual técnico deve explicar como cadastrar ou corrigir coordenadas em `territorial_locations` usando `scripts/upsert_territorial_location.py`.
+- Manual da gestão deve reforçar que o mapa v3 já apoia decisão territorial, mas polígonos oficiais/tiles cartográficos e coordenadas finas de bairro/unidade ainda são refinamentos futuros.
 - Manual do BI deve explicar metas automáticas, crescimento contra mês anterior, ranking de produção e diferença entre valor estimado/aprovado e economia pública formal.
 - Manual de relatórios deve explicar como gerar a prévia institucional, aplicar período, exportar PDF e interpretar recomendações automáticas.
 - Manual de relatórios deve explicar a rotina automática mensal, horário configurado, tipos de relatório, reprocessamento com `--force`, status no histórico, hash SHA-256 e regras de acesso por Prefeitura/SSA/SMS.

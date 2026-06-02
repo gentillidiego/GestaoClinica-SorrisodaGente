@@ -133,6 +133,96 @@
     </div>
   </div>
 
+  <section class="card epi-geo-panel" style="margin:0 0 1.5rem 0;">
+    <div class="epi-section-heading">
+      <div>
+        <h2 class="section-header" style="margin:0;">Mapa Georreferenciado</h2>
+        <span>Municípios, bairros e ações de triagem com risco epidemiológico</span>
+      </div>
+      <div class="epi-geo-coverage">
+        <span>{{ data.geo.coverage.exact_coordinates }} coordenadas</span>
+        <span>{{ data.geo.coverage.fallback_coordinates }} fallback</span>
+        <span>{{ data.geo.coverage.missing_coordinates }} pendentes</span>
+      </div>
+    </div>
+
+    <div class="epi-geo-layout">
+      <div class="epi-map-canvas" aria-label="Mapa epidemiológico georreferenciado">
+        <div class="epi-map-grid"></div>
+        {% for feature in data.geo.features %}
+        <button
+          type="button"
+          class="epi-map-marker epi-map-marker-{{ feature.risk_label|lower|replace('í','i')|replace('ç','c')|replace('ã','a') }} {% if not feature.has_coordinates %}epi-map-marker-fallback{% endif %}"
+          style="left:{{ feature.x }}%; top:{{ feature.y }}%; width:{{ feature.marker_size }}px; height:{{ feature.marker_size }}px;"
+          data-geo-target="geo-feature-{{ loop.index0 }}"
+          title="{{ feature.scope|title }} · {{ feature.label }} · {{ feature.risk_label }}"
+          aria-label="{{ feature.scope|title }} {{ feature.label }} {{ feature.risk_label }}"
+        >
+          <span>{{ feature.scope[:1]|upper }}</span>
+        </button>
+        {% else %}
+        <div class="epi-empty">Nenhum ponto geográfico encontrado para o filtro atual.</div>
+        {% endfor %}
+      </div>
+
+      <div class="epi-geo-details">
+        {% for feature in data.geo.features %}
+        <article class="epi-geo-detail {% if loop.first %}active{% endif %}" id="geo-feature-{{ loop.index0 }}" data-geo-detail>
+          <div class="epi-geo-detail-heading">
+            <div>
+              <strong>{{ feature.label }}</strong>
+              <span>{{ feature.subtitle }}</span>
+            </div>
+            <em class="epi-risk epi-risk-{{ feature.risk_label|lower|replace('í','i')|replace('ç','c')|replace('ã','a') }}">{{ feature.risk_label }}</em>
+          </div>
+
+          <div class="epi-geo-metrics">
+            <span>Pacientes <strong>{{ feature.total_patients }}</strong></span>
+            <span>Lesões <strong>{{ feature.lesion_records }}</strong></span>
+            <span>Confirmados <strong>{{ feature.cancer_confirmed }}</strong></span>
+            <span>Dentes ausentes <strong>{{ feature.missing_teeth }}</strong></span>
+            <span>Absenteísmo <strong>{{ feature.no_show_rate }}%</strong></span>
+            <span>Demanda <strong>{{ feature.repressed_demand }}</strong></span>
+          </div>
+
+          <p>{{ feature.reasons }}</p>
+          <small>
+            {{ "%.5f"|format(feature.latitude) }}, {{ "%.5f"|format(feature.longitude) }}
+            · {{ feature.coordinate_accuracy }}
+          </small>
+        </article>
+        {% else %}
+        <div class="epi-empty">Cadastre coordenadas territoriais para ativar o mapa.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="epi-geo-footer">
+      <div>
+        <h3>Drill-down por ação de triagem</h3>
+        {% for action in data.geo.actions[:6] %}
+        <div class="epi-geo-action">
+          <span>{{ action.local }}</span>
+          <strong>{{ action.total_patients }} pac. · {{ action.risk_label }}</strong>
+        </div>
+        {% else %}
+        <p>Sem ações de triagem no filtro atual.</p>
+        {% endfor %}
+      </div>
+      <div>
+        <h3>Coordenadas a refinar</h3>
+        {% for item in data.geo.missing_coordinates[:6] %}
+        <div class="epi-geo-pending">
+          <span>{{ item.scope|title }} · {{ item.label }}</span>
+          <strong>{{ item.critical_score }}</strong>
+        </div>
+        {% else %}
+        <p>Sem pendências de geocodificação específica.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
   <div class="epi-layout">
     <section class="card" style="margin:0;">
       <div class="epi-section-heading">
@@ -508,9 +598,203 @@
   text-align:center;
   color:hsl(var(--text-muted));
 }
+.epi-geo-panel {
+  overflow:hidden;
+}
+.epi-geo-coverage {
+  display:flex;
+  gap:0.5rem;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.epi-geo-coverage span {
+  min-height:24px;
+  padding:0.22rem 0.55rem;
+  border-radius:999px;
+  background:hsl(var(--bg-main));
+  color:hsl(var(--text-muted));
+  font-size:0.72rem;
+  font-weight:800;
+}
+.epi-geo-layout {
+  display:grid;
+  grid-template-columns:minmax(0, 1.35fr) minmax(280px, 0.65fr);
+  gap:1.25rem;
+  align-items:stretch;
+}
+.epi-map-canvas {
+  position:relative;
+  min-height:430px;
+  border:1px solid hsl(var(--border));
+  border-radius:var(--radius-md);
+  background:
+    linear-gradient(135deg, rgba(37,99,235,0.10), rgba(15,118,110,0.08)),
+    #f8fafc;
+  overflow:hidden;
+}
+.epi-map-canvas::before {
+  content:"";
+  position:absolute;
+  inset:7% 9% 8% 8%;
+  border:2px solid rgba(37,99,235,0.22);
+  border-radius:45% 55% 52% 48%;
+  transform:rotate(-9deg);
+}
+.epi-map-grid {
+  position:absolute;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(15,23,42,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15,23,42,0.05) 1px, transparent 1px);
+  background-size:52px 52px;
+}
+.epi-map-marker {
+  position:absolute;
+  transform:translate(-50%, -50%);
+  border:2px solid white;
+  border-radius:999px;
+  box-shadow:0 10px 24px rgba(15,23,42,0.18);
+  color:white;
+  font-size:0.68rem;
+  font-weight:900;
+  cursor:pointer;
+  z-index:2;
+}
+.epi-map-marker span {
+  display:flex;
+  width:100%;
+  height:100%;
+  align-items:center;
+  justify-content:center;
+}
+.epi-map-marker-critico {
+  background:#dc2626;
+}
+.epi-map-marker-atencao {
+  background:#f97316;
+}
+.epi-map-marker-monitorar {
+  background:#16a34a;
+}
+.epi-map-marker-fallback {
+  border-style:dashed;
+  opacity:0.82;
+}
+.epi-map-marker.active {
+  outline:4px solid rgba(37,99,235,0.18);
+  z-index:4;
+}
+.epi-geo-details {
+  min-height:430px;
+  border:1px solid hsl(var(--border));
+  border-radius:var(--radius-md);
+  padding:1rem;
+  background:white;
+}
+.epi-geo-detail {
+  display:none;
+}
+.epi-geo-detail.active {
+  display:block;
+}
+.epi-geo-detail-heading {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:1rem;
+  margin-bottom:1rem;
+}
+.epi-geo-detail-heading div {
+  display:flex;
+  flex-direction:column;
+  gap:0.25rem;
+  min-width:0;
+}
+.epi-geo-detail-heading strong {
+  color:hsl(var(--text-main));
+  font-size:1.08rem;
+}
+.epi-geo-detail-heading span,
+.epi-geo-detail small {
+  color:hsl(var(--text-muted));
+  font-size:0.78rem;
+  font-weight:700;
+}
+.epi-geo-metrics {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:0.65rem;
+  margin-bottom:1rem;
+}
+.epi-geo-metrics span {
+  display:flex;
+  flex-direction:column;
+  gap:0.2rem;
+  padding:0.7rem;
+  border-radius:var(--radius-md);
+  background:hsl(var(--bg-main));
+  color:hsl(var(--text-muted));
+  font-size:0.74rem;
+  font-weight:800;
+}
+.epi-geo-metrics strong {
+  color:hsl(var(--text-main));
+  font-size:1rem;
+}
+.epi-geo-detail p {
+  margin:0 0 0.8rem;
+  color:hsl(var(--text-main));
+  font-weight:700;
+}
+.epi-geo-footer {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:1.25rem;
+  margin-top:1rem;
+}
+.epi-geo-footer h3 {
+  margin:0 0 0.6rem;
+  font-size:0.84rem;
+  color:hsl(var(--text-main));
+}
+.epi-geo-footer p {
+  margin:0;
+  color:hsl(var(--text-muted));
+  font-size:0.82rem;
+}
+.epi-geo-action,
+.epi-geo-pending {
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  padding:0.55rem 0;
+  border:0;
+  border-bottom:1px solid hsl(var(--border));
+  background:transparent;
+  text-align:left;
+}
+.epi-geo-action span,
+.epi-geo-pending span {
+  color:hsl(var(--text-main));
+  font-size:0.82rem;
+  font-weight:700;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.epi-geo-action strong,
+.epi-geo-pending strong {
+  flex:0 0 auto;
+  color:hsl(var(--primary));
+  font-size:0.76rem;
+}
 @media (max-width: 1100px) {
   .epi-layout,
-  .epi-bottom {
+  .epi-bottom,
+  .epi-geo-layout,
+  .epi-geo-footer {
     grid-template-columns:1fr;
   }
 }
@@ -520,4 +804,25 @@
   }
 }
 </style>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const markers = document.querySelectorAll('[data-geo-target]');
+    const details = document.querySelectorAll('[data-geo-detail]');
+
+    markers.forEach((marker) => {
+      marker.addEventListener('click', () => {
+        const target = marker.dataset.geoTarget;
+        markers.forEach((item) => item.classList.remove('active'));
+        details.forEach((item) => item.classList.remove('active'));
+        marker.classList.add('active');
+        const detail = document.getElementById(target);
+        if (detail) detail.classList.add('active');
+      });
+    });
+
+    if (markers.length) {
+      markers[0].classList.add('active');
+    }
+  });
+</script>
 {% endblock %}
