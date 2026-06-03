@@ -3,7 +3,7 @@ import os
 
 from flask import Blueprint, Response, render_template, redirect, url_for, request, flash
 from flask_login import login_required, current_user
-from werkzeug.security import generate_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from database import query, execute, execute_returning
 from functools import wraps
 from constants import (
@@ -32,6 +32,7 @@ from services.inventory_service import (
     create_inventory_item,
     create_inventory_lot,
     get_inventory_dashboard,
+    register_inventory_adjustment,
 )
 from services.sigtap_service import build_sigtap_options, get_sigtap_summary
 from tasks.pdf_tasks import generate_pdf_task
@@ -128,6 +129,16 @@ def _inventory_lot_form_payload():
         'unit_cost': request.form.get('unit_cost'),
         'received_at': request.form.get('received_at'),
         'center_cost': request.form.get('center_cost'),
+        'notes': request.form.get('notes'),
+    }
+
+
+def _inventory_adjustment_form_payload():
+    return {
+        'lot_id': request.form.get('lot_id'),
+        'adjustment_type': request.form.get('adjustment_type'),
+        'quantity': request.form.get('quantity'),
+        'reason': request.form.get('reason'),
         'notes': request.form.get('notes'),
     }
 
@@ -546,6 +557,66 @@ def create_inventory_lot_route():
             details={'error': str(exc), 'lot_number': request.form.get('lot_number')},
         )
         flash(f'Erro ao registrar lote: {str(exc)}', 'danger')
+    return redirect(url_for('admin.inventory'))
+
+
+@admin_bp.route('/inventory/adjustments', methods=['POST'])
+@login_required
+@permission_required('inventory:write')
+def create_inventory_adjustment_route():
+    password = request.form.get('authorizer_password')
+    user_data = query("SELECT password FROM users WHERE id = %s", (current_user.id,), one=True)
+    if not password or not user_data or not check_password_hash(user_data['password'], password):
+        audit_log(
+            action='inventory_adjustment_authorization_failed',
+            module='inventory',
+            entity_type='inventory_adjustments',
+            status='failed',
+            details={
+                'lot_id': request.form.get('lot_id'),
+                'adjustment_type': request.form.get('adjustment_type'),
+            },
+        )
+        flash('Senha de autorização inválida para ajuste de estoque.', 'danger')
+        return redirect(url_for('admin.inventory'))
+
+    try:
+        result = register_inventory_adjustment(
+            _inventory_adjustment_form_payload(),
+            actor_id=current_user.id,
+            authorized_by=current_user.id,
+        )
+        audit_log(
+            action='inventory_adjustment_registered',
+            module='inventory',
+            entity_type='inventory_adjustments',
+            entity_id=result['adjustment_id'],
+            details={
+                'item_id': result['item_id'],
+                'item_name': result['item_name'],
+                'lot_id': result['lot_id'],
+                'lot_number': result['lot_number'],
+                'adjustment_type': result['adjustment_type'],
+                'quantity': str(result['quantity']),
+                'previous_quantity': str(result['previous_quantity']),
+                'new_quantity': str(result['new_quantity']),
+                'reason': result['reason'],
+            },
+        )
+        flash('Ajuste de estoque registrado com autorização.', 'success')
+    except Exception as exc:
+        audit_log(
+            action='inventory_adjustment_register_failed',
+            module='inventory',
+            entity_type='inventory_adjustments',
+            status='failed',
+            details={
+                'error': str(exc),
+                'lot_id': request.form.get('lot_id'),
+                'adjustment_type': request.form.get('adjustment_type'),
+            },
+        )
+        flash(f'Erro ao registrar ajuste: {str(exc)}', 'danger')
     return redirect(url_for('admin.inventory'))
 
 

@@ -1007,6 +1007,29 @@ def _init_db_locked():
     ''')
 
     execute('''
+        CREATE TABLE IF NOT EXISTS inventory_adjustments (
+            id SERIAL PRIMARY KEY,
+            item_id INTEGER NOT NULL,
+            lot_id INTEGER NOT NULL,
+            adjustment_type TEXT NOT NULL,
+            quantity NUMERIC(12, 3) NOT NULL,
+            previous_quantity NUMERIC(12, 3) NOT NULL,
+            new_quantity NUMERIC(12, 3) NOT NULL,
+            unit_cost_snapshot NUMERIC(12, 2) DEFAULT 0,
+            reason TEXT NOT NULL,
+            notes TEXT,
+            adjusted_by INTEGER,
+            authorized_by INTEGER,
+            authorization_method TEXT DEFAULT 'password_confirmation',
+            created_at TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (item_id) REFERENCES inventory_items(id) ON DELETE RESTRICT,
+            FOREIGN KEY (lot_id) REFERENCES inventory_lots(id) ON DELETE RESTRICT,
+            FOREIGN KEY (adjusted_by) REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY (authorized_by) REFERENCES users(id) ON DELETE SET NULL
+        )
+    ''')
+
+    execute('''
         CREATE TABLE IF NOT EXISTS generated_reports (
             id SERIAL PRIMARY KEY,
             report_type TEXT NOT NULL,
@@ -1101,6 +1124,9 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_inventory_usage_treatment_id ON inventory_usage(treatment_procedure_id)",
         "CREATE INDEX IF NOT EXISTS idx_inventory_usage_lot_id ON inventory_usage(lot_id)",
         "CREATE INDEX IF NOT EXISTS idx_inventory_usage_postop ON inventory_usage(post_op_required, post_op_completed_at, post_op_due_date)",
+        "CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_lot_id ON inventory_adjustments(lot_id)",
+        "CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_type ON inventory_adjustments(adjustment_type)",
+        "CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_created_at ON inventory_adjustments(created_at)",
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_professor_id ON atendimentos(professor_id)",
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_aluno_executor_id ON atendimentos(aluno_executor_id)",
         "CREATE INDEX IF NOT EXISTS idx_tratamento_patient_id ON tratamento_procedimentos(patient_id)",

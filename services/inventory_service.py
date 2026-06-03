@@ -22,8 +22,19 @@ USAGE_TYPES = [
     ('perda', 'Perda operacional'),
 ]
 
+ADJUSTMENT_TYPES = [
+    ('perda', 'Perda operacional'),
+    ('descarte_vencido', 'Descarte por vencimento'),
+    ('ajuste_saida', 'Ajuste de saída'),
+    ('ajuste_entrada', 'Ajuste de entrada'),
+    ('inventario_positivo', 'Inventário físico positivo'),
+]
+
 _CATEGORY_SLUGS = {value for value, _label in ITEM_CATEGORIES}
 _USAGE_TYPE_SLUGS = {value for value, _label in USAGE_TYPES}
+_ADJUSTMENT_TYPE_SLUGS = {value for value, _label in ADJUSTMENT_TYPES}
+_NEGATIVE_ADJUSTMENTS = {'perda', 'descarte_vencido', 'ajuste_saida'}
+_POSITIVE_ADJUSTMENTS = {'ajuste_entrada', 'inventario_positivo'}
 
 
 def _clean(value):
@@ -91,6 +102,11 @@ def _normalize_usage_type(value):
     return usage_type if usage_type in _USAGE_TYPE_SLUGS else 'consumo'
 
 
+def _normalize_adjustment_type(value):
+    adjustment_type = _clean(value) or 'perda'
+    return adjustment_type if adjustment_type in _ADJUSTMENT_TYPE_SLUGS else 'perda'
+
+
 def _format_money(value):
     return float(value or 0)
 
@@ -101,6 +117,10 @@ def get_item_category_options():
 
 def get_usage_type_options():
     return USAGE_TYPES
+
+
+def get_adjustment_type_options():
+    return ADJUSTMENT_TYPES
 
 
 def create_inventory_item(form_data, actor_id=None):
@@ -245,6 +265,21 @@ def get_inventory_dashboard(filters=None):
         LIMIT 30
         """
     )
+    recent_adjustments = query(
+        """
+        SELECT a.*, i.name AS item_name, i.unit, l.lot_number,
+               adjusted.username AS adjusted_by_username,
+               authorized.username AS authorized_by_username,
+               (a.quantity * COALESCE(a.unit_cost_snapshot, 0)) AS total_cost
+        FROM inventory_adjustments a
+        JOIN inventory_items i ON i.id = a.item_id
+        JOIN inventory_lots l ON l.id = a.lot_id
+        LEFT JOIN users adjusted ON adjusted.id = a.adjusted_by
+        LEFT JOIN users authorized ON authorized.id = a.authorized_by
+        ORDER BY a.created_at DESC, a.id DESC
+        LIMIT 30
+        """
+    )
     alerts = get_inventory_alerts(limit=30)
     stats = {
         'items': len(items or []),
@@ -259,11 +294,13 @@ def get_inventory_dashboard(filters=None):
         'items': items,
         'lots': lots,
         'recent_usage': recent_usage,
+        'recent_adjustments': recent_adjustments,
         'alerts': alerts,
         'stats': stats,
         'filters': filters,
         'category_options': get_item_category_options(),
         'usage_type_options': get_usage_type_options(),
+        'adjustment_type_options': get_adjustment_type_options(),
     }
 
 
@@ -448,6 +485,96 @@ def mark_post_op_completed(patient_id, usage_id):
         (usage_id,),
     )
     return usage
+
+
+def register_inventory_adjustment(form_data, actor_id=None, authorized_by=None):
+    quantity = _parse_decimal(form_data.get('quantity'), default='0')
+    if quantity <= 0:
+        raise ValueError('Quantidade do ajuste deve ser maior que zero.')
+
+    reason = _clean(form_data.get('reason'))
+    if not reason:
+        raise ValueError('Motivo do ajuste é obrigatório.')
+
+    adjustment_type = _normalize_adjustment_type(form_data.get('adjustment_type'))
+
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT l.id AS lot_id, l.item_id, l.quantity_current, l.unit_cost,
+                   l.lot_number, i.name AS item_name, i.unit
+            FROM inventory_lots l
+            JOIN inventory_items i ON i.id = l.item_id
+            WHERE l.id = %s
+              AND l.active = TRUE
+              AND i.active = TRUE
+            FOR UPDATE
+            """,
+            (form_data.get('lot_id'),),
+        )
+        lot = cur.fetchone()
+        if not lot:
+            raise ValueError('Lote não encontrado ou inativo.')
+
+        previous_quantity = Decimal(lot['quantity_current'])
+        if adjustment_type in _NEGATIVE_ADJUSTMENTS:
+            if previous_quantity < quantity:
+                raise ValueError('Quantidade do ajuste é maior que o saldo atual do lote.')
+            new_quantity = previous_quantity - quantity
+        elif adjustment_type in _POSITIVE_ADJUSTMENTS:
+            new_quantity = previous_quantity + quantity
+        else:
+            raise ValueError('Tipo de ajuste inválido.')
+
+        cur.execute(
+            """
+            INSERT INTO inventory_adjustments (
+                item_id, lot_id, adjustment_type, quantity, previous_quantity,
+                new_quantity, unit_cost_snapshot, reason, notes, adjusted_by,
+                authorized_by
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+            """,
+            (
+                lot['item_id'],
+                lot['lot_id'],
+                adjustment_type,
+                quantity,
+                previous_quantity,
+                new_quantity,
+                lot['unit_cost'] or Decimal('0'),
+                reason,
+                _clean(form_data.get('notes')),
+                actor_id,
+                authorized_by or actor_id,
+            ),
+        )
+        adjustment_id = cur.fetchone()['id']
+        cur.execute(
+            "UPDATE inventory_lots SET quantity_current = %s WHERE id = %s",
+            (new_quantity, lot['lot_id']),
+        )
+        conn.commit()
+        return {
+            'adjustment_id': adjustment_id,
+            'item_id': lot['item_id'],
+            'item_name': lot['item_name'],
+            'lot_id': lot['lot_id'],
+            'lot_number': lot['lot_number'],
+            'adjustment_type': adjustment_type,
+            'quantity': quantity,
+            'previous_quantity': previous_quantity,
+            'new_quantity': new_quantity,
+            'reason': reason,
+        }
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        put_db_connection(conn)
 
 
 def get_inventory_alerts(limit=50, today=None):

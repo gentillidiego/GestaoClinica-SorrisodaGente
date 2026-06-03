@@ -7,6 +7,7 @@ import services.traceability_service as traceability_service
 from services.inventory_service import (
     _parse_decimal,
     get_inventory_alerts,
+    register_inventory_adjustment,
     register_patient_material_usage,
 )
 from services.traceability_service import TraceabilityService
@@ -85,6 +86,65 @@ def test_register_patient_material_usage_decrements_lot_and_requires_implant_pos
     assert result['post_op_due_date'] == dt.date(2026, 6, 10)
     assert fake_conn.committed is True
     assert any('UPDATE inventory_lots SET quantity_current' in sql for sql, _params in fake_conn.cursor_obj.calls)
+
+
+def test_register_inventory_adjustment_records_loss_and_updates_balance(monkeypatch):
+    class FakeCursor:
+        def __init__(self):
+            self.calls = []
+            self.result = None
+
+        def execute(self, sql, params=()):
+            self.calls.append((sql, params))
+            if 'FOR UPDATE' in sql:
+                self.result = {
+                    'lot_id': 3,
+                    'item_id': 5,
+                    'quantity_current': Decimal('10'),
+                    'unit_cost': Decimal('25.00'),
+                    'lot_number': 'MAT-001',
+                    'item_name': 'Resina',
+                    'unit': 'unidade',
+                }
+            elif 'RETURNING id' in sql:
+                self.result = {'id': 88}
+            else:
+                self.result = None
+
+        def fetchone(self):
+            return self.result
+
+    class FakeConnection:
+        def __init__(self):
+            self.cursor_obj = FakeCursor()
+            self.committed = False
+
+        def cursor(self):
+            return self.cursor_obj
+
+        def commit(self):
+            self.committed = True
+
+        def rollback(self):
+            pass
+
+    fake_conn = FakeConnection()
+    monkeypatch.setattr(inventory_service, 'get_db_connection', lambda: fake_conn)
+    monkeypatch.setattr(inventory_service, 'put_db_connection', lambda conn: None)
+
+    result = register_inventory_adjustment({
+        'lot_id': 3,
+        'adjustment_type': 'perda',
+        'quantity': '2',
+        'reason': 'Frasco quebrado',
+    }, actor_id=8, authorized_by=8)
+
+    assert result['adjustment_id'] == 88
+    assert result['previous_quantity'] == Decimal('10')
+    assert result['new_quantity'] == Decimal('8')
+    assert fake_conn.committed is True
+    assert any('INSERT INTO inventory_adjustments' in sql for sql, _params in fake_conn.cursor_obj.calls)
+    assert any('UPDATE inventory_lots SET quantity_current = %s' in sql for sql, _params in fake_conn.cursor_obj.calls)
 
 
 def test_inventory_alerts_include_stock_expiration_and_postop(monkeypatch):
