@@ -96,6 +96,8 @@ MODULE_PERMISSIONS = {
     'laboratorio:write',
     'financeiro:view',
     'financeiro:write',
+    'inventory:view',
+    'inventory:write',
     'reports:view',
     'bi:view',
     'epidemiologia:view',
@@ -138,7 +140,7 @@ ROLE_PERMISSIONS = {
         'dashboard:view', 'patients:view', 'patients:write', 'agenda:view',
         'agenda:write', 'exams:view', 'exams:write', 'documents:generate',
         'documents:sign', 'estomatologia:view', 'estomatologia:write',
-        'command_center:view'
+        'inventory:view', 'inventory:write', 'command_center:view'
     },
     Role.ENDODONTIA: {
         'dashboard:view', 'patients:view', 'patients:write', 'agenda:view',
@@ -148,12 +150,12 @@ ROLE_PERMISSIONS = {
     Role.CIRURGIA: {
         'dashboard:view', 'patients:view', 'patients:write', 'agenda:view',
         'exams:view', 'exams:write', 'documents:generate', 'documents:sign',
-        'command_center:view'
+        'inventory:view', 'inventory:write', 'command_center:view'
     },
     Role.IMPLANTES: {
         'dashboard:view', 'patients:view', 'patients:write', 'agenda:view',
         'exams:view', 'exams:write', 'documents:generate', 'documents:sign',
-        'command_center:view'
+        'inventory:view', 'inventory:write', 'command_center:view'
     },
     Role.ESTOMATOLOGIA: {
         'dashboard:view', 'patients:view', 'patients:write', 'agenda:view',
@@ -167,11 +169,13 @@ ROLE_PERMISSIONS = {
     },
     Role.LABORATORIO: {
         'dashboard:view', 'patients:view', 'laboratorio:view',
-        'laboratorio:write', 'command_center:view'
+        'laboratorio:write', 'inventory:view', 'inventory:write',
+        'command_center:view'
     },
     Role.FINANCEIRO: {
         'dashboard:view', 'patients:view', 'financeiro:view',
-        'financeiro:write', 'reports:view', 'command_center:view'
+        'financeiro:write', 'inventory:view', 'inventory:write',
+        'reports:view', 'command_center:view'
     },
     Role.AUDITORIA: {
         'dashboard:view', 'patients:view', 'reports:view', 'audit:view',

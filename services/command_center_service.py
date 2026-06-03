@@ -1,9 +1,17 @@
 import datetime as dt
 
 from database import query
+from services.inventory_service import get_inventory_alerts
 
 
-CRITICAL_ALERTS = {'red_alert', 'lesion_without_return', 'two_no_shows', 'critical_queue'}
+CRITICAL_ALERTS = {
+    'red_alert',
+    'lesion_without_return',
+    'two_no_shows',
+    'critical_queue',
+    'expired_lot',
+    'implant_postop_pending',
+}
 
 
 def _parse_birthdate(value):
@@ -141,7 +149,14 @@ def get_command_center_data():
 
     full_priority_queue = get_priority_queue(limit=None)
     priority_queue = full_priority_queue[:12]
-    alerts = build_operational_alerts(red_alert_count, pending_treatments, agenda_by_status, full_priority_queue)
+    inventory_alerts = get_inventory_alerts(limit=20)
+    alerts = build_operational_alerts(
+        red_alert_count,
+        pending_treatments,
+        agenda_by_status,
+        full_priority_queue,
+        inventory_alerts=inventory_alerts,
+    )
 
     return {
         'today': today,
@@ -164,6 +179,7 @@ def get_command_center_data():
         'specialty_queue': specialty_queue,
         'priority_queue': priority_queue,
         'alerts': alerts,
+        'inventory_alerts': inventory_alerts,
         'critical_alert_count': sum(1 for alert in alerts if alert['type'] in CRITICAL_ALERTS),
     }
 
@@ -213,7 +229,7 @@ def get_priority_queue(limit=20):
     return queue[:limit] if limit else queue
 
 
-def build_operational_alerts(red_alert_count, pending_treatments, agenda_by_status, priority_queue):
+def build_operational_alerts(red_alert_count, pending_treatments, agenda_by_status, priority_queue, inventory_alerts=None):
     alerts = []
 
     if red_alert_count:
@@ -276,5 +292,7 @@ def build_operational_alerts(red_alert_count, pending_treatments, agenda_by_stat
             'message': 'Fila de prioridade clínica com 10 ou mais pacientes ativos.',
             'endpoint': 'main.command_center',
         })
+
+    alerts.extend(inventory_alerts or [])
 
     return alerts

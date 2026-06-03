@@ -73,6 +73,7 @@ class TraceabilityService:
         events.extend(TraceabilityService._endodontia_events(patient_id))
         events.extend(TraceabilityService._document_events(patient_id))
         events.extend(TraceabilityService._estomatologia_events(patient_id))
+        events.extend(TraceabilityService._material_events(patient_id))
         events.extend(TraceabilityService._audit_events(patient_id))
 
         return _sort_events(events)
@@ -356,6 +357,59 @@ class TraceabilityService:
                     actor=row['full_name'] or row['username'],
                     status='Anexada',
                 ))
+        return events
+
+    @staticmethod
+    def _material_events(patient_id):
+        rows = query("""
+            SELECT u.id, u.used_at, u.quantity, u.usage_type, u.notes,
+                   u.post_op_required, u.post_op_due_date, u.post_op_completed_at,
+                   i.name AS item_name, i.unit, i.category,
+                   l.lot_number, l.expiration_date,
+                   s.name AS supplier_name,
+                   tp.descricao AS treatment_description, tp.dente,
+                   prof.full_name AS professional_name, prof.username AS professional_username
+            FROM inventory_usage u
+            JOIN inventory_items i ON i.id = u.item_id
+            JOIN inventory_lots l ON l.id = u.lot_id
+            LEFT JOIN inventory_suppliers s ON s.id = l.supplier_id
+            LEFT JOIN tratamento_procedimentos tp ON tp.id = u.treatment_procedure_id
+            LEFT JOIN users prof ON prof.id = u.professional_id
+            WHERE u.patient_id = %s
+        """, (patient_id,))
+
+        events = []
+        for row in rows or []:
+            title = 'Implante utilizado' if row['category'] == 'implante' else 'Material utilizado'
+            procedure = ''
+            if row['treatment_description']:
+                procedure = f" · Procedimento: {row['dente'] or 'sem dente'} - {row['treatment_description']}"
+            description = (
+                f"{row['item_name']} · lote {row['lot_number']} · "
+                f"{row['quantity']} {row['unit']}{procedure}."
+            )
+            if row['expiration_date']:
+                description = f"{description} Validade: {row['expiration_date'].strftime('%d/%m/%Y')}."
+            if row['notes']:
+                description = f"{description} {row['notes']}"
+            status = 'Pós-operatório concluído' if row['post_op_completed_at'] else (
+                'Pós-operatório pendente' if row['post_op_required'] else 'Registrado'
+            )
+            events.append(_event(
+                row['used_at'],
+                'Material',
+                title,
+                description,
+                actor=row['professional_name'] or row['professional_username'],
+                status=status,
+                metadata={
+                    'usage_id': row['id'],
+                    'fornecedor': row['supplier_name'],
+                    'tipo': row['usage_type'],
+                    'post_op_due_date': row['post_op_due_date'],
+                    'post_op_completed_at': row['post_op_completed_at'],
+                },
+            ))
         return events
 
     @staticmethod

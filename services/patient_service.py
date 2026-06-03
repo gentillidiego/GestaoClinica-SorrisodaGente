@@ -4,6 +4,7 @@ from constants import Role
 from services.sigtap_service import build_sigtap_options
 from services.traceability_service import TraceabilityService
 from services.visual_media_service import get_patient_visual_media_summary
+from services.inventory_service import get_patient_inventory_context
 
 class PatientService:
     @staticmethod
@@ -164,6 +165,10 @@ class PatientService:
     @staticmethod
     def get_patient_visual_media(patient_id):
         return get_patient_visual_media_summary(patient_id)
+
+    @staticmethod
+    def get_patient_inventory(patient_id):
+        return get_patient_inventory_context(patient_id)
 
     @staticmethod
     def get_patient_full_profile(patient_id):

@@ -88,7 +88,7 @@
             </a>
             {% endif %}
 
-            {% if can('users:view') or can('audit:view') or can('integrations:view') or can('financeiro:view') %}
+            {% if can('users:view') or can('audit:view') or can('integrations:view') or can('financeiro:view') or can('inventory:view') %}
             <div class="nav-divider">ADMINISTRAÇÃO</div>
             {% endif %}
             {% if can('users:view') %}
@@ -109,6 +109,11 @@
             {% if can('financeiro:view') %}
             <a href="{{ url_for('admin.cost_references') }}" class="nav-item {% if request.endpoint and request.endpoint.startswith('admin.cost_reference') %}active{% endif %}">
                 <span class="nav-icon">R$</span> Custos SIGTAP
+            </a>
+            {% endif %}
+            {% if can('inventory:view') %}
+            <a href="{{ url_for('admin.inventory') }}" class="nav-item {% if request.endpoint and request.endpoint.startswith('admin.inventory') %}active{% endif %}">
+                <span class="nav-icon">📦</span> Estoque
             </a>
             {% endif %}
             

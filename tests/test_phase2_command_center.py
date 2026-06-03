@@ -159,6 +159,7 @@ def test_command_center_alerts_use_full_priority_queue_not_only_display_limit(mo
 
     monkeypatch.setattr(command_center_service, 'query', fake_query)
     monkeypatch.setattr(command_center_service, 'get_priority_queue', lambda limit=None: priority_queue)
+    monkeypatch.setattr(command_center_service, 'get_inventory_alerts', lambda limit=20: [])
 
     data = get_command_center_data()
     alert_types = {alert['type'] for alert in data['alerts']}

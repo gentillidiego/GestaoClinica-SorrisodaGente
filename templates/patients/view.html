@@ -217,6 +217,10 @@
                 onclick="handleTabClick(event, 'tab-estomatologia')">🚨 Estomatologia</button>
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-visual')">Visual</button>
+            {% if can('inventory:view') %}
+            <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
+                onclick="handleTabClick(event, 'tab-materiais')">Materiais</button>
+            {% endif %}
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-linha-tempo')">Linha do Tempo</button>
         </div>
@@ -234,6 +238,9 @@
         <div id="tab-atestado" class="tab-content" data-loaded="false"></div>
         <div id="tab-estomatologia" class="tab-content" data-loaded="false"></div>
         <div id="tab-visual" class="tab-content" data-loaded="false"></div>
+        {% if can('inventory:view') %}
+        <div id="tab-materiais" class="tab-content" data-loaded="false"></div>
+        {% endif %}
         <div id="tab-linha-tempo" class="tab-content" data-loaded="false"></div>
     </div>
     </div>

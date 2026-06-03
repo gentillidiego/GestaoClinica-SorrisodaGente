@@ -28,6 +28,11 @@ from services.esus_export_service import (
     update_treatment_sigtap,
     validate_esus_export_batch,
 )
+from services.inventory_service import (
+    create_inventory_item,
+    create_inventory_lot,
+    get_inventory_dashboard,
+)
 from services.sigtap_service import build_sigtap_options, get_sigtap_summary
 from tasks.pdf_tasks import generate_pdf_task
 
@@ -98,6 +103,32 @@ def _cost_reference_form_payload():
         'notes': request.form.get('notes'),
         'active': request.form.get('active'),
         'validation_notes': request.form.get('validation_notes'),
+    }
+
+
+def _inventory_item_form_payload():
+    return {
+        'name': request.form.get('name'),
+        'category': request.form.get('category'),
+        'unit': request.form.get('unit'),
+        'min_quantity': request.form.get('min_quantity'),
+        'center_cost': request.form.get('center_cost'),
+        'notes': request.form.get('notes'),
+        'active': request.form.get('active') or '1',
+    }
+
+
+def _inventory_lot_form_payload():
+    return {
+        'item_id': request.form.get('item_id'),
+        'supplier_name': request.form.get('supplier_name'),
+        'lot_number': request.form.get('lot_number'),
+        'expiration_date': request.form.get('expiration_date'),
+        'quantity_initial': request.form.get('quantity_initial'),
+        'unit_cost': request.form.get('unit_cost'),
+        'received_at': request.form.get('received_at'),
+        'center_cost': request.form.get('center_cost'),
+        'notes': request.form.get('notes'),
     }
 
 
@@ -440,6 +471,82 @@ def import_cost_references():
         'success',
     )
     return redirect(url_for('admin.cost_references'))
+
+
+@admin_bp.route('/inventory')
+@login_required
+@permission_required('inventory:view')
+def inventory():
+    dashboard = get_inventory_dashboard({
+        'q': request.args.get('q'),
+        'category': request.args.get('category'),
+    })
+    return render_template(
+        'admin/inventory.html',
+        dashboard=dashboard,
+        can_write=current_user.can('inventory:write'),
+    )
+
+
+@admin_bp.route('/inventory/items', methods=['POST'])
+@login_required
+@permission_required('inventory:write')
+def create_inventory_item_route():
+    try:
+        item_id = create_inventory_item(_inventory_item_form_payload(), actor_id=current_user.id)
+        audit_log(
+            action='inventory_item_created',
+            module='inventory',
+            entity_type='inventory_items',
+            entity_id=item_id,
+            details={
+                'name': request.form.get('name'),
+                'category': request.form.get('category'),
+                'min_quantity': request.form.get('min_quantity'),
+            },
+        )
+        flash('Material cadastrado no estoque.', 'success')
+    except Exception as exc:
+        audit_log(
+            action='inventory_item_create_failed',
+            module='inventory',
+            entity_type='inventory_items',
+            status='failed',
+            details={'error': str(exc), 'name': request.form.get('name')},
+        )
+        flash(f'Erro ao cadastrar material: {str(exc)}', 'danger')
+    return redirect(url_for('admin.inventory'))
+
+
+@admin_bp.route('/inventory/lots', methods=['POST'])
+@login_required
+@permission_required('inventory:write')
+def create_inventory_lot_route():
+    try:
+        lot_id = create_inventory_lot(_inventory_lot_form_payload(), actor_id=current_user.id)
+        audit_log(
+            action='inventory_lot_created',
+            module='inventory',
+            entity_type='inventory_lots',
+            entity_id=lot_id,
+            details={
+                'item_id': request.form.get('item_id'),
+                'lot_number': request.form.get('lot_number'),
+                'quantity_initial': request.form.get('quantity_initial'),
+                'expiration_date': request.form.get('expiration_date'),
+            },
+        )
+        flash('Lote registrado no estoque.', 'success')
+    except Exception as exc:
+        audit_log(
+            action='inventory_lot_create_failed',
+            module='inventory',
+            entity_type='inventory_lots',
+            status='failed',
+            details={'error': str(exc), 'lot_number': request.form.get('lot_number')},
+        )
+        flash(f'Erro ao registrar lote: {str(exc)}', 'danger')
+    return redirect(url_for('admin.inventory'))
 
 
 @admin_bp.route('/integrations/esus')

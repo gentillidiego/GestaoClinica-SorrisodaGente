@@ -928,6 +928,85 @@ def _init_db_locked():
     ''')
 
     execute('''
+        CREATE TABLE IF NOT EXISTS inventory_suppliers (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            document TEXT,
+            phone TEXT,
+            email TEXT,
+            active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS inventory_items (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT 'material',
+            unit TEXT NOT NULL DEFAULT 'unidade',
+            min_quantity NUMERIC(12, 3) DEFAULT 0,
+            center_cost TEXT,
+            notes TEXT,
+            active BOOLEAN DEFAULT TRUE,
+            created_by INTEGER,
+            created_at TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS inventory_lots (
+            id SERIAL PRIMARY KEY,
+            item_id INTEGER NOT NULL,
+            supplier_id INTEGER,
+            lot_number TEXT NOT NULL,
+            expiration_date DATE,
+            quantity_initial NUMERIC(12, 3) NOT NULL DEFAULT 0,
+            quantity_current NUMERIC(12, 3) NOT NULL DEFAULT 0,
+            unit_cost NUMERIC(12, 2) DEFAULT 0,
+            received_at DATE DEFAULT CURRENT_DATE,
+            center_cost TEXT,
+            notes TEXT,
+            active BOOLEAN DEFAULT TRUE,
+            created_by INTEGER,
+            created_at TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (item_id) REFERENCES inventory_items(id) ON DELETE CASCADE,
+            FOREIGN KEY (supplier_id) REFERENCES inventory_suppliers(id) ON DELETE SET NULL,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS inventory_usage (
+            id SERIAL PRIMARY KEY,
+            patient_id INTEGER NOT NULL,
+            treatment_procedure_id INTEGER,
+            atendimento_id INTEGER,
+            item_id INTEGER NOT NULL,
+            lot_id INTEGER NOT NULL,
+            quantity NUMERIC(12, 3) NOT NULL DEFAULT 1,
+            unit_cost_snapshot NUMERIC(12, 2) DEFAULT 0,
+            usage_type TEXT DEFAULT 'consumo',
+            used_at TIMESTAMP DEFAULT NOW(),
+            professional_id INTEGER,
+            notes TEXT,
+            post_op_required BOOLEAN DEFAULT FALSE,
+            post_op_due_date DATE,
+            post_op_completed_at TIMESTAMP,
+            created_by INTEGER,
+            created_at TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
+            FOREIGN KEY (treatment_procedure_id) REFERENCES tratamento_procedimentos(id) ON DELETE SET NULL,
+            FOREIGN KEY (atendimento_id) REFERENCES atendimentos(id) ON DELETE SET NULL,
+            FOREIGN KEY (item_id) REFERENCES inventory_items(id) ON DELETE RESTRICT,
+            FOREIGN KEY (lot_id) REFERENCES inventory_lots(id) ON DELETE RESTRICT,
+            FOREIGN KEY (professional_id) REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+        )
+    ''')
+
+    execute('''
         CREATE TABLE IF NOT EXISTS generated_reports (
             id SERIAL PRIMARY KEY,
             report_type TEXT NOT NULL,
@@ -1013,6 +1092,15 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_estomatologia_fotos_est_id ON estomatologia_fotos(estomatologia_id)",
         "CREATE INDEX IF NOT EXISTS idx_estomatologia_fotos_visual_category ON estomatologia_fotos(visual_category)",
         "CREATE INDEX IF NOT EXISTS idx_estomatologia_fotos_comparison_group ON estomatologia_fotos(comparison_group)",
+        "CREATE INDEX IF NOT EXISTS idx_inventory_items_category ON inventory_items(category)",
+        "CREATE INDEX IF NOT EXISTS idx_inventory_items_active ON inventory_items(active)",
+        "CREATE INDEX IF NOT EXISTS idx_inventory_lots_item_id ON inventory_lots(item_id)",
+        "CREATE INDEX IF NOT EXISTS idx_inventory_lots_expiration ON inventory_lots(expiration_date)",
+        "CREATE INDEX IF NOT EXISTS idx_inventory_lots_current ON inventory_lots(quantity_current)",
+        "CREATE INDEX IF NOT EXISTS idx_inventory_usage_patient_id ON inventory_usage(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_inventory_usage_treatment_id ON inventory_usage(treatment_procedure_id)",
+        "CREATE INDEX IF NOT EXISTS idx_inventory_usage_lot_id ON inventory_usage(lot_id)",
+        "CREATE INDEX IF NOT EXISTS idx_inventory_usage_postop ON inventory_usage(post_op_required, post_op_completed_at, post_op_due_date)",
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_professor_id ON atendimentos(professor_id)",
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_aluno_executor_id ON atendimentos(aluno_executor_id)",
         "CREATE INDEX IF NOT EXISTS idx_tratamento_patient_id ON tratamento_procedimentos(patient_id)",

@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}Estoque Operacional{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; flex-wrap:wrap; margin-bottom:2rem;">
+        <div>
+            <h1 class="page-title">Estoque Operacional</h1>
+            <p class="page-subtitle">Materiais, lotes, validade, custo e rastreabilidade clínica.</p>
+        </div>
+        <a class="btn btn-outline" href="{{ url_for('main.command_center') }}">Central de Comando</a>
+    </div>
+
+    <div class="stat-grid" style="margin-bottom:1.5rem;">
+        <div class="stat-card" style="border-bottom:4px solid #2563eb;">
+            <div class="stat-icon" style="background:#dbeafe;">📦</div>
+            <div class="stat-info">
+                <span class="stat-value">{{ dashboard.stats.items }}</span>
+                <span class="stat-label">Materiais</span>
+            </div>
+        </div>
+        <div class="stat-card" style="border-bottom:4px solid #7c3aed;">
+            <div class="stat-icon" style="background:#ede9fe;">L</div>
+            <div class="stat-info">
+                <span class="stat-value">{{ dashboard.stats.lots }}</span>
+                <span class="stat-label">Lotes Ativos</span>
+            </div>
+        </div>
+        <div class="stat-card" style="border-bottom:4px solid #f59e0b;">
+            <div class="stat-icon" style="background:#fef3c7;">!</div>
+            <div class="stat-info">
+                <span class="stat-value">{{ dashboard.stats.low_stock + dashboard.stats.expiring }}</span>
+                <span class="stat-label">Atenção</span>
+            </div>
+        </div>
+        <div class="stat-card" style="border-bottom:4px solid #ef4444;">
+            <div class="stat-icon" style="background:#fee2e2;">🚨</div>
+            <div class="stat-info">
+                <span class="stat-value">{{ dashboard.stats.expired + dashboard.stats.postop_pending }}</span>
+                <span class="stat-label">Críticos</span>
+            </div>
+        </div>
+    </div>
+
+    {% if dashboard.alerts %}
+    <section class="card" style="margin-bottom:1.5rem;">
+        <h2 class="section-header">Alertas de Estoque e Pós-operatório</h2>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:0.75rem;">
+            {% for alert in dashboard.alerts %}
+            <div style="border-left:5px solid {% if alert.severity == 'critical' %}#ef4444{% else %}#f59e0b{% endif %}; background:{% if alert.severity == 'critical' %}#fef2f2{% else %}#fffbeb{% endif %}; border-radius:var(--radius-md); padding:0.9rem 1rem;">
+                <strong style="display:block; margin-bottom:0.35rem;">{{ alert.title }}</strong>
+                <span style="color:hsl(var(--text-muted)); font-size:0.86rem;">{{ alert.message }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <div style="display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:1.5rem; align-items:start; margin-bottom:1.5rem;">
+        <section class="card" style="margin:0;">
+            <h2 class="section-header">Cadastrar Material</h2>
+            <form method="POST" action="{{ url_for('admin.create_inventory_item_route') }}" style="display:grid; gap:1rem;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div style="display:grid; grid-template-columns:1.3fr 0.8fr; gap:1rem;">
+                    <div>
+                        <label class="form-label">Nome</label>
+                        <input class="form-control" name="name" required placeholder="Ex: Implante Cone Morse 3.5">
+                    </div>
+                    <div>
+                        <label class="form-label">Categoria</label>
+                        <select class="form-control" name="category">
+                            {% for value, label in dashboard.category_options %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                    <div>
+                        <label class="form-label">Unidade</label>
+                        <input class="form-control" name="unit" value="unidade">
+                    </div>
+                    <div>
+                        <label class="form-label">Estoque mínimo</label>
+                        <input class="form-control" name="min_quantity" type="number" step="0.001" min="0" value="0">
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label">Centro de custo</label>
+                    <input class="form-control" name="center_cost" placeholder="Ex: Implantodontia">
+                </div>
+                <div>
+                    <label class="form-label">Observações</label>
+                    <textarea class="form-control" name="notes" rows="2"></textarea>
+                </div>
+                {% if can_write %}
+                <button class="btn btn-primary" type="submit">Salvar Material</button>
+                {% else %}
+                <span style="color:hsl(var(--text-muted)); font-weight:700;">Somente visualização</span>
+                {% endif %}
+            </form>
+        </section>
+
+        <section class="card" style="margin:0;">
+            <h2 class="section-header">Registrar Entrada de Lote</h2>
+            <form method="POST" action="{{ url_for('admin.create_inventory_lot_route') }}" style="display:grid; gap:1rem;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label class="form-label">Material</label>
+                    <select class="form-control" name="item_id" required>
+                        <option value="">Selecionar material</option>
+                        {% for item in dashboard['items'] %}
+                        <option value="{{ item.id }}">{{ item.name }} · {{ item.category }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                    <div>
+                        <label class="form-label">Fornecedor</label>
+                        <input class="form-control" name="supplier_name" placeholder="Nome do fornecedor">
+                    </div>
+                    <div>
+                        <label class="form-label">Lote</label>
+                        <input class="form-control" name="lot_number" required>
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                    <div>
+                        <label class="form-label">Validade</label>
+                        <input class="form-control" name="expiration_date" type="date">
+                    </div>
+                    <div>
+                        <label class="form-label">Data de entrada</label>
+                        <input class="form-control" name="received_at" type="date">
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                    <div>
+                        <label class="form-label">Quantidade</label>
+                        <input class="form-control" name="quantity_initial" type="number" step="0.001" min="0.001" required>
+                    </div>
+                    <div>
+                        <label class="form-label">Custo unitário</label>
+                        <input class="form-control" name="unit_cost" type="number" step="0.01" min="0" value="0">
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label">Centro de custo</label>
+                    <input class="form-control" name="center_cost" placeholder="Ex: Cirurgia">
+                </div>
+                {% if can_write %}
+                <button class="btn btn-primary" type="submit">Registrar Lote</button>
+                {% else %}
+                <span style="color:hsl(var(--text-muted)); font-weight:700;">Somente visualização</span>
+                {% endif %}
+            </form>
+        </section>
+    </div>
+
+    <form method="GET" class="card" style="padding:1rem; margin-bottom:1.5rem;">
+        <div style="display:grid; grid-template-columns:1.5fr 1fr auto; gap:1rem; align-items:end;">
+            <div>
+                <label class="form-label">Busca</label>
+                <input class="form-control" name="q" value="{{ dashboard.filters.q or '' }}" placeholder="Material, lote ou fornecedor">
+            </div>
+            <div>
+                <label class="form-label">Categoria</label>
+                <select class="form-control" name="category">
+                    <option value="">Todas</option>
+                    {% for value, label in dashboard.category_options %}
+                    <option value="{{ value }}" {% if dashboard.filters.category == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button class="btn btn-primary" type="submit" style="height:48px;">Filtrar</button>
+        </div>
+    </form>
+
+    <section class="card" style="padding:0; overflow:hidden; margin-bottom:1.5rem;">
+        <div class="table-container">
+            <table style="width:100%; border-collapse:collapse; background:white;">
+                <thead>
+                    <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                        <th style="padding:0.85rem; min-width:230px;">Material</th>
+                        <th style="padding:0.85rem;">Lote</th>
+                        <th style="padding:0.85rem;">Fornecedor</th>
+                        <th style="padding:0.85rem;">Validade</th>
+                        <th style="padding:0.85rem;">Saldo</th>
+                        <th style="padding:0.85rem;">Custo Unit.</th>
+                        <th style="padding:0.85rem;">Valor Atual</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lot in dashboard.lots %}
+                    <tr style="border-bottom:1px solid hsl(var(--border));">
+                        <td style="padding:0.85rem;">
+                            <strong>{{ lot.item_name }}</strong><br>
+                            <small style="color:hsl(var(--text-muted));">{{ lot.category }} · {{ lot.center_cost or 'sem centro' }}</small>
+                        </td>
+                        <td style="padding:0.85rem; font-weight:800;">{{ lot.lot_number }}</td>
+                        <td style="padding:0.85rem;">{{ lot.supplier_name or 'Não informado' }}</td>
+                        <td style="padding:0.85rem;">{{ lot.expiration_date.strftime('%d/%m/%Y') if lot.expiration_date else 'Sem validade' }}</td>
+                        <td style="padding:0.85rem;">{{ lot.quantity_current }} {{ lot.unit }}</td>
+                        <td style="padding:0.85rem;">R$ {{ '%.2f'|format(lot.unit_cost or 0) }}</td>
+                        <td style="padding:0.85rem; font-weight:900; color:#0f766e;">R$ {{ '%.2f'|format(lot.current_value or 0) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">Nenhum lote encontrado.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="card" style="padding:0; overflow:hidden;">
+        <div style="padding:1rem 1rem 0;">
+            <h2 class="section-header">Consumo Recente</h2>
+        </div>
+        <div class="table-container">
+            <table style="width:100%; border-collapse:collapse; background:white;">
+                <thead>
+                    <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                        <th style="padding:0.85rem;">Data</th>
+                        <th style="padding:0.85rem;">Paciente</th>
+                        <th style="padding:0.85rem;">Material</th>
+                        <th style="padding:0.85rem;">Lote</th>
+                        <th style="padding:0.85rem;">Quantidade</th>
+                        <th style="padding:0.85rem;">Custo</th>
+                        <th style="padding:0.85rem;">Profissional</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in dashboard.recent_usage %}
+                    <tr style="border-bottom:1px solid hsl(var(--border));">
+                        <td style="padding:0.85rem;">{{ row.used_at.strftime('%d/%m/%Y %H:%M') if row.used_at else 'Sem data' }}</td>
+                        <td style="padding:0.85rem;"><a href="{{ url_for('patients.view_patient', id=row.patient_id) }}">{{ row.patient_name }}</a></td>
+                        <td style="padding:0.85rem;">{{ row.item_name }}</td>
+                        <td style="padding:0.85rem;">{{ row.lot_number }}</td>
+                        <td style="padding:0.85rem;">{{ row.quantity }} {{ row.unit }}</td>
+                        <td style="padding:0.85rem;">R$ {{ '%.2f'|format(row.total_cost or 0) }}</td>
+                        <td style="padding:0.85rem;">{{ row.professional_name or row.professional_username or 'Não informado' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">Nenhum consumo registrado.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<style>
+@media (max-width: 1100px) {
+    .animate-fade > div[style*="grid-template-columns:minmax"] {
+        grid-template-columns:1fr !important;
+    }
+}
+@media (max-width: 760px) {
+    form.card > div[style*="grid-template-columns"] {
+        grid-template-columns:1fr !important;
+    }
+}
+</style>
+{% endblock %}

@@ -261,6 +261,10 @@ from services.visual_media_service import (
     update_estomatologia_photo_metadata,
     update_exam_image_metadata,
 )
+from services.inventory_service import (
+    mark_post_op_completed,
+    register_patient_material_usage,
+)
 
 @patients_bp.route('/view/<int:id>')
 @login_required
@@ -334,6 +338,11 @@ def get_tab_content(id, tab_name):
             'template': 'patients/includes/_tab_visual.html',
             'is_dict': True
         },
+        'tab-materiais': {
+            'service': PatientService.get_patient_inventory,
+            'template': 'patients/includes/_tab_materiais.html',
+            'is_dict': True
+        },
         'tab-linha-tempo': {
             'service': PatientService.get_patient_timeline,
             'template': 'patients/includes/_tab_linha_tempo.html',
@@ -343,6 +352,8 @@ def get_tab_content(id, tab_name):
 
     if tab_name not in tab_mapping:
         return "Aba não encontrada.", 404
+    if tab_name == 'tab-materiais' and not current_user.can('inventory:view'):
+        return "Acesso negado.", 403
 
     config = tab_mapping[tab_name]
     data = config['service'](id)
@@ -358,7 +369,7 @@ def get_tab_content(id, tab_name):
         context[config['context_key']] = data
         
     # Adicionar alunos se for uma aba que precisa (atendimento, tratamento, endodontia, protese)
-    if tab_name in ['tab-atendimento', 'tab-tratamento', 'tab-endodontia', 'tab-protese']:
+    if tab_name in ['tab-atendimento', 'tab-tratamento', 'tab-endodontia', 'tab-protese', 'tab-materiais']:
         context['students'] = get_students_cached()
 
     if tab_name == 'tab-tratamento':
@@ -380,6 +391,79 @@ def get_tab_content(id, tab_name):
         )
 
     return render_template(config['template'], **context)
+
+
+@patients_bp.route('/<int:id>/materials/use', methods=['POST'])
+@login_required
+def add_material_usage(id):
+    if not current_user.can('inventory:write'):
+        flash('Sem permissão para registrar uso de materiais.', 'danger')
+        return redirect(url_for('patients.view_patient', id=id) + '#tab-materiais')
+    try:
+        result = register_patient_material_usage(id, request.form, actor_id=current_user.id)
+        audit_log(
+            action='inventory_usage_registered',
+            module='inventory',
+            entity_type='inventory_usage',
+            entity_id=result['usage_id'],
+            patient_id=id,
+            details={
+                'item_id': result['item_id'],
+                'item_name': result['item_name'],
+                'lot_id': result['lot_id'],
+                'lot_number': result['lot_number'],
+                'quantity': str(result['quantity']),
+                'usage_type': result['usage_type'],
+                'post_op_required': result['post_op_required'],
+                'post_op_due_date': result['post_op_due_date'],
+            },
+        )
+        flash('Material registrado no prontuário e estoque atualizado.', 'success')
+    except Exception as exc:
+        audit_log(
+            action='inventory_usage_register_failed',
+            module='inventory',
+            entity_type='inventory_usage',
+            patient_id=id,
+            status='failed',
+            details={'error': str(exc), 'lot_id': request.form.get('lot_id')},
+        )
+        flash(f'Erro ao registrar material: {str(exc)}', 'danger')
+    return redirect(url_for('patients.view_patient', id=id) + '#tab-materiais')
+
+
+@patients_bp.route('/<int:id>/materials/usage/<int:usage_id>/post-op', methods=['POST'])
+@login_required
+def complete_material_post_op(id, usage_id):
+    if not current_user.can('inventory:write'):
+        flash('Sem permissão para concluir pós-operatório.', 'danger')
+        return redirect(url_for('patients.view_patient', id=id) + '#tab-materiais')
+    try:
+        usage = mark_post_op_completed(id, usage_id)
+        audit_log(
+            action='inventory_post_op_completed',
+            module='inventory',
+            entity_type='inventory_usage',
+            entity_id=usage_id,
+            patient_id=id,
+            details={
+                'item_name': usage.get('item_name'),
+                'lot_number': usage.get('lot_number'),
+            },
+        )
+        flash('Pós-operatório registrado.', 'success')
+    except Exception as exc:
+        audit_log(
+            action='inventory_post_op_complete_failed',
+            module='inventory',
+            entity_type='inventory_usage',
+            entity_id=usage_id,
+            patient_id=id,
+            status='failed',
+            details={'error': str(exc)},
+        )
+        flash(f'Erro ao registrar pós-operatório: {str(exc)}', 'danger')
+    return redirect(url_for('patients.view_patient', id=id) + '#tab-materiais')
 
 
 @patients_bp.route('/<int:id>/visual/estomatologia-photo/<int:photo_id>')

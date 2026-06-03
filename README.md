@@ -59,6 +59,7 @@ Acessível via `/dashboard` após login:
 - **Epidemiologia** — Painel avançado em `/epidemiologia` com filtros por bairro, município, especialidade, profissional, sexo, faixa etária e status do tratamento; indicadores de lesões, câncer confirmado, perda dentária, absenteísmo, demanda reprimida e áreas críticas
 - **BI Executivo** — Painel em `/bi` com produção, filas, impacto social, metas automáticas, comparativos mensais, rankings executivos, visões governamentais por perfil, economia gerada estimada e PDF governamental da visão atual
 - **Custos SIGTAP** — Tela administrativa em `/admin/finance/cost-references` para revisar, importar, auditar e homologar referências de custo usadas no BI
+- **Estoque Operacional e Rastreabilidade de Materiais** — Tela `/admin/inventory` e aba `Materiais` no prontuário para controlar materiais, lotes, validade, fornecedores, custo por uso, baixa de estoque e implantes com pós-operatório
 - **Relatórios Institucionais** — Prévia, geração assíncrona de PDF, histórico e recortes Institucional/SSA/SMS em `/reports/institutional`
 - **Linha do Tempo do Paciente** — Rastreabilidade inicial por prontuário reunindo cadastro, triagem, agenda, exames, procedimentos, documentos, estomatologia, fotos clínicas e auditoria
 - **Auditoria Administrativa** — Tela com filtros de logs por usuário, módulo, ação, paciente e status
@@ -335,7 +336,7 @@ Acompanhe abaixo o progresso do desenvolvimento da expansão tecnológica acorda
 ### **Fase 2: Operação Clínica, Fila Inteligente, Alertas e Rastreabilidade — 🟢 PRIMEIRA VERSÃO CONCLUÍDA E VALIDADA** *(Revisada em 30/05/2026 e complementada em 03/06/2026)*
 
 > Objetivo: criar a primeira base operacional para gestão diária da clínica, priorização automática da fila, alertas críticos e rastreabilidade do paciente.
-> Status atual: primeira versão implementada, revisada e validada com testes automatizados e renderização autenticada em Docker. Em 03/06/2026 foi adicionada a primeira versão do módulo visual avançado do prontuário, cobrindo fotos clínicas, radiografias, lesões, antes/depois, evolução, legenda obrigatória, comparação por grupo e auditoria.
+> Status atual: primeira versão implementada, revisada e validada com testes automatizados e renderização autenticada em Docker. Em 03/06/2026 foram adicionadas a primeira versão do módulo visual avançado do prontuário e a primeira versão da rastreabilidade operacional de materiais/lotes/implantes.
 
 #### Entregas implementadas
 
@@ -456,6 +457,87 @@ Validações em Docker em 03/06/2026:
 
 > Observação técnica: havia exames legados órfãos apontando para pacientes inexistentes. A rota de upload/visualização de imagem foi endurecida para aceitar somente exames vinculados a pacientes válidos, evitando falha de auditoria e melhorando a consistência LGPD.
 
+#### Entregas implementadas em 03/06/2026 — Rastreabilidade de Materiais, Implantes, Lotes e Estoque Operacional
+
+- [x] **Base de estoque e lotes**
+  - [x] Tabelas `inventory_items`, `inventory_lots`, `inventory_suppliers` e `inventory_usage` criadas no PostgreSQL.
+  - [x] Cadastro de material com categoria, unidade, estoque mínimo, centro de custo e observações.
+  - [x] Entrada de lote com fornecedor, número do lote, validade, quantidade inicial, saldo atual, custo unitário e centro de custo.
+  - [x] Índices para busca por categoria, validade, saldo, paciente, lote, procedimento e pós-operatório.
+- [x] **Tela administrativa de estoque**
+  - [x] Rota `/admin/inventory` protegida por permissão `inventory:view`.
+  - [x] Rotas `POST /admin/inventory/items` e `POST /admin/inventory/lots` protegidas por `inventory:write`.
+  - [x] Cards de materiais, lotes, alertas de atenção e críticos.
+  - [x] Filtros por busca e categoria.
+  - [x] Tabela de lotes com saldo, validade, fornecedor, custo unitário e valor atual.
+  - [x] Consumo recente por paciente, material, lote, quantidade, custo e profissional.
+- [x] **Aba `Materiais` no prontuário**
+  - [x] Nova aba `Materiais` exibida apenas para perfis com `inventory:view`.
+  - [x] Registro de material utilizado por paciente com lote, quantidade, tipo de uso, procedimento relacionado, profissional responsável, data e observação.
+  - [x] Baixa automática do saldo do lote ao registrar consumo.
+  - [x] Custo do paciente calculado a partir da quantidade usada e do custo unitário do lote.
+  - [x] Histórico do paciente mostrando material, categoria, lote, validade, fornecedor, procedimento, quantidade, custo e responsável.
+- [x] **Implantes e pós-operatório**
+  - [x] Materiais da categoria `implante` passam a exigir pós-operatório automaticamente.
+  - [x] Se a data de retorno não for informada, o sistema agenda previsão padrão de 7 dias após o uso.
+  - [x] Botão para concluir pós-operatório diretamente na aba `Materiais`.
+  - [x] Alerta crítico `Implante sem pós-operatório` incluído na Central de Comando quando o retorno previsto vence sem conclusão.
+- [x] **Alertas operacionais**
+  - [x] Alerta de estoque baixo quando o saldo total do material fica menor ou igual ao estoque mínimo.
+  - [x] Alerta de material vencendo para lotes com validade em até 30 dias.
+  - [x] Alerta crítico de material vencido para lotes com saldo positivo após a validade.
+  - [x] Alertas de estoque/lote/pós-operatório incorporados à lista de Alertas Operacionais da `/command-center`.
+- [x] **Auditoria e rastreabilidade**
+  - [x] Cadastro de material registra `inventory_item_created`.
+  - [x] Entrada de lote registra `inventory_lot_created`.
+  - [x] Uso de material registra `inventory_usage_registered` com paciente, item, lote, quantidade, tipo de uso e pós-operatório.
+  - [x] Conclusão de pós-operatório registra `inventory_post_op_completed`.
+  - [x] Linha do Tempo do paciente passa a incluir eventos de material/implante utilizado, lote, validade, procedimento, profissional e status de pós-operatório.
+- [x] **Arquivos, rotas e componentes impactados**
+  - [x] `constants.py`: permissões `inventory:view` e `inventory:write`.
+  - [x] `database.py`: tabelas e índices de estoque, lotes, fornecedores e uso de materiais.
+  - [x] `services/inventory_service.py`: serviço de cadastro, lotes, consumo, baixa, alertas e contexto do paciente.
+  - [x] `services/command_center_service.py`: alertas de estoque/lotes/pós-operatório.
+  - [x] `services/traceability_service.py`: eventos de materiais na Linha do Tempo.
+  - [x] `services/patient_service.py`: contexto da aba `Materiais`.
+  - [x] `blueprints/admin.py`: rotas administrativas de estoque.
+  - [x] `blueprints/patients.py`: rotas de uso de material e conclusão de pós-operatório.
+  - [x] `templates/admin/inventory.html`: tela administrativa de estoque.
+  - [x] `templates/patients/includes/_tab_materiais.html`: aba de materiais no prontuário.
+  - [x] `templates/base.html` e `templates/patients/view.html`: menu e aba condicionados por permissão.
+  - [x] `tests/test_phase2_inventory.py`: testes unitários do serviço de estoque/rastreabilidade.
+
+#### Testes executados após Estoque e Rastreabilidade de Materiais
+
+```bash
+.venv/bin/python -m compileall constants.py database.py services/inventory_service.py services/patient_service.py services/command_center_service.py services/traceability_service.py blueprints/admin.py blueprints/patients.py tests/test_phase2_inventory.py
+# Resultado: compilação sem erro
+
+.venv/bin/pytest -q
+# Resultado: 87 passed
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+```
+
+Validações em Docker em 03/06/2026:
+
+| Ação | Resultado |
+|---|---|
+| Tabelas `inventory_items`, `inventory_lots`, `inventory_suppliers`, `inventory_usage` | Presentes no PostgreSQL real |
+| `GET /admin/inventory` autenticado em test client Docker | HTTP 200 e contém `Estoque Operacional` |
+| `GET /patients/view/<id>/tab/tab-materiais` autenticado em test client Docker | HTTP 200 e contém `Materiais, Lotes e Implantes` |
+| `POST /admin/inventory/items` temporário | HTTP 302 esperado, material criado |
+| `POST /admin/inventory/lots` temporário | HTTP 302 esperado, lote criado com saldo `2.000` |
+| `POST /patients/<id>/materials/use` temporário | HTTP 302 esperado, consumo registrado |
+| Baixa de estoque | Saldo do lote temporário reduziu de `2.000` para `1.000` |
+| Pós-operatório de implante | Marcado como concluído via rota do prontuário |
+| Limpeza da validação | Uso, lote, material, fornecedor e auditoria temporária removidos |
+
 #### Pendências da Fase 2
 
 - [ ] **Evolução do algoritmo de fila**
@@ -467,15 +549,18 @@ Validações em Docker em 03/06/2026:
   - [ ] Metas automáticas por produção clínica, comparecimento, conclusão de tratamento e fila reduzida.
   - [ ] Exportação ou impressão de resumo operacional diário.
 - [ ] **Alertas pendentes**
-  - [ ] Implante sem pós-operatório.
+  - [x] Implante sem pós-operatório.
   - [ ] Exame pendente.
   - [ ] Documento sem assinatura.
-  - [ ] Estoque baixo, material vencendo, material vencido e perdas operacionais.
+  - [x] Estoque baixo, material vencendo e material vencido.
+  - [ ] Perdas operacionais e ajustes de estoque com motivo/assinatura.
   - [ ] Centralização dos alertas também no prontuário e nos módulos responsáveis.
 - [ ] **Rastreabilidade avançada**
-  - [ ] Associação ao prontuário de instrumental utilizado, implante, prótese, lote, validade, fornecedor e profissional responsável.
-  - [ ] Registro do pós-operatório, intercorrências, conduta e alta clínica.
-  - [ ] Rastreabilidade por paciente, procedimento, material, lote, profissional e data.
+  - [x] Associação ao prontuário de material/implante, lote, validade, fornecedor e profissional responsável.
+  - [x] Rastreabilidade por paciente, procedimento, material, lote, profissional e data.
+  - [x] Registro inicial de pós-operatório de implantes.
+  - [ ] Detalhar instrumental esterilizado, caixa cirúrgica, ciclo de esterilização e responsável técnico.
+  - [ ] Evoluir registro de intercorrências, conduta pós-operatória e alta clínica.
 - [ ] **Hardening LGPD do módulo visual**
   - [x] Primeira versão de organização visual, legenda obrigatória, comparativo e auditoria.
   - [x] Rotas autenticadas para visualização de fotos clínicas e radiografias.
@@ -484,9 +569,11 @@ Validações em Docker em 03/06/2026:
   - [ ] Criar política formal de retenção/descarte para fotos, radiografias e documentos complementares.
   - [ ] Criar relatório/auditoria específica de acessos a arquivos visuais sensíveis por período, IP e usuário.
 - [ ] **Módulo Financeiro e Logístico Operacional**
-  - [ ] Controle de custo por procedimento, especialidade, profissional, município e tipo de material.
+  - [x] Primeira versão de controle de custo por material/lote usado no paciente.
+  - [ ] Expandir custo por procedimento, especialidade, profissional, município e tipo de material.
   - [ ] Produtividade por equipe, cadeira, especialidade e período.
-  - [ ] Estoque com entrada, saída, perdas, validade, lote, fornecedor, centro de custo e alerta automático.
+  - [x] Estoque com entrada, saída por consumo clínico, validade, lote, fornecedor, centro de custo e alerta automático inicial.
+  - [ ] Perdas, ajustes manuais, inventário físico e assinatura/autorização de baixa administrativa.
   - [ ] Relatórios operacionais de perdas, consumo médio e previsão de reposição.
 - [ ] **Treinamento e Implantação**
   - [ ] Capacitação da equipe operacional por meio de videoaulas, manuais rápidos em PDF e apoio presencial/híbrido.
@@ -502,6 +589,11 @@ Validações em Docker em 03/06/2026:
 - Manual de estomatologia deve explicar que fotos de lesão exigem legenda e podem ser classificadas como antes, evolução, depois, controle ou retorno.
 - Manual de radiologia/exames deve explicar que o upload em lote aplica a mesma legenda e metadados a todos os arquivos selecionados.
 - Manual LGPD/auditoria deve explicar que abertura da aba visual, uploads, visualização de arquivos, edição de metadados e exclusão de fotos são auditados.
+- Manual de estoque deve explicar cadastro de materiais, categorias, unidade, estoque mínimo, centro de custo, fornecedores e entrada de lotes.
+- Manual clínico deve explicar a aba `Materiais`: seleção de lote, vínculo com procedimento, quantidade utilizada, profissional responsável, data, observação e pós-operatório.
+- Manual de implantodontia/cirurgia deve reforçar que materiais categorizados como `implante` exigem pós-operatório e geram alerta se o retorno previsto não for concluído.
+- Manual financeiro deve explicar que o custo do paciente é calculado pelo custo unitário do lote no momento do uso e que ainda falta rateio avançado por especialidade/profissional/município.
+- Manual de auditoria deve explicar eventos `inventory_item_created`, `inventory_lot_created`, `inventory_usage_registered` e `inventory_post_op_completed`.
 
 ---
 
@@ -1506,6 +1598,7 @@ Validações em Docker:
 - **BI Executivo:** `/bi`
 - **PDF Governamental do BI:** `POST /bi/export`
 - **Custos SIGTAP:** `/admin/finance/cost-references`
+- **Estoque Operacional:** `/admin/inventory`
 - **Relatórios Institucionais:** `/reports/institutional`
 - **SIGTAP/e-SUS APS:** `/admin/integrations/esus`
 - **Health Check:** `/health`

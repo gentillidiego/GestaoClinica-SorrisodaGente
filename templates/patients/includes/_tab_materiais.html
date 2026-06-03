@@ -1,0 +1,204 @@
+<div class="animate-fade">
+    <div class="card" style="padding:2rem; border-top:5px solid #0f766e; margin-bottom:1.5rem;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap; margin-bottom:1.5rem;">
+            <div>
+                <h2 style="font-family:var(--font-heading); font-size:1.45rem; font-weight:800; color:#0f766e; margin-bottom:0.35rem;">
+                    Materiais, Lotes e Implantes
+                </h2>
+                <p style="color:hsl(var(--text-muted)); font-size:0.9rem;">
+                    Registro de consumo clínico, lote utilizado, custo e responsável técnico.
+                </p>
+            </div>
+            <a href="{{ url_for('admin.inventory') }}" class="btn btn-outline" style="font-size:0.85rem; font-weight:800;">
+                Abrir Estoque
+            </a>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:1rem;">
+            <div style="border:1px solid hsl(var(--border)); border-radius:var(--radius-md); padding:1rem; background:white;">
+                <div style="font-size:0.72rem; font-weight:800; color:hsl(var(--text-muted)); text-transform:uppercase;">Registros</div>
+                <div style="font-size:1.8rem; font-weight:900; color:#0f766e;">{{ inventory_usage|length }}</div>
+            </div>
+            <div style="border:1px solid hsl(var(--border)); border-radius:var(--radius-md); padding:1rem; background:white;">
+                <div style="font-size:0.72rem; font-weight:800; color:hsl(var(--text-muted)); text-transform:uppercase;">Custo do Paciente</div>
+                <div style="font-size:1.4rem; font-weight:900; color:#7c3aed;">R$ {{ '%.2f'|format(inventory_total_cost or 0) }}</div>
+            </div>
+            <div style="border:1px solid hsl(var(--border)); border-radius:var(--radius-md); padding:1rem; background:white;">
+                <div style="font-size:0.72rem; font-weight:800; color:hsl(var(--text-muted)); text-transform:uppercase;">Lotes Disponíveis</div>
+                <div style="font-size:1.8rem; font-weight:900; color:#2563eb;">{{ inventory_lots|length }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="padding:2rem; margin-bottom:1.5rem;">
+        <h3 style="font-family:var(--font-heading); font-size:1.2rem; font-weight:800; color:hsl(var(--primary)); margin-bottom:1rem;">
+            Registrar Material Utilizado
+        </h3>
+        {% if inventory_lots and can('inventory:write') %}
+        <form method="POST" action="{{ url_for('patients.add_material_usage', id=patient.id) }}" style="display:grid; gap:1rem;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="display:grid; grid-template-columns:minmax(260px, 1.4fr) 0.6fr 1fr; gap:1rem;">
+                <div>
+                    <label class="form-label">Material / Lote</label>
+                    <select name="lot_id" class="form-control" required>
+                        <option value="">Selecionar lote disponível</option>
+                        {% for lot in inventory_lots %}
+                        <option value="{{ lot.id }}">
+                            {{ lot.item_name }} · lote {{ lot.lot_number }} · saldo {{ lot.quantity_current }} {{ lot.unit }}
+                            {% if lot.expiration_date %} · val. {{ lot.expiration_date.strftime('%d/%m/%Y') }}{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Quantidade</label>
+                    <input type="number" step="0.001" min="0.001" name="quantity" value="1" class="form-control" required>
+                </div>
+                <div>
+                    <label class="form-label">Tipo de uso</label>
+                    <select name="usage_type" class="form-control">
+                        {% for value, label in inventory_usage_type_options %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem;">
+                <div>
+                    <label class="form-label">Procedimento relacionado</label>
+                    <select name="treatment_procedure_id" class="form-control">
+                        <option value="">Sem vínculo direto</option>
+                        {% for proc in inventory_treatments %}
+                        <option value="{{ proc.id }}">{{ proc.dente or 'Sem dente' }} · {{ proc.descricao }} · {{ proc.status }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Profissional responsável</label>
+                    <select name="professional_id" class="form-control">
+                        <option value="{{ current_user.id }}">Eu mesmo: {{ current_user.full_name or current_user.username }}</option>
+                        {% for user in students or [] %}
+                        <option value="{{ user.id }}">{{ user.full_name or user.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Data de uso</label>
+                    <input type="datetime-local" name="used_at" class="form-control">
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 220px; gap:1rem; align-items:end;">
+                <label style="display:flex; align-items:center; gap:0.65rem; font-weight:800; color:hsl(var(--text-main));">
+                    <input type="checkbox" name="post_op_required" style="width:18px; height:18px;">
+                    Exige pós-operatório
+                </label>
+                <div>
+                    <label class="form-label">Retorno previsto</label>
+                    <input type="date" name="post_op_due_date" class="form-control">
+                </div>
+            </div>
+
+            <div>
+                <label class="form-label">Observações</label>
+                <textarea name="notes" rows="2" class="form-control" placeholder="Ex: Implante instalado no elemento 36, torque final, intercorrências, material complementar..."></textarea>
+            </div>
+            <div style="display:flex; justify-content:flex-end;">
+                <button type="submit" class="btn btn-primary">Registrar Material</button>
+            </div>
+        </form>
+        {% elif not inventory_lots %}
+        <div style="padding:2rem; text-align:center; border:1.5px dashed hsl(var(--border)); border-radius:var(--radius-md); color:hsl(var(--text-muted));">
+            Nenhum lote disponível para consumo. Cadastre materiais e lotes no módulo de estoque.
+        </div>
+        {% else %}
+        <div style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">
+            Seu perfil possui acesso de leitura. Procure um usuário autorizado para registrar consumo.
+        </div>
+        {% endif %}
+    </div>
+
+    <section class="card" style="padding:0; overflow:hidden;">
+        <div style="padding:1rem 1rem 0;">
+            <h3 style="font-family:var(--font-heading); font-size:1.2rem; font-weight:800; color:hsl(var(--primary));">
+                Histórico de Materiais do Paciente
+            </h3>
+        </div>
+        <div class="table-container">
+            <table style="width:100%; border-collapse:collapse; background:white;">
+                <thead>
+                    <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                        <th style="padding:0.85rem;">Data</th>
+                        <th style="padding:0.85rem;">Material</th>
+                        <th style="padding:0.85rem;">Lote</th>
+                        <th style="padding:0.85rem;">Procedimento</th>
+                        <th style="padding:0.85rem;">Qtd.</th>
+                        <th style="padding:0.85rem;">Custo</th>
+                        <th style="padding:0.85rem;">Responsável</th>
+                        <th style="padding:0.85rem;">Pós-op</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in inventory_usage %}
+                    <tr style="border-bottom:1px solid hsl(var(--border)); vertical-align:top;">
+                        <td style="padding:0.85rem;">{{ row.used_at.strftime('%d/%m/%Y %H:%M') if row.used_at else 'Sem data' }}</td>
+                        <td style="padding:0.85rem;">
+                            <strong>{{ row.item_name }}</strong><br>
+                            <small style="color:hsl(var(--text-muted));">{{ row.usage_type }} · {{ row.category }}</small>
+                        </td>
+                        <td style="padding:0.85rem;">
+                            <strong>{{ row.lot_number }}</strong><br>
+                            <small style="color:hsl(var(--text-muted));">Val. {{ row.expiration_date.strftime('%d/%m/%Y') if row.expiration_date else 'sem validade' }}</small>
+                        </td>
+                        <td style="padding:0.85rem;">
+                            {% if row.treatment_description %}
+                            {{ row.dente or 'Sem dente' }} · {{ row.treatment_description }}
+                            {% else %}
+                            <span style="color:hsl(var(--text-muted));">Sem vínculo direto</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding:0.85rem;">{{ row.quantity }} {{ row.unit }}</td>
+                        <td style="padding:0.85rem; font-weight:800; color:#0f766e;">R$ {{ '%.2f'|format(row.total_cost or 0) }}</td>
+                        <td style="padding:0.85rem;">{{ row.professional_name or row.professional_username or row.created_by_username or 'Não informado' }}</td>
+                        <td style="padding:0.85rem;">
+                            {% if row.post_op_required %}
+                                {% if row.post_op_completed_at %}
+                                <span class="badge-status badge-realizado">Concluído</span>
+                                {% else %}
+                                <div style="display:flex; flex-direction:column; gap:0.4rem;">
+                                    <span class="badge-status badge-pendente">Pendente</span>
+                                    <small style="color:hsl(var(--text-muted));">Previsto: {{ row.post_op_due_date.strftime('%d/%m/%Y') if row.post_op_due_date else 'sem data' }}</small>
+                                    {% if can('inventory:write') %}
+                                    <form method="POST" action="{{ url_for('patients.complete_material_post_op', id=patient.id, usage_id=row.id) }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-outline" style="padding:0.35rem 0.65rem; font-size:0.75rem;">Concluir</button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            {% else %}
+                            <span style="color:hsl(var(--text-muted));">Não exige</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">
+                            Nenhum material registrado neste prontuário.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<style>
+@media (max-width: 1000px) {
+    #tab-materiais form div[style*="grid-template-columns"] {
+        grid-template-columns:1fr !important;
+    }
+}
+</style>
