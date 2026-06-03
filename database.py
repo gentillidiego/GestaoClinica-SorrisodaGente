@@ -165,6 +165,17 @@ MIGRATIONS = {
         ('professor_id', 'INTEGER'),
         ('data_validacao', 'TIMESTAMP')
     ],
+    'exam_imagem_arquivos': [
+        ('patient_id', 'INTEGER'),
+        ('visual_category', "TEXT DEFAULT 'radiografia'"),
+        ('caption', 'TEXT'),
+        ('clinical_context', 'TEXT'),
+        ('comparison_label', "TEXT DEFAULT 'diagnostico'"),
+        ('comparison_group', 'TEXT'),
+        ('taken_at', 'TIMESTAMP'),
+        ('uploaded_by', 'INTEGER'),
+        ('active', 'BOOLEAN DEFAULT TRUE')
+    ],
     'generated_reports': [
         ('details', 'JSONB'),
         ('signature_hash', 'TEXT'),
@@ -198,6 +209,15 @@ MIGRATIONS = {
         ('cancer_confirmed', 'BOOLEAN DEFAULT FALSE'),
         ('cancer_confirmed_at', 'TIMESTAMP'),
         ('diagnostico_confirmado', 'TEXT')
+    ],
+    'estomatologia_fotos': [
+        ('visual_category', "TEXT DEFAULT 'lesao'"),
+        ('clinical_context', 'TEXT'),
+        ('comparison_label', "TEXT DEFAULT 'evolucao'"),
+        ('comparison_group', 'TEXT'),
+        ('taken_at', 'TIMESTAMP'),
+        ('uploaded_by', 'INTEGER'),
+        ('active', 'BOOLEAN DEFAULT TRUE')
     ],
     'procedure_cost_references': [
         ('methodology_status', "TEXT DEFAULT 'draft'"),
@@ -537,8 +557,17 @@ def _init_db_locked():
         CREATE TABLE IF NOT EXISTS exam_imagem_arquivos (
             id SERIAL PRIMARY KEY,
             exam_id INTEGER NOT NULL,
+            patient_id INTEGER,
             filename TEXT NOT NULL,
             file_path TEXT NOT NULL,
+            visual_category TEXT DEFAULT 'radiografia',
+            caption TEXT,
+            clinical_context TEXT,
+            comparison_label TEXT DEFAULT 'diagnostico',
+            comparison_group TEXT,
+            taken_at TIMESTAMP,
+            uploaded_by INTEGER,
+            active BOOLEAN DEFAULT TRUE,
             data_upload TIMESTAMP DEFAULT NOW(),
             FOREIGN KEY (exam_id) REFERENCES exams (id) ON DELETE CASCADE
         )
@@ -886,6 +915,13 @@ def _init_db_locked():
             filename TEXT NOT NULL,
             file_path TEXT NOT NULL,
             legenda TEXT,
+            visual_category TEXT DEFAULT 'lesao',
+            clinical_context TEXT,
+            comparison_label TEXT DEFAULT 'evolucao',
+            comparison_group TEXT,
+            taken_at TIMESTAMP,
+            uploaded_by INTEGER,
+            active BOOLEAN DEFAULT TRUE,
             data_upload TIMESTAMP DEFAULT NOW(),
             FOREIGN KEY (estomatologia_id) REFERENCES estomatologia (id) ON DELETE CASCADE
         )
@@ -924,6 +960,25 @@ def _init_db_locked():
     execute("UPDATE tratamento_procedimentos SET status = 'Concluído' WHERE status = 'Concluido'")
     execute("UPDATE atendimentos SET status = 'Concluído' WHERE status = 'Concluido'")
     execute("""
+        UPDATE exam_imagem_arquivos a
+        SET patient_id = e.patient_id
+        FROM exams e
+        WHERE a.exam_id = e.id
+          AND a.patient_id IS NULL
+    """)
+    execute("""
+        UPDATE exam_imagem_arquivos
+        SET visual_category = COALESCE(visual_category, 'radiografia'),
+            comparison_label = COALESCE(comparison_label, 'diagnostico'),
+            active = COALESCE(active, TRUE)
+    """)
+    execute("""
+        UPDATE estomatologia_fotos
+        SET visual_category = COALESCE(visual_category, 'lesao'),
+            comparison_label = COALESCE(comparison_label, 'evolucao'),
+            active = COALESCE(active, TRUE)
+    """)
+    execute("""
         UPDATE estomatologia e
         SET cancer_confirmed = TRUE,
             cancer_confirmed_at = COALESCE(e.cancer_confirmed_at, e.data_registro + INTERVAL '2 days'),
@@ -947,11 +1002,17 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_patients_demo_seed_run ON patients(demo_seed_run_id)",
         "CREATE INDEX IF NOT EXISTS idx_anamnesis_patient_id ON anamnesis(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_exams_patient_id ON exams(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_exam_imagem_arquivos_exam_id ON exam_imagem_arquivos(exam_id)",
+        "CREATE INDEX IF NOT EXISTS idx_exam_imagem_arquivos_patient_id ON exam_imagem_arquivos(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_exam_imagem_arquivos_visual_category ON exam_imagem_arquivos(visual_category)",
+        "CREATE INDEX IF NOT EXISTS idx_exam_imagem_arquivos_comparison_group ON exam_imagem_arquivos(comparison_group)",
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_patient_id ON atendimentos(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_estomatologia_patient_id ON estomatologia(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_estomatologia_suspeita ON estomatologia(suspeita_neoplasia)",
         "CREATE INDEX IF NOT EXISTS idx_estomatologia_cancer_confirmed ON estomatologia(cancer_confirmed)",
         "CREATE INDEX IF NOT EXISTS idx_estomatologia_fotos_est_id ON estomatologia_fotos(estomatologia_id)",
+        "CREATE INDEX IF NOT EXISTS idx_estomatologia_fotos_visual_category ON estomatologia_fotos(visual_category)",
+        "CREATE INDEX IF NOT EXISTS idx_estomatologia_fotos_comparison_group ON estomatologia_fotos(comparison_group)",
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_professor_id ON atendimentos(professor_id)",
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_aluno_executor_id ON atendimentos(aluno_executor_id)",
         "CREATE INDEX IF NOT EXISTS idx_tratamento_patient_id ON tratamento_procedimentos(patient_id)",

@@ -133,6 +133,47 @@
             </div>
         </div>
 
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem; padding:1rem; margin-bottom:1rem; border:1px solid hsl(var(--border)); border-radius:var(--radius-md); background:hsl(var(--bg-main));">
+            <div style="grid-column:1 / -1;">
+                <label class="form-label" style="font-size:0.78rem; font-weight:800;">LEGENDA DO LOTE <span style="color:hsl(var(--danger));">*</span></label>
+                <input type="text" id="upload_caption" class="form-input" placeholder="Ex: Radiografia panorâmica inicial" required>
+            </div>
+            <div>
+                <label class="form-label" style="font-size:0.78rem; font-weight:800;">CATEGORIA</label>
+                <select id="upload_visual_category" class="form-input">
+                    <option value="radiografia" selected>Radiografia</option>
+                    <option value="intraoral">Intraoral</option>
+                    <option value="extraoral">Extraoral</option>
+                    <option value="antes_depois">Antes/Depois</option>
+                    <option value="evolucao">Evolução</option>
+                    <option value="documento_complementar">Documento complementar</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label" style="font-size:0.78rem; font-weight:800;">ETAPA VISUAL</label>
+                <select id="upload_comparison_label" class="form-input">
+                    <option value="diagnostico" selected>Diagnóstico</option>
+                    <option value="antes">Antes</option>
+                    <option value="evolucao">Evolução</option>
+                    <option value="depois">Depois</option>
+                    <option value="controle">Controle</option>
+                    <option value="pos_operatorio">Pós-operatório</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label" style="font-size:0.78rem; font-weight:800;">GRUPO COMPARATIVO</label>
+                <input type="text" id="upload_comparison_group" class="form-input" placeholder="Ex: Implante 36">
+            </div>
+            <div>
+                <label class="form-label" style="font-size:0.78rem; font-weight:800;">DATA CLÍNICA</label>
+                <input type="datetime-local" id="upload_taken_at" class="form-input">
+            </div>
+            <div style="grid-column:1 / -1;">
+                <label class="form-label" style="font-size:0.78rem; font-weight:800;">CONTEXTO CLÍNICO</label>
+                <input type="text" id="upload_clinical_context" class="form-input" placeholder="Ex: Controle após instalação da prótese">
+            </div>
+        </div>
+
         <div id="upload_progress" style="display: none; color: hsl(var(--text-muted)); margin-bottom: 1rem; font-size: 0.9rem;">
             Enviando imagens...
         </div>
@@ -297,10 +338,24 @@
         const files = event.target.files;
         if (!files || files.length === 0) return;
 
+        const caption = document.getElementById('upload_caption').value.trim();
+        if (!caption) {
+            alert('Informe a legenda do lote antes de carregar as imagens.');
+            event.target.value = '';
+            return;
+        }
+
         const formData = new FormData();
         for (let i = 0; i < files.length; i++) {
             formData.append('images', files[i]);
         }
+        formData.append('caption', caption);
+        formData.append('visual_category', document.getElementById('upload_visual_category').value);
+        formData.append('comparison_label', document.getElementById('upload_comparison_label').value);
+        formData.append('comparison_group', document.getElementById('upload_comparison_group').value);
+        formData.append('taken_at', document.getElementById('upload_taken_at').value);
+        formData.append('clinical_context', document.getElementById('upload_clinical_context').value);
+
         // CSRF Token para chamadas fetch/AJAX
         const csrfTokenInput = document.getElementById('csrf_token_global');
         if (csrfTokenInput) {

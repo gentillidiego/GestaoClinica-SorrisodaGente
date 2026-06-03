@@ -131,15 +131,38 @@
             <!-- Formulário de Upload de Foto -->
             <div style="background: hsl(var(--bg-main)); border: 1px solid hsl(var(--border)); border-radius: var(--radius-md); padding: 1.5rem; margin-bottom: 2.5rem;">
                 <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 1rem; color: hsl(var(--text-main));">➕ Enviar Nova Imagem da Lesão</h3>
-                <form action="{{ url_for('patients.upload_estomatologia_photo', id=patient.id) }}" method="POST" enctype="multipart/form-data" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                <form action="{{ url_for('patients.upload_estomatologia_photo', id=patient.id) }}" method="POST" enctype="multipart/form-data" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; align-items: flex-end;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="visual_category" value="lesao">
                     <div>
                         <label class="form-label" style="font-weight: 700; font-size: 0.78rem;">ARQUIVO DE IMAGEM (JPG, PNG, WEBP)</label>
                         <input type="file" name="foto" required style="width:100%; padding:0.5rem; background: white; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); font-size: 0.8rem;">
                     </div>
                     <div>
-                        <label class="form-label" style="font-weight: 700; font-size: 0.78rem;">LEGENDA / ETAPA TEMPORAL</label>
-                        <input type="text" name="legenda" placeholder="Ex: Antes do tratamento, Evolução 1 semana, etc." style="width:100%; padding:0.6rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); font-size: 0.8rem;">
+                        <label class="form-label" style="font-weight: 700; font-size: 0.78rem;">LEGENDA / ETAPA TEMPORAL <span style="color:red;">*</span></label>
+                        <input type="text" name="legenda" required placeholder="Ex: Antes do tratamento, Evolução 1 semana" style="width:100%; padding:0.6rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); font-size: 0.8rem;">
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-weight: 700; font-size: 0.78rem;">ETAPA VISUAL</label>
+                        <select name="comparison_label" style="width:100%; padding:0.6rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); font-size: 0.8rem; background:white;">
+                            <option value="antes">Antes</option>
+                            <option value="evolucao" selected>Evolução</option>
+                            <option value="depois">Depois</option>
+                            <option value="controle">Controle</option>
+                            <option value="retorno">Retorno</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-weight: 700; font-size: 0.78rem;">GRUPO COMPARATIVO</label>
+                        <input type="text" name="comparison_group" placeholder="Ex: Lesão língua 2026" style="width:100%; padding:0.6rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); font-size: 0.8rem;">
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-weight: 700; font-size: 0.78rem;">DATA CLÍNICA</label>
+                        <input type="datetime-local" name="taken_at" style="width:100%; padding:0.55rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); font-size: 0.8rem;">
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-weight: 700; font-size: 0.78rem;">CONTEXTO CLÍNICO</label>
+                        <input type="text" name="clinical_context" placeholder="Ex: Retorno após 14 dias" style="width:100%; padding:0.6rem; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); font-size: 0.8rem;">
                     </div>
                     <button type="submit" class="btn btn-primary" style="padding: 0.7rem 1.5rem; font-size: 0.85rem; font-weight: 800; height: 38px;">
                         📤 Enviar
@@ -155,9 +178,10 @@
             {% if fotos %}
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1.5rem;">
                 {% for f in fotos %}
+                {% set photo_url = url_for('patients.serve_estomatologia_photo', id=patient.id, photo_id=f.id) %}
                 <div style="border: 1px solid hsl(var(--border)); border-radius: var(--radius-md); overflow: hidden; background: white; display: flex; flex-direction: column; box-shadow: var(--shadow-sm); transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
                     <div style="position: relative; padding-top: 75%; background: hsl(var(--bg-main)); overflow: hidden;">
-                        <img src="/{{ f.file_path }}" alt="Foto da Lesão" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; cursor: zoom-in;" onclick="openPhotoModal('/{{ f.file_path }}', '{{ f.legenda or 'Foto da Lesão' }}')">
+                        <img src="{{ photo_url }}" alt="Foto da Lesão" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; cursor: zoom-in;" onclick="openPhotoModal('{{ photo_url }}', {{ (f.legenda or 'Foto da Lesão')|tojson }})">
                     </div>
                     <div style="padding: 1rem; flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 0.75rem;">
                         <div>

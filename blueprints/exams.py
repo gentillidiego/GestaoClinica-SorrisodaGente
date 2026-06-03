@@ -4,6 +4,8 @@ from database import execute, query
 from werkzeug.security import check_password_hash
 import json
 import re
+from services.security_service import audit_log
+from services.visual_media_service import build_exam_image_metadata
 
 exams_bp = Blueprint('exams', __name__, url_prefix='/exams')
 
@@ -323,15 +325,39 @@ def upload_imagem(exam_id):
     if not files or files[0].filename == '':
         return jsonify({'error': 'Nenhum arquivo selecionado.'}), 400
 
+    exam = query(
+        """
+        SELECT e.id, e.patient_id
+        FROM exams e
+        JOIN patients p ON p.id = e.patient_id
+        WHERE e.id = %s
+        """,
+        (exam_id,),
+        one=True,
+    )
+    if not exam:
+        return jsonify({'error': 'Exame não encontrado.'}), 404
+
+    metadata = build_exam_image_metadata(request.form)
+    if not metadata['caption']:
+        return jsonify({'error': 'A legenda da imagem é obrigatória.'}), 400
+
+    allowed_extensions = {'.jpg', '.jpeg', '.png', '.webp'}
+    prepared_files = []
+    for file in files:
+        original_filename = secure_filename(file.filename)
+        ext = os.path.splitext(original_filename)[1].lower()
+        if ext not in allowed_extensions:
+            return jsonify({'error': 'Formato inválido. Use JPG, PNG ou WEBP.'}), 400
+        prepared_files.append((file, original_filename, ext))
+
     upload_dir = 'uploads/exames'
     os.makedirs(upload_dir, exist_ok=True)
     
     saved_files = []
     
-    for file in files:
+    for file, original_filename, ext in prepared_files:
         if file:
-            original_filename = secure_filename(file.filename)
-            ext = os.path.splitext(original_filename)[1]
             new_filename = f"{uuid.uuid4().hex}{ext}"
             file_path = os.path.join(upload_dir, new_filename)
             
@@ -339,24 +365,82 @@ def upload_imagem(exam_id):
             
             # Save to database
             arquivo_id = execute(
-                "INSERT INTO exam_imagem_arquivos (exam_id, filename, file_path) VALUES (%s, %s, %s) RETURNING id",
-                (exam_id, original_filename, file_path)
+                """
+                INSERT INTO exam_imagem_arquivos (
+                    exam_id, patient_id, filename, file_path, visual_category,
+                    caption, clinical_context, comparison_label, comparison_group,
+                    taken_at, uploaded_by
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NULLIF(%s, '')::timestamp, %s)
+                RETURNING id
+                """,
+                (
+                    exam_id,
+                    exam['patient_id'],
+                    original_filename,
+                    file_path,
+                    metadata['visual_category'],
+                    metadata['caption'],
+                    metadata['clinical_context'],
+                    metadata['comparison_label'],
+                    metadata['comparison_group'],
+                    metadata['taken_at'] or '',
+                    current_user.id,
+                )
             )
             saved_files.append({
                 'id': arquivo_id,
                 'filename': original_filename,
-                'url': url_for('exams.serve_imagem', arquivo_id=arquivo_id)
+                'url': url_for('exams.serve_imagem', arquivo_id=arquivo_id),
+                'caption': metadata['caption'],
+                'visual_category': metadata['visual_category'],
+                'comparison_label': metadata['comparison_label'],
             })
+
+    audit_log(
+        action='visual_media_uploaded',
+        module='visual_media',
+        entity_type='exam_imagem_arquivos',
+        entity_id=exam_id,
+        patient_id=exam['patient_id'],
+        details={
+            'source': 'exam_image',
+            'exam_id': exam_id,
+            'files': [file_data['id'] for file_data in saved_files],
+            'visual_category': metadata['visual_category'],
+            'comparison_label': metadata['comparison_label'],
+            'comparison_group': metadata['comparison_group'],
+        },
+    )
             
     return jsonify({'success': True, 'files': saved_files})
 
 @exams_bp.route('/imagem/arquivo/<int:arquivo_id>')
 @login_required
 def serve_imagem(arquivo_id):
-    arquivo = query("SELECT * FROM exam_imagem_arquivos WHERE id = %s", (arquivo_id,), one=True)
+    arquivo = query(
+        """
+        SELECT a.*, e.patient_id
+        FROM exam_imagem_arquivos a
+        JOIN exams e ON e.id = a.exam_id
+        JOIN patients p ON p.id = e.patient_id
+        WHERE a.id = %s
+          AND COALESCE(a.active, TRUE) = TRUE
+        """,
+        (arquivo_id,),
+        one=True,
+    )
     if not arquivo or not os.path.exists(arquivo['file_path']):
         return "Arquivo não encontrado", 404
-        
+
+    audit_log(
+        action='visual_media_file_viewed',
+        module='visual_media',
+        entity_type='exam_imagem_arquivos',
+        entity_id=arquivo_id,
+        patient_id=arquivo['patient_id'],
+        details={'filename': arquivo.get('filename'), 'caption': arquivo.get('caption')},
+    )
     return send_file(os.path.abspath(arquivo['file_path']))
 
 @exams_bp.route('/delete/<int:exam_id>', methods=['POST'])

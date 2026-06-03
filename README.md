@@ -50,7 +50,8 @@ O sistema opera em uma arquitetura moderna e resiliente de microsserviços via D
 
 Acessível via `/dashboard` após login:
 
-- **Módulo de Exames de Imagem** — Galeria com upload em lote e visualização em tela cheia
+- **Módulo de Exames de Imagem** — Galeria com upload em lote, legenda obrigatória, categorização visual e visualização em tela cheia
+- **Biblioteca Visual do Paciente** — Aba `Visual` no prontuário reunindo fotos clínicas, radiografias, lesões, antes/depois, evolução e documentos complementares com auditoria de acesso
 - **Módulo de Triagem Municipal** — Criação de ações por município e geração de senhas por especialidade no formato `ARA-P-001`
 - **Agenda Semanal** — Controle de consultas com badges de status e vinculação paciente/dentista
 - **Dashboard Gerencial** — Métricas de produtividade e taxa de conclusão de agendamentos
@@ -331,10 +332,10 @@ Acompanhe abaixo o progresso do desenvolvimento da expansão tecnológica acorda
 
 ---
 
-### **Fase 2: Operação Clínica, Fila Inteligente, Alertas e Rastreabilidade — 🟢 PRIMEIRA VERSÃO CONCLUÍDA E VALIDADA** *(Revisada em 30/05/2026)*
+### **Fase 2: Operação Clínica, Fila Inteligente, Alertas e Rastreabilidade — 🟢 PRIMEIRA VERSÃO CONCLUÍDA E VALIDADA** *(Revisada em 30/05/2026 e complementada em 03/06/2026)*
 
 > Objetivo: criar a primeira base operacional para gestão diária da clínica, priorização automática da fila, alertas críticos e rastreabilidade do paciente.
-> Status atual: primeira versão implementada, revisada e validada com testes automatizados e renderização autenticada em Docker.
+> Status atual: primeira versão implementada, revisada e validada com testes automatizados e renderização autenticada em Docker. Em 03/06/2026 foi adicionada a primeira versão do módulo visual avançado do prontuário, cobrindo fotos clínicas, radiografias, lesões, antes/depois, evolução, legenda obrigatória, comparação por grupo e auditoria.
 
 #### Entregas implementadas
 
@@ -393,6 +394,68 @@ Validações autenticadas em Docker:
 | `/agenda/` | HTTP 200 |
 | `/patients/view/<id>/tab/tab-linha-tempo` | HTTP 200 |
 
+#### Entregas implementadas em 03/06/2026 — Módulo Avançado de Fotos, Radiografias e Rastreamento Visual
+
+- [x] **Biblioteca visual consolidada no prontuário**
+  - [x] Nova aba `Visual` no prontuário do paciente, carregada por lazy loading em `/patients/view/<id>/tab/tab-visual`.
+  - [x] Consolidação de imagens vindas de `exam_imagem_arquivos` e `estomatologia_fotos`.
+  - [x] Resumo com total de arquivos, radiografias, lesões e grupos comparativos.
+  - [x] Biblioteca por categoria: radiografia, lesão, antes/depois, evolução, intraoral, extraoral e documento complementar.
+- [x] **Padronização clínica dos arquivos visuais**
+  - [x] Legenda obrigatória para novos uploads de exames de imagem e fotos de estomatologia.
+  - [x] Metadados editáveis por arquivo: categoria visual, etapa visual, grupo comparativo, data clínica e contexto clínico.
+  - [x] Upload de exames de imagem passou a gravar paciente, responsável pelo envio e metadados do lote.
+  - [x] Upload de estomatologia passou a gravar categoria, etapa, grupo, data clínica, contexto e responsável pelo envio.
+- [x] **Comparativo visual**
+  - [x] Grupos comparativos por texto livre, permitindo parear registros como `Lesão língua 2026`, `Implante 36` ou `Antes/depois prótese`.
+  - [x] Exibição lado a lado dos arquivos que pertencem ao mesmo grupo.
+  - [x] Ordenação clínica por etapa: diagnóstico, antes, evolução, controle, retorno, pós-operatório e depois.
+- [x] **Segurança e auditoria**
+  - [x] Fotos de estomatologia passaram a ser servidas por rota autenticada, não mais por caminho direto do arquivo.
+  - [x] Exames de imagem passaram a validar vínculo com paciente existente antes de upload ou visualização.
+  - [x] Auditoria registra abertura da aba visual, upload, visualização de arquivo, atualização de metadados e exclusão de foto clínica.
+  - [x] Migrações preservam imagens antigas e preenchem defaults de categoria, etapa e status ativo.
+- [x] **Arquivos, rotas e tabelas impactados**
+  - [x] `database.py`: novas colunas em `exam_imagem_arquivos` e `estomatologia_fotos`, defaults, backfill e índices.
+  - [x] `services/visual_media_service.py`: serviço central de mídia visual, normalização, agrupamento e atualização de metadados.
+  - [x] `services/patient_service.py`: integração da aba visual ao serviço do prontuário.
+  - [x] `blueprints/patients.py`: aba visual, rota protegida de foto de estomatologia, atualização de metadados e auditoria.
+  - [x] `blueprints/exams.py`: upload com metadados, validação de paciente e auditoria de acesso.
+  - [x] `templates/patients/includes/_tab_visual.html`: biblioteca visual, cards por categoria, comparativos e edição inline.
+  - [x] `templates/patients/includes/_tab_estomatologia.html`: upload de foto com legenda obrigatória e metadados visuais.
+  - [x] `templates/exams/imagem.html`: metadados do lote antes do upload.
+  - [x] `tests/test_phase2_visual_media.py`: testes unitários do serviço visual.
+
+#### Testes executados após Módulo Visual
+
+```bash
+.venv/bin/python -m compileall database.py services/visual_media_service.py services/patient_service.py blueprints/patients.py blueprints/exams.py tests/test_phase2_visual_media.py
+# Resultado: compilação sem erro
+
+.venv/bin/pytest -q
+# Resultado: 82 passed
+
+git diff --check
+# Resultado: sem erros de whitespace
+
+docker compose up -d --build
+curl http://localhost:5003/health
+# Resultado: HTTP 200, database ok
+```
+
+Validações em Docker em 03/06/2026:
+
+| Ação | Resultado |
+|---|---|
+| Colunas novas em `exam_imagem_arquivos` e `estomatologia_fotos` | Presentes no PostgreSQL real |
+| `GET /patients/view/<id>` autenticado em test client Docker | HTTP 200 |
+| `GET /patients/view/<id>/tab/tab-visual` autenticado em test client Docker | HTTP 200 e contém `Biblioteca Visual do Paciente` |
+| Upload temporário em `/exams/imagem/<exam_id>/upload` | HTTP 200, `success=True` |
+| `GET /exams/imagem/arquivo/<arquivo_id>` para arquivo temporário | HTTP 200 via rota protegida |
+| Limpeza do arquivo temporário | Registro e arquivo removidos após validação |
+
+> Observação técnica: havia exames legados órfãos apontando para pacientes inexistentes. A rota de upload/visualização de imagem foi endurecida para aceitar somente exames vinculados a pacientes válidos, evitando falha de auditoria e melhorando a consistência LGPD.
+
 #### Pendências da Fase 2
 
 - [ ] **Evolução do algoritmo de fila**
@@ -413,10 +476,13 @@ Validações autenticadas em Docker:
   - [ ] Associação ao prontuário de instrumental utilizado, implante, prótese, lote, validade, fornecedor e profissional responsável.
   - [ ] Registro do pós-operatório, intercorrências, conduta e alta clínica.
   - [ ] Rastreabilidade por paciente, procedimento, material, lote, profissional e data.
-- [ ] **Módulo de fotos, radiografias e rastreamento visual**
-  - [ ] Organização padronizada por categoria: antes/depois, evolução, lesões, radiografias, intraoral, extraoral e documentos complementares.
-  - [ ] Comparativo visual lado a lado, linha do tempo e legenda obrigatória.
-  - [ ] Segurança LGPD aplicada aos arquivos, com permissão por perfil e registro de acesso.
+- [ ] **Hardening LGPD do módulo visual**
+  - [x] Primeira versão de organização visual, legenda obrigatória, comparativo e auditoria.
+  - [x] Rotas autenticadas para visualização de fotos clínicas e radiografias.
+  - [ ] Criptografar arquivos clínicos em repouso ou usar storage seguro com chave institucional.
+  - [ ] Evoluir permissão por perfil para diferenciar upload, edição de metadados, exclusão e visualização sensível.
+  - [ ] Criar política formal de retenção/descarte para fotos, radiografias e documentos complementares.
+  - [ ] Criar relatório/auditoria específica de acessos a arquivos visuais sensíveis por período, IP e usuário.
 - [ ] **Módulo Financeiro e Logístico Operacional**
   - [ ] Controle de custo por procedimento, especialidade, profissional, município e tipo de material.
   - [ ] Produtividade por equipe, cadeira, especialidade e período.
@@ -431,6 +497,11 @@ Validações autenticadas em Docker:
 - Manual da coordenação deve explicar leitura da Central de Comando: fila prioritária, motivos da pontuação, alertas críticos e produção do dia.
 - Manual clínico deve explicar a Linha do Tempo como visão consolidada do histórico do paciente.
 - Manual de auditoria deve explicar que mudanças de agenda e eventos relevantes aparecem na linha do tempo e nos logs administrativos.
+- Manual clínico deve explicar a aba `Visual`: como cadastrar legenda, categoria, etapa visual, grupo comparativo, data clínica e contexto.
+- Manual clínico deve orientar que registros antes/depois ou evolução devem compartilhar o mesmo `Grupo comparativo` para aparecerem lado a lado.
+- Manual de estomatologia deve explicar que fotos de lesão exigem legenda e podem ser classificadas como antes, evolução, depois, controle ou retorno.
+- Manual de radiologia/exames deve explicar que o upload em lote aplica a mesma legenda e metadados a todos os arquivos selecionados.
+- Manual LGPD/auditoria deve explicar que abertura da aba visual, uploads, visualização de arquivos, edição de metadados e exclusão de fotos são auditados.
 
 ---
 
@@ -1430,6 +1501,7 @@ Validações em Docker:
 - **Landing Page:** [https://sorrisodagentealagoas.com](https://sorrisodagentealagoas.com)
 - **Painel Administrativo:** `/dashboard`
 - **Fila Vermelha (Oncologia):** `/patients/red-alerts`
+- **Biblioteca Visual do Paciente:** `/patients/view/<id>/tab/tab-visual`
 - **Epidemiologia:** `/epidemiologia`
 - **BI Executivo:** `/bi`
 - **PDF Governamental do BI:** `POST /bi/export`

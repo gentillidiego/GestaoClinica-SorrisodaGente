@@ -1,9 +1,10 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app
+from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app, send_file
 from flask_login import login_required, current_user
 from werkzeug.security import check_password_hash
 from database import execute, query, execute_transaction
 from constants import Role
 import math
+import os
 from datetime import datetime
 
 patients_bp = Blueprint('patients', __name__, url_prefix='/patients')
@@ -254,6 +255,12 @@ def edit_patient(id):
 
 from services.patient_service import PatientService
 from services.sigtap_service import get_sigtap_procedure, normalize_sigtap_code, build_sigtap_options
+from services.security_service import audit_log
+from services.visual_media_service import (
+    build_estomatologia_photo_metadata,
+    update_estomatologia_photo_metadata,
+    update_exam_image_metadata,
+)
 
 @patients_bp.route('/view/<int:id>')
 @login_required
@@ -322,6 +329,11 @@ def get_tab_content(id, tab_name):
             'template': 'patients/includes/_tab_estomatologia.html',
             'is_dict': True
         },
+        'tab-visual': {
+            'service': PatientService.get_patient_visual_media,
+            'template': 'patients/includes/_tab_visual.html',
+            'is_dict': True
+        },
         'tab-linha-tempo': {
             'service': PatientService.get_patient_timeline,
             'template': 'patients/includes/_tab_linha_tempo.html',
@@ -354,7 +366,107 @@ def get_tab_content(id, tab_name):
 
     context['now'] = datetime.now()
 
+    if tab_name == 'tab-visual':
+        audit_log(
+            action='visual_media_tab_opened',
+            module='visual_media',
+            entity_type='patient',
+            entity_id=id,
+            patient_id=id,
+            details={
+                'total_items': len(context.get('visual_items', [])),
+                'comparison_groups': len(context.get('visual_comparisons', [])),
+            },
+        )
+
     return render_template(config['template'], **context)
+
+
+@patients_bp.route('/<int:id>/visual/estomatologia-photo/<int:photo_id>')
+@login_required
+def serve_estomatologia_photo(id, photo_id):
+    photo = query(
+        '''
+        SELECT f.id, f.file_path, f.filename, f.legenda
+        FROM estomatologia_fotos f
+        JOIN estomatologia e ON e.id = f.estomatologia_id
+        WHERE f.id = %s
+          AND e.patient_id = %s
+          AND COALESCE(f.active, TRUE) = TRUE
+        ''',
+        (photo_id, id),
+        one=True,
+    )
+    if not photo or not os.path.exists(photo['file_path']):
+        return "Arquivo não encontrado", 404
+
+    audit_log(
+        action='visual_media_file_viewed',
+        module='visual_media',
+        entity_type='estomatologia_fotos',
+        entity_id=photo_id,
+        patient_id=id,
+        details={'filename': photo.get('filename'), 'caption': photo.get('legenda')},
+    )
+    return send_file(os.path.abspath(photo['file_path']))
+
+
+@patients_bp.route('/<int:id>/visual/exam-image/<int:arquivo_id>/metadata', methods=['POST'])
+@login_required
+def update_exam_visual_metadata(id, arquivo_id):
+    try:
+        record = update_exam_image_metadata(arquivo_id, id, request.form)
+        if not record:
+            flash('Imagem não encontrada ou sem vínculo com este paciente.', 'danger')
+            return redirect(url_for('patients.view_patient', id=id) + '#tab-visual')
+        audit_log(
+            action='visual_media_metadata_updated',
+            module='visual_media',
+            entity_type='exam_imagem_arquivos',
+            entity_id=arquivo_id,
+            patient_id=id,
+            details={
+                'source': 'exam_image',
+                'visual_category': request.form.get('visual_category'),
+                'comparison_label': request.form.get('comparison_label'),
+                'comparison_group': request.form.get('comparison_group'),
+            },
+        )
+        flash('Metadados da imagem atualizados.', 'success')
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+    except Exception as exc:
+        flash(f'Erro ao atualizar imagem: {str(exc)}', 'danger')
+    return redirect(url_for('patients.view_patient', id=id) + '#tab-visual')
+
+
+@patients_bp.route('/<int:id>/visual/estomatologia-photo/<int:photo_id>/metadata', methods=['POST'])
+@login_required
+def update_estomatologia_visual_metadata(id, photo_id):
+    try:
+        record = update_estomatologia_photo_metadata(photo_id, id, request.form)
+        if not record:
+            flash('Foto não encontrada ou sem vínculo com este paciente.', 'danger')
+            return redirect(url_for('patients.view_patient', id=id) + '#tab-visual')
+        audit_log(
+            action='visual_media_metadata_updated',
+            module='visual_media',
+            entity_type='estomatologia_fotos',
+            entity_id=photo_id,
+            patient_id=id,
+            details={
+                'source': 'estomatologia_photo',
+                'visual_category': request.form.get('visual_category'),
+                'comparison_label': request.form.get('comparison_label'),
+                'comparison_group': request.form.get('comparison_group'),
+            },
+        )
+        flash('Metadados da foto atualizados.', 'success')
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+    except Exception as exc:
+        flash(f'Erro ao atualizar foto: {str(exc)}', 'danger')
+    return redirect(url_for('patients.view_patient', id=id) + '#tab-visual')
 
 @patients_bp.route('/tcle/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -875,19 +987,22 @@ def save_estomatologia(id):
 @patients_bp.route('/<int:id>/estomatologia/photo/upload', methods=['POST'])
 @login_required
 def upload_estomatologia_photo(id):
-    import os
     import uuid
     from werkzeug.utils import secure_filename
 
     file = request.files.get('foto')
-    legenda = request.form.get('legenda', '')
+    metadata = build_estomatologia_photo_metadata(request.form)
 
     if not file or file.filename == '':
         flash('Nenhuma foto enviada.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-estomatologia')
+    if not metadata['legenda']:
+        flash('A legenda da foto é obrigatória para rastreamento visual.', 'danger')
+        return redirect(url_for('patients.view_patient', id=id) + '#tab-estomatologia')
 
     # Validação simples de tipo de arquivo
-    ext = os.path.splitext(file.filename)[1].lower()
+    original_filename = secure_filename(file.filename)
+    ext = os.path.splitext(original_filename)[1].lower()
     if ext not in ['.jpg', '.jpeg', '.png', '.webp']:
         flash('Formato de imagem inválido. Use JPG, PNG ou WEBP.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-estomatologia')
@@ -908,10 +1023,41 @@ def upload_estomatologia_photo(id):
         file.save(filepath)
 
         # Salva registro no banco
-        execute('''
-            INSERT INTO estomatologia_fotos (estomatologia_id, filename, file_path, legenda)
-            VALUES (%s, %s, %s, %s)
-        ''', (est['id'], filename, filepath, legenda))
+        photo_id = execute('''
+            INSERT INTO estomatologia_fotos (
+                estomatologia_id, filename, file_path, legenda, visual_category,
+                clinical_context, comparison_label, comparison_group, taken_at,
+                uploaded_by
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NULLIF(%s, '')::timestamp, %s)
+            RETURNING id
+        ''', (
+            est['id'],
+            original_filename or filename,
+            filepath,
+            metadata['legenda'],
+            metadata['visual_category'],
+            metadata['clinical_context'],
+            metadata['comparison_label'],
+            metadata['comparison_group'],
+            metadata['taken_at'] or '',
+            current_user.id,
+        ))
+
+        audit_log(
+            action='visual_media_uploaded',
+            module='visual_media',
+            entity_type='estomatologia_fotos',
+            entity_id=photo_id,
+            patient_id=id,
+            details={
+                'source': 'estomatologia',
+                'filename': original_filename,
+                'visual_category': metadata['visual_category'],
+                'comparison_label': metadata['comparison_label'],
+                'comparison_group': metadata['comparison_group'],
+            },
+        )
 
         flash('Foto da lesão enviada com sucesso!', 'success')
     except Exception as e:
@@ -922,11 +1068,10 @@ def upload_estomatologia_photo(id):
 @patients_bp.route('/<int:id>/estomatologia/photo/<int:photo_id>/delete', methods=['POST'])
 @login_required
 def delete_estomatologia_photo(id, photo_id):
-    import os
     try:
         # Busca a foto para obter o caminho
         photo = query('''
-            SELECT f.id, f.file_path
+            SELECT f.id, f.file_path, f.filename, f.legenda, f.visual_category, f.comparison_group
             FROM estomatologia_fotos f
             JOIN estomatologia e ON f.estomatologia_id = e.id
             WHERE f.id = %s AND e.patient_id = %s
@@ -938,6 +1083,20 @@ def delete_estomatologia_photo(id, photo_id):
 
         # Remove do banco
         execute('DELETE FROM estomatologia_fotos WHERE id = %s', (photo_id,))
+
+        audit_log(
+            action='visual_media_deleted',
+            module='visual_media',
+            entity_type='estomatologia_fotos',
+            entity_id=photo_id,
+            patient_id=id,
+            details={
+                'filename': photo.get('filename'),
+                'caption': photo.get('legenda'),
+                'visual_category': photo.get('visual_category'),
+                'comparison_group': photo.get('comparison_group'),
+            },
+        )
 
         # Tenta remover do disco
         if os.path.exists(photo['file_path']):
