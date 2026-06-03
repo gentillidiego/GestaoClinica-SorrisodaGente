@@ -584,6 +584,24 @@ Validações em Docker em 03/06/2026:
 - [ ] **Treinamento e Implantação**
   - [ ] Capacitação da equipe operacional por meio de videoaulas, manuais rápidos em PDF e apoio presencial/híbrido.
 
+#### Próximo passo registrado para retomada da sessão
+
+> Registrado em 03/06/2026 ao encerrar a sessão.
+
+O próximo passo oficial é iniciar a **Fase 2.8 — Fila Inteligente SUS v2**, retomando a evolução da Central de Comando e do ranking automático de urgência.
+
+Escopo recomendado para a próxima sessão:
+
+- [ ] incluir novos critérios de prioridade no algoritmo de fila: diabéticos, casos agudos de dor, idosos, vulnerabilidade socioeconômica e tempo de espera por especialidade;
+- [ ] manter e refinar critérios já existentes: pacientes oncológicos, lesões suspeitas sem retorno, faltas recorrentes e tratamentos pendentes;
+- [ ] melhorar a explicação dos motivos de prioridade exibidos na Central de Comando;
+- [ ] destacar fila crítica por especialidade e começar a medir gargalos operacionais;
+- [ ] preparar base inicial para previsão de demanda por especialidade, bairro, município, período e mutirão;
+- [ ] criar ou ampliar testes automatizados do serviço de fila e da renderização da Central de Comando;
+- [ ] registrar a entrega, validações, pendências e observações de manual neste README ao concluir a sessão.
+
+Observação de produto: a gestão de estoque e o registro de materiais usados permanecem opcionais nesta etapa e não devem bloquear a evolução da Fase 2.8.
+
 #### Observações para manuais futuros
 
 - Manual da recepção deve explicar como criar consulta, confirmar, marcar `Faltou`, cancelar e interpretar filtros da agenda.
