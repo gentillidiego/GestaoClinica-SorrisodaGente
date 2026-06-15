@@ -1,184 +1,123 @@
 # Gestão Saúde Oral - Programa Sorriso da Gente
 
-Plataforma de gestão clínica e acompanhamento de saúde bucal, integrando um sistema administrativo robusto com uma Landing Page institucional moderna voltada ao programa "Sorriso da Gente". Utiliza Python/Flask, PostgreSQL e Celery para oferecer agendamento, prontuários digitais e geração de documentos clínicos.
+README 2.2 - atualizado em 15/06/2026.
 
-## 🌐 Landing Page Institucional
+Plataforma de gestão clínica, operacional e institucional de saúde bucal para o programa Sorriso da Gente. O sistema reúne triagem municipal, agenda, prontuário odontológico, estomatologia, exames, estoque, Central de Comando, BI, epidemiologia, relatórios e preparação SIGTAP/e-SUS APS.
 
-Página pública disponível em [https://sorrisodagentealagoas.com](https://sorrisodagentealagoas.com), servindo como vitrine do programa com design moderno, responsivo e animado.
+Stack principal: Python/Flask, PostgreSQL 16, Redis, Celery, WeasyPrint e Docker Compose.
 
-### Seções
-- **Hero** — Tagline institucional, call-to-action e card com logo do programa animado
-- **Estatísticas** — +50 mil pacientes, 9 etapas, 100% gratuito, +20 procedimentos
-- **Sobre o Programa** — Missão, citação institucional e destaques do programa
-- **Como Funciona** — 9 etapas do fluxo de atendimento (da UBS à alta com dignidade)
-- **Serviços** — Atenção Básica, Diagnóstico Avançado e Clínica Restauradora
-- **CTA** — Acesso direto ao sistema de gestão
-- **Rodapé** — Navegação, contato e suporte técnico
+## Status Executivo
 
-### Design e UX
-- Identidade visual com paleta oficial: azul `#002D73`, laranja `#FF6A00`, amarelo `#FFC124`
-- Totalmente responsivo: mobile (480px), tablet (768px) e desktop
-- Menu hamburguer para dispositivos móveis
-- Navegação com efeito glassmorphism ao scrollar
-- Animações de entrada via IntersectionObserver (fade + slide-up)
-- Orbs animados no hero com gradiente dinâmico
-- Card da logo com efeito flutuante
-- Hover interativo nos cards de etapas e serviços
+Estado atual do projeto:
 
-## 🐳 Arquitetura e Deploy (Docker)
+- Fase 0 concluída e validada: núcleo clínico de alta urgência, estomatologia, alerta vermelho e PDF de encaminhamento.
+- Fase 1 com base implementada: perfis, permissões, auditoria inicial, backup operacional, estrutura LGPD e hardening inicial de arquivos sensíveis. Ainda falta hardening de produção.
+- Fase 2 com primeira versão operacional concluída: triagem, agenda, Central de Comando, fila inteligente, alertas, rastreabilidade, estoque, unidades de execução e resumo diário.
+- Fase 3 iniciada e avançada: Epidemiologia, BI, relatórios institucionais, custos SIGTAP, PDF governamental e e-SUS draft. Ainda depende de homologações externas e integrações reais.
+- Módulo de Endodontia ampliado até a Etapa E10: anamnese vinculada, cancelamento lógico, queixa/exame/periodonto estruturados, diagnóstico AAE, CID-10 sugerido, bloqueios clínicos, odontometria canal a canal, Bregman, CRT sugerido/final, sessões estruturadas, fluxo de status, retorno vencido na Central de Comando, protocolo biomecânico, irrigação, medicação intracanal, obturação final, pendência restauradora, imagens endodônticas integradas à Biblioteca Visual, proservação com critérios de Strindberg, orçamento gerencial por canal com TUSS/SIGTAP de referência, QA automatizado e manual rápido de aceite clínico-operacional.
+- Última validação registrada em 15/06/2026: `.venv/bin/pytest -q` com `174 passed`.
+- Status de produção: **não liberar produção plena ainda**. A aplicação está funcional e validada em Docker, mas ainda exige fechamento dos bloqueadores P0 de infraestrutura, LGPD, backup/restore, homologação operacional e aceite formal listados em `Plano de Prontidão para Produção`.
 
-O sistema opera em uma arquitetura moderna e resiliente de microsserviços via Docker Compose, utilizando volumes nomeados dedicados para isolamento e segurança máxima (LGPD-compliant), livre de permissões de bind mounts locais do host:
+Ponto atual de retomada:
 
-| Container | Tecnologia | Função | Porta |
-|---|---|---|---|
-| `gestaosaudeoral-web` | Flask + Gevent | Servidor web principal | `5003` |
-| `gestaosaudeoral-postgres` | PostgreSQL 16 | Banco de dados persistente | `5433` (host) |
-| `gestaosaudeoral-redis` | Redis 7 | Broker de mensagens + Rate Limiting | — |
-| `gestaosaudeoral-celery` | Celery Worker | Geração assíncrona de PDFs | — |
+1. Endodontia E0-E10 concluída em nível MVP clínico-operacional.
+2. Próxima frente recomendada: homologação institucional com clínica responsável e integração dos itens fora do MVP.
+3. Preservar sessão estruturada, assinatura do paciente, validação do profissional responsável, imagens E7, proservação E8, orçamento E9 e checklist E10.
+4. Manter anamnese apenas vinculada, sem novo formulário dentro de Endodontia.
+5. Antes de produção plena, executar o plano P0 de produção e registrar evidências no Git.
 
-### Volumes Nomeados Persistentes
-* `redis_data_oral` — Cache, sessões rápidas de usuários e broker de tarefas Celery.
-* `pdf_temp_oral` — Diretório isolado para processamento temporário de PDFs gerados pelo WeasyPrint.
-* `postgres_data_oral` — Base PostgreSQL isolada (incluindo prontuários e triagem).
-* `logs_oral` — Histórico estruturado de logs do servidor web e worker.
-* `uploads_oral` — Armazenamento seguro de exames radiológicos e fotos clínicas de lesões bucais (Módulo de Estomatologia).
-* `backups_oral` — Retenção local dos backups operacionais gerados pelo script de contingência.
+## Regras Permanentes
 
-> ⚠️ **Importante:** Os templates e arquivos estáticos fazem parte da **imagem Docker** (não há bind mount). Qualquer alteração em `templates/` ou `static/` exige rebuild obrigatório com `docker compose up -d --build`.
+Sempre atualizar este README quando houver mudança em fluxo, tela, regra de negócio, permissão, integração, relatório, métrica, teste ou decisão de produto.
 
-## 🌟 Funcionalidades Clínicas (Painel Administrativo)
+Também atualizar `docs/base_documentacao_manuais_usuarios.md` quando a mudança impactar treinamento, uso por perfil, rotina operacional ou manual de usuário.
 
-Acessível via `/dashboard` após login:
+VOLTE E VERIFIQUE:
 
-- **Módulo de Exames de Imagem** — Galeria com upload em lote, legenda obrigatória, categorização visual e visualização em tela cheia
-- **Biblioteca Visual do Paciente** — Aba `Visual` no prontuário reunindo fotos clínicas, radiografias, lesões, antes/depois, evolução e documentos complementares com auditoria de acesso
-- **Módulo de Triagem Municipal** — Criação de ações por município e geração de senhas por especialidade no formato `ARA-P-001`
-- **Agenda Semanal** — Controle de consultas com badges de status e vinculação paciente/dentista
-- **Dashboard Gerencial** — Métricas de produtividade e taxa de conclusão de agendamentos
-- **Central de Comando** — Painel operacional em `/command-center` com pacientes do dia, fila inteligente, alertas, bairros, especialidades e produção
-- **Epidemiologia** — Painel avançado em `/epidemiologia` com filtros por bairro, município, especialidade, profissional, sexo, faixa etária e status do tratamento; indicadores de lesões, câncer confirmado, perda dentária, absenteísmo, demanda reprimida e áreas críticas
-- **BI Executivo** — Painel em `/bi` com produção, filas, impacto social, metas automáticas, comparativos mensais, rankings executivos, visões governamentais por perfil, economia gerada estimada e PDF governamental da visão atual
-- **Custos SIGTAP** — Tela administrativa em `/admin/finance/cost-references` para revisar, importar, auditar e homologar referências de custo usadas no BI
-- **Estoque Operacional e Rastreabilidade de Materiais** — Tela `/admin/inventory` e aba `Materiais` no prontuário para controlar materiais, lotes, validade, fornecedores, custo por uso, baixa de estoque, ajustes/perdas e implantes com pós-operatório. Nesta etapa, o uso do estoque é opcional e não bloqueia o atendimento clínico.
-- **Relatórios Institucionais** — Prévia, geração assíncrona de PDF, histórico e recortes Institucional/SSA/SMS em `/reports/institutional`
-- **Linha do Tempo do Paciente** — Rastreabilidade inicial por prontuário reunindo cadastro, triagem, agenda, exames, procedimentos, documentos, estomatologia, fotos clínicas e auditoria
-- **Auditoria Administrativa** — Tela com filtros de logs por usuário, módulo, ação, paciente e status
-- **Segurança** — Rate limiting integrado (20 logins/hora por IP) e isolamento de dados via PostgreSQL
-- **🚨 Módulo de Estomatologia (Câncer de Boca)** — Ficha clínica especializada, evolução fotográfica de lesões, Fila Vermelha de regulação oncológica e Encaminhamento Expresso em PDF
-- **Dados Demonstrativos (CLI)** — Rotina técnica sem frontend para criar pacientes fictícios completos, com anamnese, TCLE, exames, plano de tratamento, agenda, estomatologia, prótese e produção SIGTAP/e-SUS pronta para demonstrações.
+- Alterações em `templates/`, `static/` ou Python exigem `docker compose up -d --build`.
+- Não registrar senhas, tokens, chaves, credenciais ou dados reais sensíveis neste README.
+- Validar `git diff --check`, testes automatizados e `/health` antes de encerrar uma fase.
+- Se houver mudança no fluxo de triagem, agenda ou unidade de execução, atualizar também os manuais de Triagem, Recepção, Agenda e Coordenação.
+- A triagem não define unidade de execução. A unidade é determinada depois, no agendamento da consulta.
+- Estoque e materiais são opcionais nesta etapa e não podem bloquear evolução clínica, assinatura, e-SUS ou alta.
+- Economia gerada no BI é estimativa operacional até homologação formal pela gestão pública.
+- e-SUS APS está em draft, validação interna e pré-envio simulado. Transmissão real depende de endpoint, credenciais e homologação da prefeitura.
+- Backups Docker devem usar `scripts/docker_backup_postgres.sh`, que executa `pg_dump` via `postgres:16-alpine`, compatível com o PostgreSQL 16 do projeto.
+- AVISO RELEVANTE: os módulos `Endodontia` e `Prótese` estão temporariamente ocultos da navegação do prontuário do paciente. Sempre informar ao usuário que esses módulos estão ocultos por decisão operacional temporária, não removidos do sistema.
 
-## 🚨 Módulo de Estomatologia — Câncer de Boca
+## Arquitetura Docker
 
-Módulo clínico dedicado ao rastreamento, documentação e regulação prioritária de casos suspeitos de neoplasia bucal. Acessível na aba **"🚨 Estomatologia"** dentro de cada prontuário.
-
-### Funcionalidades
-
-**Ficha Clínica Especializada**
-- Localização anatômica da lesão, tamanho estimado, características clínicas detalhadas
-- Hábitos de risco do paciente (tabagismo, etilismo), tempo de evolução
-- Hipótese diagnóstica e conduta clínica adotada
-- Checkbox de encaminhamento formal para biópsia/cirurgia
-
-**Alerta Vermelho (🚨 Suspeita de Neoplasia)**
-- Ao ativar, o paciente é imediatamente sinalizado em vermelho em todas as listas do sistema
-- Entrada automática na **Fila Vermelha de Regulação** (`/patients/red-alerts`)
-- O dashboard exibe o contador de casos ativos e acesso direto à fila
-
-**Evolução Fotográfica de Lesões**
-- Upload de fotos com legenda e categorização temporal ("Antes do tratamento", "Evolução 2 semanas", etc.)
-- Galeria visual tipo grade com modal de zoom em tela cheia
-- Exclusão individual de fotos com confirmação
-
-**Encaminhamento Expresso (PDF)**
-- Gerado via WeasyPrint + Celery com processamento assíncrono (~0.5s)
-- Inclui: banner de ALERTA VERMELHO, dados do paciente, dados clínicos da lesão, município de origem (via senha de triagem) e campo de assinatura da responsável clínica
-- Botão disponível diretamente na ficha clínica do prontuário
-
-### Rotas disponíveis
-
-| Rota | Método | Descrição |
+| Container | Função | Porta |
 |---|---|---|
-| `/patients/<id>/estomatologia/save` | POST | Salva ou atualiza a ficha clínica |
-| `/patients/<id>/estomatologia/photo/upload` | POST | Upload de foto da lesão (JPG/PNG/WEBP) |
-| `/patients/<id>/estomatologia/photo/<photo_id>/delete` | POST | Exclusão de foto |
-| `/patients/red-alerts` | GET | Fila Vermelha de regulação oncológica |
-| `/documents/<patient_id>/estomatologia/<est_id>/pdf` | GET | Geração do PDF de encaminhamento |
+| `gestaosaudeoral-web` | Flask + Gunicorn/Gevent | `5003` |
+| `gestaosaudeoral-postgres` | PostgreSQL 16 | `5433` no host |
+| `gestaosaudeoral-redis` | Redis, sessão, cache e broker | interno |
+| `gestaosaudeoral-celery` | Worker Celery para PDFs e tarefas | interno |
+| `gestaosaudeoral-beat` | Scheduler Celery Beat | interno |
 
-## 🎫 Fluxo de Triagem Municipal
+Volumes nomeados:
 
-O módulo de triagem organiza as grandes ações realizadas nos municípios de Alagoas e cria senhas físicas para iniciar o atendimento especializado em Maceió.
+- `postgres_data_oral`: banco de dados.
+- `uploads_oral`: exames, radiografias e fotos clínicas.
+- `pdf_temp_oral`: PDFs temporários/gerados.
+- `logs_oral`: logs.
+- `backups_oral`: backups operacionais.
+- `redis_data_oral`: Redis.
 
-### Dinâmica operacional
-1. A equipe cria uma **Ação de Triagem** informando município, data, local e observações.
-2. Dentro da ação, o operador seleciona uma especialidade e gera **uma senha por vez**.
-3. A senha entregue ao paciente usa o formato `MUN-ESP-000`.
-4. Após gerar, o sistema exibe um popup grande com a senha para o operador anotar e entregar ao paciente.
-5. No cadastro do paciente, a primeira informação é a **Senha de Triagem**, mas o campo é opcional.
-6. Quando preenchida, a senha fica vinculada ao prontuário e a especialidade aparece em destaque no cabeçalho do paciente.
-7. Quando o paciente é cadastrado sem senha, o sistema exibe um aviso relevante informando que a senha e a especialidade de encaminhamento não constarão no prontuário.
+## Comandos Operacionais
 
-### Exemplos de senhas
-| Senha | Origem | Especialidade |
-|---|---|---|
-| `ARA-P-001` | Arapiraca | Prótese Dentária |
-| `PEN-END-001` | Penedo | Endodontia |
-| `MCZ-I-001` | Maceió | Implantodontia |
-| `UDP-ORT-001` | União dos Palmares | Ortodontia |
+Subir ambiente:
 
-### Especialidades cadastradas
-- Prótese Dentária (`P`)
-- Implantodontia (`I`)
-- Dentística (`D`)
-- Ortodontia (`ORT`)
-- Endodontia (`END`)
-- Periodontia (`PER`)
-- Cirurgia e Traumatologia Buco-Maxilo-Facial (`CTBMF`)
-- Odontopediatria (`ODP`)
-- Estética (`EST`)
-
-### Regra de numeração
-A sequência é única por **município + especialidade**. Assim, `ARA-P-001` identifica uma senha de prótese de Arapiraca, enquanto `PEN-P-001` identifica uma senha de prótese de Penedo, sem conflito operacional.
-
-## 🔧 Comandos Úteis
-
-### Iniciar o sistema
 ```bash
 docker compose up -d
 ```
 
-### Rebuild completo
-> ⚠️ **Obrigatório após qualquer alteração em código Python, templates HTML ou arquivos estáticos.**
+Rebuild obrigatório após mudanças em código, templates ou estáticos:
+
 ```bash
 docker compose up -d --build
 ```
 
-### Criar o admin inicial
+Health check:
+
 ```bash
-# Defina ADMIN_USERNAME e ADMIN_PASSWORD no .env antes de executar
+curl http://localhost:5003/health
+```
+
+Criar admin inicial:
+
+```bash
 ADMIN_USERNAME=admin ADMIN_PASSWORD=senha_segura docker compose run --rm gestaoclinica python create_admin.py
 ```
 
-### Diagnóstico do ambiente
+Rodar testes:
+
 ```bash
-docker compose run --rm gestaoclinica python scripts/check_env.py
+.venv/bin/pytest -q
+git diff --check
 ```
 
-### Verificar saúde do sistema
+Backup:
+
 ```bash
-curl http://localhost:5003/health
-# Esperado: {"status": "healthy", "database": "ok", ...}
+scripts/docker_backup_postgres.sh
 ```
 
-### Povoar dados fictícios para demonstração
+Validar restauração em banco temporário:
+
 ```bash
-# Cria até 100 pacientes fictícios por execução.
-# Todos ficam marcados com is_demo=TRUE e a execução é registrada em demo_seed_runs.
+scripts/docker_restore_verify.sh
+```
+
+Dados fictícios para demonstração:
+
+```bash
 docker compose exec -T gestaoclinica flask --app app:app seed-demo-data --count 100 --label "Demonstração institucional"
 ```
 
-### Cadastrar coordenada territorial manual
+Coordenada territorial manual:
+
 ```bash
-# Exemplo para refinar a posição de um bairro no mapa epidemiológico.
 docker compose exec -T gestaoclinica python scripts/upsert_territorial_location.py \
   --scope bairro \
   --municipio "Maceió" \
@@ -188,1447 +127,1623 @@ docker compose exec -T gestaoclinica python scripts/upsert_territorial_location.
   --source manual
 ```
 
-### Visualizar logs
+## Variáveis de Ambiente
+
+Copiar `.env.example` para `.env` e preencher:
+
+| Variável | Uso |
+|---|---|
+| `SECRET_KEY` | Chave Flask |
+| `DATABASE_URL` | URL PostgreSQL |
+| `POSTGRES_PASSWORD` | Senha PostgreSQL |
+| `REDIS_URL` | URL Redis |
+| `ADMIN_USERNAME` | Admin inicial |
+| `ADMIN_PASSWORD` | Senha do admin inicial |
+| `BACKUP_DIR` | Diretório de backups |
+| `BACKUP_RETENTION_DAYS` | Retenção local |
+| `REPORTS_SCHEDULER_ENABLED` | Liga/desliga rotina automática de relatórios |
+| `REPORTS_SCHEDULE_DAY` | Dia de geração mensal |
+| `REPORTS_SCHEDULE_HOUR` | Hora de geração |
+| `REPORTS_SCHEDULE_MINUTE` | Minuto de geração |
+| `REPORTS_SCHEDULE_TYPES` | Tipos de relatório automático |
+| `SIGTAP_DEFAULT_COMPETENCE` | Competência SIGTAP padrão |
+| `TZ` | Fuso horário |
+
+VOLTE E VERIFIQUE: conferir `.env.example` sempre que adicionar nova variável.
+
+## Perfis de Acesso
+
+Perfis ativos:
+
+1. Administrador.
+2. Coordenação.
+3. Clínicos.
+4. Recepção.
+5. CME / Estoque.
+6. Radiologia.
+7. Comunicação.
+8. SSA/SMS.
+9. Auditoria.
+
+Perfis legados são mantidos como aliases internos e migrados automaticamente para os perfis canônicos.
+
+VOLTE E VERIFIQUE: ao criar uma rota, botão ou item de menu, validar permissão em `constants.py`, template e blueprint.
+
+Regra atual da Agenda:
+
+| Perfil | Escopo de visualização | Pode gerenciar |
+|---|---|---|
+| Administrador | Agenda completa | Sim |
+| Coordenação | Agenda completa | Sim |
+| Recepção | Agenda completa | Sim |
+| Clínicos | Apenas a própria agenda | Sim, apenas a própria agenda |
+| CME / Estoque, Radiologia, Comunicação, SSA/SMS e Auditoria | Sem acesso à tela de Agenda | Não |
+
+VOLTE E VERIFIQUE: o escopo dos Clínicos deve ser aplicado por `dentista_id = current_user.id` no backend. Não basta ocultar filtros ou botões na interface.
+
+## Fluxo Operacional Principal
+
+1. Triagem de campo:
+   - A equipe cria uma ação por município, data, local e observações.
+   - A equipe gera senhas por especialidade no formato `MUN-ESP-000`.
+   - A senha representa a demanda eleita no município.
+   - A triagem não define unidade de execução.
+
+2. Cadastro do paciente:
+   - A senha pode ser vinculada ao paciente.
+   - O prontuário passa a exibir origem/especialidade.
+   - Sem senha, o cadastro é permitido, mas o sistema avisa que não haverá vínculo de triagem/especialidade.
+
+3. Agendamento:
+   - A unidade de execução é determinada na Agenda.
+   - A população eleita pela triagem é direcionada para a unidade definida pela operação.
+   - Listas de senhas exibem o destino quando já existe consulta agendada.
+
+4. Atendimento clínico:
+   - Prontuário, anamnese, exames, plano de tratamento, odontograma, estomatologia, prótese, endodontia, materiais e assinaturas.
+
+5. Gestão:
+   - Central de Comando monitora fila, alertas, pendências, metas, agenda, gargalos e resumo diário.
+   - Epidemiologia, BI e relatórios consolidam dados para gestão pública e operação.
+
+VOLTE E VERIFIQUE:
+
+- Se a triagem voltar a pedir unidade, o fluxo estará incorreto.
+- Se a agenda não exigir unidade, a execução operacional ficará sem destino.
+- Se a Central filtrar senha/fila por unidade da triagem, estará errado. Unidade vale onde há consulta/agendamento.
+
+## Módulos Atuais
+
+### Triagem Municipal
+
+Rotas principais:
+
+- `/triagem/`
+- `/triagem/acoes/nova`
+- `/triagem/acoes/<id>`
+- `/triagem/senhas`
+
+Estado:
+
+- Cria ações municipais de campo.
+- Gera uma senha por especialidade.
+- Lista senhas e mostra destino quando existe consulta agendada.
+- Não define unidade de execução.
+
+### Agenda
+
+Rotas principais:
+
+- `/agenda/`
+- `/agenda/nova`
+- `/agenda/<consulta_id>/editar`
+
+Estado:
+
+- Agenda semanal.
+- Status: Pendente, Confirmado, Realizado, Cancelado, Faltou.
+- Define unidade de execução da consulta.
+- Audita criação, edição, cancelamento e mudança de status.
+- Regra de acesso vigente: Administrador, Recepção e Coordenação veem e gerenciam a agenda completa; Clínicos veem, criam, editam, cancelam e alteram status apenas da própria agenda, vinculada ao seu `dentista_id`.
+- A rota `/agenda/`, os filtros, a criação, a edição, o cancelamento/status e os resumos de Agenda do Dashboard/Central de Comando devem respeitar esse escopo no backend, não apenas no menu ou template.
+- Perfis sem `agenda:view` não devem visualizar a tela de Agenda, atalhos diretos ou resumos operacionais da Agenda fora dos módulos autorizados.
+- O sistema usa cancelamento por status `Cancelado`; não há exclusão física de consulta na interface atual.
+
+### Prontuário e Clínica
+
+Inclui:
+
+- Cadastro.
+- Anamnese.
+- Exames.
+- Atendimento/evolução.
+- Estomatologia, posicionada logo após Atendimento/evolução na navegação do prontuário.
+- Plano de tratamento e odontograma.
+- Aba do plano renomeada para `Plano de Tratamento`, com seleção de especialidade antes do código SUS/SIGTAP.
+- A lista SUS/SIGTAP do plano é filtrada pela especialidade escolhida: Atenção Primária/Clínico Geral, Endodontia, Periodontia, Cirurgia Bucomaxilofacial, Prótese Dentária, Alta Complexidade/Hospitalar e Diagnóstico/Estomatologia/Radiologia.
+- Prótese, temporariamente oculta da navegação do prontuário.
+- Endodontia, temporariamente oculta da navegação do prontuário.
+- Visual.
+- Materiais.
+- Linha do Tempo.
+
+Estado:
+
+- Primeira versão completa e validada.
+- Alertas locais em abas responsáveis.
+- Linha do tempo consolidada.
+- Assinaturas existem em fluxos clínicos, mas assinatura digital institucional ainda está pendente.
+- Plano de Tratamento registra especialidade SIGTAP escolhida e valida se o código selecionado pertence à especialidade informada.
+- No prontuário do paciente, as abas visíveis seguem a ordem: Paciente, Anamnese, Exames, Plano de Tratamento, Atendimento, Estomatologia, Receituário, Atestado, Visual, Materiais quando permitido e Linha do Tempo.
+- Endodontia e Prótese permanecem implementadas, mas estão ocultas temporariamente da navegação do prontuário.
+
+### Endodontia
+
+Rotas principais:
+
+- `/endodontia/<patient_id>/add_element`
+- `/endodontia/followup/<endo_id>`
+- `/endodontia/followup/save_details/<endo_id>`
+- `/endodontia/followup/add/<endo_id>`
+- `/endodontia/followup/<endo_id>/images/upload`
+- `/endodontia/image/<image_id>`
+- `/endodontia/proservation/<proservation_id>/evaluate`
+- `/endodontia/followup/<endo_id>/budget/generate`
+
+Estado:
+
+- Existe como aba do prontuário.
+- Permite iniciar acompanhamento por elemento dentário.
+- Registra exame clínico/radiográfico básico, diagnóstico livre, grampo e finalidade protética.
+- Registra canais com CAD, referência, CT, lima inicial/final, cone e selamento.
+- Registra sessões endodônticas numeradas, com etapa realizada, status da sessão, total planejado, próxima sessão prevista e janela de retorno.
+- Registra protocolo biomecânico por sessão: LAI, técnica, sistema, liga do instrumento, solução irrigadora, EDTA, tempo, agitação, volume, medicação intracanal, veículo, quantidade e selamento provisório.
+- Atualiza status do tratamento entre aguardando início, em andamento, aguardando retorno, obturado aguardando restauração, concluído, abandono e retratamento necessário.
+- Permite assinatura do paciente e validação por usuário com permissão clínica.
+- Pendências de assinatura aparecem como alerta local e na Central de Comando.
+- Retornos endodônticos vencidos aparecem como pendência clínica/alerta operacional na Central de Comando para recepção e coordenação.
+- A aba exibe vínculo com a anamnese existente do prontuário, sem duplicar formulário de anamnese.
+- Cancelamento de acompanhamento passou a ser lógico, com motivo, credencial clínica e auditoria; casos cancelados deixam de aparecer como ativos.
+- UX inicial da aba foi revisada com cards responsivos, estado vazio orientado à ação e linguagem alinhada a profissional/dentista responsável.
+- A ficha de acompanhamento possui campos estruturados iniciais para queixa endodôntica, exame extraoral/intraoral e periodonto do elemento.
+- A tela de acompanhamento resume riscos extraídos da anamnese existente, como alergias, medicações, condições sistêmicas, gestação, reação à anestesia, sangramento e históricos clínicos relevantes.
+- Diagnóstico pulpar e apical estruturados seguem taxonomia AAE inicial, com CID-10 sugerido, tipo de fluxo e bloqueio de nova evolução quando o diagnóstico obrigatório está pendente.
+- Odontometria por canal registra ponto de referência coronário, CAD, CRI, CAI, CRD calculado, CRT sugerido/final, localizador apical, confirmação eletrônica e justificativa auditável quando o CRT final diverge do sugerido.
+- A ficha de acompanhamento exibe painel de sessões, número da próxima sessão, status endodôntico atual, planejamento de sessões e retorno previsto.
+- O protocolo E5 usa a anamnese vinculada para bloquear hipoclorito quando houver alergia compatível, bloquear material eugenólico quando houver alergia a eugenol e destacar alerta persistente de látex.
+- A obturação final E6 registra cone principal, calibre ISO, conicidade, prova de cone, tug-back, CRT confirmado, cimento obturador, classe/lote/validade, técnica obturadora, radiografia final, gaps/voids, controle de qualidade, restauração definitiva e selamento coronário adequado.
+- Ao concluir obturação sem restauração definitiva, o status vai para `obturado_aguardando_restauracao`, a ficha exibe pendência restauradora e a Central de Comando lista o caso em pendências clínicas.
+- A E7 cria upload protegido de imagens endodônticas por caso, sessão, canal, etapa visual, data de captura, equipamento e anotação clínica, usando `endodontia_imagens`.
+- Imagens endodônticas entram na Biblioteca Visual do paciente como origem `Endodontia`, com categorias periapical inicial, odontometria, prova de cone, final de qualidade, proservação 6m/1a/2a/4a, CBCT e outra.
+- A E8 cria proservações planejadas de 6, 12 e 24 meses após obturação realizada, com retorno de 48 meses quando há lesão periapical extensa, registra critérios clínicos/radiográficos de Strindberg e mostra proservações vencidas na Central.
+- A E9 gera orçamento gerencial por canal, classifica complexidade por grupo dentário/número de canais, diferencia tratamento de retratamento, usa TUSS/SIGTAP como referência e bloqueia orçamento endodôntico para `polpa_normal`.
+
+Plano de ampliação:
+
+- Expandir para ficha endodôntica estruturada com diagnóstico AAE, testes diagnósticos, odontometria calculada, protocolo biomecânico, irrigação, medicação intracanal, obturação, proservação e alertas operacionais.
+- Reaproveitar infraestrutura já existente de RBAC, TCLE geral, biblioteca visual, estoque/materiais, auditoria, agenda, Central de Comando, LGPD inicial e assinatura clínica transitória.
+- Não duplicar módulos já existentes; integrar Endodontia com prontuário, exames/imagens, agenda, materiais, documentos, BI e Central.
+
+VOLTE E VERIFIQUE:
+
+- Diagnóstico endodôntico deve ser estruturado, não apenas texto livre, antes de liberar fases avançadas.
+- TCLE específico endodôntico ainda não existe.
+- Soft delete/versionamento endodôntico ainda precisa substituir exclusão física.
+- Assinatura digital ICP-Brasil/Gov.br continua pendente institucional, mesmo com validações internas atuais.
+- Visualizador DICOM avançado ainda é fase futura; arquivos TIFF/DICOM podem ser armazenados/baixados com proteção, mas sem janela/nível, medição ou anotações salvas.
+
+### Estomatologia e Câncer de Boca
+
+Rotas principais:
+
+- `/patients/red-alerts`
+- `/patients/<id>/estomatologia/save`
+- `/documents/<patient_id>/estomatologia/<est_id>/pdf`
+
+Estado:
+
+- Ficha clínica especializada.
+- Suspeita de neoplasia ativa alerta vermelho.
+- Evolução fotográfica de lesões.
+- Encaminhamento expresso em PDF.
+
+### Biblioteca Visual
+
+Estado:
+
+- Consolida radiografias, fotos clínicas, lesões, antes/depois, evolução e documentos complementares.
+- Consolida imagens endodônticas E7 por etapa clínica, dente, canal e sessão.
+- Upload com legenda e metadados.
+- Rotas autenticadas para visualização.
+
+VOLTE E VERIFIQUE:
+
+- Criptografia em repouso ainda está pendente.
+- Permissões finas por tipo de ação visual ainda precisam evoluir.
+- Política de retenção/descarte ainda precisa ser formalizada.
+
+### Estoque, Materiais e Implantes
+
+Rotas principais:
+
+- `/admin/inventory`
+- Aba `Materiais` no prontuário.
+
+Estado:
+
+- Cadastro de materiais e lotes.
+- Ajuste/perda com motivo e senha.
+- Uso de material vinculado ao paciente.
+- Custo por uso.
+- Implante gera controle de pós-operatório.
+- Alertas de estoque baixo, vencimento e implante sem retorno.
+
+VOLTE E VERIFIQUE:
+
+- Uso de estoque continua opcional.
+- Falta inventário físico periódico.
+- Falta relatório de perdas, consumo médio e previsão de reposição.
+- Falta assinatura digital formal da baixa administrativa.
+
+### Central de Comando
+
+Rota:
+
+- `/command-center`
+
+Inclui:
+
+- Pacientes do dia.
+- Produção.
+- Agenda por status.
+- Fila Inteligente SUS.
+- Alertas operacionais.
+- Gargalos por especialidade.
+- Pendências clínicas.
+- Retornos endodônticos vencidos.
+- Métricas operacionais de fila.
+- Metas automáticas.
+- Resumo diário imprimível.
+- CSV do resumo.
+
+Filtros:
+
+- Município.
+- Especialidade.
+- Profissional.
+- Unidade.
+- Período.
+
+VOLTE E VERIFIQUE:
+
+- Unidade filtra agenda/consultas.
+- Unidade não deve filtrar senha de triagem como se a triagem definisse destino.
+- Resumo diário e CSV devem preservar o recorte atual.
+
+### Epidemiologia
+
+Rota:
+
+- `/epidemiologia`
+
+Inclui:
+
+- Lesões.
+- Suspeita oncológica.
+- Câncer confirmado.
+- Perda dentária por odontograma.
+- Absenteísmo.
+- Demanda reprimida.
+- Áreas críticas.
+- Mapa com coordenadas municipais e drill-down territorial.
+
+VOLTE E VERIFIQUE:
+
+- Coordenadas finas de bairros, locais e ações de triagem ainda precisam ser cadastradas se o mapa for usado para decisão territorial precisa.
+- Mapa cartográfico com polígonos/tiles oficiais é refinamento futuro.
+
+### BI Executivo
+
+Rota:
+
+- `/bi`
+
+Inclui:
+
+- Produção.
+- Fila.
+- Impacto social.
+- Metas automáticas.
+- Comparativos mensais.
+- Rankings.
+- Visões: Geral, Prefeitura, SSA, SMS, Coordenação Clínica e Auditoria.
+- Economia gerada estimada.
+- PDF governamental da visão atual.
+
+VOLTE E VERIFIQUE:
+
+- Economia gerada é estimativa até homologação formal.
+- Custos demonstrativos precisam ser substituídos por referências oficiais aprovadas.
+
+### Custos SIGTAP
+
+Rota:
+
+- `/admin/finance/cost-references`
+
+Inclui:
+
+- Revisão manual de referências.
+- Importação CSV.
+- Status de metodologia.
+- Auditoria de alteração, homologação e importação.
+
+### Relatórios Institucionais
+
+Rota:
+
+- `/reports/institutional`
+
+Inclui:
+
+- Prévia.
+- Exportação PDF assíncrona.
+- Recortes Institucional, SSA e SMS.
+- Histórico.
+- Assinatura técnica SHA-256.
+- Scheduler mensal por Celery Beat.
+
+VOLTE E VERIFIQUE:
+
+- Falta assinatura digital homologada.
+- Falta envio por e-mail institucional.
+
+### SIGTAP/e-SUS APS
+
+Rota:
+
+- `/admin/integrations/esus`
+
+Inclui:
+
+- Catálogo local SIGTAP.
+- Importador de competência oficial.
+- Vínculo de procedimento clínico com SIGTAP.
+- Lote draft e-SUS APS.
+- Checklist de homologação.
+- Validação interna.
+- Pré-envio simulado.
+- Download JSON.
+- Relatório de homologação em PDF.
+
+VOLTE E VERIFIQUE:
+
+- Transmissão real não está implementada.
+- Depende de endpoint, HTTPS, autenticação, CNES/INE, versão PEC/e-SUS APS e regras da prefeitura.
+
+## Status por Fase
+
+### Fase 0 - Concluída
+
+Entregue em 29/05/2026.
+
+Pronto:
+
+- Estomatologia.
+- Alerta vermelho.
+- Evolução fotográfica.
+- Fila vermelha.
+- Encaminhamento expresso em PDF.
+
+### Fase 1 - Base Implementada, Hardening Pendente
+
+Pronto:
+
+- Perfis simplificados.
+- Permissões por módulo.
+- Migração de papéis legados.
+- Auditoria inicial.
+- Tela de auditoria.
+- Filtro de auditoria por período, IP e severidade.
+- Backup operacional local.
+- Rate limiting.
+- Testes de segurança.
+
+Pendente:
+
+- Criptografia robusta em repouso.
+- Política formal de retenção/descarte.
+- Bloqueio completo de acesso direto a arquivos sensíveis.
+- Consentimento versionado com revogação.
+- Auditoria plena de visualização sensível.
+- Assinatura digital institucional.
+- Backup diário automatizado.
+- Replicação externa e teste de restauração.
+
+### Fase 2 - Primeira Versão Operacional Concluída
+
+Pronto:
+
+- Central de Comando.
+- Fila Inteligente SUS v2.
+- Agenda com falta operacional.
+- Alertas clínicos e operacionais.
+- Linha do tempo do paciente.
+- Biblioteca visual.
+- Estoque e materiais.
+- Pós-operatório de implante.
+- Métricas de fila.
+- Resumo diário e CSV.
+- Metas automáticas.
+- Unidades de execução administrativas.
+- Correção da regra de triagem e destino operacional.
+
+Pendente:
+
+- Instrumental esterilizado, caixas cirúrgicas e ciclos de esterilização.
+- Intercorrências, conduta pós-operatória e alta clínica mais detalhadas.
+- Hardening LGPD do módulo visual.
+- Custos por procedimento, especialidade, profissional, município e tipo de material.
+- Produtividade por equipe, cadeira, especialidade, período e unidade, se a segunda unidade for usada.
+- Inventário físico e relatórios logísticos avançados.
+- Treinamento e implantação assistida.
+
+### Fase 3 - Iniciada e Avançada
+
+Pronto:
+
+- Epidemiologia v3.
+- Mapa com coordenadas municipais.
+- Drill-down territorial.
+- BI Governamental v2.
+- PDF governamental do BI.
+- Custos SIGTAP configuráveis.
+- Relatórios institucionais/SSA/SMS.
+- Automação mensal com Celery Beat.
+- Prontidão SIGTAP/DataSUS.
+- e-SUS APS draft.
+- Pré-envio simulado.
+- Relatório de homologação e-SUS.
+- Validação interna de formato para CNS/CPF, CNS profissional, CBO, CNES, INE/equipe e CRO-UF.
+- Dados demonstrativos completos.
+
+Pendente:
+
+- Coordenadas reais finas de bairros, locais e ações.
+- Mapa cartográfico oficial, se necessário.
+- Homologação formal da metodologia de economia.
+- Substituição de valores demonstrativos por referências oficiais.
+- Calendário de revisão dos valores e responsável técnico.
+- Assinatura digital ICP-Brasil/Gov.br ou provedor homologado.
+- Envio institucional por e-mail.
+- Validação da versão PEC/e-SUS APS da prefeitura.
+- Transmissão real para e-SUS quando houver endpoint e credenciais.
+- Validação final de compatibilidade externa com ambiente da prefeitura.
+
+## Plano de Prontidão para Produção
+
+Objetivo:
+
+- Transformar a versão funcional atual em uma implantação segura, auditável e operável em produção, com critérios claros de entrada, responsáveis e evidências.
+
+Semáforo atual em 15/06/2026:
+
+| Área | Situação | Decisão |
+|---|---|---|
+| Funcionalidade clínica e operacional | Funcional em Docker, com testes automatizados verdes | Pode seguir para homologação assistida |
+| Segurança/LGPD | Base implementada, hardening final pendente | Bloqueador para produção plena |
+| Backup e continuidade | Scripts existem, automação/evidência final pendentes | Bloqueador para produção plena |
+| Infraestrutura pública | Docker funcional; falta proxy/TLS/firewall/domínio documentados | Bloqueador para produção plena |
+| Homologação institucional | Fluxos e módulos avançados prontos, aceite formal pendente | Bloqueador para uso oficial |
+| Integrações externas | SIGTAP/e-SUS em draft/simulação | Não bloquear piloto interno; bloquear anúncio de integração real |
+| Treinamento | Base documental existe; manuais por perfil ainda pendentes | Bloqueador para entrada com equipe ampla |
+
+### P0 - Bloqueadores Antes de Produção Plena
+
+1. Infraestrutura, domínio, HTTPS e firewall.
+   - Responsável sugerido: infraestrutura/devops.
+   - O que fazer:
+     - Definir servidor definitivo e domínio oficial.
+     - Colocar a aplicação atrás de Nginx/Traefik/Caddy com HTTPS válido.
+     - Bloquear acesso público direto às portas internas.
+     - Reavaliar o mapeamento `5433:5432` do PostgreSQL em `docker-compose.yml`; em produção, manter o banco sem exposição pública ou protegido por firewall/VPN.
+     - Confirmar que Gunicorn fica acessível apenas pela rede interna/reverse proxy.
+   - Evidência exigida:
+     - URL HTTPS acessível.
+     - Teste de portas externas mostrando apenas HTTP/HTTPS públicos.
+     - Registro da configuração de proxy/firewall fora do README, sem segredos.
+   - Critério de pronto:
+     - `/health` responde via HTTPS e o banco não fica exposto publicamente.
+
+2. Segredos, usuários e credenciais.
+   - Responsável sugerido: administração técnica.
+   - O que fazer:
+     - Gerar `SECRET_KEY` forte e exclusiva.
+     - Trocar `POSTGRES_PASSWORD`, `ADMIN_PASSWORD` e qualquer senha temporária.
+     - Garantir que `.env` real não seja versionado.
+     - Criar usuários reais por perfil e desativar usuários demo/teste.
+     - Revisar perfis: Administrador, Coordenação, Recepção, Clínicos, CME, Radiologia, Comunicação, SSA/SMS e Auditoria.
+   - Evidência exigida:
+     - Lista de usuários reais conferida sem registrar senhas.
+     - Registro de data/hora da troca de credenciais.
+   - Critério de pronto:
+     - Nenhum usuário genérico ou senha padrão permanece ativo.
+
+3. LGPD, arquivos sensíveis e auditoria de visualização.
+   - Responsável sugerido: responsável LGPD + desenvolvimento.
+   - O que fazer:
+     - Mapear uploads, fotos clínicas, radiografias, PDFs, anexos endodônticos e relatórios.
+     - Validar que todos os arquivos sensíveis são servidos por rotas autenticadas e com cabeçalhos `no-store`.
+     - Implementar ou formalizar auditoria de visualização/download de imagens, PDFs e anexos clínicos.
+     - Definir política de retenção, descarte, acesso mínimo e resposta a incidente.
+     - Decidir criptografia em repouso: volume criptografado, storage externo criptografado ou camada própria.
+   - Evidência exigida:
+     - Matriz de arquivos sensíveis e permissões por perfil.
+     - Política LGPD aprovada.
+     - Teste de tentativa de acesso direto a arquivo sem login.
+   - Critério de pronto:
+     - Arquivos clínicos não são acessíveis fora das rotas protegidas e há trilha de auditoria adequada.
+
+4. Backup, restore e continuidade operacional.
+   - Responsável sugerido: infraestrutura/devops.
+   - O que fazer:
+     - Automatizar `scripts/docker_backup_postgres.sh` diariamente.
+     - Incluir backup do PostgreSQL e do volume `uploads_oral`.
+     - Replicar backup para fora da VPS/servidor principal.
+     - Rodar `scripts/docker_restore_verify.sh` em ambiente isolado.
+     - Definir RPO e RTO aceitos pela gestão.
+     - Documentar rotina de restauração e responsável acionável.
+   - Evidência exigida:
+     - Último backup com data/hora.
+     - Log de restore validado.
+     - Local externo de cópia confirmado.
+   - Critério de pronto:
+     - Restore testado com sucesso antes da virada para produção.
+
+5. Limpeza de dados demonstrativos e base inicial.
+   - Responsável sugerido: coordenação + desenvolvimento.
+   - O que fazer:
+     - Conferir se a base de produção começará vazia ou migrada.
+     - Remover pacientes `is_demo=TRUE` e cargas fictícias antes da operação real.
+     - Validar municípios, especialidades, unidades de execução e usuários reais.
+     - Registrar competência SIGTAP de referência usada.
+   - Evidência exigida:
+     - Relatório simples de contagens: pacientes reais/demo, usuários ativos, unidades e especialidades.
+   - Critério de pronto:
+     - Nenhum dado fictício se mistura com atendimento real.
+
+6. Homologação operacional ponta a ponta.
+   - Responsável sugerido: Recepção, Clínico responsável e Coordenação.
+   - O que fazer:
+     - Executar roteiro triagem -> cadastro -> agenda -> atendimento -> assinatura -> procedimento -> Central -> BI/relatório.
+     - Validar a regra atual da Agenda: Admin/Recepção/Coordenação com agenda completa; Clínicos apenas própria agenda.
+     - Validar prontuário com as abas atualmente visíveis: Paciente, Anamnese, Exames, Plano de Tratamento, Atendimento, Estomatologia, Receituário, Atestado, Visual, Materiais quando permitido e Linha do Tempo.
+     - Informar aos usuários que Endodontia e Prótese estão temporariamente ocultas do prontuário.
+   - Evidência exigida:
+     - Checklist assinado/aprovado por pelo menos um usuário de Recepção, um Clínico e um usuário de Coordenação.
+   - Critério de pronto:
+     - Nenhum fluxo crítico depende de suporte técnico para acontecer.
+
+7. Treinamento e suporte inicial.
+   - Responsável sugerido: coordenação operacional.
+   - O que fazer:
+     - Criar os manuais rápidos pendentes por perfil.
+     - Definir rotina de abertura, fechamento e conferência diária.
+     - Definir canal de suporte, responsável de plantão e SLA inicial.
+     - Treinar os usuários reais no ambiente final.
+   - Evidência exigida:
+     - Lista de presença ou aceite por perfil.
+     - Checklist de treinamento final.
+   - Critério de pronto:
+     - Usuários sabem operar sem depender do desenvolvedor para tarefas comuns.
+
+8. QA técnico final e congelamento.
+   - Responsável sugerido: desenvolvimento.
+   - O que fazer:
+     - Congelar novas funcionalidades.
+     - Rodar `.venv/bin/pytest -q`.
+     - Rodar `git diff --check`.
+     - Rodar `docker compose up -d --build`.
+     - Verificar `curl http://localhost:5003/health` ou endpoint HTTPS final.
+     - Validar rotas críticas com usuários reais.
+   - Evidência exigida:
+     - Resultado dos testes.
+     - Health check.
+     - Commit final de release.
+   - Critério de pronto:
+     - Build e testes verdes, sem mudanças não revisadas.
+
+### P1 - Homologação Institucional e Produção Assistida
+
+1. Assinatura digital e validade documental.
+   - Decidir provedor ICP-Brasil, Gov.br ou alternativa institucional.
+   - Separar assinatura técnica SHA-256 de assinatura digital formal.
+   - Registrar decisão formal se a operação iniciar com assinatura transitória.
+
+2. SIGTAP, custos e economia gerada.
+   - Substituir valores demonstrativos por referências oficiais aprovadas.
+   - Homologar metodologia de economia com responsável técnico.
+   - Manter relatórios como estimativa enquanto não houver homologação formal.
+
+3. e-SUS APS.
+   - Confirmar versão PEC/e-SUS APS da prefeitura.
+   - Obter endpoint, credenciais, CNES, INE/equipe e regras de homologação.
+   - Manter como draft/simulado até transmissão real validada.
+
+4. BI, Epidemiologia e território.
+   - Cadastrar coordenadas reais de unidades, bairros e locais de triagem quando o mapa for usado para decisão.
+   - Validar com gestão quais indicadores serão oficiais.
+   - Definir periodicidade de relatórios institucionais.
+
+5. Produção assistida.
+   - Rodar primeiros dias com acompanhamento próximo.
+   - Criar rotina de reunião diária curta: pendências, faltas, fila, alertas, erros e suporte.
+   - Registrar ajustes de texto/fluxo sem abrir novas frentes grandes durante estabilização.
+
+### P2 - Melhorias Pós-Entrada
+
+- Portal do paciente e TCLE versionado com revogação.
+- Notificações reais por WhatsApp/e-mail/SMS.
+- Visualizador DICOM avançado com medição/anotações.
+- Inventário físico periódico e relatórios avançados de perdas/reposição.
+- Instrumental esterilizado, caixas cirúrgicas e ciclos.
+- Retificação formal pós-assinatura com cadeia completa de versões.
+- Métricas de performance e carga com volume real.
+
+### Checklist Go/No-Go de Produção
+
+Produção plena só deve ser liberada quando todos os itens abaixo estiverem marcados:
+
+- [ ] Domínio final configurado com HTTPS.
+- [ ] Banco PostgreSQL sem exposição pública indevida.
+- [ ] Firewall/reverse proxy revisados.
+- [ ] `.env` real revisado e fora do Git.
+- [ ] Senhas iniciais trocadas.
+- [ ] Usuários reais cadastrados e usuários demo/teste desativados.
+- [ ] Dados fictícios removidos ou isolados.
+- [ ] Backup diário automatizado.
+- [ ] Restore testado com sucesso.
+- [ ] Cópia externa de backup confirmada.
+- [ ] RPO/RTO definidos.
+- [ ] Uploads clínicos protegidos contra acesso direto.
+- [ ] Auditoria de visualização/download sensível definida ou implementada.
+- [ ] Política LGPD de retenção, descarte e incidente aprovada.
+- [ ] Manuais por perfil entregues.
+- [ ] Treinamento por perfil realizado.
+- [ ] Fluxo ponta a ponta homologado.
+- [ ] Regra de Agenda por perfil validada.
+- [ ] Endodontia e Prótese comunicadas como módulos ocultos temporariamente.
+- [ ] e-SUS marcado como draft/simulado ou homologado formalmente.
+- [ ] Economia gerada marcada como estimativa ou homologada formalmente.
+- [ ] `.venv/bin/pytest -q` verde.
+- [ ] `git diff --check` limpo.
+- [ ] Docker rebuild final executado.
+- [ ] `/health` saudável.
+- [ ] Commit/tag de release criado.
+
+### Registro de Evidências de Produção
+
+Ao fechar cada item P0, registrar no Git:
+
+- data da validação;
+- responsável;
+- comando executado;
+- resultado resumido;
+- link/caminho do artefato, quando houver;
+- pendência remanescente, se houver.
+
+Não registrar no Git:
+
+- senhas;
+- tokens;
+- chaves privadas;
+- credenciais e-SUS/SIGTAP;
+- dados reais sensíveis de pacientes;
+- prints com dados pessoais identificáveis sem anonimização.
+
+## Plano de Ampliação do Módulo de Endodontia
+
+Referência de produto:
+
+- Documento-base: `modulo_endodontia_spec.md`.
+- Referências clínicas usadas no documento: taxonomia AAE, Técnica de Bregman, critérios de Strindberg, CFO Res. 91/2009, LGPD, Lei 13.787/2018, CID-10/TUSS.
+
+Premissas:
+
+- O módulo já existe dentro do prontuário e deve evoluir sem quebrar os acompanhamentos atuais.
+- A ampliação deve reaproveitar o que o sistema já possui: pacientes, anamnese, TCLE geral, exames/imagens, biblioteca visual, agenda, materiais/estoque, assinaturas clínicas, auditoria, Central de Comando e controles LGPD iniciais.
+- A anamnese sistêmica não deve ser recriada dentro da Endodontia. A tela endodôntica deve apenas consultar, resumir e linkar a anamnese existente do prontuário, destacando riscos relevantes para o tratamento de canal.
+- Criptografia robusta em repouso, assinatura digital ICP-Brasil/Gov.br, portal do paciente, envio WhatsApp real e DICOM avançado são dependências institucionais/futuras, não bloqueadores do MVP endodôntico.
+- Alterações clínicas relevantes devem gerar auditoria e entrar na linha do tempo do paciente.
+- O fluxo deve ser tratado como operação clínica profissional: o profissional responsável registra, revisa e valida o atendimento; o paciente assina quando aplicável. Não considerar fluxo de alunos, supervisores acadêmicos ou clínica-escola como regra do produto.
+- A interface deve seguir a identidade visual atual do Sorriso da Gente: base clara, azul institucional, cartões objetivos, hierarquia visual limpa, responsividade real para desktop, tablet e celular, e telas utilizáveis em atendimento clínico com toque/caneta.
+
+### Etapa E0 - Diagnóstico Técnico e Compatibilidade
+
+Objetivo:
+
+- Mapear o módulo atual e preparar evolução segura sem perda de dados.
+
+O que fazer:
+
+- Inventariar campos atuais das tabelas `endodontia`, `endodontia_canais` e `endodontia_followup`.
+- Definir migração incremental para novos campos sem remover os campos legados.
+- Definir regras de compatibilidade para casos antigos: caso sem diagnóstico estruturado fica como `diagnostico_estruturado_pendente`.
+- Trocar exclusão física futura por cancelamento/soft delete com motivo, usuário e timestamp.
+- Definir eventos de auditoria específicos: criação, edição técnica, alteração de diagnóstico, override de odontometria, assinatura, cancelamento, conclusão e proservação.
+
+Critério de pronto:
+
+- Casos antigos continuam abrindo.
+- Novas estruturas podem ser criadas sem quebrar a aba atual.
+- Testes cobrem compatibilidade e migração incremental.
+
+Status em 10/06/2026:
+
+- Implementado cancelamento lógico com `cancelado_em`, `cancelado_por`, `motivo_cancelamento` e `updated_at`.
+- Listagem ativa do prontuário oculta casos cancelados.
+- Central de Comando ignora pendências de assinatura de casos cancelados.
+- Linha do tempo registra evento de cancelamento endodôntico.
+- Aba de Endodontia mostra anamnese vinculada e UI responsiva inicial.
+- Validação local: `.venv/bin/pytest -q` com `119 passed` e `git diff --check` limpo para os arquivos alterados.
+- Docker reconstruído com `docker compose up -d --build`; `/health` saudável com `database=ok`; aba `/patients/view/<id>/tab/tab-endodontia` renderizada com HTTP 200; template da ficha de acompanhamento renderizado sem erro com contexto sintético.
+
+### Etapa E1 - Ficha Endodôntica Estruturada
+
+Objetivo:
+
+- Transformar a ficha atual em registro clínico endodôntico estruturado, sem duplicar a anamnese do prontuário.
+
+O que fazer:
+
+- Exibir um resumo da anamnese existente com link direto para a aba de Anamnese do prontuário.
+- Extrair da anamnese existente os riscos sistêmicos úteis para Endodontia: alergias, medicações em uso, gestação, hipertensão, diabetes, sangramento, cirurgia/hospitalização e observações clínicas relevantes.
+- Criar campos estruturados apenas para a queixa endodôntica/história da dor do dente tratado: início, duração, intensidade, localização, fatores de piora, fatores de alívio e descrição livre.
+- Criar exame extraoral e intraoral específico: linfadenopatia, assimetria, edema, fístula, cárie profunda, restauração inadequada, desgaste e observações.
+- Criar parâmetros periodontais do dente: mobilidade, sondagem por face e classificação endodôntica/periodontal/endo-perio/inconclusiva.
+- Exibir alertas de alergias relevantes usando dados já existentes da anamnese quando possível.
+- Manter integração com TCLE geral e preparar gancho para TCLE endodôntico específico.
+- Revisar UX/UI da aba e da ficha para uso responsivo multiplataforma, com seções progressivas, controles grandes o bastante para toque, botões claros de salvar/validar/cancelar, tabelas com rolagem horizontal apenas onde forem tecnicamente necessárias e estado vazio orientado à ação.
+
+Critério de pronto:
+
+- O clínico consegue registrar uma avaliação inicial completa por dente.
+- Campos essenciais aparecem de forma objetiva na aba de Endodontia e na tela de acompanhamento.
+- Alertas críticos do paciente ficam visíveis durante o atendimento endodôntico.
+- A anamnese aparece como fonte vinculada e não como formulário repetido.
+- A experiência é confortável em desktop, tablet e celular sem sobreposição de textos, botões ou tabelas.
+
+Status em 10/06/2026:
+
+- Implementados campos estruturados da queixa endodôntica/história da dor: início, duração, intensidade, localização, fatores de piora, fatores de alívio e descrição livre.
+- Implementados campos de exame extraoral e intraoral: linfadenopatias, assimetria, edema, fístula, cárie profunda, restauração inadequada, faceta de desgaste e observações.
+- Implementados parâmetros periodontais do elemento: mobilidade, sondagem por face e tipo de lesão.
+- Implementado resumo automático de riscos clínicos a partir da anamnese existente, sem duplicar o formulário de anamnese.
+- Criado `services/endodontia_service.py` para opções, normalização da ficha e resumo de anamnese.
+- Validação local: `.venv/bin/pytest -q` com `123 passed`; `git diff --check` limpo para os arquivos alterados.
+- Docker reconstruído com `docker compose up -d --build`; `/health` saudável com `database=ok`; aba `/patients/view/<id>/tab/tab-endodontia` renderizada com HTTP 200; template da ficha de acompanhamento renderizado sem erro com campos E1.
+
+### Etapa E2 - Diagnóstico AAE, CID-10 e Bloqueios Clínicos
+
+Objetivo:
+
+- Substituir diagnóstico livre por diagnóstico endodôntico padronizado e acionável.
+
+O que fazer:
+
+- Criar enum de diagnóstico pulpar: polpa normal, pulpite reversível, pulpite irreversível sintomática, pulpite irreversível assintomática, necrose pulpar, dente previamente tratado e terapia previamente iniciada.
+- Criar enum de diagnóstico apical: tecidos apicais normais, periodontite apical sintomática/assintomática, abscesso apical agudo/crônico e osteíte condensante.
+- Gerar sugestão de CID-10 a partir do diagnóstico AAE.
+- Marcar retratamento quando o diagnóstico for `dente_previamente_tratado`.
+- Bloquear avanço para planejamento técnico avançado quando diagnóstico pulpar ou apical estiver ausente.
+- Bloquear tratamento endodôntico para `polpa_normal`, salvo justificativa clínica auditada.
+- Para abscesso apical agudo, sugerir abertura de receituário/atestado já existentes.
+
+Critério de pronto:
+
+- Todo novo caso tem diagnóstico pulpar e apical estruturados antes de avançar.
+- O sistema diferencia tratamento primário, retratamento e terapia previamente iniciada.
+- Central/alertas conseguem identificar urgências endodônticas.
+
+Status em 10/06/2026:
+
+- Implementados enums de diagnóstico pulpar e apical com opções AAE.
+- Implementado CID-10 sugerido a partir do diagnóstico pulpar/apical.
+- Implementada classificação de fluxo: tratamento, retratamento, continuidade terapêutica, controle conservador e avaliação/sem indicação radical.
+- Implementados alertas para pulpite irreversível sintomática, periodontite apical sintomática, abscesso apical agudo/crônico, osteíte condensante, pulpite reversível e retratamento.
+- Nova evolução/sessão fica bloqueada enquanto diagnóstico pulpar ou apical estiver pendente.
+- Diagnóstico `polpa_normal` bloqueia avanço endodôntico sem justificativa clínica auditável.
+- Validação local focada: `tests/test_phase4_endodontia.py` com `11 passed`.
+- Validação completa: `.venv/bin/pytest -q` com `127 passed`; `git diff --check` limpo para os arquivos alterados.
+- Docker reconstruído com `docker compose up -d --build`; `/health` saudável com `database=ok`; aba `/patients/view/<id>/tab/tab-endodontia` renderizada com HTTP 200; template da ficha com diagnóstico AAE renderizado sem erro.
+
+### Etapa E3 - Odontometria Canal a Canal
+
+Objetivo:
+
+- Criar núcleo matemático de odontometria com rastreabilidade por canal.
+
+O que fazer:
+
+- Expandir `endodontia_canais` ou criar tabela complementar para cada canal com ponto de referência coronário, CAD, CRI, CAI, CRD, CRT sugerido e CRT final.
+- Implementar cálculo de Bregman: `CRD = (CRI x CAD) / CAI`.
+- Sugerir CRT conforme diagnóstico: polpa viva com margem maior; necrose/retratamento com margem menor.
+- Permitir edição manual do CRT final com justificativa obrigatória.
+- Auditar overrides de odontometria com valor sugerido, valor final, motivo e usuário.
+- Sugerir canais típicos pelo grupo dentário e alertar variações em pré-molares e molares.
+
+Critério de pronto:
+
+- Cada canal tem odontometria própria.
+- Cálculos são reproduzíveis em testes unitários.
+- Override manual fica rastreável e visível na ficha.
+
+Status em 10/06/2026:
+
+- `endodontia_canais` foi expandida com ponto de referência coronário, CRI, CAI, CRD, CRT sugerido, CRT final, justificativa de override, localizador apical, modelo, leitura e confirmação eletrônica.
+- Implementado cálculo de Bregman: `CRD = (CRI x CAD) / CAI`, com validação de CAI maior que zero.
+- Implementada sugestão de CRT por diagnóstico pulpar: margem menor para necrose/retratamento/terapia previamente iniciada e margem maior para polpa viva.
+- Quando o CRT final difere do CRT sugerido, a ficha exige justificativa e registra auditoria `endodontia_odontometry_override` com canal, CRD, CRT sugerido, CRT final, motivo e usuário.
+- A tabela técnica da ficha foi ampliada de forma responsiva, com rolagem horizontal em telas menores e campos compactos para cada canal.
+- A ficha exibe sugestão anatômica inicial por elemento em padrão FDI, incluindo alerta de MV2 em molares superiores, variação distal em molares inferiores, variações de pré-molares e possibilidade de canal lingual em incisivos inferiores.
+- Validação local focada: `tests/test_phase4_endodontia.py` com `19 passed`.
+- Validação completa: `.venv/bin/pytest -q` com `135 passed`; `git diff --check` limpo para os arquivos alterados.
+- Docker reconstruído com `docker compose up -d --build`; `/health` saudável com `database=ok`; aba `/patients/view/<id>/tab/tab-endodontia` renderizada com HTTP 200; template da ficha com odontometria canal a canal renderizado sem erro.
+
+### Etapa E4 - Sessões Endodônticas e Fluxo de Status
+
+Objetivo:
+
+- Evoluir follow-up simples para gestão multi-sessão.
+
+O que fazer:
+
+- Numerar sessões automaticamente.
+- Registrar etapa realizada: abertura, neutralização séptica, odontometria, preparo parcial/completo, medicação intracanal, troca de medicação, obturação e proservação.
+- Registrar status da sessão: em andamento, realizada, cancelada ou aguardando retorno.
+- Registrar total de sessões planejadas, próxima sessão prevista e janela de retorno.
+- Atualizar status do tratamento: aguardando início, em andamento, aguardando retorno, obturado aguardando restauração, concluído, abandono ou retratamento necessário.
+- Integrar próxima sessão prevista com Agenda quando a operação decidir agendar.
+- Manter assinatura do paciente e validação do responsável clínico.
+
+Critério de pronto:
+
+- A evolução deixa de ser apenas texto e passa a alimentar status, alertas e fila.
+- Sessão vencida sem retorno aparece para recepção/coordenação.
+- Sessões assinadas ficam travadas para edição direta, com fluxo de retificação futuro.
+
+Status em 12/06/2026:
+
+- `endodontia_followup` foi expandida com número da sessão, etapa realizada, status da sessão, próxima sessão prevista, janela de retorno e observação clínica.
+- `endodontia` passou a guardar status do tratamento, total de sessões planejadas, próxima sessão prevista e janela de retorno.
+- A ficha endodôntica registra sessões estruturadas em vez de evolução solta, mantendo compatibilidade visual para evoluções legadas.
+- O número da próxima sessão é calculado automaticamente a partir do maior número já registrado.
+- O status do tratamento é derivado da etapa/status da sessão, com opção de override para abandono ou retratamento necessário.
+- Assinatura do paciente e validação do profissional responsável continuam no fluxo existente de sessão.
+- A aba do prontuário exibe status endodôntico e próxima sessão prevista por elemento.
+- A Central de Comando passou a contar retornos endodônticos vencidos como pendência clínica e alerta operacional.
+- Validação local focada: `tests/test_phase4_endodontia.py` com `23 passed`.
+- Validação local focada: `tests/test_phase2_command_center.py` com `27 passed`.
+- Validação completa: `.venv/bin/pytest -q` com `140 passed`.
+
+### Etapa E5 - Protocolo Biomecânico, Irrigação e Medicação Intracanal
+
+Objetivo:
+
+- Registrar a execução técnica com segurança clínica e rastreabilidade.
+
+O que fazer:
+
+- Registrar LAI, técnica de instrumentação, sistema rotatório/reciprocante, liga do instrumento e observações.
+- Integrar instrumentos e materiais com estoque quando o item estiver cadastrado.
+- Registrar solução irrigadora, EDTA, tempo, agitação, volume e observações.
+- Bloquear hipoclorito quando houver alergia registrada a hipoclorito.
+- Bloquear material eugenólico quando houver alergia a eugenol.
+- Exibir alerta persistente para alergia a látex.
+- Registrar medicação intracanal, veículo, quantidade aproximada e selamento provisório.
+- Criar alerta de retorno quando houver medicação intracanal com janela vencida.
+
+Critério de pronto:
+
+- O clínico registra protocolo técnico sem depender de texto solto.
+- Alertas críticos impedem escolhas incompatíveis com alergias.
+- Uso de materiais pode ser vinculado ao controle de estoque sem bloquear atendimento quando estoque estiver desativado.
+
+Status em 12/06/2026:
+
+- `endodontia_followup` foi expandida com campos de protocolo por sessão: LAI, técnica de instrumentação, sistema, liga do instrumento, observações técnicas, solução irrigadora, EDTA, tempo, agitação, volume, observações de irrigação, medicação intracanal, veículo, quantidade e selamento provisório.
+- A ficha de sessão passou a registrar protocolo biomecânico, irrigação e medicação no mesmo lançamento clínico assinado/validado.
+- Sessões já registradas continuam compatíveis; os campos E5 aparecem apenas quando preenchidos.
+- A anamnese vinculada bloqueia seleção de hipoclorito quando houver alergia compatível com hipoclorito/cloro.
+- A anamnese vinculada bloqueia selamento/material eugenólico quando houver alergia a eugenol.
+- A ficha destaca alerta persistente quando houver alergia a látex.
+- O retorno previsto e a janela da E4 continuam sendo a base para controlar medicação intracanal com retorno vencido na Central.
+- Validação local focada: `tests/test_phase4_endodontia.py` com `28 passed`.
+- Validação completa: `.venv/bin/pytest -q` com `145 passed`.
+
+### Etapa E6 - Obturação Final e Encaminhamento Restaurador
+
+Objetivo:
+
+- Fechar a fase endodôntica com controle de qualidade e continuidade restauradora.
+
+O que fazer:
+
+- Registrar cone principal: material, calibre ISO, conicidade, prova de cone, tug-back e CRT confirmado.
+- Registrar cimento obturador: classe, lote e validade, reaproveitando estoque quando possível.
+- Registrar técnica de obturação.
+- Registrar controle de qualidade radiográfico: radiografia final aprovada, gaps, voids e observações.
+- Ao concluir obturação, mover status para `obturado_aguardando_restauracao`.
+- Gerar alerta para clínico/recepção quando não houver restauração definitiva agendada ou registrada.
+- Permitir registrar restauração coronária definitiva e selamento adequado.
+
+Critério de pronto:
+
+- Tratamento obturado não some da gestão antes da restauração definitiva.
+- Central de Comando exibe pendência restauradora.
+- O prontuário mostra fechamento técnico e pendência restauradora com clareza.
+
+Estado implementado em 14/06/2026:
+
+- `endodontia_followup` registra obturação final, controle radiográfico e restauração definitiva.
+- `endodontia` mantém os marcadores consolidados de restauração definitiva e selamento coronário adequado.
+- A ficha exibe resumo de obturação/restauração por sessão e alerta local quando o caso está obturado aguardando restauração.
+- A Central de Comando exibe pendência de Endodontia sem restauração definitiva.
+
+### Etapa E7 - Imagens Endodônticas e Biblioteca Visual
+
+Objetivo:
+
+- Organizar imagens endodônticas por etapa clínica sem duplicar o módulo visual.
+
+O que fazer:
+
+- Adicionar categorias endodônticas à biblioteca visual: periapical inicial, odontometria, prova de cone, final de qualidade, proservação 6m/1a/2a/4a, CBCT e outra.
+- Permitir vincular imagem a dente, canal e sessão.
+- Registrar metadados: data de captura, equipamento, anotação clínica e operador.
+- Usar as proteções de arquivo sensível já existentes.
+- Planejar DICOM avançado como fase futura: zoom, janela/nível, negativo, pseudocor, medição e anotações salvas.
+
+Critério de pronto:
+
+- Imagens de Endodontia ficam localizáveis por caso e etapa.
+- Radiografia final pode ser usada no controle de qualidade.
+- Visualização respeita permissões e cabeçalhos LGPD já existentes.
+
+Estado implementado em 14/06/2026:
+
+- Criada tabela `endodontia_imagens` com vínculo a paciente, caso, sessão, canal, categoria, legenda, anotação clínica, equipamento, data de captura, operador e arquivo protegido.
+- A ficha de Endodontia permite enviar imagens JPG/PNG/WEBP/TIFF/DICOM com etapa visual, sessão e canal.
+- A rota protegida `/endodontia/image/<image_id>` usa os cabeçalhos de arquivo sensível já existentes.
+- A Biblioteca Visual passou a listar e editar metadados da origem `Endodontia`.
+- DICOM avançado segue como refinamento futuro de visualizador, medição e anotações salvas.
+
+### Etapa E8 - Proservação e Critérios de Strindberg
+
+Objetivo:
+
+- Acompanhar resultado longitudinal do tratamento.
+
+O que fazer:
+
+- Ao concluir obturação/restauração, criar retornos previstos de 6, 12 e 24 meses.
+- Criar retorno de 48 meses quando houver lesão periapical extensa inicial.
+- Registrar critérios clínicos: função mastigatória, ausência de dor à percussão/palpação, ausência de edema e ausência de fístula.
+- Registrar critérios radiográficos: espaço periodontal, lâmina dura, ausência ou redução de lesão radiolúcida.
+- Classificar resultado como sucesso, dúvida ou insucesso.
+- Para dúvida, sugerir novo retorno em 6 meses.
+- Para insucesso, sugerir retratamento/apicectomia como conduta a avaliar.
+
+Critério de pronto:
+
+- Proservações vencidas aparecem na Central/agenda operacional.
+- Resultado longitudinal fica registrado no prontuário.
+- Indicadores futuros podem medir sucesso clínico endodôntico.
+
+Estado implementado em 14/06/2026:
+
+- Criada tabela `endodontia_proservacao` com retornos planejados, status, data prevista/realizada, critérios clínicos, critérios radiográficos, restauração coronária e resultado Strindberg.
+- Ao registrar sessão de obturação realizada, o sistema cria proservações de 6, 12 e 24 meses; casos com lesão periapical extensa também recebem retorno de 48 meses.
+- A ficha endodôntica permite avaliar cada retorno com função mastigatória, dor à percussão/palpação, edema, fístula, espaço periodontal, lâmina dura, lesão radiolúcida e redução de lesão preexistente.
+- O resultado é classificado como sucesso, dúvida ou insucesso; insucesso atualiza o caso para `retratamento_necessario`.
+- Proservações planejadas vencidas entram nas pendências clínicas e alertas operacionais da Central de Comando.
+
+### Etapa E9 - Orçamento, TUSS/SIGTAP e Indicadores
+
+Objetivo:
+
+- Preparar a camada financeira/gerencial sem confundir custo operacional com faturamento oficial.
+
+O que fazer:
+
+- Calcular complexidade por grupo dentário e número de canais.
+- Diferenciar tratamento de retratamento.
+- Sugerir CID-10 e TUSS quando houver catálogo/local de referência.
+- Integrar custos estimados com materiais, tempo clínico e referências já existentes.
+- Manter SIGTAP/e-SUS separado: só vincular procedimento oficial quando aplicável e homologado.
+- Criar indicadores para BI/Central: casos em andamento, urgências, retratamentos, obturados sem restauração, retornos vencidos, sucesso/dúvida/insucesso.
+
+Critério de pronto:
+
+- Gestão consegue enxergar carga endodôntica e gargalos.
+- Orçamento/custo é rastreável e não substitui faturamento oficial sem homologação.
+- BI não mistura estimativa com dado homologado.
+
+Estado implementado em 14/06/2026:
+
+- Criada tabela `endodontia_orcamento_items` para orçamento gerencial por canal, com vínculo a paciente, caso, dente, canal, procedimento, TUSS, SIGTAP, CID-10, valores de referência, complexidade e status.
+- O serviço classifica complexidade por grupo dentário e número de canais, diferencia tratamento primário de retratamento e aplica multiplicadores clínicos para estimativa gerencial.
+- A geração de orçamento usa referências ativas de `procedure_cost_references` quando disponíveis, calcula referência pública/privada e economia estimada, sem tratar o valor como faturamento homologado.
+- Diagnóstico `polpa_normal` bloqueia geração de orçamento endodôntico, preservando a regra clínica definida na especificação.
+- A ficha exibe resumo financeiro, itens por canal, TUSS/SIGTAP de referência, CID-10 sugerido e indicadores de complexidade.
+
+### Etapa E10 - QA, Documentação e Aceite Clínico
+
+Objetivo:
+
+- Entregar o módulo ampliado com segurança operacional.
+
+O que fazer:
+
+- Criar testes unitários para enums, cálculo de Bregman, CRT sugerido, bloqueios por alergia, status e alertas.
+- Criar testes de serviço para sessões, proservação, soft delete e auditoria.
+- Validar rotas principais em Docker.
+- Atualizar `docs/base_documentacao_manuais_usuarios.md`.
+- Criar manual rápido do fluxo endodôntico para Clínicos, Recepção e Coordenação.
+- Rodar caso ponta a ponta: diagnóstico -> TCLE -> odontometria -> preparo -> medicação -> obturação -> restauração -> proservação.
+
+Critério de pronto:
+
+- Testes automatizados verdes.
+- `git diff --check` limpo.
+- Docker saudável e `/health` OK.
+- Fluxo validado por pelo menos um clínico responsável.
+- README e manuais atualizados.
+
+Estado implementado em 14/06/2026:
+
+- Adicionado teste automatizado E10 do fluxo clínico em nível de serviço: diagnóstico estruturado, odontometria por Bregman, preparo, medicação, obturação, proservação, Strindberg e orçamento por canal.
+- Adicionado teste de mapa de rotas críticas do blueprint de Endodontia: criação de caso, ficha, salvar detalhes, sessão, upload/visualização de imagem, proservação e orçamento.
+- Criado manual rápido `docs/manual_rapido_endodontia_e10_2026-06-14.md` para Clínicos, Recepção e Coordenação.
+- `docs/base_documentacao_manuais_usuarios.md` atualizado com referência ao manual rápido e ao fluxo E8/E9/E10.
+- Aceite clínico-operacional preparado como checklist; validação formal por clínico responsável segue como etapa humana/institucional antes de implantação oficial.
+
+Backlog fora do MVP endodôntico:
+
+- Assinatura digital ICP-Brasil/Gov.br integrada.
+- Portal do paciente para aceite de TCLE.
+- WhatsApp/API real de comunicação.
+- Visualizador DICOM completo.
+- Criptografia robusta em repouso para todos os anexos.
+- Retificação formal pós-assinatura com cadeia de versões completa.
+
+## Plano de Finalização do Desenvolvimento
+
+Este plano é a rota recomendada para transformar a versão funcional em versão homologável/implantável.
+
+### Etapa 1 - Manuais Rápidos e Treinamento por Perfil
+
+Objetivo:
+
+- Criar material operacional para a equipe usar o sistema com segurança.
+
+O que fazer:
+
+- Criar manual de Administração.
+- Criar manual de Recepção e Triagem.
+- Criar manual de Agenda e Central de Comando.
+- Criar manual Clínico/Prontuário.
+- Criar manual de Estoque/CME.
+- Criar manual de BI, Relatórios, Epidemiologia e e-SUS.
+- Criar checklist de treinamento por perfil.
+
+Como fazer:
+
+1. Usar `docs/base_documentacao_manuais_usuarios.md` como base.
+2. Para cada perfil, listar:
+   - objetivo do perfil;
+   - rotas/telas usadas;
+   - rotina diária;
+   - o que preencher;
+   - o que não preencher;
+   - alertas que o perfil precisa resolver;
+   - erros comuns;
+   - checklist de fim do dia.
+3. Transformar cada manual em documento curto, direto e testável.
+4. Validar cada manual navegando no sistema em Docker.
+
+Informações a coletar com desenvolvedor/gestão:
+
+- Quem são os usuários reais de cada perfil.
+- Quais perfis serão usados na implantação inicial.
+- Nomes finais das unidades de execução.
+- Fluxo real da triagem de campo.
+- Quem decide o destino operacional da população triada.
+- Quem pode alterar agenda e unidade de execução.
+- Quais relatórios serão usados em reunião diária, semanal e mensal.
+- Qual linguagem a equipe prefere nos manuais.
+
+Critério de pronto:
+
+- Todos os perfis têm manual.
+- Cada manual foi testado contra a tela real.
+- O responsável operacional aprovou o fluxo.
+
+VOLTE E VERIFIQUE:
+
+- Triagem: campo, senha e demanda. Não define unidade.
+- Agenda: define unidade e destino.
+- Central: coordenação acompanha fila, destino, metas e pendências.
+
+### Etapa 2 - Homologação do Fluxo Operacional Ponta a Ponta
+
+Objetivo:
+
+- Confirmar que o fluxo real do paciente funciona sem atalhos perigosos.
+
+O que fazer:
+
+- Testar fluxo completo:
+  1. Criar ação de triagem.
+  2. Gerar senha.
+  3. Cadastrar paciente com senha.
+  4. Agendar consulta e definir unidade.
+  5. Realizar atendimento.
+  6. Registrar evolução.
+  7. Assinar documentos necessários.
+  8. Lançar procedimento SIGTAP.
+  9. Registrar exame ou imagem, se houver.
+  10. Registrar material, se houver.
+  11. Conferir Central de Comando.
+  12. Conferir BI/Epidemiologia.
+  13. Gerar resumo diário.
+
+Como fazer:
+
+- Criar uma carga controlada de teste ou usar pacientes demo.
+- Executar o roteiro em Docker.
+- Registrar prints ou anotações de cada etapa.
+- Anotar divergências de texto, fluxo, permissão ou regra.
+- Corrigir apenas o que bloquear ou confundir operação.
+
+Informações a coletar com desenvolvedor/gestão:
+
+- Quais especialidades entram no piloto.
+- Volume esperado de triagem por município.
+- Quantidade de cadeiras/equipes por unidade.
+- Horários de funcionamento.
+- Regras de remarcação, falta e cancelamento.
+- Quem pode confirmar presença.
+- Quem pode marcar `Faltou`.
+- Quem pode concluir atendimento.
+- Quem pode corrigir erro de senha/paciente.
+
+Critério de pronto:
+
+- Fluxo validado por pelo menos um usuário de Recepção, um Clínico e um usuário de Coordenação.
+- Nenhuma tela crítica depende de dado fictício.
+- Central de Comando reflete corretamente agenda, fila e pendências.
+
+VOLTE E VERIFIQUE:
+
+- Senha aparece como aguardando agendamento até consulta existir.
+- Depois da consulta, a senha mostra destino.
+- Unidade da Central bate com unidade da Agenda.
+
+### Etapa 3 - Hardening de Produção, LGPD e Continuidade
+
+Objetivo:
+
+- Reduzir risco jurídico, operacional e técnico antes da entrada em produção.
+
+O que fazer:
+
+- Criptografar ou proteger armazenamento de uploads clínicos.
+- Formalizar política de retenção/descarte.
+- Bloquear acesso direto a arquivos sensíveis.
+- Auditar visualização de documentos/imagens sensíveis.
+- Automatizar backup diário.
+- Replicar backup fora do servidor.
+- Testar restauração.
+- Definir RPO/RTO.
+- Decidir assinatura digital homologada ou alternativa transitória.
+
+Como fazer:
+
+1. Mapear todos os tipos de arquivo sensível.
+2. Verificar todas as rotas que servem imagens/PDFs/uploads.
+3. Criar matriz de permissão por perfil para upload, edição, exclusão e visualização.
+4. Implantar logs de visualização sensível.
+5. Automatizar script de backup.
+6. Restaurar backup em ambiente isolado e registrar evidência.
+7. Documentar procedimento de incidente e restauração.
+
+Informações a coletar com desenvolvedor/gestão:
+
+- Onde ficará o servidor definitivo.
+- Quem administra infraestrutura.
+- Política institucional de backup.
+- Storage disponível: local, S3, volume criptografado ou outro.
+- Exigência formal de LGPD.
+- Prazo legal/institucional de retenção.
+- Provedor de assinatura desejado: ICP-Brasil, Gov.br, outro.
+- Quem será encarregado/responsável LGPD.
+
+Critério de pronto:
+
+- Backup diário funcionando.
+- Restore testado.
+- Arquivos sensíveis sem acesso direto indevido.
+- Auditoria de visualização sensível ativa.
+- Política de retenção documentada.
+
+VOLTE E VERIFIQUE:
+
+- Fotos clínicas, radiografias e PDFs são os pontos de maior risco.
+- Assinatura técnica SHA-256 não substitui assinatura digital formal.
+
+### Etapa 4 - Fechamento Financeiro e Logístico
+
+Objetivo:
+
+- Decidir o que precisa estar pronto para controle operacional real de custos e materiais.
+
+O que fazer:
+
+- Confirmar se o estoque será usado no piloto.
+- Confirmar se a segunda unidade será usada no piloto.
+- Definir relatórios mínimos de consumo e perdas.
+- Definir se produtividade por unidade será necessária agora.
+- Definir se inventário físico periódico entra na versão final.
+
+Como fazer:
+
+1. Revisar `/admin/inventory`.
+2. Revisar aba `Materiais` no prontuário.
+3. Criar materiais/lotes reais mínimos para piloto.
+4. Simular consumo clínico.
+5. Simular ajuste/perda.
+6. Conferir alertas na Central.
+7. Verificar impacto no custo do paciente.
+
+Informações a coletar com desenvolvedor/gestão:
+
+- Lista real de materiais controlados.
+- Categorias oficiais de materiais.
+- Unidades de medida.
+- Estoque mínimo por item.
+- Centros de custo.
+- Quem recebe lote.
+- Quem autoriza ajuste/perda.
+- Como será feito inventário físico.
+- Se custos por unidade/equipe serão cobrados em relatório.
+
+Critério de pronto:
+
+- Estoque mínimo do piloto cadastrado.
+- Usuários sabem registrar lote, uso e ajuste.
+- Relatório mínimo de consumo/perdas definido.
+
+VOLTE E VERIFIQUE:
+
+- Estoque não bloqueia atendimento clínico.
+- Custo por material é operacional, não faturamento oficial.
+
+### Etapa 5 - Homologação da Fase 3
+
+Objetivo:
+
+- Separar o que já está implementado do que depende de validação institucional externa.
+
+O que fazer:
+
+- Homologar metodologia de economia gerada.
+- Substituir referências demonstrativas por valores oficiais aprovados.
+- Definir responsável técnico pela metodologia.
+- Validar versão PEC/e-SUS APS da prefeitura.
+- Confirmar compatibilidade LEDI.
+- Obter endpoint, autenticação, CNES, INE e regras de homologação.
+- Validar campos obrigatórios finais.
+- Refinar coordenadas territoriais se o mapa for ferramenta de decisão.
+
+Como fazer:
+
+1. Gerar relatório BI/PDF com nota metodológica.
+2. Revisar `/admin/finance/cost-references`.
+3. Marcar referências homologadas apenas com aprovação formal.
+4. Gerar lote draft e-SUS.
+5. Rodar validação interna e pré-envio simulado.
+6. Apresentar checklist de homologação e-SUS à prefeitura.
+7. Registrar pendências por campo obrigatório.
+8. Atualizar documentação técnica.
+
+Informações a coletar com desenvolvedor/gestão:
+
+- Competência SIGTAP de referência.
+- Fonte oficial dos valores privados/comparativos.
+- Quem aprova metodologia de economia.
+- Endpoint e-SUS/PEC.
+- Ambiente de homologação ou produção.
+- Tipo de autenticação.
+- CNES/INE oficiais.
+- Regras da prefeitura para envio.
+- Responsável municipal pela validação.
+- Coordenadas reais de unidades, bairros e locais de triagem.
+
+Critério de pronto:
+
+- Economia gerada com metodologia aprovada ou marcada claramente como estimativa.
+- Referências oficiais cadastradas.
+- Lote e-SUS sem pendências críticas.
+- Transmissão real implementada somente se a prefeitura fornecer ambiente e credenciais.
+
+VOLTE E VERIFIQUE:
+
+- Não vender economia estimada como economia formal antes de homologação.
+- Não marcar e-SUS como integrado enquanto não houver transmissão real validada.
+
+### Etapa 6 - QA Final, Congelamento e Implantação Assistida
+
+Objetivo:
+
+- Fechar escopo da versão e preparar operação.
+
+O que fazer:
+
+- Congelar novas funcionalidades.
+- Rodar testes automatizados.
+- Validar rotas críticas em Docker.
+- Criar backup antes da implantação.
+- Conferir perfis reais.
+- Conferir dados mínimos reais.
+- Executar treinamento.
+- Fazer operação assistida nos primeiros dias.
+
+Como fazer:
+
+1. Rodar:
+
 ```bash
-docker logs gestaosaudeoral-web -f
-docker logs gestaosaudeoral-celery -f
+.venv/bin/pytest -q
+git diff --check
+docker compose up -d --build
+curl http://localhost:5003/health
 ```
 
-### Backup operacional
-```bash
-docker compose run --rm gestaoclinica python scripts/backup_postgres.py
-```
+2. Validar rotas:
+   - `/dashboard`
+   - `/triagem/`
+   - `/triagem/senhas`
+   - `/agenda/`
+   - `/command-center`
+   - `/patients`
+   - `/epidemiologia`
+   - `/bi`
+   - `/reports/institutional`
+   - `/admin/inventory`
+   - `/admin/execution-units`
+   - `/admin/finance/cost-references`
+   - `/admin/integrations/esus`
 
-## ⚙️ Variáveis de Ambiente Obrigatórias
+3. Criar checklist de aceite por perfil.
+4. Registrar evidências da homologação.
+5. Atualizar README e manuais.
 
-Copie `.env.example` para `.env` e preencha antes de subir:
+Informações a coletar com desenvolvedor/gestão:
 
-| Variável | Descrição |
-|----------|-----------|
-| `SECRET_KEY` | Chave secreta Flask — gere com `python3 -c "import secrets; print(secrets.token_hex(32))"` |
-| `DATABASE_URL` | URL PostgreSQL — `postgresql://clinica_user:SENHA@postgres:5432/clinica` |
-| `POSTGRES_PASSWORD` | Senha do PostgreSQL |
-| `REDIS_URL` | URL Redis — `redis://redis:6379/0` |
-| `ADMIN_USERNAME` | Usuário do admin (para `create_admin.py`) |
-| `ADMIN_PASSWORD` | Senha do admin (para `create_admin.py`) |
-| `BACKUP_DIR` | Diretório de saída dos backups operacionais |
-| `BACKUP_RETENTION_DAYS` | Dias de retenção dos backups locais |
+- Data de entrada em operação.
+- Usuários e perfis finais.
+- Senha/admin inicial a ser trocada.
+- Domínio e HTTPS.
+- Servidor definitivo.
+- Rotina de suporte.
+- Quem aprova aceite final.
+- Canais para chamados.
 
-## 📌 Regra Permanente de Documentação do Projeto
+Critério de pronto:
 
-Este `README.md` é a **fonte primária do projeto**. Ele deve funcionar ao mesmo tempo como:
+- Testes verdes.
+- Docker saudável.
+- Backup e restore validados.
+- Manuais entregues.
+- Usuários treinados.
+- Aceite formal registrado.
 
-- guia de desenvolvimento;
-- guia de implantação;
-- memória técnica das decisões tomadas;
-- base para a futura documentação institucional;
-- base para os manuais de uso por perfil: recepção, triagem, clínica, auditoria, BI, gestão e demais módulos.
+VOLTE E VERIFIQUE:
 
-### Instrução obrigatória para encerramento de fase ou sessão
+- Não iniciar produção sem plano de backup e restauração testado.
+- Não iniciar produção sem responsáveis por suporte, LGPD e gestão dos usuários.
 
-Sempre que uma **fase for concluída**, uma **sessão de desenvolvimento for terminada** ou uma entrega relevante for validada, este README deve ser atualizado antes do encerramento do trabalho.
+## Backlog Priorizado
 
-O registro deve conter, no mínimo:
+Prioridade 0 - antes de produção:
 
-- data da atualização;
-- fase afetada;
-- objetivo da sessão ou entrega;
-- funcionalidades implementadas;
-- arquivos, rotas, serviços, tabelas ou templates impactados;
-- testes executados e resultado;
-- validações manuais realizadas;
-- pendências, riscos e próximos passos;
-- observações úteis para construção futura de documentação e manuais de uso;
-- decisões de produto, regra de negócio ou segurança tomadas durante a sessão.
+- Manuais rápidos por perfil.
+- QA ponta a ponta do fluxo triagem -> agenda -> atendimento -> gestão.
+- Backup diário automatizado.
+- Teste de restauração.
+- Proteção final de uploads clínicos.
+- Auditoria de visualização sensível.
+- Política de retenção/descarte.
+- Checklist de aceite por perfil.
 
-### Como registrar
+Prioridade 1 - produção/homologação institucional:
 
-- Marcar itens do roadmap como `[x]` apenas quando estiverem implementados e testados.
-- Usar `🟡` ou texto de "parcial" quando a base técnica existir, mas ainda faltar hardening, cobertura completa ou integração externa.
-- Nunca registrar senhas, chaves, tokens, dados sensíveis reais de pacientes ou credenciais.
-- Quando uma funcionalidade tiver impacto no treinamento da equipe, adicionar uma observação de manual, explicando o que o usuário final precisará aprender.
-- Quando houver teste, registrar o comando e o resultado esperado.
-- Quando houver pendência, registrar de forma objetiva o que falta para encerrar o requisito.
+- Assinatura digital homologada.
+- Homologação da economia gerada.
+- Referências oficiais de custo.
+- e-SUS transmissão real, se a prefeitura fornecer ambiente.
+- Coordenadas finas de bairros, locais e unidades.
+- Produtividade/custos por unidade, se a segunda unidade entrar em operação.
 
-## 🚀 Roadmap de Expansão & Acompanhamento de Status
+Prioridade 2 - refinamentos avançados:
 
-Acompanhe abaixo o progresso do desenvolvimento da expansão tecnológica acordada para o ecossistema do **Sorriso da Gente**.
+- Mapa cartográfico oficial com polígonos/tiles.
+- Inventário físico periódico.
+- Relatórios avançados de perdas, consumo médio e reposição.
+- Instrumental esterilizado, caixas cirúrgicas e ciclos.
+- Intercorrências e alta clínica avançada.
+
+## Checklist de Aceite Final
+
+- [ ] Manuais por perfil revisados.
+- [ ] Usuários reais cadastrados com perfis corretos.
+- [ ] Unidades de execução cadastradas e aprovadas.
+- [ ] Fluxo de triagem validado em campo simulado.
+- [ ] Fluxo de agenda validado com unidade definida.
+- [ ] Prontuário validado por clínico.
+- [ ] Central validada por coordenação.
+- [ ] BI e relatórios validados pela gestão.
+- [ ] Backup automático configurado.
+- [ ] Restore testado.
+- [ ] Uploads sensíveis protegidos.
+- [ ] Auditoria de visualização sensível definida.
+- [ ] Política LGPD registrada.
+- [ ] e-SUS homologado ou marcado explicitamente como draft.
+- [ ] Economia gerada homologada ou marcada como estimativa.
+- [ ] Docker rebuild final executado.
+- [ ] `/health` saudável.
+- [ ] `.venv/bin/pytest -q` verde.
+- [ ] `git diff --check` limpo.
+
+## Documentação e Manuais
+
+Base de manuais:
+
+- `docs/base_documentacao_manuais_usuarios.md`
+- `docs/manual_rapido_endodontia_e10_2026-06-14.md`
+- `docs/qa_endodontia_e10_2026-06-14.md`
+
+Manuais a criar:
+
+- `docs/manual_admin.md`
+- `docs/manual_recepcao_triagem.md`
+- `docs/manual_agenda_central.md`
+- `docs/manual_clinico_prontuario.md`
+- `docs/manual_estoque_cme.md`
+- `docs/manual_bi_relatorios_esus.md`
+- `docs/checklist_implantacao.md`
+
+VOLTE E VERIFIQUE:
+
+- Cada manual deve ter rotina diária, campos obrigatórios, erros comuns, alertas que o perfil resolve e checklist de fechamento.
+
+## Ponto de Retomada
+
+Checkpoint de sessão em 14/06/2026:
+
+- A ampliação do módulo de Endodontia está concluída até a `Etapa E10 - QA, Documentação e Aceite Clínico`.
+- Não considerar fluxos de aluno/clínica-escola vindos do documento-mãe; manter linguagem e regras como clínica privada/profissional responsável.
+- Não duplicar anamnese dentro de Endodontia. O módulo deve continuar apenas vinculando e resumindo a anamnese existente do prontuário.
+- Status implementado:
+  - `E0`: base de segurança do módulo, cancelamento lógico auditado, exclusão de casos cancelados da lista ativa/Central e revisão UX/UI inicial.
+  - `E1`: queixa/história da dor, exame extraoral/intraoral, periodonto do elemento e resumo de riscos da anamnese vinculada.
+  - `E2`: diagnóstico pulpar/apical estruturado AAE, CID-10 sugerido, tipo de fluxo e bloqueio de nova evolução sem diagnóstico obrigatório.
+  - `E3`: odontometria canal a canal com CRI, CAI, CRD por Bregman, CRT sugerido/final, justificativa de override, auditoria e sugestão anatômica por elemento FDI.
+  - `E4`: sessão endodôntica numerada, etapa/status da sessão, sessões planejadas, próxima sessão prevista, status do tratamento e retorno vencido na Central.
+  - `E5`: protocolo biomecânico por sessão, irrigação, EDTA, medicação intracanal, selamento provisório e bloqueios por alergia a hipoclorito/eugenol com alerta de látex.
+  - `E6`: obturação final, cone principal, cimento obturador, técnica, controle radiográfico, gaps/voids, restauração definitiva, selamento coronário e pendência restauradora na Central.
+  - `E7`: imagens endodônticas por etapa clínica, caso, sessão e canal, armazenadas em `endodontia_imagens` e integradas à Biblioteca Visual.
+  - `E8`: proservações automáticas de 6/12/24 meses, 48 meses para lesão periapical extensa, avaliação clínica/radiográfica por Strindberg e alerta de proservação vencida na Central.
+  - `E9`: orçamento gerencial por canal, complexidade por dente/canais, tratamento versus retratamento, TUSS/SIGTAP de referência e bloqueio para `polpa_normal`.
+  - `E10`: QA automatizado de rotas e fluxo clínico, manual rápido por perfil, checklist de aceite e documentação atualizada.
+- Arquivos centrais do trabalho de Endodontia:
+  - `blueprints/endodontia.py`
+  - `services/endodontia_service.py`
+  - `services/visual_media_service.py`
+  - `templates/endodontia/followup.html`
+  - `templates/patients/includes/_tab_endodontia.html`
+  - `templates/patients/includes/_tab_visual.html`
+  - `services/patient_service.py`
+  - `services/traceability_service.py`
+  - `services/command_center_service.py`
+  - `database.py`
+  - `tests/test_phase4_endodontia.py`
+  - `tests/test_phase2_command_center.py`
+  - `tests/test_phase2_visual_media.py`
+  - `docs/manual_rapido_endodontia_e10_2026-06-14.md`
+  - `docs/qa_endodontia_e10_2026-06-14.md`
+- Validação registrada nesta parada:
+  - `.venv/bin/pytest -q`: `168 passed`.
+  - Testes focados E8/E9/E10/Central: `75 passed`.
+  - `git diff --check`: sem erros.
+  - `python3 -m compileall blueprints/endodontia.py blueprints/patients.py services/endodontia_service.py services/visual_media_service.py services/command_center_service.py database.py`: sem erros.
+  - `docker compose up -d --build`: executado.
+  - `/health`: `status=healthy`, `database=ok`.
+
+Próxima continuidade recomendada:
+
+- Homologar o módulo Endodontia com clínico responsável usando o checklist E10.
+- Priorizar pendências institucionais fora do MVP: TCLE endodôntico específico, ICP-Brasil/Gov.br, DICOM avançado, integração real de agenda/notificação e homologação oficial de faturamento TUSS/SIGTAP/e-SUS.
+
+## Histórico Consolidado
+
+- 29/05/2026: Fase 0 entregue e validada.
+- 30/05/2026: Fase 1 revisada; Fase 2 inicial validada; Fase 3 iniciada com Epidemiologia, BI e Relatórios v1.
+- 01/06/2026: SIGTAP/e-SUS draft, checklist de homologação, dados demo, pré-envio simulado e relatório de homologação.
+- 02/06/2026: Mapa georreferenciado, BI Governamental v2, custos SIGTAP e PDF governamental do BI.
+- 03/06/2026: Perfis simplificados, limpeza da base fictícia, módulo visual avançado, estoque/materiais e mapa visual de Alagoas.
+- 05/06/2026: Fila Inteligente SUS v2, alertas clínicos, filtros, métricas, resumo diário, metas automáticas e unidades de execução.
+- 06/06/2026: Regra refinada de triagem/unidade: triagem é campo e senha; unidade é definida no agendamento. README reorganizado para versão 2.0.
+- 10/06/2026: Registrado plano de ampliação do módulo de Endodontia com base em `modulo_endodontia_spec.md`, priorizando diagnóstico AAE, odontometria, sessões, obturação, proservação e integração com recursos já existentes. Etapa E0 iniciada com anamnese vinculada, cancelamento lógico auditado, casos cancelados fora da lista ativa/Central e revisão UX/UI inicial. Etapa E1 iniciada com queixa endodôntica estruturada, exame extra/intraoral, periodonto do elemento e resumo de riscos da anamnese existente. Etapa E2 iniciada com diagnóstico AAE, CID-10 sugerido, tipo de fluxo e bloqueio de avanço sem diagnóstico estruturado. Etapa E3 iniciada com odontometria canal a canal, cálculo de Bregman, CRT sugerido/final, auditoria de override e sugestão anatômica por elemento dentário.
+- 12/06/2026: Etapa E4 implementada com sessões endodônticas numeradas, etapa/status da sessão, status do tratamento, planejamento de sessões, retorno previsto, alerta de retorno vencido na Central de Comando e atualização da aba de Endodontia no prontuário.
+- 12/06/2026: Etapa E5 implementada com protocolo biomecânico por sessão, campos de instrumentação, irrigação/EDTA, medicação intracanal, selamento provisório, bloqueio por alergia a hipoclorito/eugenol e alerta de látex baseado na anamnese vinculada.
+- 14/06/2026: Etapas E6 e E7 implementadas com obturação final, controle radiográfico, pendência restauradora na Central, registro de restauração definitiva, upload protegido de imagens endodônticas e integração da origem Endodontia à Biblioteca Visual.
+- 14/06/2026: Etapas E8 e E9 implementadas com proservações automáticas, critérios clínico-radiográficos de Strindberg, alerta de proservação vencida na Central, orçamento gerencial por canal, TUSS/SIGTAP de referência e bloqueio de orçamento para `polpa_normal`.
+- 14/06/2026: Etapa E10 implementada com teste automatizado de fluxo clínico ponta a ponta em nível de serviço, teste de mapa de rotas críticas, manual rápido para Clínicos/Recepção/Coordenação e checklist de aceite clínico-operacional.
+- 15/06/2026: Corrigido acesso à ficha `Acompanhar` da Endodontia quando o caso ainda não possui orçamento gerado; resumo financeiro vazio agora inicia com totais `Decimal('0.00')` e há teste automatizado específico para orçamento vazio.
+- 15/06/2026: Reorganizada a seção `Sessões endodônticas e fluxo de status` da ficha de acompanhamento, substituindo a tabela comprimida por histórico em cartões e formulário de nova sessão em grid responsivo.
+- 15/06/2026: Endodontia e Prótese foram temporariamente ocultas da navegação do prontuário do paciente; Estomatologia foi reposicionada para aparecer logo após Atendimento. Usuários devem ser avisados de que os módulos ocultos continuam existentes no sistema.
+
+## Última Validação Técnica Registrada
+
+Resultado mais recente em 15/06/2026:
+
+- `.venv/bin/pytest -q`: `170 passed`.
+- Testes focados Endodontia/Central/Visual: `tests/test_phase4_endodontia.py`, `tests/test_phase2_command_center.py` e `tests/test_phase2_visual_media.py`: `83 passed`.
+- Testes focados E8/E9/E10/Central: `tests/test_phase4_endodontia.py` e `tests/test_phase2_command_center.py`: `75 passed`.
+- `git diff --check`: sem erros.
+- `python3 -m compileall blueprints/endodontia.py blueprints/patients.py services/endodontia_service.py services/visual_media_service.py services/command_center_service.py database.py`: sem erros.
+- Templates carregados no container: `endodontia/followup.html`, `patients/includes/_tab_endodontia.html`, `patients/includes/_tab_visual.html` e `command_center.html`: sem erros.
+- Rotas resolvidas no container: `/endodontia/followup/1`, `/endodontia/followup/save_details/1`, `/endodontia/followup/add/1`, `/endodontia/proservation/1/evaluate`, `/endodontia/followup/1/budget/generate`, `/endodontia/followup/1/images/upload`, `/endodontia/image/1` e `/agenda/`.
+- `docker compose up -d --build`: executado com rebuild da aplicação web, worker Celery e beat.
+- `docker compose ps`: containers principais em execução; PostgreSQL e Redis saudáveis.
+- `/health`: `status=healthy`, `database=ok`.
+- Endodontia E6: obturação final, controle radiográfico, restauração definitiva e pendência restauradora na Central validados por testes.
+- Endodontia E7: `endodontia_imagens`, categorias endodônticas, metadados, origem `Endodontia` na Biblioteca Visual e arquivos sensíveis validados por testes e carga de template.
+- Endodontia E8: `endodontia_proservacao`, agenda longitudinal, Strindberg e pendência de proservação vencida na Central validados por testes.
+- Endodontia E9: `endodontia_orcamento_items`, orçamento por canal, complexidade, TUSS/SIGTAP de referência e bloqueio para `polpa_normal` validados por testes.
+- Endodontia E10: teste de fluxo clínico ponta a ponta em nível de serviço, teste de mapa de rotas, manual rápido e QA de aceite documentados.
+
+VOLTE E VERIFIQUE: repetir validação completa antes de qualquer entrega final ou implantação.
+
+## Acessos e Rotas de Referência
+
+- Landing Page: `https://sorrisodagentealagoas.com`
+- Painel: `/dashboard`
+- Pacientes: `/patients/list`
+- Fila Vermelha: `/patients/red-alerts`
+- Triagem: `/triagem/`
+- Senhas: `/triagem/senhas`
+- Agenda: `/agenda/`
+- Central de Comando: `/command-center`
+- Resumo Diário: `/command-center/daily-summary`
+- Exportação CSV da Central: `/command-center/daily-summary/export.csv`
+- Endodontia - ficha do caso: `/endodontia/followup/<endo_id>`
+- Endodontia - avaliar proservação: `POST /endodontia/proservation/<proservation_id>/evaluate`
+- Endodontia - gerar orçamento: `POST /endodontia/followup/<endo_id>/budget/generate`
+- Epidemiologia: `/epidemiologia`
+- BI: `/bi`
+- PDF Governamental do BI: `POST /bi/export`
+- Relatórios Institucionais: `/reports/institutional`
+- Estoque: `/admin/inventory`
+- Unidades: `/admin/execution-units`
+- Custos SIGTAP: `/admin/finance/cost-references`
+- SIGTAP/e-SUS APS: `/admin/integrations/esus`
+- Auditoria: `/admin/audit`
+- Health: `/health`
+- Banco no host: porta `5433`
 
 ---
 
-### **Fase 0: MVP de Alta Urgência — 🟢 CONCLUÍDO E VALIDADO** *(Entregue em 29/05/2026)*
-
-> ✅ **Todos os itens implementados, testados e validados em ambiente de produção (Docker).**
-> Validação técnica realizada em 29/05/2026 com testes de integração end-to-end.
-
-- [x] **Módulo Clínico de Estomatologia (Câncer de Boca):**
-  - [x] Prontuário focado em lesões bucais (localização anatômica, tamanho, características clínicas, hábitos de risco e tempo de evolução).
-  - [x] Tabelas `estomatologia` e `estomatologia_fotos` criadas no PostgreSQL com índices de busca otimizados.
-  - [x] Aba "🚨 Estomatologia" integrada ao prontuário com lazy loading e TCLE como pré-requisito.
-- [x] **Evolução Fotográfica (Lesões):**
-  - [x] Upload seguro de fotos com validação de extensão (JPG/PNG/WEBP) e armazenamento no volume `uploads_oral`.
-  - [x] Galeria visual com legenda, data, modal de zoom em tela cheia e exclusão individual por foto.
-- [x] **Fila de Prioridade Clínica (Alerta Vermelho):**
-  - [x] Checkbox "Suspeita de Neoplasia" ativa o alerta imediatamente na listagem geral de pacientes.
-  - [x] Tela dedicada `/patients/red-alerts` com tabela priorizada por data de registro.
-  - [x] Dashboard exibe contador de casos ativos e link direto para a fila.
-- [x] **Encaminhamento Expresso (PDF):**
-  - [x] Geração assíncrona via Celery + WeasyPrint com tempo médio de ~0.5s.
-  - [x] Documento inclui banner de ALERTA VERMELHO, dados clínicos completos e campo de assinatura.
-  - [x] Botão de geração disponível diretamente na ficha clínica do prontuário.
-
----
-
-### **Fase 1: Segurança, LGPD, Perfis de Acesso, Logs e Continuidade — 🟡 BASE IMPLEMENTADA / HARDENING PENDENTE** *(Revisada em 30/05/2026)*
-
-> Objetivo: preparar a base jurídica, operacional e técnica antes da expansão dos módulos clínicos e gerenciais.
-> Status atual: base funcional entregue e validada por testes automatizados. Ainda existem pendências de criptografia forte, assinatura digital formal, política avançada de retenção e redundância em nuvem.
-
-#### Entregas implementadas
-
-- [x] **Matriz de perfis de acesso**
-  - [x] Papéis definidos em `constants.py`: recepção, triagem, clínica geral, dentista, endodontia, cirurgia, implantes, estomatologia, radiologia, laboratório, financeiro, auditoria, epidemiologia, BI, comunicação, mutirão móvel, TSB/ASB, atendente legado e administrador.
-  - [x] Permissões estruturadas por módulo: pacientes, triagem, agenda, exames, documentos, estomatologia, radiologia, laboratório, financeiro, relatórios, BI, epidemiologia, auditoria, usuários e Central de Comando.
-  - [x] Helper `current_user.can(...)` disponível para menus, botões e ações condicionais.
-  - [x] Decorator `permission_required(...)` disponível para proteger rotas sensíveis.
-- [x] **Auditoria operacional inicial**
-  - [x] Serviço `services/security_service.py` com `audit_log(...)`, captura de usuário, papel, ação, módulo, entidade, paciente, IP, user-agent, método, rota, status e detalhes em JSON.
-  - [x] Tabela `audit_logs` criada na inicialização do banco.
-  - [x] Registro de login, logout, falhas de login, acesso negado, criação/edição/exclusão de usuários e eventos de agenda.
-  - [x] Tela administrativa de auditoria com filtros por usuário, módulo, ação, paciente e status.
-- [x] **Continuidade e backup operacional**
-  - [x] Script `scripts/backup_postgres.py` para dump PostgreSQL em formato custom.
-  - [x] Backup complementar do diretório `uploads`, quando existente.
-  - [x] Retenção local configurável por `BACKUP_RETENTION_DAYS`.
-  - [x] Volume Docker `backups_oral` previsto para armazenamento local dos backups.
-- [x] **Validação técnica da fase**
-  - [x] Pytest instalado no ambiente de desenvolvimento.
-  - [x] Testes automatizados cobrindo permissões, auditoria e base de segurança.
-
-#### Pendências da Fase 1
-
-- [ ] **LGPD Ready completo**
-  - [ ] Criptografia robusta para dados sensíveis em repouso, incluindo prontuários, exames, fotos clínicas, laudos e documentos.
-  - [ ] Política formal de retenção e descarte de uploads clínicos.
-  - [ ] Bloqueio completo de acesso direto a arquivos sem autenticação e autorização por perfil.
-  - [ ] Registro estruturado de consentimento com versionamento de termo, aceite, revogação e responsável.
-- [ ] **Auditoria plena**
-  - [ ] Ampliar cobertura para todos os módulos clínicos: prontuário, fotos, exames, laudos, documentos, triagem, filas, relatórios, alterações de prioridade e alta clínica.
-  - [ ] Incluir filtro por período, IP e severidade na tela administrativa.
-  - [ ] Registrar eventos de visualização sensível, não apenas alterações.
-- [ ] **Assinatura digital**
-  - [ ] Implementar assinatura eletrônica/digital para prontuários, laudos, consentimentos, relatórios, auditorias e documentos institucionais.
-  - [ ] Definir integração ICP-Brasil/A3/Nuvem, Gov.br ou alternativa institucional aceita.
-  - [ ] Registrar hash do documento assinado, carimbo de data/hora e autoria.
-- [ ] **Recuperação rápida**
-  - [ ] Automatizar rotina diária de backup.
-  - [ ] Replicar backups em nuvem com redundância e criptografia.
-  - [ ] Documentar e testar procedimento de restauração, com meta de RPO/RTO.
-
-#### Observações para manuais futuros
-
-- Manual de administração deve explicar criação de usuários, escolha de perfil, impacto de permissões e consulta à auditoria.
-- Manual LGPD deve explicar que todo acesso sensível será rastreado, incluindo usuário, IP, data/hora e módulo.
-- Manual técnico deve documentar o comando de backup, local de retenção e procedimento de restauração.
-
----
-
-### **Fase 2: Operação Clínica, Fila Inteligente, Alertas e Rastreabilidade — 🟢 PRIMEIRA VERSÃO CONCLUÍDA E VALIDADA** *(Revisada em 30/05/2026 e complementada em 03/06/2026)*
-
-> Objetivo: criar a primeira base operacional para gestão diária da clínica, priorização automática da fila, alertas críticos e rastreabilidade do paciente.
-> Status atual: primeira versão implementada, revisada e validada com testes automatizados e renderização autenticada em Docker. Em 03/06/2026 foram adicionadas a primeira versão do módulo visual avançado do prontuário, a primeira versão da rastreabilidade operacional de materiais/lotes/implantes e o controle opcional de ajustes/perdas administrativas de estoque.
-
-#### Entregas implementadas
-
-- [x] **Central de Comando Operacional**
-  - [x] Rota `/command-center` protegida por permissão `command_center:view`.
-  - [x] Cards de pacientes do dia, produção diária/mensal, status da agenda, alerta vermelho, tratamentos pendentes e alertas críticos.
-  - [x] Painéis de bairros atendidos, fila por especialidade, agenda do dia e ranking de prioridade.
-  - [x] Menu e acesso condicionados por perfil.
-- [x] **Inteligência de Fila do SUS**
-  - [x] Primeira versão do algoritmo de prioridade automática para pacientes oncológicos, idosos, faltosos, tratamentos pendentes e lesões suspeitas sem retorno.
-  - [x] Ranking inicial de urgência na Central de Comando (`/command-center`) com pontuação, nível de risco e motivos clínicos.
-  - [x] Revisão técnica contra contagem duplicada de faltas e tratamentos pendentes em joins SQL.
-  - [x] Uso da ficha mais recente de estomatologia para cálculo do risco atual.
-  - [x] Lesão suspeita sem retorno considera retorno somente após a data do registro da lesão.
-- [x] **Sistema de alertas operacionais**
-  - [x] Alertas para paciente com 2 faltas, lesão suspeita sem retorno, fila crítica, alerta vermelho oncológico e tratamentos pendentes.
-  - [x] Alertas da Central de Comando calculados sobre a fila completa, mesmo quando a tela exibe apenas o top 12.
-  - [x] Indicador de faltas integrado ao status `Faltou` da agenda.
-- [x] **Agenda com falta operacional**
-  - [x] Status `Faltou` disponível na criação/edição/filtro visual da agenda.
-  - [x] Ação rápida para marcar falta em consulta pendente ou confirmada.
-  - [x] Proteção contra atualização de status em consulta inexistente.
-  - [x] Auditoria de criação, edição, cancelamento e mudança de status da consulta.
-- [x] **Rastreabilidade total do paciente**
-  - [x] Linha do tempo inicial do acolhimento até a alta consolidando cadastro, triagem, consentimento, agenda, faltas, atendimentos, exames, tratamentos, prótese, endodontia, documentos, estomatologia, fotos clínicas e auditoria.
-  - [x] Aba `Linha do Tempo` no prontuário do paciente.
-  - [x] Parser de datas reforçado para formatos ISO completos e formatos brasileiros.
-  - [x] Eventos de auditoria aparecem como parte da rastreabilidade do paciente.
-- [x] **Validação técnica da fase**
-  - [x] Testes unitários da fila, pontuação, alertas, permissões, parser de datas e rota de agenda.
-  - [x] Renderização autenticada validada em Docker para `/command-center`, `/agenda/` e aba de linha do tempo.
-  - [x] Health check validado em `http://localhost:5003/health`.
-
-#### Testes executados na revisão de 30/05/2026
-
-```bash
-.venv/bin/python -m pytest -q
-# Resultado: 20 passed
-
-.venv/bin/python -m compileall services/command_center_service.py services/traceability_service.py blueprints/agenda.py
-# Resultado: compilação sem erro
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-```
-
-Validações autenticadas em Docker:
-
-| Rota | Resultado |
-|---|---|
-| `/command-center` | HTTP 200 |
-| `/agenda/` | HTTP 200 |
-| `/patients/view/<id>/tab/tab-linha-tempo` | HTTP 200 |
-
-#### Entregas implementadas em 03/06/2026 — Módulo Avançado de Fotos, Radiografias e Rastreamento Visual
-
-- [x] **Biblioteca visual consolidada no prontuário**
-  - [x] Nova aba `Visual` no prontuário do paciente, carregada por lazy loading em `/patients/view/<id>/tab/tab-visual`.
-  - [x] Consolidação de imagens vindas de `exam_imagem_arquivos` e `estomatologia_fotos`.
-  - [x] Resumo com total de arquivos, radiografias, lesões e grupos comparativos.
-  - [x] Biblioteca por categoria: radiografia, lesão, antes/depois, evolução, intraoral, extraoral e documento complementar.
-- [x] **Padronização clínica dos arquivos visuais**
-  - [x] Legenda obrigatória para novos uploads de exames de imagem e fotos de estomatologia.
-  - [x] Metadados editáveis por arquivo: categoria visual, etapa visual, grupo comparativo, data clínica e contexto clínico.
-  - [x] Upload de exames de imagem passou a gravar paciente, responsável pelo envio e metadados do lote.
-  - [x] Upload de estomatologia passou a gravar categoria, etapa, grupo, data clínica, contexto e responsável pelo envio.
-- [x] **Comparativo visual**
-  - [x] Grupos comparativos por texto livre, permitindo parear registros como `Lesão língua 2026`, `Implante 36` ou `Antes/depois prótese`.
-  - [x] Exibição lado a lado dos arquivos que pertencem ao mesmo grupo.
-  - [x] Ordenação clínica por etapa: diagnóstico, antes, evolução, controle, retorno, pós-operatório e depois.
-- [x] **Segurança e auditoria**
-  - [x] Fotos de estomatologia passaram a ser servidas por rota autenticada, não mais por caminho direto do arquivo.
-  - [x] Exames de imagem passaram a validar vínculo com paciente existente antes de upload ou visualização.
-  - [x] Auditoria registra abertura da aba visual, upload, visualização de arquivo, atualização de metadados e exclusão de foto clínica.
-  - [x] Migrações preservam imagens antigas e preenchem defaults de categoria, etapa e status ativo.
-- [x] **Arquivos, rotas e tabelas impactados**
-  - [x] `database.py`: novas colunas em `exam_imagem_arquivos` e `estomatologia_fotos`, defaults, backfill e índices.
-  - [x] `services/visual_media_service.py`: serviço central de mídia visual, normalização, agrupamento e atualização de metadados.
-  - [x] `services/patient_service.py`: integração da aba visual ao serviço do prontuário.
-  - [x] `blueprints/patients.py`: aba visual, rota protegida de foto de estomatologia, atualização de metadados e auditoria.
-  - [x] `blueprints/exams.py`: upload com metadados, validação de paciente e auditoria de acesso.
-  - [x] `templates/patients/includes/_tab_visual.html`: biblioteca visual, cards por categoria, comparativos e edição inline.
-  - [x] `templates/patients/includes/_tab_estomatologia.html`: upload de foto com legenda obrigatória e metadados visuais.
-  - [x] `templates/exams/imagem.html`: metadados do lote antes do upload.
-  - [x] `tests/test_phase2_visual_media.py`: testes unitários do serviço visual.
-
-#### Testes executados após Módulo Visual
-
-```bash
-.venv/bin/python -m compileall database.py services/visual_media_service.py services/patient_service.py blueprints/patients.py blueprints/exams.py tests/test_phase2_visual_media.py
-# Resultado: compilação sem erro
-
-.venv/bin/pytest -q
-# Resultado: 82 passed
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-```
-
-Validações em Docker em 03/06/2026:
-
-| Ação | Resultado |
-|---|---|
-| Colunas novas em `exam_imagem_arquivos` e `estomatologia_fotos` | Presentes no PostgreSQL real |
-| `GET /patients/view/<id>` autenticado em test client Docker | HTTP 200 |
-| `GET /patients/view/<id>/tab/tab-visual` autenticado em test client Docker | HTTP 200 e contém `Biblioteca Visual do Paciente` |
-| Upload temporário em `/exams/imagem/<exam_id>/upload` | HTTP 200, `success=True` |
-| `GET /exams/imagem/arquivo/<arquivo_id>` para arquivo temporário | HTTP 200 via rota protegida |
-| Limpeza do arquivo temporário | Registro e arquivo removidos após validação |
-
-> Observação técnica: havia exames legados órfãos apontando para pacientes inexistentes. A rota de upload/visualização de imagem foi endurecida para aceitar somente exames vinculados a pacientes válidos, evitando falha de auditoria e melhorando a consistência LGPD.
-
-#### Entregas implementadas em 03/06/2026 — Rastreabilidade de Materiais, Implantes, Lotes e Estoque Operacional
-
-- [x] **Base de estoque e lotes**
-  - [x] Tabelas `inventory_items`, `inventory_lots`, `inventory_suppliers`, `inventory_usage` e `inventory_adjustments` criadas no PostgreSQL.
-  - [x] Cadastro de material com categoria, unidade, estoque mínimo, centro de custo e observações.
-  - [x] Entrada de lote com fornecedor, número do lote, validade, quantidade inicial, saldo atual, custo unitário e centro de custo.
-  - [x] Índices para busca por categoria, validade, saldo, paciente, lote, procedimento, pós-operatório, ajustes e perdas.
-- [x] **Tela administrativa de estoque**
-  - [x] Rota `/admin/inventory` protegida por permissão `inventory:view`.
-  - [x] Rotas `POST /admin/inventory/items`, `POST /admin/inventory/lots` e `POST /admin/inventory/adjustments` protegidas por `inventory:write`.
-  - [x] Cards de materiais, lotes, alertas de atenção e críticos.
-  - [x] Filtros por busca e categoria.
-  - [x] Tabela de lotes com saldo, validade, fornecedor, custo unitário e valor atual.
-  - [x] Consumo recente por paciente, material, lote, quantidade, custo e profissional.
-  - [x] Formulário de ajuste/perda administrativa com tipo, quantidade, motivo obrigatório, observação e confirmação por senha do usuário logado.
-  - [x] Histórico recente de ajustes/perdas exibindo saldo anterior, novo saldo, motivo e usuário autorizador.
-- [x] **Aba `Materiais` no prontuário**
-  - [x] Nova aba `Materiais` exibida apenas para perfis com `inventory:view`.
-  - [x] Registro de material utilizado por paciente com lote, quantidade, tipo de uso, procedimento relacionado, profissional responsável, data e observação.
-  - [x] Baixa automática do saldo do lote ao registrar consumo.
-  - [x] Custo do paciente calculado a partir da quantidade usada e do custo unitário do lote.
-  - [x] Histórico do paciente mostrando material, categoria, lote, validade, fornecedor, procedimento, quantidade, custo e responsável.
-  - [x] Decisão de produto: o preenchimento de materiais/estoque no prontuário é opcional nesta etapa e não bloqueia evolução clínica, assinatura, procedimento, e-SUS, alta ou continuidade do atendimento.
-- [x] **Implantes e pós-operatório**
-  - [x] Materiais da categoria `implante` passam a exigir pós-operatório automaticamente.
-  - [x] Se a data de retorno não for informada, o sistema agenda previsão padrão de 7 dias após o uso.
-  - [x] Botão para concluir pós-operatório diretamente na aba `Materiais`.
-  - [x] Alerta crítico `Implante sem pós-operatório` incluído na Central de Comando quando o retorno previsto vence sem conclusão.
-- [x] **Alertas operacionais**
-  - [x] Alerta de estoque baixo quando o saldo total do material fica menor ou igual ao estoque mínimo.
-  - [x] Alerta de material vencendo para lotes com validade em até 30 dias.
-  - [x] Alerta crítico de material vencido para lotes com saldo positivo após a validade.
-  - [x] Alertas de estoque/lote/pós-operatório incorporados à lista de Alertas Operacionais da `/command-center`.
-- [x] **Auditoria e rastreabilidade**
-  - [x] Cadastro de material registra `inventory_item_created`.
-  - [x] Entrada de lote registra `inventory_lot_created`.
-  - [x] Uso de material registra `inventory_usage_registered` com paciente, item, lote, quantidade, tipo de uso e pós-operatório.
-  - [x] Ajuste/perda administrativa registra `inventory_adjustment_registered` com item, lote, tipo, quantidade, saldo anterior, novo saldo, motivo, operador e autorizador.
-  - [x] Conclusão de pós-operatório registra `inventory_post_op_completed`.
-  - [x] Linha do Tempo do paciente passa a incluir eventos de material/implante utilizado, lote, validade, procedimento, profissional e status de pós-operatório.
-- [x] **Arquivos, rotas e componentes impactados**
-  - [x] `constants.py`: permissões `inventory:view` e `inventory:write`.
-  - [x] `database.py`: tabelas e índices de estoque, lotes, fornecedores, uso de materiais e ajustes/perdas.
-  - [x] `services/inventory_service.py`: serviço de cadastro, lotes, consumo, baixa, ajustes/perdas, alertas e contexto do paciente.
-  - [x] `services/command_center_service.py`: alertas de estoque/lotes/pós-operatório.
-  - [x] `services/traceability_service.py`: eventos de materiais na Linha do Tempo.
-  - [x] `services/patient_service.py`: contexto da aba `Materiais`.
-  - [x] `blueprints/admin.py`: rotas administrativas de estoque.
-  - [x] `blueprints/patients.py`: rotas de uso de material e conclusão de pós-operatório.
-  - [x] `templates/admin/inventory.html`: tela administrativa de estoque.
-  - [x] `templates/patients/includes/_tab_materiais.html`: aba de materiais no prontuário.
-  - [x] `templates/base.html` e `templates/patients/view.html`: menu e aba condicionados por permissão.
-  - [x] `tests/test_phase2_inventory.py`: testes unitários do serviço de estoque/rastreabilidade.
-
-#### Testes executados após Estoque e Rastreabilidade de Materiais
-
-```bash
-.venv/bin/python -m compileall constants.py database.py services/inventory_service.py services/patient_service.py services/command_center_service.py services/traceability_service.py blueprints/admin.py blueprints/patients.py tests/test_phase2_inventory.py
-# Resultado: compilação sem erro
-
-.venv/bin/pytest -q
-# Resultado: 88 passed
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-```
-
-Validações em Docker em 03/06/2026:
-
-| Ação | Resultado |
-|---|---|
-| Tabelas `inventory_items`, `inventory_lots`, `inventory_suppliers`, `inventory_usage`, `inventory_adjustments` | Presentes no PostgreSQL real |
-| `GET /admin/inventory` autenticado em test client Docker | HTTP 200 e contém `Estoque Operacional` |
-| `GET /patients/view/<id>/tab/tab-materiais` autenticado em test client Docker | HTTP 200 e contém `Materiais, Lotes e Implantes` |
-| `POST /admin/inventory/items` temporário | HTTP 302 esperado, material criado |
-| `POST /admin/inventory/lots` temporário | HTTP 302 esperado, lote criado com saldo `2.000` |
-| `POST /patients/<id>/materials/use` temporário | HTTP 302 esperado, consumo registrado |
-| Baixa de estoque | Saldo do lote temporário reduziu de `2.000` para `1.000` |
-| Ajuste/perda administrativa opcional | Saldo do lote temporário reduziu de `3.000` para `2.000`, com motivo obrigatório e senha do autorizador |
-| Pós-operatório de implante | Marcado como concluído via rota do prontuário |
-| Limpeza da validação | Uso, lote, material, fornecedor e auditoria temporária removidos |
-
-#### Pendências da Fase 2
-
-- [ ] **Evolução do algoritmo de fila**
-  - [ ] Incluir diabéticos, casos agudos de dor, vulnerabilidade socioeconômica e tempo de espera por especialidade.
-  - [ ] Prever demanda por especialidade, bairro, município, período e mutirão.
-  - [ ] Medir redução de tempo de espera, gargalos de agenda e pacientes sem retorno.
-- [ ] **Central de Comando avançada**
-  - [ ] Visão por unidade, município, profissional, especialidade e período.
-  - [ ] Metas automáticas por produção clínica, comparecimento, conclusão de tratamento e fila reduzida.
-  - [ ] Exportação ou impressão de resumo operacional diário.
-- [ ] **Alertas pendentes**
-  - [x] Implante sem pós-operatório.
-  - [ ] Exame pendente.
-  - [ ] Documento sem assinatura.
-  - [x] Estoque baixo, material vencendo e material vencido.
-  - [x] Perdas operacionais e ajustes de estoque com motivo obrigatório e autorização por senha do usuário logado.
-  - [ ] Centralização dos alertas também no prontuário e nos módulos responsáveis.
-- [ ] **Rastreabilidade avançada**
-  - [x] Associação ao prontuário de material/implante, lote, validade, fornecedor e profissional responsável.
-  - [x] Rastreabilidade por paciente, procedimento, material, lote, profissional e data.
-  - [x] Registro inicial de pós-operatório de implantes.
-  - [ ] Detalhar instrumental esterilizado, caixa cirúrgica, ciclo de esterilização e responsável técnico.
-  - [ ] Evoluir registro de intercorrências, conduta pós-operatória e alta clínica.
-- [ ] **Hardening LGPD do módulo visual**
-  - [x] Primeira versão de organização visual, legenda obrigatória, comparativo e auditoria.
-  - [x] Rotas autenticadas para visualização de fotos clínicas e radiografias.
-  - [ ] Criptografar arquivos clínicos em repouso ou usar storage seguro com chave institucional.
-  - [ ] Evoluir permissão por perfil para diferenciar upload, edição de metadados, exclusão e visualização sensível.
-  - [ ] Criar política formal de retenção/descarte para fotos, radiografias e documentos complementares.
-  - [ ] Criar relatório/auditoria específica de acessos a arquivos visuais sensíveis por período, IP e usuário.
-- [ ] **Módulo Financeiro e Logístico Operacional**
-  - [x] Primeira versão de controle de custo por material/lote usado no paciente.
-  - [ ] Expandir custo por procedimento, especialidade, profissional, município e tipo de material.
-  - [ ] Produtividade por equipe, cadeira, especialidade e período.
-  - [x] Estoque com entrada, saída por consumo clínico, validade, lote, fornecedor, centro de custo e alerta automático inicial.
-  - [x] Primeira versão de perdas e ajustes manuais com motivo, saldo anterior/novo saldo e autorização por senha do usuário logado.
-  - [ ] Inventário físico periódico, conciliação de estoque e assinatura digital formal da baixa administrativa.
-  - [ ] Relatórios operacionais de perdas, consumo médio e previsão de reposição.
-- [ ] **Treinamento e Implantação**
-  - [ ] Capacitação da equipe operacional por meio de videoaulas, manuais rápidos em PDF e apoio presencial/híbrido.
-
-#### Próximo passo registrado para retomada da sessão
-
-> Registrado em 03/06/2026 ao encerrar a sessão.
-
-O próximo passo oficial é iniciar a **Fase 2.8 — Fila Inteligente SUS v2**, retomando a evolução da Central de Comando e do ranking automático de urgência.
-
-Escopo recomendado para a próxima sessão:
-
-- [ ] incluir novos critérios de prioridade no algoritmo de fila: diabéticos, casos agudos de dor, idosos, vulnerabilidade socioeconômica e tempo de espera por especialidade;
-- [ ] manter e refinar critérios já existentes: pacientes oncológicos, lesões suspeitas sem retorno, faltas recorrentes e tratamentos pendentes;
-- [ ] melhorar a explicação dos motivos de prioridade exibidos na Central de Comando;
-- [ ] destacar fila crítica por especialidade e começar a medir gargalos operacionais;
-- [ ] preparar base inicial para previsão de demanda por especialidade, bairro, município, período e mutirão;
-- [ ] criar ou ampliar testes automatizados do serviço de fila e da renderização da Central de Comando;
-- [ ] registrar a entrega, validações, pendências e observações de manual neste README ao concluir a sessão.
-
-Observação de produto: a gestão de estoque e o registro de materiais usados permanecem opcionais nesta etapa e não devem bloquear a evolução da Fase 2.8.
-
-#### Observações para manuais futuros
-
-- Manual da recepção deve explicar como criar consulta, confirmar, marcar `Faltou`, cancelar e interpretar filtros da agenda.
-- Manual da coordenação deve explicar leitura da Central de Comando: fila prioritária, motivos da pontuação, alertas críticos e produção do dia.
-- Manual clínico deve explicar a Linha do Tempo como visão consolidada do histórico do paciente.
-- Manual de auditoria deve explicar que mudanças de agenda e eventos relevantes aparecem na linha do tempo e nos logs administrativos.
-- Manual clínico deve explicar a aba `Visual`: como cadastrar legenda, categoria, etapa visual, grupo comparativo, data clínica e contexto.
-- Manual clínico deve orientar que registros antes/depois ou evolução devem compartilhar o mesmo `Grupo comparativo` para aparecerem lado a lado.
-- Manual de estomatologia deve explicar que fotos de lesão exigem legenda e podem ser classificadas como antes, evolução, depois, controle ou retorno.
-- Manual de radiologia/exames deve explicar que o upload em lote aplica a mesma legenda e metadados a todos os arquivos selecionados.
-- Manual LGPD/auditoria deve explicar que abertura da aba visual, uploads, visualização de arquivos, edição de metadados e exclusão de fotos são auditados.
-- Manual de estoque deve explicar cadastro de materiais, categorias, unidade, estoque mínimo, centro de custo, fornecedores e entrada de lotes.
-- Manual clínico deve explicar a aba `Materiais`: seleção de lote, vínculo com procedimento, quantidade utilizada, profissional responsável, data, observação e pós-operatório.
-- Manual clínico deve reforçar que, nesta etapa, o registro de materiais usados é opcional e não deve impedir cadastro, evolução clínica, assinatura, geração de procedimento, integração e-SUS ou alta.
-- Manual de estoque deve explicar a rotina `Ajuste ou Perda de Estoque`: escolher lote, tipo de ajuste, quantidade, motivo obrigatório, confirmar com senha do usuário logado e conferir o histórico recente.
-- Manual de implantodontia/cirurgia deve reforçar que materiais categorizados como `implante` exigem pós-operatório e geram alerta se o retorno previsto não for concluído.
-- Manual financeiro deve explicar que o custo do paciente é calculado pelo custo unitário do lote no momento do uso e que ainda falta rateio avançado por especialidade/profissional/município.
-- Manual de auditoria deve explicar eventos `inventory_item_created`, `inventory_lot_created`, `inventory_usage_registered`, `inventory_adjustment_registered` e `inventory_post_op_completed`.
-
----
-
-### **Fase 3: Inteligência Epidemiológica, Painel Executivo (BI) e Integrações — 🟡 INICIADA** *(Sessões registradas em 30/05/2026, 01/06/2026 e 02/06/2026)*
-
-> Objetivo: transformar os dados clínicos e operacionais já capturados pelo sistema em inteligência epidemiológica, painéis executivos e relatórios institucionais.
-> Status atual: Mapa Epidemiológico v3, BI Governamental v2, PDF Governamental do BI, Gestão de Referências de Custo SIGTAP, Relatórios Institucionais/SSA/SMS e preparação e-SUS APS implementados e validados. O painel epidemiológico já possui filtros avançados, perda dentária por odontograma, câncer confirmado, áreas críticas, mapa georreferenciado inicial, coordenadas municipais de Alagoas e drill-down territorial. O BI já possui visões específicas para gestão, Prefeitura, SSA, SMS, coordenação clínica e auditoria, com economia gerada estimada por referência operacional SIGTAP, tela financeira para homologação progressiva dos valores e relatório em PDF da visão governamental atual.
-
-#### Entregas implementadas em 30/05/2026
-
-- [x] **Mapa Epidemiológico v1**
-  - [x] Rota `/epidemiologia` protegida por permissão `epidemiologia:view`.
-  - [x] Menu lateral exibido apenas para perfis com acesso epidemiológico.
-  - [x] Filtros por período e bairro.
-  - [x] Indicadores por bairro: pacientes, lesões, suspeitas oncológicas, faltas, taxa de absenteísmo, necessidade protética e demanda reprimida.
-  - [x] Síntese clínica do período: novos cadastros, lesões registradas, pacientes com lesão, suspeitas oncológicas, encaminhamentos para biópsia, necessidade protética e demanda reprimida.
-  - [x] Ranking de localização anatômica das lesões.
-  - [x] Demanda por especialidade com destaque para demanda reprimida.
-  - [x] Perfil demográfico básico por faixa etária, gênero e profissão.
-- [x] **Base técnica da epidemiologia**
-  - [x] Serviço `services/epidemiology_service.py` criado para centralizar os cálculos.
-  - [x] Métricas derivadas de dados reais existentes: `patients`, `estomatologia`, `consultas`, `triagem_senhas`, `especialidades` e `prosthesis`.
-  - [x] Funções auxiliares para período, percentual, normalização de bairro e agrupamento demográfico.
-- [x] **Validação técnica da sessão**
-  - [x] Testes automatizados adicionados em `tests/test_phase3_epidemiology.py`.
-  - [x] Renderização autenticada da rota `/epidemiologia` validada em Docker.
-  - [x] Health check validado após rebuild.
-
-#### Testes executados na sessão de 30/05/2026
-
-```bash
-.venv/bin/python -m pytest -q
-# Resultado: 25 passed
-
-.venv/bin/python -m compileall services/epidemiology_service.py blueprints/main.py tests/test_phase3_epidemiology.py
-# Resultado: compilação sem erro
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-```
-
-Validações autenticadas em Docker:
-
-| Rota | Resultado |
-|---|---|
-| `/epidemiologia` | HTTP 200 |
-| `/epidemiologia?inicio=2026-05-01&fim=2026-05-30` | HTTP 200 |
-
-#### Entregas implementadas em 30/05/2026 — BI Executivo v1
-
-- [x] **Serviço de BI executivo**
-  - [x] Serviço `services/executive_bi_service.py` criado para centralizar os cálculos executivos.
-  - [x] Resumo de produção, consultas, filas, impacto social e financeiro operacional.
-  - [x] Comparação com mês anterior e cálculo de crescimento.
-  - [x] Metas automáticas iniciais para produção, comparecimento e fila encaminhada.
-  - [x] Comparativo mensal de seis meses.
-  - [x] Rankings por profissional, bairro e especialidade.
-- [x] **Tela de BI**
-  - [x] Template `templates/bi_dashboard.html`.
-  - [x] Rota `/bi` protegida por `bi:view`.
-  - [x] Menu lateral exibido apenas para perfis autorizados.
-  - [x] Filtro por período.
-- [x] **Validação técnica da sessão**
-  - [x] Testes automatizados adicionados em `tests/test_phase3_executive_bi.py`.
-  - [x] Renderização autenticada da rota `/bi` validada em Docker.
-  - [x] Health check validado após rebuild.
-
-#### Testes executados após BI Executivo v1
-
-```bash
-.venv/bin/python -m pytest -q
-# Resultado: 30 passed
-
-.venv/bin/python -m compileall services/executive_bi_service.py blueprints/main.py tests/test_phase3_executive_bi.py
-# Resultado: compilação sem erro
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-```
-
-Validações autenticadas em Docker:
-
-| Rota | Resultado |
-|---|---|
-| `/bi` | HTTP 200 |
-| `/bi?inicio=2026-05-01&fim=2026-05-30` | HTTP 200 |
-
-#### Entregas implementadas em 30/05/2026 — Relatórios Institucionais v1
-
-- [x] **Serviço de relatório institucional**
-  - [x] Serviço `services/institutional_report_service.py` criado para compor dados do BI Executivo e da Epidemiologia.
-  - [x] Perfis de relatório: Institucional, SSA e SMS.
-  - [x] Destaques executivos consolidados: produção, pacientes atendidos, fila encaminhada, suspeitas oncológicas, absenteísmo e bairros alcançados.
-  - [x] Recomendações automáticas para demanda reprimida, absenteísmo, fila oncológica, necessidade protética, biópsias e busca ativa municipal.
-  - [x] Observações institucionais sobre limitações de métricas proxy, suspeita oncológica e georreferenciamento v1.
-- [x] **Prévia e PDF institucional**
-  - [x] Rota `/reports/institutional` com filtros por período.
-  - [x] Filtro por perfil de relatório: Institucional, SSA e SMS.
-  - [x] Rota `/reports/institutional/export` para geração assíncrona via Celery + WeasyPrint.
-  - [x] Template `templates/reports/institutional.html` para prévia operacional.
-  - [x] Template `templates/pdfs/relatorio_institucional_pdf.html` para PDF institucional.
-  - [x] Link de acesso a partir de Relatórios Gerenciais.
-  - [x] Acesso de relatórios ajustado para permissão `reports:view`, não apenas `admin`.
-- [x] **Histórico e automação mensal**
-  - [x] Tabela `generated_reports` criada para registrar tipo, título, período, arquivo, task, usuário, status, detalhes e conclusão.
-  - [x] `generate_pdf_task` atualiza o status do relatório gerado para `success` ou `failed`.
-  - [x] Histórico dos PDFs gerados exibido na tela de relatório institucional.
-  - [x] Script `scripts/generate_monthly_reports.py` criado para geração mensal agendável por cron/orquestrador.
-  - [x] Script suporta `--type institucional`, `--type ssa`, `--type sms` e `--type all`.
-- [x] **Validação técnica da sessão**
-  - [x] Testes automatizados adicionados em `tests/test_phase3_institutional_report.py`.
-  - [x] Prévia autenticada validada em Docker.
-  - [x] POST de exportação validado com CSRF.
-  - [x] Arquivo PDF gerado no volume `pdf_temp`.
-  - [x] Geração mensal automatizada simulada por script.
-
-#### Testes executados após Relatório Institucional v1
-
-```bash
-.venv/bin/python -m pytest -q
-# Resultado: 36 passed
-
-.venv/bin/python -m compileall services/institutional_report_service.py tasks/pdf_tasks.py scripts/generate_monthly_reports.py blueprints/reports_bp.py tests/test_phase3_institutional_report.py
-# Resultado: compilação sem erro
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-
-docker compose exec -T gestaoclinica python scripts/generate_monthly_reports.py --type sms --month 2026-05
-# Resultado: relatorio_sms_20260501_20260531_auto.pdf gerado com sucesso
-```
-
-Validações autenticadas em Docker:
-
-| Rota/Ação | Resultado |
-|---|---|
-| `GET /reports/institutional` | HTTP 200 |
-| `GET /reports/institutional?inicio=2026-05-01&fim=2026-05-30` | HTTP 200 |
-| `GET /reports/institutional?tipo=ssa&inicio=2026-05-01&fim=2026-05-30` | HTTP 200 |
-| `GET /reports/institutional?tipo=sms&inicio=2026-05-01&fim=2026-05-30` | HTTP 200 |
-| `POST /reports/institutional/export` com tipo `ssa` | HTTP 302 para `/documents/status/...` |
-| `pdf_temp/relatorio_institucional_20260501_20260530_8.pdf` | PDF gerado com sucesso |
-| `pdf_temp/relatorio_ssa_20260501_20260530_8.pdf` | PDF gerado com sucesso |
-| `pdf_temp/relatorio_sms_20260501_20260531_auto.pdf` | PDF automático gerado com sucesso |
-| `generated_reports` | Registros `ssa` e `sms` com status `success` |
-
-#### Entregas implementadas em 01/06/2026 — Automação Governamental de Relatórios v1
-
-- [x] **Agendamento mensal em produção**
-  - [x] Task `tasks.report_tasks.generate_monthly_reports_task` criada para gerar relatórios mensais em background.
-  - [x] Celery configurado com `beat_schedule` para execução mensal automática.
-  - [x] Serviço `celery-beat` adicionado ao `docker-compose.yml`, com volume persistente `celerybeat_oral`.
-  - [x] Variáveis de ambiente documentadas em `.env.example`: `REPORTS_SCHEDULER_ENABLED`, `REPORTS_SCHEDULE_DAY`, `REPORTS_SCHEDULE_HOUR`, `REPORTS_SCHEDULE_MINUTE`, `REPORTS_SCHEDULE_TYPES`, `REPORTS_OUTPUT_DIR` e `TZ`.
-  - [x] Script `scripts/generate_monthly_reports.py` reaproveita o mesmo serviço de geração e aceita `--force` para reprocessamento controlado.
-- [x] **Serviço centralizado de geração**
-  - [x] Serviço `services/report_generation_service.py` criado para consolidar parsing de mês, tipos de relatório, chave agendada, geração PDF, idempotência e retorno operacional.
-  - [x] Geração automática evita duplicar relatório mensal já concluído quando executada pelo scheduler.
-  - [x] Relatórios gerados ficam disponíveis no histórico seguro do painel institucional.
-- [x] **Assinatura técnica e rastreabilidade do PDF**
-  - [x] `generated_reports` ampliada com `signature_hash`, `signature_status`, `signed_at`, `scheduled_key` e `delivery_channel`.
-  - [x] Hash SHA-256 do PDF calculado após a gravação do arquivo.
-  - [x] Registro formal criado também em `digital_signatures` com `document_type='generated_report'`.
-  - [x] Histórico da tela institucional exibe a assinatura/hash resumida do arquivo.
-- [x] **Acesso por público/perfil governamental**
-  - [x] Perfis `prefeitura`, `ssa` e `sms` adicionados à matriz de papéis.
-  - [x] Prefeitura acessa relatório institucional; SSA acessa relatório SSA; SMS acessa relatório SMS.
-  - [x] Perfis internos de BI, auditoria, epidemiologia e administração mantêm visão ampla conforme governança interna.
-  - [x] Download de PDFs institucionais passa a validar permissão `reports:view` e o tipo de relatório registrado.
-- [x] **Gráficos no PDF**
-  - [x] PDF institucional recebeu gráficos renderizados por barras para produção mensal, bairros alcançados, demanda reprimida e lesões por localização.
-  - [x] Gráficos usam os dados já consolidados pelo BI Executivo e Epidemiologia, sem dependência externa adicional.
-- [x] **Validação técnica da sessão**
-  - [x] Testes automatizados ampliados para 40 casos.
-  - [x] Compilação dos módulos alterados validada.
-  - [x] Checagem de whitespace validada por `git diff --check`.
-
-#### Testes executados após Automação Governamental v1
-
-```bash
-.venv/bin/python -m pytest -q
-# Resultado: 40 passed
-
-.venv/bin/python -m compileall constants.py database.py celery_app.py services/institutional_report_service.py services/report_generation_service.py tasks/pdf_tasks.py tasks/report_tasks.py scripts/generate_monthly_reports.py blueprints/reports_bp.py blueprints/documents.py tests/test_phase3_institutional_report.py
-# Resultado: compilação sem erro
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: serviços web, worker e beat ativos; HTTP 200, database ok
-
-docker compose exec -T gestaoclinica python scripts/generate_monthly_reports.py --type institucional --month 2026-05 --force
-# Resultado: relatorio_institucional_20260501_20260531_auto.pdf gerado com hash SHA-256 registrado
-```
-
-Validações em Docker:
-
-| Ação | Resultado |
-|---|---|
-| `docker compose ps` | `gestaoclinica`, `celery-worker`, `celery-beat`, `redis` e `postgres` ativos |
-| `docker compose logs --tail=80 celery-beat` | Beat iniciado com sucesso |
-| `generated_reports` | Registro `institucional` com `status=success`, `signature_status=hash_internal` e `delivery_channel=painel_seguro` |
-| `digital_signatures` | Registro `generated_report` com provedor `sha256-internal` |
-| Reexecução sem `--force` | Relatório existente detectado e não duplicado |
-
-#### Entregas implementadas em 01/06/2026 — Prontidão SIGTAP/DataSUS e e-SUS APS
-
-- [x] **Pesquisa técnica oficial**
-  - [x] Confirmado que a Tabela de Procedimentos, Medicamentos e OPM do SUS é a referência oficial para codificação de procedimentos.
-  - [x] Confirmado que o procedimento SIGTAP usa identificador numérico de 10 dígitos, estruturado por grupo, subgrupo e forma de organização.
-  - [x] Confirmado que a integração futura com e-SUS APS deve seguir o LEDI APS, camada que define as informações e formatos aceitos no envio de dados de sistemas próprios para o PEC e-SUS APS.
-  - [x] Fontes oficiais para documentação futura:
-    - `https://sigtap.datasus.gov.br/tabela-unificada/app/download.jsp`
-    - `https://wiki.datasus.gov.br/sigtap/index.php/Procedimento`
-    - `https://datasus.saude.gov.br/interoperabilidade-catalogo-de-servicos/`
-    - `https://integracao.esusaps.bridge.ufsc.tech/ledi/index.html`
-- [x] **Catálogo local SIGTAP**
-  - [x] Tabela `sigtap_procedures` criada com código, competência, nome, grupo, subgrupo, forma de organização, origem, status e data de importação.
-  - [x] Pré-carga odontológica inicial criada em `services/sigtap_service.py` para permitir uso imediato enquanto a competência oficial da prefeitura não for homologada.
-  - [x] `SIGTAP_DEFAULT_COMPETENCE` documentado no `.env.example`.
-  - [x] Importador oficial criado em `scripts/import_sigtap.py`.
-  - [x] Importador aceita ZIP oficial SIGTAP ou `TB_PROCEDIMENTO.TXT` extraído.
-  - [x] Importador permite recorte odontológico por padrão ou carga completa com `--all-procedures`.
-- [x] **Vínculo do procedimento clínico ao código SUS**
-  - [x] Tabela `tratamento_procedimentos` ampliada com `sigtap_code`, `sigtap_competence`, `sigtap_name`, `esus_export_status`, `esus_exported_at` e `esus_export_batch_id`.
-  - [x] Aba Plano de Tratamento recebeu seleção de código SUS/SIGTAP ao adicionar ou editar procedimento.
-  - [x] Procedimento assinado/concluído passa a marcar prontidão de exportação e sinaliza `missing_sigtap` quando estiver sem código.
-  - [x] Evolução importada após assinatura inclui referência SIGTAP quando disponível.
-- [x] **Base de espera para e-SUS APS**
-  - [x] Tabela `esus_integration_settings` criada para guardar dados futuros da prefeitura: ambiente, URL base, instalação, client id e status de credencial.
-  - [x] Tabela `esus_export_batches` criada para lotes de exportação preliminares.
-  - [x] Serviço `services/esus_export_service.py` criado para apurar produção concluída, separar registros prontos de registros sem SIGTAP e montar payload preliminar.
-  - [x] Script `scripts/build_esus_payload.py` criado para gerar JSON preliminar e/ou registrar lote draft.
-- [x] **Validação técnica da sessão**
-  - [x] Testes automatizados adicionados em `tests/test_phase3_sigtap_esus.py`.
-  - [x] Suíte total validada com 45 testes.
-
-#### Comandos operacionais SIGTAP/e-SUS
-
-```bash
-# Carregar apenas a pré-carga odontológica local para uma competência
-docker compose exec -T gestaoclinica python scripts/import_sigtap.py --competence 202603 --seed-only
-
-# Importar ZIP oficial SIGTAP/DataSUS quando a competência for baixada
-docker compose exec -T gestaoclinica python scripts/import_sigtap.py --competence AAAAMM --zip /app/uploads/sigtap/SIGTAP_AAAAMM.zip
-
-# Importar arquivo TB_PROCEDIMENTO.TXT extraído
-docker compose exec -T gestaoclinica python scripts/import_sigtap.py --competence AAAAMM --tb-procedimento /app/uploads/sigtap/TB_PROCEDIMENTO.TXT
-
-# Gerar payload preliminar de produção para validação antes da integração real com a prefeitura
-docker compose exec -T gestaoclinica python scripts/build_esus_payload.py --month 2026-05 --register
-```
-
-#### Testes executados após prontidão SIGTAP/e-SUS
-
-```bash
-.venv/bin/python -m pytest -q
-# Resultado: 45 passed
-
-.venv/bin/python -m pytest tests/test_phase3_sigtap_esus.py tests/test_phase3_institutional_report.py -q
-# Resultado: 15 passed
-
-.venv/bin/python -m compileall app.py database.py blueprints/patients.py services/sigtap_service.py services/esus_export_service.py scripts/import_sigtap.py scripts/build_esus_payload.py tests/test_phase3_sigtap_esus.py
-# Resultado: compilação sem erro
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-
-docker compose exec -T postgres psql -U clinica_user -d clinica -c "SELECT COUNT(*) AS sigtap_seed FROM sigtap_procedures;"
-# Resultado: 32 procedimentos odontológicos na pré-carga inicial
-
-docker compose exec -T gestaoclinica python scripts/build_esus_payload.py --month 2026-05 --register
-# Resultado: lote draft registrado em esus_export_batches aguardando credenciais/endpoint da prefeitura
-```
-
-#### Entregas implementadas em 01/06/2026 — Painel Operacional SIGTAP/e-SUS APS
-
-- [x] **Tela administrativa de integração**
-  - [x] Rota `/admin/integrations/esus` criada para acompanhamento operacional da preparação e-SUS APS.
-  - [x] Menu lateral atualizado com item `SIGTAP/e-SUS` para perfis autorizados.
-  - [x] Permissões `integrations:view` e `integrations:write` adicionadas à matriz de acesso.
-  - [x] Administrador pode visualizar e operar; auditoria e BI visualizam sem permissão de escrita.
-- [x] **Painel de prontidão da produção**
-  - [x] Cards de procedimentos concluídos, prontos para lote, sem SIGTAP e com dados pendentes.
-  - [x] Filtro por competência de produção.
-  - [x] Listagem de procedimentos sem código SIGTAP.
-  - [x] Listagem de pendências de envio por registro: SIGTAP, competência, CNS/CPF, profissional, CRO, CNES e INE/equipe.
-  - [x] Histórico dos lotes draft gerados.
-- [x] **Correção operacional de procedimentos**
-  - [x] Vinculação/alteração de código SIGTAP diretamente pelo painel.
-  - [x] Procedimento corrigido volta para `esus_export_status='pending'` quando já estiver concluído.
-  - [x] Auditoria registra alteração de código SIGTAP em `audit_logs`.
-- [x] **Configuração de espera da prefeitura**
-  - [x] Formulário para ambiente, URL PEC/e-SUS, versão PEC, versão LEDI, CNES, INE/equipe, instalação, client id, status de credenciais e observações.
-  - [x] Tabela `esus_integration_settings` ampliada com `pec_version`, `ledi_version`, `cnes` e `ine`.
-  - [x] Auditoria registra atualização da configuração.
-- [x] **Geração de lote pela interface**
-  - [x] Botão `Gerar Lote Draft` cria lote em `esus_export_batches` para conferência.
-  - [x] Serviço `services/esus_export_service.py` centraliza dashboard, pendências, configuração, correção e criação de lote.
-- [x] **Validação técnica da sessão**
-  - [x] Testes automatizados ampliados para 49 casos.
-  - [x] Renderização autenticada da rota `/admin/integrations/esus` validada em Docker.
-  - [x] Migração das colunas `pec_version`, `ledi_version`, `cnes` e `ine` validada no PostgreSQL.
-
-#### Testes executados após Painel Operacional SIGTAP/e-SUS
-
-```bash
-.venv/bin/python -m pytest -q
-# Resultado: 49 passed
-
-.venv/bin/python -m pytest tests/test_phase3_sigtap_esus.py -q
-# Resultado: 9 passed
-
-.venv/bin/python -m compileall blueprints/admin.py constants.py database.py services/esus_export_service.py services/sigtap_service.py tests/test_phase3_sigtap_esus.py
-# Resultado: compilação sem erro
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-```
-
-Validações em Docker:
-
-| Ação | Resultado |
-|---|---|
-| `GET /admin/integrations/esus?month=2026-05` autenticado como admin | HTTP 200 |
-| Conteúdo da tela | `SIGTAP / e-SUS APS` renderizado |
-| `information_schema.columns` | Colunas `cnes`, `ine`, `ledi_version` e `pec_version` presentes |
-
-#### Entregas implementadas em 01/06/2026 — Checklist de Homologação e Dados Obrigatórios e-SUS
-
-- [x] **Dados obrigatórios no cadastro de pacientes**
-  - [x] `CNS` e `CPF` tornados obrigatórios no cadastro de paciente.
-  - [x] `CNS` e `CPF` tornados obrigatórios na edição de paciente.
-  - [x] Validação de backend adicionada em `blueprints/patients.py`, além do `required` no HTML.
-- [x] **Dados obrigatórios no cadastro de profissionais**
-  - [x] Tabela `users` ampliada com `cns`, `cbo`, `cnes` e `ine`.
-  - [x] Perfis profissionais passam a exigir CNS profissional, CBO, CNES e INE/equipe.
-  - [x] Perfis odontológicos passam a exigir também CRO e CRO-UF.
-  - [x] Cadastro e edição de usuário bloqueiam gravação quando o perfil profissional está incompleto.
-  - [x] `utils.User` e login atualizados para carregar os novos campos profissionais.
-- [x] **Validador de prontidão para homologação**
-  - [x] Painel `/admin/integrations/esus` agora mostra bloco `Homologação`.
-  - [x] Checklist indica se a integração está pronta para homologação: sim/não.
-  - [x] Checklist avalia ambiente, URL PEC/e-SUS, versão PEC, versão LEDI, credenciais, CNES, INE, catálogo SIGTAP, pacientes, profissionais e bloqueios de produção.
-  - [x] Painel lista profissionais com dados obrigatórios pendentes e link para correção.
-  - [x] Serviço `services/esus_export_service.py` ampliado com apuração de pacientes sem CNS/CPF, profissionais incompletos e bloqueadores de homologação.
-- [x] **Validação técnica da sessão**
-  - [x] Testes automatizados ampliados para 51 casos.
-  - [x] Renderização autenticada da rota `/admin/integrations/esus` validada em Docker com os blocos `Homologação` e `Profissionais com Dados Pendentes`.
-  - [x] Migração das colunas `cns`, `cbo`, `cnes` e `ine` em `users` validada no PostgreSQL.
-
-#### Testes executados após Checklist de Homologação
-
-```bash
-.venv/bin/python -m pytest -q
-# Resultado: 51 passed
-
-.venv/bin/python -m pytest tests/test_phase3_sigtap_esus.py tests/test_phase1_security.py -q
-# Resultado: 17 passed
-
-.venv/bin/python -m compileall constants.py database.py utils.py blueprints/auth.py blueprints/admin.py blueprints/patients.py services/esus_export_service.py templates/admin/add_user.html templates/admin/edit_user.html templates/admin/esus_integration.html templates/patients/register.html templates/patients/edit.html tests/test_phase3_sigtap_esus.py
-# Resultado: compilação sem erro
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-```
-
-Validações em Docker:
-
-| Ação | Resultado |
-|---|---|
-| `information_schema.columns` em `users` | Colunas `cns`, `cbo`, `cnes` e `ine` presentes |
-| `GET /admin/integrations/esus?month=2026-05` autenticado como admin | HTTP 200 |
-| Conteúdo da tela | Blocos `Homologação` e `Profissionais com Dados Pendentes` renderizados |
-
-#### Entregas implementadas em 01/06/2026 — Dados Demonstrativos para Apresentação
-
-- [x] **Rotina de povoamento sem frontend**
-  - [x] Comando Flask CLI `seed-demo-data` registrado em `app.py`.
-  - [x] Execução via Docker: `docker compose exec -T gestaoclinica flask --app app:app seed-demo-data --count 100 --label "Demonstração institucional"`.
-  - [x] Limite operacional de 1 a 100 pacientes por execução para evitar carga acidental excessiva.
-  - [x] Cada execução fica registrada na tabela `demo_seed_runs`, com label, quantidade solicitada, quantidade criada, status, data e detalhes.
-  - [x] Pacientes fictícios ficam marcados em `patients.is_demo=TRUE`, com `demo_profile` e `demo_seed_run_id`.
-- [x] **Perfis clínicos fictícios**
-  - [x] Oito perfis iniciais: idoso com necessidade protética, diabético periodontal, criança com cárie ativa, tabagista com lesão suspeita, dor endodôntica, reabilitação com implante, gestante em preventivo e paciente oncológico em acompanhamento.
-  - [x] Dados pessoais fictícios com CPF formatado e dígitos verificadores válidos para demonstração, CNS fictício, telefone, endereço, profissão, gênero e data de nascimento.
-  - [x] Municípios de Alagoas reaproveitados da base de referência e bairros/áreas de atendimento distribuídos para alimentar indicadores territoriais.
-- [x] **Prontuário completo para demonstração**
-  - [x] TCLE fictício assinado.
-  - [x] Anamnese completa com condições variáveis: hipertensão, diabetes, tabagismo, gestação, suspeita/risco oncológico, dor e perfil infantil.
-  - [x] Exames físico, odontograma e periograma.
-  - [x] Plano de tratamento com procedimentos vinculados ao catálogo SIGTAP odontológico.
-  - [x] Atendimentos/evoluções clínicas iniciais assinadas.
-  - [x] Agenda com consultas em estados variados, incluindo faltas para alimentar absenteísmo.
-  - [x] Casos de estomatologia com lesão suspeita, foto fictícia e encaminhamento para biópsia.
-  - [x] Casos de prótese/reabilitação com etapa de moldagem.
-  - [x] Alguns receituários e atestados fictícios para compor a linha do tempo do paciente.
-- [x] **Base de demonstração gerada no Docker local**
-  - [x] Carga final validada com 100 pacientes demo.
-  - [x] Distribuição validada em 8 perfis clínicos.
-  - [x] Registros validados: 100 anamneses, 300 exames, 200 procedimentos, 25 registros de lesão/estomatologia e 24 registros de prótese.
-  - [x] Dados já alimentam Epidemiologia, BI, Central de Comando, prontuário, linha do tempo, absenteísmo, demanda reprimida e preparação SIGTAP/e-SUS.
-- [x] **Validação técnica da sessão**
-  - [x] Serviço `services/demo_data_service.py` criado.
-  - [x] Testes automatizados adicionados em `tests/test_demo_data_service.py`.
-  - [x] Sem tela administrativa e sem item de menu, conforme decisão de produto desta sessão.
-
-#### Testes executados após Dados Demonstrativos
-
-```bash
-.venv/bin/python -m pytest -q
-# Resultado: 55 passed
-
-.venv/bin/python -m compileall app.py database.py services/demo_data_service.py tests/test_demo_data_service.py
-# Resultado: compilação sem erro
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-
-docker compose exec -T gestaoclinica flask --app app:app seed-demo-data --count 1 --label "Smoke demo Codex"
-# Resultado: 1 paciente demo criado com prontuário completo
-
-docker compose exec -T gestaoclinica flask --app app:app seed-demo-data --count 99 --label "Carga demo inicial 100 pacientes"
-# Resultado: 99 pacientes demo criados; total local validado: 100 pacientes demo
-```
-
-Validações em Docker:
-
-| Ação | Resultado |
-|---|---|
-| `patients WHERE is_demo = TRUE` | 100 pacientes |
-| `demo_seed_runs` | Execuções `success` com 1 e 99 pacientes |
-| `anamnesis` vinculada a pacientes demo | 100 registros |
-| `exams` vinculados a pacientes demo | 300 registros |
-| `tratamento_procedimentos` vinculados a pacientes demo | 200 registros |
-| `estomatologia` vinculada a pacientes demo | 25 registros |
-| `prosthesis` vinculada a pacientes demo | 24 registros |
-
-#### Entregas implementadas em 01/06/2026 — Conferência de Lote Draft e-SUS APS
-
-- [x] **Tela de detalhe do lote draft**
-  - [x] Rota `/admin/integrations/esus/batches/<id>` criada para abrir um lote específico.
-  - [x] Tela exibe competência, status, totais apurados, registros incluídos, pendências, gerador, validador e hash SHA-256 do payload.
-  - [x] Histórico de lotes no painel `/admin/integrations/esus` agora possui link direto para abrir cada lote.
-- [x] **Snapshot e download de JSON de conferência**
-  - [x] `esus_export_batches` ampliada com `payload_json`, `records_incomplete`, `validated_by`, `validated_at` e `validation_notes`.
-  - [x] A geração do lote passou a salvar snapshot JSON do payload, além do hash.
-  - [x] Rota `/admin/integrations/esus/batches/<id>/download` criada para baixar o JSON draft.
-  - [x] O payload inclui paciente, profissional, procedimento, SIGTAP, competência, dente e data do procedimento.
-- [x] **Validação interna**
-  - [x] Rota `POST /admin/integrations/esus/batches/<id>/validate` criada para marcar lote como `validated_internally`.
-  - [x] Validação registra usuário, horário e observação interna.
-  - [x] Lote validado preserva o hash e o snapshot de conferência.
-  - [x] Alteração de SIGTAP é bloqueada quando o procedimento já está incluído em lote validado internamente.
-- [x] **Auditoria completa do fluxo**
-  - [x] Geração registra `esus_batch_created`.
-  - [x] Abertura registra `esus_batch_opened`.
-  - [x] Download registra `esus_batch_downloaded`.
-  - [x] Validação registra `esus_batch_validated_internally`.
-- [x] **Validação técnica da sessão**
-  - [x] Testes automatizados ampliados para 60 casos.
-  - [x] Renderização da tela de detalhe validada no Docker.
-  - [x] Download JSON validado no Docker.
-  - [x] Validação interna e bloqueio de edição pós-validação confirmados no Docker.
-
-#### Testes executados após Conferência de Lote e-SUS
-
-```bash
-.venv/bin/python -m pytest -q
-# Resultado: 60 passed
-
-.venv/bin/python -m pytest -q tests/test_phase3_sigtap_esus.py
-# Resultado: 16 passed
-
-.venv/bin/python -m compileall database.py services/esus_export_service.py blueprints/admin.py tests/test_phase3_sigtap_esus.py
-# Resultado: compilação sem erro
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-```
-
-Validações em Docker:
-
-| Ação | Resultado |
-|---|---|
-| Colunas novas em `esus_export_batches` | `payload_json`, `records_incomplete`, `validated_by`, `validated_at`, `validation_notes` presentes |
-| `GET /admin/integrations/esus?month=2026-06` autenticado | HTTP 200 |
-| `POST /admin/integrations/esus/batches` | HTTP 302 para detalhe do lote |
-| `GET /admin/integrations/esus/batches/<id>` | HTTP 200 com registros incluídos e hash |
-| `GET /admin/integrations/esus/batches/<id>/download` | HTTP 200, JSON com `local_procedure_id` |
-| `POST /admin/integrations/esus/batches/<id>/validate` | Lote marcado como `validated_internally` |
-| Auditoria do lote | `created`, `opened`, `downloaded` e `validated_internally` registrados |
-| Bloqueio pós-validação | Alteração de SIGTAP bloqueada para procedimento incluído no lote validado |
-
-#### Entregas implementadas em 01/06/2026 — Pré-envio Simulado e-SUS APS
-
-- [x] **Estados de fechamento do lote**
-  - [x] Fluxo de status formalizado para `draft`, `validated_internally`, `ready_to_send`, `sent` e `failed`.
-  - [x] Lote validado internamente pode passar por pré-envio simulado antes de qualquer transmissão real.
-  - [x] Quando a simulação local é aprovada, o lote muda para `ready_to_send`.
-  - [x] Transmissão real permanece desativada até a prefeitura fornecer conector/endpoint/credenciais homologados.
-- [x] **Histórico de tentativas**
-  - [x] Tabela `esus_transmission_attempts` criada.
-  - [x] Cada tentativa registra lote, modo (`simulation`), status, endpoint, HTTP simulado, hash do payload, resposta, erro, usuário e horário.
-  - [x] Tela do lote exibe o histórico de tentativas.
-- [x] **Pré-envio simulado**
-  - [x] Rota `POST /admin/integrations/esus/batches/<id>/preflight` criada.
-  - [x] Simulação valida status do lote, hash, existência de registros, ambiente, URL PEC/e-SUS, credenciais, CNES, INE/equipe e integração ativa.
-  - [x] Simulação bloqueada grava tentativa com `status='blocked'` e HTTP simulado `428`.
-  - [x] Simulação aprovada grava tentativa com `status='success'`, HTTP simulado `200` e marca o lote como `ready_to_send`.
-- [x] **Preparação do botão de envio real**
-  - [x] Tela do lote mostra a seção `Pré-envio e-SUS`.
-  - [x] Botão `Simular Pré-envio` disponível para lotes `validated_internally` ou `ready_to_send`.
-  - [x] Botão `Enviar para e-SUS APS` aparece desabilitado, deixando claro que a chamada real ainda depende da homologação externa.
-  - [x] Quando houver bloqueio, a tela lista exatamente quais requisitos impedem o envio real.
-- [x] **Auditoria**
-  - [x] Pré-envio simulado registra `esus_batch_preflight_simulated`.
-  - [x] Auditoria diferencia tentativa aprovada (`success`) e bloqueada (`blocked`).
-
-#### Testes executados após Pré-envio Simulado e-SUS
-
-```bash
-.venv/bin/python -m pytest -q
-# Resultado: 64 passed
-
-.venv/bin/python -m pytest -q tests/test_phase3_sigtap_esus.py
-# Resultado: 20 passed
-
-.venv/bin/python -m compileall database.py services/esus_export_service.py blueprints/admin.py templates/admin/esus_batch_detail.html tests/test_phase3_sigtap_esus.py
-# Resultado: compilação sem erro
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-```
-
-Validações em Docker:
-
-| Ação | Resultado |
-|---|---|
-| Tabela `esus_transmission_attempts` | 12 colunas criadas e indexadas |
-| `GET /admin/integrations/esus?month=2026-06` autenticado | HTTP 200 |
-| `POST /admin/integrations/esus/batches/<id>/preflight` sem configuração completa | Tentativa `blocked`, HTTP simulado `428`, lote permanece `validated_internally` |
-| `POST /admin/integrations/esus/batches/<id>/preflight` com configuração simulada completa | Tentativa `success`, HTTP simulado `200`, lote marcado `ready_to_send` |
-| Histórico de tentativas | Registros de simulação bloqueada e aprovada persistidos |
-| Auditoria do pré-envio | `esus_batch_preflight_simulated` registrado com status `blocked` e `success` |
-
-#### Entregas implementadas em 01/06/2026 — Relatório de Homologação e-SUS APS
-
-- [x] **Relatório operacional de homologação**
-  - [x] Rota `/admin/integrations/esus/homologation-report` criada.
-  - [x] Relatório consolida configuração atual, checklist de homologação, lote de referência, hash SHA-256, tentativas de pré-envio, pendências e observação de dependência externa.
-  - [x] Link de acesso adicionado no painel `/admin/integrations/esus`.
-  - [x] Link de acesso adicionado na tela de detalhe do lote.
-- [x] **Checklist imprimível para reunião com prefeitura**
-  - [x] Checklist agrupado por dados da prefeitura, identificação unidade/equipe, qualidade da produção e pré-envio.
-  - [x] Itens cobrem ambiente, endpoint, versão PEC, versão LEDI, credenciais, CNES, INE, checklist sem bloqueios, lote validado, hash do payload e pré-envio simulado.
-  - [x] Tela possui ação de impressão via navegador.
-- [x] **PDF de homologação**
-  - [x] Template `templates/pdfs/esus_homologation_report_pdf.html` criado.
-  - [x] Rota `POST /admin/integrations/esus/homologation-report/export` gera PDF assíncrono por Celery/WeasyPrint.
-  - [x] Arquivo segue padrão `esus_homologacao_<competencia>_<lote>.pdf`.
-- [x] **Manual rápido do fluxo e-SUS**
-  - [x] Relatório inclui passo a passo: dados obrigatórios, SIGTAP, lote draft, conferência JSON, validação interna, pré-envio simulado e aguardo de liberação do envio real.
-- [x] **Auditoria**
-  - [x] Abertura registra `esus_homologation_report_opened`.
-  - [x] Exportação registra `esus_homologation_report_exported`.
-
-#### Testes executados após Relatório de Homologação e-SUS
-
-```bash
-.venv/bin/python -m pytest -q
-# Resultado: 66 passed
-
-.venv/bin/python -m pytest -q tests/test_phase3_sigtap_esus.py
-# Resultado: 22 passed
-
-.venv/bin/python -m compileall services/esus_export_service.py blueprints/admin.py tests/test_phase3_sigtap_esus.py
-# Resultado: compilação sem erro
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-```
-
-Validações em Docker:
-
-| Ação | Resultado |
-|---|---|
-| `GET /admin/integrations/esus/homologation-report?month=2026-06&batch_id=<id>` autenticado | HTTP 200 |
-| Conteúdo da tela | `Relatório de Homologação` e `Manual Rápido` renderizados |
-| `POST /admin/integrations/esus/homologation-report/export` | HTTP 302 para `/documents/status/.../esus_homologacao_2026-06_<id>.pdf` |
-| `pdf_temp/esus_homologacao_2026-06_<id>.pdf` | PDF gerado com sucesso |
-| Auditoria | `esus_homologation_report_opened` e `esus_homologation_report_exported` registrados |
-
-#### Entregas implementadas em 01/06/2026 — Mapa Epidemiológico v2
-
-- [x] **Filtros epidemiológicos avançados**
-  - [x] `/epidemiologia` ampliado com filtros por período, bairro, município, especialidade, profissional, sexo, faixa etária e status do tratamento.
-  - [x] Serviço `services/epidemiology_service.py` centraliza a composição dos filtros e reaproveita a mesma regra para pacientes, lesões, consultas, triagem, odontogramas e procedimentos.
-  - [x] Bairros passaram a ser normalizados a partir de `patients.atendido_em`, separando o bairro do município quando o dado vem no padrão `Bairro - Município`.
-- [x] **Perda dentária epidemiológica**
-  - [x] Odontogramas em `exam_odontograma.dentes_data` passaram a alimentar indicador territorial de dentes ausentes.
-  - [x] O cálculo reconhece a lista estruturada `ausentes` usada na carga demo e marcações visuais de dente extraído em azul no odontograma.
-  - [x] O painel mostra total de dentes ausentes, pacientes com perda dentária, média por paciente afetado e ranking de perda dentária por bairro.
-- [x] **Câncer de boca confirmado**
-  - [x] Tabela `estomatologia` ampliada com `cancer_confirmed`, `cancer_confirmed_at` e `diagnostico_confirmado`.
-  - [x] Indicadores passam a diferenciar suspeita oncológica de diagnóstico confirmado.
-  - [x] A rotina de dados demonstrativos marca parte dos perfis oncológicos fictícios como câncer confirmado para apresentação institucional.
-- [x] **Áreas críticas para mutirão móvel e prevenção**
-  - [x] Indicador `critical_score` criado por bairro combinando câncer confirmado, suspeita oncológica, lesões, demanda reprimida, necessidade protética, perda dentária e faltas.
-  - [x] Tela exibe risco territorial como `Crítico`, `Atenção` ou `Monitorar`.
-  - [x] Painel lateral lista as áreas críticas e os principais motivos para busca ativa, mutirão móvel ou ação preventiva.
-- [x] **Validação técnica da sessão**
-  - [x] Testes automatizados da epidemiologia ampliados para cobrir filtros, perda dentária e áreas críticas.
-  - [x] Renderização autenticada da rota `/epidemiologia` com filtros avançados validada em Docker.
-  - [x] Migração das colunas de câncer confirmado validada no PostgreSQL.
-
-#### Testes executados após Mapa Epidemiológico v2
-
-```bash
-.venv/bin/pytest -q
-# Resultado: 67 passed
-
-.venv/bin/python -m compileall services/epidemiology_service.py database.py services/demo_data_service.py blueprints/main.py tests/test_phase3_epidemiology.py
-# Resultado: compilação sem erro
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-```
-
-Validações em Docker:
-
-| Ação | Resultado |
-|---|---|
-| Colunas novas em `estomatologia` | `cancer_confirmed`, `cancer_confirmed_at` e `diagnostico_confirmado` presentes |
-| `GET /epidemiologia` autenticado | HTTP 200 |
-| `GET /epidemiologia?municipio=Maceió&sexo=Fem&faixa_etaria=60%2B` autenticado | HTTP 200 com filtros avançados renderizados |
-
-#### Entregas implementadas em 02/06/2026 — Mapa georreferenciado e drill-down territorial
-
-- [x] **Base territorial inicial**
-  - [x] Tabela `territorial_locations` criada para armazenar coordenadas de município, bairro, unidade/local e ação de triagem.
-  - [x] Coordenadas iniciais dos 102 municípios de Alagoas carregadas como centroides municipais.
-  - [x] Fonte inicial de coordenadas municipais documentada: `kelvins/municipios-brasileiros`, arquivo `csv/municipios.csv`.
-  - [x] Fallback manual criado por script para cadastrar ou corrigir coordenadas específicas depois.
-- [x] **Payload geográfico epidemiológico**
-  - [x] `services/epidemiology_service.py` passou a gerar `geo.features` para município, bairro e ação de triagem.
-  - [x] Cada ponto geográfico inclui pacientes, lesões, suspeitas, câncer confirmado, perda dentária, absenteísmo, necessidade protética, demanda reprimida, pontuação crítica e risco.
-  - [x] Pontos com coordenada própria são marcados como exatos; bairros e ações sem coordenada específica usam fallback no centroide municipal até refinamento manual.
-  - [x] Payload informa cobertura: total de pontos, coordenadas exatas, fallback municipal e pendências.
-- [x] **Mapa visual em `/epidemiologia`**
-  - [x] Painel `Mapa Georreferenciado` criado acima da tabela epidemiológica.
-  - [x] Marcadores por risco: `Crítico`, `Atenção` e `Monitorar`.
-  - [x] Clique no marcador abre detalhe territorial com métricas clínicas e operacionais.
-  - [x] Drill-down por ação de triagem exibido com local, pacientes e nível de risco.
-  - [x] Lista de coordenadas a refinar mostra bairros/ações que ainda dependem de coordenada específica.
-- [x] **Cadastro técnico de coordenadas manuais**
-  - [x] Script `scripts/upsert_territorial_location.py` criado para cadastrar/atualizar coordenadas de município, bairro, unidade ou ação de triagem.
-  - [x] O script preserva o modelo offline, sem depender de API externa em runtime.
-- [x] **Validação técnica da sessão**
-  - [x] Testes automatizados da epidemiologia ampliados para cobrir projeção geográfica, coordenada exata e fallback municipal.
-  - [x] Renderização autenticada de `/epidemiologia` validada em Docker com mapa e drill-down.
-  - [x] Criação da tabela `territorial_locations` e carga de 102 coordenadas municipais validadas no PostgreSQL.
-
-#### Testes executados após Mapa Georreferenciado
-
-```bash
-.venv/bin/pytest -q
-# Resultado: 68 passed
-
-.venv/bin/python -m compileall services/epidemiology_service.py database.py scripts/upsert_territorial_location.py tests/test_phase3_epidemiology.py
-# Resultado: compilação sem erro
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-```
-
-Validações em Docker:
-
-| Ação | Resultado |
-|---|---|
-| `territorial_locations` | 102 registros de município com latitude/longitude |
-| `GET /epidemiologia` autenticado | HTTP 200 com `Mapa Georreferenciado` renderizado |
-| `GET /epidemiologia?municipio=Maceió&sexo=Fem&faixa_etaria=60%2B` autenticado | HTTP 200 com mapa e filtros avançados |
-| Payload `geo` | 142 pontos renderizáveis no teste local: municípios, bairros e ações de triagem |
-
-#### Entregas implementadas em 02/06/2026 — BI Governamental v2
-
-- [x] **Visões executivas por perfil institucional**
-  - [x] Seletor `visao` incluído em `/bi`, com opções: Geral, Prefeitura, SSA, SMS, Coordenação Clínica e Auditoria.
-  - [x] Cada visão reorganiza os cards e o bloco de foco executivo conforme o público: produção, impacto social, fila SUS, indicadores oncológicos, conformidade SIGTAP/e-SUS e auditoria.
-  - [x] Rota `/bi` continua protegida por `bi:view`, preservando o controle de acesso por perfil.
-  - [x] URL permite acesso direto por visão, por exemplo: `/bi?visao=prefeitura`, `/bi?visao=ssa` e `/bi?visao=auditoria`.
-- [x] **Economia gerada estimada**
-  - [x] Tabela `procedure_cost_references` criada para referência configurável de custo por procedimento SIGTAP.
-  - [x] Carga inicial com 32 procedimentos odontológicos de referência demonstrativa.
-  - [x] Serviço de BI calcula valor público, valor de referência, economia estimada, cobertura de referência e procedimentos sem referência.
-  - [x] Tela `/bi` mostra cards financeiros, nota metodológica e ranking dos procedimentos com maior economia estimada.
-  - [x] Regra de negócio preserva valores editados manualmente: a carga demonstrativa só atualiza registros ainda marcados como `demo_reference_internal`.
-- [x] **Indicadores assistenciais reforçados**
-  - [x] Resumo executivo passou a exibir cobertura SIGTAP da produção concluída.
-  - [x] BI passou a diferenciar procedimentos concluídos com SIGTAP, sem SIGTAP e pendências que impactam prontidão e-SUS.
-  - [x] Indicadores oncológicos incorporados: lesões registradas, suspeitas de câncer, câncer confirmado e encaminhamentos para biópsia.
-- [x] **Arquivos e componentes impactados**
-  - [x] `database.py`: criação/migração/seed de `procedure_cost_references`.
-  - [x] `services/executive_bi_service.py`: visão governamental, economia estimada, cobertura SIGTAP e indicadores oncológicos.
-  - [x] `blueprints/main.py`: repasse do filtro `visao` para o serviço.
-  - [x] `templates/bi_dashboard.html`: seletor de visão, cards governamentais e bloco de economia.
-  - [x] `tests/test_phase3_executive_bi.py`: cobertura unitária da economia estimada, normalização de visão e composição do dashboard.
-
-#### Testes executados após BI Governamental v2
-
-```bash
-.venv/bin/python -m compileall services/executive_bi_service.py blueprints/main.py database.py tests/test_phase3_executive_bi.py
-# Resultado: compilação sem erro
-
-.venv/bin/pytest -q
-# Resultado: 70 passed
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-```
-
-Validações em Docker:
-
-| Ação | Resultado |
-|---|---|
-| `procedure_cost_references` | 32 referências ativas carregadas |
-| `GET /bi` autenticado | HTTP 200 com visão e economia renderizadas |
-| `GET /bi?visao=prefeitura&inicio=2026-06-01&fim=2026-06-02` autenticado | HTTP 200 |
-| `GET /bi?visao=ssa&inicio=2026-06-01&fim=2026-06-02` autenticado | HTTP 200 |
-| `GET /bi?visao=sms&inicio=2026-06-01&fim=2026-06-02` autenticado | HTTP 200 |
-| `GET /bi?visao=coordenacao_clinica&inicio=2026-06-01&fim=2026-06-02` autenticado | HTTP 200 |
-| `GET /bi?visao=auditoria&inicio=2026-06-01&fim=2026-06-02` autenticado | HTTP 200 |
-| `GET /bi?visao=invalida&inicio=2026-06-01&fim=2026-06-02` autenticado | HTTP 200 com fallback para visão Geral |
-| Serviço `get_executive_bi_dashboard(..., view='prefeitura')` | Retorna visão `prefeitura`, economia estimada, cobertura de referência e cards governamentais |
-
-> Observação metodológica: os valores de `procedure_cost_references` são referência operacional demonstrativa para apresentação e validação interna. Para uso institucional formal, a Prefeitura/SSA/SMS deve homologar fonte, metodologia, valores, periodicidade de revisão e responsável técnico.
-
-#### Entregas implementadas em 02/06/2026 — Gestão de Referências de Custo SIGTAP
-
-- [x] **Tela administrativa financeira**
-  - [x] Rota `/admin/finance/cost-references` criada para listar, filtrar e revisar referências de custo por procedimento SIGTAP.
-  - [x] Acesso protegido por `financeiro:view`; edição/importação protegidas por `financeiro:write`.
-  - [x] Menu lateral `Custos SIGTAP` exibido para perfis com acesso financeiro.
-  - [x] Cards mostram total de referências, validadas, taxa de homologação e referências ainda demonstrativas.
-- [x] **Edição e homologação por procedimento**
-  - [x] Cada referência permite editar custo público, referência privada, fonte, status metodológico, status ativo/inativo, rótulo e observações.
-  - [x] Status metodológico suporta `draft`, `pending_public_validation` e `validated`.
-  - [x] Quando marcada como `validated`, a referência registra `validated_by`, `validated_at` e `validation_notes`.
-  - [x] Valores monetários aceitam formato brasileiro (`1.234,56`) e decimal (`1234.56`).
-- [x] **Importação CSV com validação prévia**
-  - [x] Serviço aceita CSV com separador `;` ou `,`.
-  - [x] Colunas aceitas: `sigtap_code`, `sigtap_name`, `public_cost`, `private_reference`, `methodology_status`, `source`, `active`, `notes` e aliases em português.
-  - [x] O arquivo inteiro é validado antes da gravação; se houver erro ou código SIGTAP inválido, nenhuma linha é aplicada.
-  - [x] Importação cria novas referências ou atualiza existentes por `sigtap_code`.
-- [x] **Auditoria financeira**
-  - [x] Atualização manual registra `cost_reference_updated` ou `cost_reference_validated` em `audit_logs`.
-  - [x] Importação registra resumo `cost_reference_import_completed`.
-  - [x] Cada linha importada registra criação/atualização individual com campos alterados, valor antigo e valor novo.
-  - [x] Importações rejeitadas registram `cost_reference_import_rejected` com erros principais.
-- [x] **Arquivos e componentes impactados**
-  - [x] `database.py`: colunas `validated_by`, `validated_at`, `validation_notes` e índice metodológico.
-  - [x] `services/cost_reference_service.py`: CRUD, parsing monetário, normalização de status/fonte e importação CSV.
-  - [x] `blueprints/admin.py`: rotas financeiras e auditoria das alterações.
-  - [x] `templates/admin/cost_references.html`: tela de filtros, importação e edição inline.
-  - [x] `templates/base.html`: link administrativo `Custos SIGTAP`.
-  - [x] `tests/test_phase3_cost_references.py`: cobertura de permissões, parsing, homologação e importação.
-
-#### Testes executados após Gestão de Referências de Custo SIGTAP
-
-```bash
-.venv/bin/python -m compileall services/cost_reference_service.py blueprints/admin.py database.py tests/test_phase3_cost_references.py
-# Resultado: compilação sem erro
-
-.venv/bin/pytest -q tests/test_phase3_cost_references.py
-# Resultado: 5 passed
-
-.venv/bin/pytest -q
-# Resultado: 75 passed
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-```
-
-Validações em Docker:
-
-| Ação | Resultado |
-|---|---|
-| Colunas novas em `procedure_cost_references` | `validated_by`, `validated_at` e `validation_notes` presentes |
-| `GET /admin/finance/cost-references` autenticado | HTTP 200 com tela e importação CSV renderizadas |
-| `GET /admin/finance/cost-references?methodology_status=draft&active=all` autenticado | HTTP 200 |
-| Serviço `get_cost_reference_dashboard({'active': 'all'})` | Retorna 32 referências e estatísticas de homologação |
-
-> Observação metodológica: a tela permite homologação operacional progressiva, mas a metodologia oficial de economia ainda depende de aprovação formal da gestão pública e substituição dos valores demonstrativos por referências oficiais.
-
-#### Entregas implementadas em 02/06/2026 — PDF Governamental do BI
-
-- [x] **Exportação PDF por visão governamental**
-  - [x] Botão `Gerar PDF` incluído em `/bi`, respeitando período e visão atual.
-  - [x] Rota `POST /bi/export` criada para gerar PDF governamental do BI.
-  - [x] Visões suportadas: Geral, Prefeitura, SSA, SMS, Coordenação Clínica e Auditoria.
-  - [x] Nome do arquivo inclui visão, período e usuário: `relatorio_bi_governamental_<visao>_<inicio>_<fim>_<usuario>.pdf`.
-- [x] **Conteúdo do PDF**
-  - [x] Produção clínica, pacientes atendidos, fila encaminhada, absenteísmo e cobertura SIGTAP.
-  - [x] Impacto social, bairros/municípios atendidos e rankings territoriais.
-  - [x] Oncologia bucal: lesões, suspeitas, câncer confirmado e biópsias.
-  - [x] Economia gerada estimada, cobertura de referência, itens sem referência e ranking de procedimentos por economia.
-  - [x] Nota metodológica clara informando quando economia ainda é estimativa operacional não homologada.
-  - [x] Recomendações automáticas por fila reprimida, absenteísmo, oncologia, SIGTAP, referência de custo e homologação.
-- [x] **Histórico, auditoria e assinatura técnica**
-  - [x] PDFs do BI são registrados em `generated_reports` com `report_type='bi_governamental'`.
-  - [x] Tela `/bi` exibe histórico dos PDFs governamentais do BI.
-  - [x] Download dos PDFs do BI é protegido por `bi:view`.
-  - [x] Geração registra auditoria `bi_government_report_exported`.
-  - [x] A task de PDF reaproveita assinatura técnica SHA-256 já existente em `generated_reports`/`digital_signatures`.
-- [x] **Arquivos e componentes impactados**
-  - [x] `services/bi_report_service.py`: composição do relatório, recomendações e registro do histórico.
-  - [x] `blueprints/main.py`: rota `POST /bi/export`, auditoria e integração com Celery.
-  - [x] `blueprints/documents.py`: autorização de download para `bi_governamental` por `bi:view`.
-  - [x] `templates/bi_dashboard.html`: botão de PDF e histórico de PDFs do BI.
-  - [x] `templates/pdfs/bi_government_report_pdf.html`: layout PDF governamental.
-  - [x] `tests/test_phase3_bi_government_report.py`: cobertura do serviço, recomendações e registro.
-
-#### Testes executados após PDF Governamental do BI
-
-```bash
-.venv/bin/python -m compileall services/bi_report_service.py blueprints/main.py blueprints/documents.py tests/test_phase3_bi_government_report.py
-# Resultado: compilação sem erro
-
-.venv/bin/pytest -q tests/test_phase3_bi_government_report.py
-# Resultado: 3 passed
-
-.venv/bin/pytest -q
-# Resultado: 78 passed
-
-git diff --check
-# Resultado: sem erros de whitespace
-
-docker compose up -d --build
-curl http://localhost:5003/health
-# Resultado: HTTP 200, database ok
-```
-
-Validações em Docker:
-
-| Ação | Resultado |
-|---|---|
-| `GET /bi?visao=prefeitura&inicio=2026-06-01&fim=2026-06-02` autenticado | HTTP 200 com botão `Gerar PDF` e histórico renderizados |
-| `POST /bi/export` autenticado em test client com task stub | HTTP 302 para `/documents/status/...`, registro em `generated_reports` e auditoria criada |
-| Artefato fake de validação | Removido de `generated_reports` e `audit_logs` após teste |
-| Renderização WeasyPrint do template `bi_government_report_pdf.html` | PDF temporário gerado com sucesso (`25139` bytes) e removido |
-
-> Observação metodológica: o PDF é adequado para reunião e demonstração institucional, mas a seção de economia continua exibindo o status metodológico para evitar leitura formal antes de homologação pública.
-
-#### Pendências da Fase 3
-
-- [ ] **Mapa Epidemiológico em Tempo Real avançado**
-  - [x] Painel georreferenciado inicial por bairro, município e ação de triagem.
-  - [x] Coordenadas municipais reais dos 102 municípios de Alagoas.
-  - [x] Inclusão de perda dentária a partir do odontograma estruturado.
-  - [x] Indicador formal de diagnóstico confirmado de câncer de boca, além da suspeita oncológica.
-  - [x] Filtros por faixa etária, sexo, especialidade, profissional, município e status do tratamento.
-  - [x] Identificação automática de áreas críticas para mutirões móveis e ações preventivas.
-  - [x] Drill-down por município, bairro e ação de triagem, mantendo a tabela como apoio operacional.
-  - [ ] Cadastrar coordenadas reais específicas de bairros, unidades/locais e ações de triagem para reduzir uso de fallback municipal.
-  - [ ] Evoluir para mapa cartográfico com base oficial de polígonos/tiles, caso a gestão deseje inspeção territorial mais precisa que o mapa offline atual.
-- [ ] **Dashboard Executivo (BI) Governamental**
-  - [x] Rota `/bi` protegida por permissão `bi:view`.
-  - [x] Cards executivos de produção clínica, pacientes atendidos, fila encaminhada e absenteísmo.
-  - [x] Indicadores de impacto social: pacientes alcançados, bairros atendidos, municípios vinculados e comparecimento.
-  - [x] Indicadores de fila SUS: demanda triada, encaminhada/atendida, reprimida e taxa de encaminhamento.
-  - [x] Indicadores financeiros operacionais v1: valor estimado em planos, valor aprovado e taxa de conversão.
-  - [x] Metas automáticas v1 baseadas no mês anterior e meta fixa de comparecimento.
-  - [x] Comparativo mensal de produção, atendimentos, cadastros, faltas e suspeitas oncológicas.
-  - [x] Rankings de produção por profissional, bairros com maior alcance e especialidades críticas por demanda reprimida.
-  - [x] Visões específicas separadas para Prefeitura, SSA, SMS, coordenação clínica e auditoria.
-  - [x] Base operacional de economia gerada estimada por procedimento SIGTAP.
-  - [x] Tabela configurável de referência de custos em `procedure_cost_references`.
-  - [x] Cobertura SIGTAP e indicadores oncológicos incorporados ao resumo executivo.
-  - [x] Tela financeira para revisar, importar e homologar referências de custo SIGTAP.
-  - [x] Auditoria de alterações manuais, homologações e importações CSV de referências de custo.
-  - [x] PDF governamental da visão atual do BI com histórico, auditoria e assinatura técnica SHA-256.
-  - [ ] Homologar metodologia formal de economia gerada com a gestão pública.
-  - [ ] Substituir valores demonstrativos por referências oficiais aprovadas pela Prefeitura/SSA/SMS.
-  - [ ] Definir calendário institucional de revisão dos valores e responsável técnico pela metodologia.
-- [ ] **Relatórios automáticos e PDFs institucionais**
-  - [x] PDF institucional v1 com síntese executiva, epidemiológica e operacional.
-  - [x] Recortes SSA e SMS.
-  - [x] Geração assíncrona por Celery + WeasyPrint.
-  - [x] Prévia filtrável por período.
-  - [x] Script agendável para geração mensal automática.
-  - [x] Histórico inicial de geração.
-  - [x] Serviço de scheduler interno configurado com Celery Beat no ambiente Docker.
-  - [x] Gráficos renderizados no PDF.
-  - [x] Assinatura técnica com hash SHA-256 e histórico formal em `digital_signatures`.
-  - [x] Disponibilização segura no painel executivo/institucional com controle por perfil.
-  - [ ] Assinatura digital ICP-Brasil/Gov.br ou provedor institucional homologado.
-  - [ ] Agendamento de envio por e-mail institucional.
-- [ ] **Integração Governamental (API do SUS)**
-  - [x] Catálogo local SIGTAP/DataSUS para procedimentos odontológicos.
-  - [x] Importador para competência oficial SIGTAP por ZIP/TXT.
-  - [x] Vínculo de procedimentos clínicos com código, competência e nome SIGTAP.
-  - [x] Payload preliminar e lotes draft para e-SUS APS.
-  - [x] Estrutura de configuração aguardando URL, credenciais, instalação e ambiente da prefeitura.
-  - [x] Painel operacional para correção de SIGTAP, conferência de pendências e geração de lote draft.
-  - [x] Checklist de homologação e dados obrigatórios de pacientes/profissionais.
-  - [x] Tela de detalhe, download JSON, validação interna e auditoria do lote draft e-SUS.
-  - [x] Pré-envio simulado, status `ready_to_send` e histórico de tentativas.
-  - [x] Relatório/checklist de homologação e-SUS com PDF e manual rápido do fluxo.
-  - [ ] Validar versão do PEC/e-SUS APS instalada na prefeitura e compatibilidade LEDI.
-  - [ ] Implementar transmissão real quando a prefeitura fornecer endpoint, HTTPS, autenticação, CNES/INE e regras de homologação.
-  - [ ] Validar campos obrigatórios finais: CNS/CPF, profissional, CBO, CNES, equipe/INE, data de atendimento, procedimento SIGTAP e compatibilidades.
-
-#### Observações para manuais futuros
-
-- Manual da epidemiologia deve explicar leitura dos filtros de período, bairro, município, especialidade, profissional, sexo, faixa etária e status do tratamento.
-- Manual da epidemiologia deve explicar a diferença entre lesão registrada, suspeita oncológica e câncer confirmado, além de deixar claro que confirmação exige registro clínico qualificado em estomatologia.
-- Manual da epidemiologia deve explicar como a perda dentária é derivada do odontograma e como interpretar pacientes afetados, dentes ausentes e média por paciente.
-- Manual da epidemiologia deve explicar que o mapa v3 usa coordenadas municipais reais e fallback municipal para bairros/ações sem coordenada específica.
-- Manual técnico deve explicar como cadastrar ou corrigir coordenadas em `territorial_locations` usando `scripts/upsert_territorial_location.py`.
-- Manual da gestão deve reforçar que o mapa v3 já apoia decisão territorial, mas polígonos oficiais/tiles cartográficos e coordenadas finas de bairro/unidade ainda são refinamentos futuros.
-- Manual do BI deve explicar metas automáticas, crescimento contra mês anterior, ranking de produção e diferença entre valor estimado/aprovado e economia pública formal.
-- Manual do BI deve explicar o seletor de visão (`Geral`, `Prefeitura`, `SSA`, `SMS`, `Coordenação Clínica` e `Auditoria`) e quando usar cada recorte.
-- Manual do BI deve deixar claro que `Economia Gerada Estimada` usa referência operacional configurável por SIGTAP e só deve ser tratada como economia formal após homologação da metodologia e dos valores pela gestão pública.
-- Manual do BI deve explicar o botão `Gerar PDF`, o histórico de PDFs, o download seguro e o significado do hash técnico gerado após conclusão.
-- Manual do BI deve orientar que o PDF da visão atual é material de conferência/apresentação e deve preservar a nota metodológica de economia até homologação pública.
-- Manual técnico/financeiro deve explicar a tabela `procedure_cost_references`, seus campos, a diferença entre referência demonstrativa e referência homologada, e o cuidado para não sobrescrever valores editados manualmente.
-- Manual financeiro deve explicar como acessar `/admin/finance/cost-references`, filtrar referências, editar custos, marcar metodologia como validada, informar notas de validação e importar CSV.
-- Manual financeiro deve documentar o layout de CSV aceito e reforçar que arquivos com erro são rejeitados integralmente antes da gravação.
-- Manual de auditoria deve explicar os eventos `cost_reference_updated`, `cost_reference_validated`, `cost_reference_import_completed`, `cost_reference_import_created`, `cost_reference_import_updated` e `cost_reference_import_rejected`.
-- Manual de auditoria deve explicar o evento `bi_government_report_exported` e como conferir `generated_reports`/`digital_signatures` para PDFs do BI.
-- Manual de relatórios deve explicar como gerar a prévia institucional, aplicar período, exportar PDF e interpretar recomendações automáticas.
-- Manual de relatórios deve explicar a rotina automática mensal, horário configurado, tipos de relatório, reprocessamento com `--force`, status no histórico, hash SHA-256 e regras de acesso por Prefeitura/SSA/SMS.
-- Manual de integração deve explicar como atualizar a competência SIGTAP, como escolher código SUS/SIGTAP no plano de tratamento, como localizar procedimentos sem código e como gerar lote draft para validação da prefeitura.
-- Manual de integração deve explicar a tela `/admin/integrations/esus`, permissões de visualização/escrita, configuração da prefeitura, leitura dos cards e correção de pendências por registro.
-- Manual de cadastro deve reforçar que CNS/CPF do paciente e CNS/CBO/CNES/INE do profissional são obrigatórios para prontidão e-SUS; perfis odontológicos também exigem CRO/CRO-UF.
-- Manual técnico deve documentar a origem de cada indicador para evitar uso institucional de métricas proxy sem explicação.
-
----
-
-## 📝 Acessos
-
-- **Landing Page:** [https://sorrisodagentealagoas.com](https://sorrisodagentealagoas.com)
-- **Painel Administrativo:** `/dashboard`
-- **Fila Vermelha (Oncologia):** `/patients/red-alerts`
-- **Biblioteca Visual do Paciente:** `/patients/view/<id>/tab/tab-visual`
-- **Epidemiologia:** `/epidemiologia`
-- **BI Executivo:** `/bi`
-- **PDF Governamental do BI:** `POST /bi/export`
-- **Custos SIGTAP:** `/admin/finance/cost-references`
-- **Estoque Operacional:** `/admin/inventory`
-- **Relatórios Institucionais:** `/reports/institutional`
-- **SIGTAP/e-SUS APS:** `/admin/integrations/esus`
-- **Health Check:** `/health`
-- **Banco de Dados (host):** porta `5433`
-
----
-&copy; 2026 Programa Sorriso da Gente. Todos os direitos reservados.
+© 2026 Programa Sorriso da Gente. Todos os direitos reservados.
