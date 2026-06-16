@@ -1,6 +1,6 @@
 # Gestão Saúde Oral - Programa Sorriso da Gente
 
-README 2.4 - atualizado em 16/06/2026.
+README 2.5 - análise de prontidão para produção atualizada em 16/06/2026.
 
 Plataforma de gestão clínica, operacional e institucional de saúde bucal para o programa Sorriso da Gente. O sistema reúne triagem municipal, agenda, prontuário odontológico, estomatologia, exames, estoque, Central de Comando, BI, epidemiologia, relatórios e preparação SIGTAP/e-SUS APS.
 
@@ -698,51 +698,157 @@ Pendente:
 Objetivo:
 
 - Transformar a versão funcional atual em uma implantação segura, auditável e operável em produção, com critérios claros de entrada, responsáveis e evidências.
+- Encerrar o desenvolvimento aberto, congelar escopo, preparar o ambiente final e iniciar operação assistida sem misturar dados demonstrativos com pacientes reais.
 
-Semáforo atual em 16/06/2026:
+### Diagnóstico Profundo em 16/06/2026
 
 | Área | Situação | Decisão |
 |---|---|---|
-| Funcionalidade clínica e operacional | Funcional em Docker, com testes automatizados verdes | Pode seguir para homologação assistida |
-| Segurança/LGPD | Base implementada, hardening final pendente | Bloqueador para produção plena |
-| Backup e continuidade | Scripts existem, automação/evidência final pendentes | Bloqueador para produção plena |
-| Infraestrutura pública | Docker funcional; domínio e e-mail transacional configurados; ainda falta revisão final de proxy/TLS/firewall | Bloqueador para produção plena |
-| Homologação institucional | Fluxos e módulos avançados prontos, aceite formal pendente | Bloqueador para uso oficial |
-| Integrações externas | SIGTAP/e-SUS em draft/simulação | Não bloquear piloto interno; bloquear anúncio de integração real |
-| Treinamento | Base documental existe; manuais por perfil ainda pendentes | Bloqueador para entrada com equipe ampla |
+| Funcionalidade clínica e operacional | Prontuário, triagem, agenda, Central, BI, relatórios, assinatura probatória, pré-cadastro, primeiro acesso e e-mail transacional estão funcionais | Pode seguir para homologação assistida |
+| Testes automatizados | `.venv/bin/pytest -q` com `190 passed` em 16/06/2026 | Base técnica favorável |
+| Docker local/VPS | Web, PostgreSQL, Redis, Celery, Beat e Mail em execução | Base funcional |
+| Git/release | Branch `main` está `ahead 21` em relação a `origin/main` | Precisa publicar/taguear antes de release |
+| Banco atual | Base contém `patients_demo=100`, `patients_total=100`, `users_active=4` | Bloqueia entrada com pacientes reais até limpeza/decisão de migração |
+| PostgreSQL | `docker-compose.yml` publica `5433:5432` no host | Bloqueia produção plena se a porta estiver acessível externamente |
+| Domínio/e-mail | Domínio e e-mail transacional configurados; Postfix/OpenDKIM ativo | Falta validação final de entrega e monitoramento |
+| HTTPS/proxy/firewall | Não há evidência final registrada no README de proxy HTTPS/firewall de produção | Bloqueia produção plena |
+| Segurança/LGPD | Hardening inicial existe, mas retenção, descarte, criptografia em repouso e matriz de acesso final seguem pendentes | Bloqueia produção plena |
+| Backup/continuidade | Scripts existem e restore já foi validado em etapa anterior, mas falta automação diária e cópia externa atual | Bloqueia produção plena |
+| Homologação operacional | Fluxos prontos, mas falta aceite formal por perfil com usuários reais | Bloqueia uso oficial amplo |
+| Treinamento | Base documental existe; manuais finais por perfil ainda pendentes | Bloqueia entrada com equipe ampla |
+| e-SUS/SIGTAP | e-SUS permanece draft/simulação; SIGTAP depende de competência oficial e homologação | Não bloqueia piloto interno, mas bloqueia anúncio de integração real |
+| Assinatura digital formal | Pacote probatório SHA-256/auditoria implementado; decisão institucional ICP-Brasil/Gov.br/outro ainda pendente | Não bloquear piloto se houver aceite jurídico formal; bloquear promessa de assinatura ICP |
+
+Conclusão executiva:
+
+- A aplicação está **apta para homologação assistida controlada**.
+- A aplicação **não deve entrar em produção plena com pacientes reais** antes de fechar os P0 abaixo.
+- O maior risco atual não é funcionalidade clínica; é governança de produção: exposição de portas, segredos, base demo, LGPD, backup externo, aceite e treinamento.
+- A entrada recomendada é em duas etapas: `produção assistida` com checklist fechado e depois `produção plena` após evidências e aceite formal.
+
+### Próximos Passos para Finalizar Desenvolvimento
+
+Ordem recomendada:
+
+1. Congelar escopo funcional.
+   - Não abrir novas frentes de Endodontia, Prótese, UX da Central, WhatsApp, portal do paciente ou integrações externas antes do Go/No-Go.
+   - Aceitar apenas correções bloqueantes, ajustes de texto, permissões e estabilidade.
+
+2. Publicar e organizar Git.
+   - Fazer `git push` dos commits locais quando Diego autorizar.
+   - Criar tag de homologação, por exemplo `homologacao-2026-06-16`.
+   - Registrar no README o hash da release usada em produção assistida.
+
+3. Fechar infraestrutura de borda.
+   - Definir proxy HTTPS final.
+   - Restringir portas expostas.
+   - Remover ou proteger a exposição do PostgreSQL `5433`.
+   - Confirmar `/health` via HTTPS.
+
+4. Fechar base real.
+   - Decidir se produção começa vazia ou migrada.
+   - Remover ou isolar `patients_demo=100`.
+   - Criar usuários reais por perfil.
+   - Trocar senhas temporárias e desativar usuários de teste.
+
+5. Executar hardening LGPD final.
+   - Confirmar proteção dos volumes `uploads_oral`, `pdf_temp_oral` e relatórios.
+   - Validar tentativa de acesso direto a arquivos sem login.
+   - Definir retenção/descarte, criptografia em repouso e rotina de incidente.
+
+6. Automatizar backup e restore.
+   - Agendar backup diário do PostgreSQL e uploads.
+   - Enviar cópia para fora da VPS.
+   - Rodar restore de verificação antes do go-live.
+
+7. Homologar ponta a ponta.
+   - Executar roteiro com Recepção, Clínico e Coordenação.
+   - Validar assinatura comum e assinatura a rogo.
+   - Validar pré-cadastro, aprovação, primeiro acesso e recuperação de senha.
+   - Validar agenda por perfil, Central, BI e relatório.
+
+8. Treinar usuários.
+   - Entregar manuais mínimos por perfil.
+   - Definir rotina diária e canal de suporte.
+   - Registrar aceite ou presença.
+
+9. Rodar QA final.
+   - `.venv/bin/pytest -q`.
+   - `git diff --check`.
+   - `docker compose up -d --build`.
+   - Smoke test das rotas críticas.
+   - Conferir logs sem `Traceback`, HTTP 500 ou erro recorrente.
+
+10. Liberar produção assistida.
+   - Operar primeiros dias com acompanhamento próximo.
+   - Registrar incidentes, ajustes e decisões.
+   - Só depois liberar produção plena.
 
 ### P0 - Bloqueadores Antes de Produção Plena
 
-1. Infraestrutura, domínio, HTTPS e firewall.
+1. Git, release e congelamento.
+   - Responsável sugerido: desenvolvimento.
+   - O que fazer:
+     - Publicar commits locais no remoto autorizado.
+     - Criar tag de homologação/release.
+     - Registrar hash, data, responsável e resultado dos testes.
+     - Congelar novas funcionalidades até o Go/No-Go.
+   - Evidência exigida:
+     - Commit/tag no Git.
+     - README com hash e data da release.
+     - Lista clara do que está dentro e fora do escopo.
+   - Critério de pronto:
+     - Equipe sabe exatamente qual versão está em homologação/produção.
+
+2. Infraestrutura, domínio, HTTPS e firewall.
    - Responsável sugerido: infraestrutura/devops.
    - O que fazer:
-     - Definir servidor definitivo e domínio oficial.
-     - Colocar a aplicação atrás de Nginx/Traefik/Caddy com HTTPS válido.
-     - Bloquear acesso público direto às portas internas.
+     - Confirmar servidor definitivo e domínio oficial `https://sorrisodagentealagoas.com`.
+     - Colocar a aplicação atrás de Nginx/Traefik/Caddy com HTTPS válido e renovação automática.
+     - Bloquear acesso público direto às portas internas: web `5003`, PostgreSQL `5433`, Redis, Celery e SMTP interno.
      - Reavaliar o mapeamento `5433:5432` do PostgreSQL em `docker-compose.yml`; em produção, manter o banco sem exposição pública ou protegido por firewall/VPN.
      - Confirmar que Gunicorn fica acessível apenas pela rede interna/reverse proxy.
+     - Definir política de logs de proxy e rotação.
+     - Validar bloqueio de scanners comuns para `.env`, WordPress, arquivos internos e diretórios de upload.
    - Evidência exigida:
      - URL HTTPS acessível.
-     - Teste de portas externas mostrando apenas HTTP/HTTPS públicos.
+     - Teste de portas externas mostrando apenas `80/443` públicos e SSH restrito.
      - Registro da configuração de proxy/firewall fora do README, sem segredos.
    - Critério de pronto:
      - `/health` responde via HTTPS e o banco não fica exposto publicamente.
 
-2. Segredos, usuários e credenciais.
+3. Segredos, usuários e credenciais.
    - Responsável sugerido: administração técnica.
    - O que fazer:
      - Gerar `SECRET_KEY` forte e exclusiva.
      - Trocar `POSTGRES_PASSWORD`, `ADMIN_PASSWORD` e qualquer senha temporária.
+     - Rotacionar a chave API da Hostinger usada na configuração de DNS/PTR, pois foi compartilhada durante suporte.
+     - Avaliar troca da senha sudo compartilhada durante suporte.
      - Garantir que `.env` real não seja versionado.
+     - Confirmar que `deploy/mail/dkim/mail.private` nunca será versionado e terá backup seguro.
      - Criar usuários reais por perfil e desativar usuários demo/teste.
      - Revisar perfis: Administrador, Coordenação, Recepção, Clínicos, CME, Radiologia, Comunicação, SSA/SMS e Auditoria.
+     - Padronizar login, e-mail e data de nascimento para primeiro acesso.
    - Evidência exigida:
      - Lista de usuários reais conferida sem registrar senhas.
      - Registro de data/hora da troca de credenciais.
    - Critério de pronto:
      - Nenhum usuário genérico ou senha padrão permanece ativo.
 
-3. LGPD, arquivos sensíveis e auditoria de visualização.
+4. Base real, dados demo e cadastros iniciais.
+   - Responsável sugerido: coordenação + desenvolvimento.
+   - O que fazer:
+     - Decidir se a produção começará vazia ou com migração.
+     - Remover ou isolar os `100` pacientes demo atuais antes de qualquer atendimento real.
+     - Validar municípios, especialidades, unidades de execução, profissionais e permissões.
+     - Cadastrar usuários reais via pré-cadastro/aprovação ou carga administrativa.
+     - Registrar competência SIGTAP de referência usada.
+   - Evidência exigida:
+     - Relatório simples de contagens: pacientes reais/demo, usuários ativos, unidades, especialidades e pré-cadastros pendentes.
+   - Critério de pronto:
+     - Nenhum dado fictício se mistura com atendimento real.
+
+5. LGPD, arquivos sensíveis e auditoria de visualização.
    - Responsável sugerido: responsável LGPD + desenvolvimento.
    - O que fazer:
      - Mapear uploads, fotos clínicas, radiografias, PDFs, anexos endodônticos e relatórios.
@@ -750,6 +856,8 @@ Semáforo atual em 16/06/2026:
      - Implementar ou formalizar auditoria de visualização/download de imagens, PDFs e anexos clínicos.
      - Definir política de retenção, descarte, acesso mínimo e resposta a incidente.
      - Decidir criptografia em repouso: volume criptografado, storage externo criptografado ou camada própria.
+     - Confirmar que Nginx/proxy não serve diretamente `uploads`, `pdf_temp`, `.env`, backups ou chaves DKIM.
+     - Definir quem pode visualizar/downloadar documentos sensíveis por perfil.
    - Evidência exigida:
      - Matriz de arquivos sensíveis e permissões por perfil.
      - Política LGPD aprovada.
@@ -757,15 +865,17 @@ Semáforo atual em 16/06/2026:
    - Critério de pronto:
      - Arquivos clínicos não são acessíveis fora das rotas protegidas e há trilha de auditoria adequada.
 
-4. Backup, restore e continuidade operacional.
+6. Backup, restore e continuidade operacional.
    - Responsável sugerido: infraestrutura/devops.
    - O que fazer:
      - Automatizar `scripts/docker_backup_postgres.sh` diariamente.
      - Incluir backup do PostgreSQL e do volume `uploads_oral`.
+     - Incluir estratégia para `deploy/mail/dkim/mail.private`, sem versionar a chave.
      - Replicar backup para fora da VPS/servidor principal.
      - Rodar `scripts/docker_restore_verify.sh` em ambiente isolado.
      - Definir RPO e RTO aceitos pela gestão.
      - Documentar rotina de restauração e responsável acionável.
+     - Fazer pelo menos um restore completo antes do go-live, com contagem de tabelas e amostra funcional.
    - Evidência exigida:
      - Último backup com data/hora.
      - Log de restore validado.
@@ -773,44 +883,50 @@ Semáforo atual em 16/06/2026:
    - Critério de pronto:
      - Restore testado com sucesso antes da virada para produção.
 
-5. Limpeza de dados demonstrativos e base inicial.
-   - Responsável sugerido: coordenação + desenvolvimento.
+7. E-mail transacional e entregabilidade.
+   - Responsável sugerido: desenvolvimento + infraestrutura.
    - O que fazer:
-     - Conferir se a base de produção começará vazia ou migrada.
-     - Remover pacientes `is_demo=TRUE` e cargas fictícias antes da operação real.
-     - Validar municípios, especialidades, unidades de execução e usuários reais.
-     - Registrar competência SIGTAP de referência usada.
+     - Validar envio real para Gmail/Outlook de recuperação de senha, aprovação e recusa de pré-cadastro.
+     - Conferir headers SPF, DKIM e DMARC nas mensagens recebidas.
+     - Confirmar PTR público propagado para `mail.sorrisodagentealagoas.com`.
+     - Definir caixa/responsável para mensagens de suporte, mesmo que `nao-responda` não receba respostas.
+     - Definir monitoramento básico da fila: `docker exec gestaosaudeoral-mail postqueue -p`.
    - Evidência exigida:
-     - Relatório simples de contagens: pacientes reais/demo, usuários ativos, unidades e especialidades.
+     - Print ou registro textual dos headers recebidos, sem expor dados sensíveis.
+     - Fila Postfix vazia após testes.
    - Critério de pronto:
-     - Nenhum dado fictício se mistura com atendimento real.
+     - E-mails críticos chegam e não ficam presos na fila.
 
-6. Homologação operacional ponta a ponta.
+8. Homologação operacional ponta a ponta.
    - Responsável sugerido: Recepção, Clínico responsável e Coordenação.
    - O que fazer:
-     - Executar roteiro triagem -> cadastro -> agenda -> atendimento -> assinatura -> procedimento -> Central -> BI/relatório.
+     - Executar roteiro triagem -> cadastro paciente -> agenda -> atendimento -> assinatura comum -> assinatura a rogo -> procedimento -> Central -> BI/relatório.
+     - Executar roteiro pré-cadastro profissional -> aprovação -> primeiro acesso -> login -> esqueci senha.
      - Validar a regra atual da Agenda: Admin/Recepção/Coordenação com agenda completa; Clínicos apenas própria agenda.
      - Validar prontuário com as abas atualmente visíveis: Paciente, Anamnese, Exames, Plano de Tratamento, Atendimento, Estomatologia, Receituário, Atestado, Visual, Materiais quando permitido e Linha do Tempo.
+     - Validar o comprovante consolidado de assinatura em `/documents/signatures/<event_id>`.
      - Informar aos usuários que Endodontia e Prótese estão temporariamente ocultas do prontuário.
    - Evidência exigida:
      - Checklist assinado/aprovado por pelo menos um usuário de Recepção, um Clínico e um usuário de Coordenação.
    - Critério de pronto:
      - Nenhum fluxo crítico depende de suporte técnico para acontecer.
 
-7. Treinamento e suporte inicial.
+9. Treinamento e suporte inicial.
    - Responsável sugerido: coordenação operacional.
    - O que fazer:
      - Criar os manuais rápidos pendentes por perfil.
      - Definir rotina de abertura, fechamento e conferência diária.
      - Definir canal de suporte, responsável de plantão e SLA inicial.
      - Treinar os usuários reais no ambiente final.
+     - Treinar administradores no fluxo de pré-cadastro, aprovação, recusa, primeiro acesso e troca de senha.
+     - Treinar clínicos na diferença entre assinatura comum e assinatura a rogo.
    - Evidência exigida:
      - Lista de presença ou aceite por perfil.
      - Checklist de treinamento final.
    - Critério de pronto:
      - Usuários sabem operar sem depender do desenvolvedor para tarefas comuns.
 
-8. QA técnico final e congelamento.
+10. QA técnico final e congelamento.
    - Responsável sugerido: desenvolvimento.
    - O que fazer:
      - Congelar novas funcionalidades.
@@ -819,6 +935,8 @@ Semáforo atual em 16/06/2026:
      - Rodar `docker compose up -d --build`.
      - Verificar `curl http://localhost:5003/health` ou endpoint HTTPS final.
      - Validar rotas críticas com usuários reais.
+     - Conferir `docker compose ps`.
+     - Conferir logs recentes de `gestaoclinica`, `celery-worker`, `celery-beat`, `postgres`, `redis` e `mail`.
    - Evidência exigida:
      - Resultado dos testes.
      - Health check.
@@ -852,6 +970,7 @@ Semáforo atual em 16/06/2026:
    - Rodar primeiros dias com acompanhamento próximo.
    - Criar rotina de reunião diária curta: pendências, faltas, fila, alertas, erros e suporte.
    - Registrar ajustes de texto/fluxo sem abrir novas frentes grandes durante estabilização.
+   - Manter botão/atalhos de pré-cadastro fora do login, enviando o link apenas quando a operação desejar cadastrar profissional.
 
 ### P2 - Melhorias Pós-Entrada
 
@@ -867,11 +986,17 @@ Semáforo atual em 16/06/2026:
 
 Produção plena só deve ser liberada quando todos os itens abaixo estiverem marcados:
 
+- [ ] Commits locais publicados no remoto autorizado.
+- [ ] Tag de homologação/release criada.
+- [ ] Escopo funcional congelado.
 - [ ] Domínio final configurado com HTTPS.
 - [ ] Banco PostgreSQL sem exposição pública indevida.
 - [ ] Firewall/reverse proxy revisados.
 - [ ] `.env` real revisado e fora do Git.
 - [ ] Senhas iniciais trocadas.
+- [ ] Chave API Hostinger rotacionada após configuração.
+- [ ] Senha sudo compartilhada durante suporte avaliada/trocada.
+- [ ] Chave DKIM privada protegida e com backup seguro fora do Git.
 - [ ] Usuários reais cadastrados e usuários demo/teste desativados.
 - [ ] Dados fictícios removidos ou isolados.
 - [ ] Backup diário automatizado.
@@ -881,9 +1006,14 @@ Produção plena só deve ser liberada quando todos os itens abaixo estiverem ma
 - [ ] Uploads clínicos protegidos contra acesso direto.
 - [ ] Auditoria de visualização/download sensível definida ou implementada.
 - [ ] Política LGPD de retenção, descarte e incidente aprovada.
+- [ ] E-mails de primeiro acesso, recuperação, aprovação e recusa testados em caixa externa.
+- [ ] SPF/DKIM/DMARC conferidos nos headers recebidos.
+- [ ] PTR público confirmado para `mail.sorrisodagentealagoas.com`.
 - [ ] Manuais por perfil entregues.
 - [ ] Treinamento por perfil realizado.
 - [ ] Fluxo ponta a ponta homologado.
+- [ ] Fluxo de pré-cadastro e primeiro acesso homologado.
+- [ ] Assinatura comum e assinatura a rogo homologadas.
 - [ ] Regra de Agenda por perfil validada.
 - [ ] Endodontia e Prótese comunicadas como módulos ocultos temporariamente.
 - [ ] e-SUS marcado como draft/simulado ou homologado formalmente.
@@ -893,6 +1023,63 @@ Produção plena só deve ser liberada quando todos os itens abaixo estiverem ma
 - [ ] Docker rebuild final executado.
 - [ ] `/health` saudável.
 - [ ] Commit/tag de release criado.
+
+### Roteiro de Homologação Operacional
+
+Executar antes do Go/No-Go:
+
+1. Administração:
+   - cadastrar/receber pré-cadastro;
+   - aprovar profissional;
+   - recusar outro cadastro com observação;
+   - confirmar chegada dos e-mails.
+
+2. Primeiro acesso:
+   - login + data de nascimento;
+   - senha definitiva;
+   - confirmação de e-mail;
+   - login comum;
+   - esqueci minha senha.
+
+3. Recepção:
+   - criar paciente;
+   - vincular senha de triagem quando houver;
+   - agendar com unidade definida;
+   - confirmar/faltar/cancelar consulta.
+
+4. Clínico:
+   - abrir prontuário;
+   - revisar anamnese;
+   - lançar plano de tratamento;
+   - registrar atendimento;
+   - assinar com paciente alfabetizado;
+   - assinar a rogo para paciente não alfabetizado;
+   - verificar Linha do Tempo e comprovante.
+
+5. Coordenação:
+   - abrir Central de Comando;
+   - revisar fila, alertas, pendências e agenda;
+   - exportar resumo diário/CSV quando aplicável.
+
+6. Gestão:
+   - abrir BI;
+   - abrir Epidemiologia;
+   - gerar relatório institucional;
+   - confirmar que economia/SIGTAP/e-SUS aparecem como estimativa/draft quando não homologados.
+
+### Definição de Pronto para Produção Assistida
+
+Produção assistida pode começar quando:
+
+- P0 1 a 10 estiverem fechados ou formalmente aceitos com risco residual documentado.
+- Não houver pacientes demo misturados a atendimento real.
+- Banco não estiver exposto publicamente.
+- Backups e restore estiverem testados.
+- E-mails críticos estiverem entregando.
+- Usuários reais tiverem sido treinados.
+- O Go/No-Go estiver assinado pela coordenação.
+
+Produção plena só deve ser declarada depois de pelo menos alguns dias de produção assistida sem incidente crítico e com suporte operacional definido.
 
 ### Registro de Evidências de Produção
 
