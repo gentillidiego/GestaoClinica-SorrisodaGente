@@ -46,6 +46,22 @@ def test_get_next_demo_index_counts_existing_demo_patients(monkeypatch):
     assert demo_data_service.get_next_demo_index() == 13
 
 
+def test_demo_municipality_selection_uses_curated_real_territories(monkeypatch):
+    rows = [
+        {'id': 1, 'nome': 'Maceió', 'codigo': '2704302'},
+        {'id': 2, 'nome': 'Arapiraca', 'codigo': '2700300'},
+        {'id': 3, 'nome': 'Município Fora da Carga', 'codigo': '9999999'},
+    ]
+
+    monkeypatch.setattr(demo_data_service, 'query', lambda *args, **kwargs: rows)
+
+    municipality = demo_data_service._select_municipality(0)
+    neighborhood = demo_data_service._select_neighborhood(municipality['nome'], 0)
+
+    assert municipality['nome'] == 'Maceió'
+    assert neighborhood in demo_data_service.DEMO_TERRITORIES['Maceió']
+
+
 def test_create_demo_patients_registers_run_and_creates_sequential_patients(monkeypatch):
     created_indexes = []
     updates = []

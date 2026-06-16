@@ -8,40 +8,112 @@ from database import execute, query
 DEFAULT_COMPETENCE = os.getenv('SIGTAP_DEFAULT_COMPETENCE', '202603')
 
 
-ODONTOLOGY_SIGTAP_SEED = [
-    ('0101020040', 'AÇÃO COLETIVA DE EXAME BUCAL COM FINALIDADE EPIDEMIOLÓGICA'),
-    ('0101020066', 'APLICAÇÃO DE SELANTE (POR DENTE)'),
-    ('0101020074', 'APLICAÇÃO TÓPICA DE FLÚOR (INDIVIDUAL POR SESSÃO)'),
-    ('0101020090', 'SELAMENTO PROVISÓRIO DE CAVIDADE DENTÁRIA'),
-    ('0101020104', 'ORIENTAÇÃO DE HIGIENE BUCAL'),
-    ('0101020112', 'AÇÃO COLETIVA DE PREVENÇÃO DE CÂNCER BUCAL'),
-    ('0201010526', 'BIÓPSIA DOS TECIDOS MOLES DA BOCA'),
-    ('0307010015', 'CAPEAMENTO PULPAR'),
-    ('0307010031', 'RESTAURAÇÃO DE DENTE PERMANENTE ANTERIOR COM RESINA COMPOSTA'),
-    ('0307010074', 'TRATAMENTO RESTAURADOR ATRAUMÁTICO (TRA/ART)'),
-    ('0307010082', 'RESTAURAÇÃO DE DENTE DECÍDUO POSTERIOR COM RESINA COMPOSTA'),
-    ('0307010104', 'RESTAURAÇÃO DE DENTE DECÍDUO POSTERIOR COM IONÔMERO DE VIDRO'),
-    ('0307010120', 'RESTAURAÇÃO DE DENTE PERMANENTE POSTERIOR COM RESINA COMPOSTA'),
-    ('0307020010', 'ACESSO À POLPA DENTÁRIA E MEDICAÇÃO (POR DENTE)'),
-    ('0307020037', 'TRATAMENTO ENDODÔNTICO DE DENTE DECÍDUO'),
-    ('0307020045', 'TRATAMENTO ENDODÔNTICO DE DENTE PERMANENTE BIRRADICULAR'),
-    ('0307020053', 'TRATAMENTO ENDODÔNTICO DE DENTE PERMANENTE COM TRÊS OU MAIS RAÍZES'),
-    ('0307020061', 'TRATAMENTO ENDODÔNTICO DE DENTE PERMANENTE UNIRRADICULAR'),
-    ('0307030024', 'RASPAGEM ALISAMENTO SUBGENGIVAIS (POR SEXTANTE)'),
-    ('0307030032', 'RASPAGEM CORONO-RADICULAR (POR SEXTANTE)'),
-    ('0307030040', 'PROFILAXIA / REMOÇÃO DA PLACA BACTERIANA'),
-    ('0307030059', 'RASPAGEM ALISAMENTO E POLIMENTO SUPRAGENGIVAIS (POR SEXTANTE)'),
-    ('0307030075', 'TRATAMENTO DE LESÕES DA MUCOSA ORAL'),
-    ('0307030083', 'TRATAMENTO DE PERICORONARITE'),
-    ('0307040070', 'MOLDAGEM DENTO-GENGIVAL P/ CONSTRUÇÃO DE PRÓTESE DENTÁRIA'),
-    ('0307040089', 'REEMBASAMENTO E CONSERTO DE PRÓTESE DENTÁRIA'),
-    ('0414020120', 'EXODONTIA DE DENTE DECÍDUO'),
-    ('0414020138', 'EXODONTIA DE DENTE PERMANENTE'),
-    ('0414020146', 'EXODONTIA MÚLTIPLA COM ALVEOLOPLASTIA POR SEXTANTE'),
-    ('0414020278', 'REMOÇÃO DE DENTE RETIDO (INCLUSO / IMPACTADO)'),
-    ('0414020375', 'TRATAMENTO CIRÚRGICO PERIODONTAL (POR SEXTANTE)'),
-    ('0414020421', 'IMPLANTE DENTÁRIO OSTEOINTEGRADOR'),
+SIGTAP_SPECIALTY_GROUPS = [
+    {
+        'value': 'atencao_primaria',
+        'label': 'Atenção Primária / Clínico Geral',
+        'procedures': [
+            ('0301010153', 'Primeira Consulta Odontológica Programática'),
+            ('0101020040', 'Ação Coletiva de Exame Bucal com Finalidade Epidemiológica'),
+            ('0101020112', 'Ação Coletiva de Prevenção de Câncer Bucal'),
+            ('0101020066', 'Aplicação de Selante (por dente)'),
+            ('0101020074', 'Aplicação Tópica de Flúor (individual por sessão)'),
+            ('0101020058', 'Aplicação de Cariostático (por dente)'),
+            ('0101020104', 'Orientação de Higiene Bucal'),
+            ('0101020082', 'Evidenciação de Placa Bacteriana'),
+            ('0307030040', 'Profilaxia / Remoção de Placa Bacteriana'),
+            ('0101020090', 'Selamento Provisório de Cavidade Dentária'),
+            ('0307010023', 'Restauração de Dente Decíduo'),
+            ('0307010031', 'Restauração de Dente Permanente Anterior'),
+            ('0307010040', 'Restauração de Dente Permanente Posterior'),
+            ('0307010074', 'Tratamento Restaurador Atraumático (TRA/ART)'),
+        ],
+    },
+    {
+        'value': 'endodontia',
+        'label': 'Endodontia',
+        'procedures': [
+            ('0307010015', 'Capeamento Pulpar'),
+            ('0307020010', 'Acesso à Polpa Dentária e Medicação (por dente)'),
+            ('0307020070', 'Pulpotomia Dentária'),
+            ('0307020061', 'Tratamento Endodôntico de Dente Permanente Unirradicular'),
+            ('0307020045', 'Tratamento Endodôntico de Dente Permanente Birradicular'),
+            ('0307020053', 'Tratamento Endodôntico de Dente Permanente com 3 ou mais Raízes'),
+            ('0307020037', 'Tratamento Endodôntico de Dente Decíduo'),
+        ],
+    },
+    {
+        'value': 'periodontia',
+        'label': 'Periodontia',
+        'procedures': [
+            ('0307030059', 'Raspagem Alisamento e Polimento Supragengivais (por sextante)'),
+            ('0307030024', 'Raspagem Alisamento Subgengivais (por sextante)'),
+            ('0307030032', 'Raspagem Corono-radicular (por sextante)'),
+            ('0414020081', 'Enxerto Gengival'),
+            ('0414020219', 'Odontosecção / Radilectomia / Tunelização'),
+        ],
+    },
+    {
+        'value': 'cirurgia_bucomaxilofacial',
+        'label': 'Cirurgia Bucomaxilofacial',
+        'procedures': [
+            ('0414020120', 'Exodontia de Dente Decíduo'),
+            ('0414020138', 'Exodontia de Dente Permanente'),
+            ('0414020146', 'Exodontia Múltipla com Alveoloplastia por Sextante'),
+            ('0414020278', 'Remoção de Dente Retido (Incluso / Impactado)'),
+            ('0414020430', 'Exodontia de Dente Supranumerário'),
+            ('0401010031', 'Drenagem de Abscesso'),
+            ('0414020405', 'Ulotomia / Ulectomia'),
+            ('0401010082', 'Frenectomia'),
+            ('0414020022', 'Apicectomia c/ ou s/ Obturação Retrógrada'),
+        ],
+    },
+    {
+        'value': 'protese_dentaria',
+        'label': 'Prótese Dentária',
+        'procedures': [
+            ('0307040070', 'Moldagem Dento-gengival p/ Construção de Prótese Dentária'),
+            ('0307040160', 'Instalação de Prótese Dentária'),
+            ('0307040089', 'Reembasamento e Conserto de Prótese Dentária'),
+            ('0307040143', 'Adaptação de Prótese Dentária'),
+            ('0701070099', 'Prótese Parcial Mandibular Removível'),
+            ('0701070102', 'Prótese Parcial Maxilar Removível'),
+            ('0701070129', 'Prótese Total Mandibular'),
+            ('0701070137', 'Prótese Total Maxilar'),
+        ],
+    },
+    {
+        'value': 'alta_complexidade',
+        'label': 'Alta Complexidade / Hospitalar',
+        'procedures': [
+            ('0414020421', 'Implante Dentário Osteointegrador'),
+            ('0414020243', 'Reimplante e Transplante Dental (por elemento)'),
+            ('0404020615', 'Redução de Luxação Têmporo-Mandibular'),
+            ('0404020070', 'Ressecção de Glândula Salivar'),
+            ('0414010361', 'Exérese de Cisto Odontogênico e Não-Odontogênico'),
+            ('0414010256', 'Tratamento Cirúrgico de Fístula Oronasal/Orosinusal'),
+            ('0404020445', 'Contenção de Dentes por Splintagem (Traumatologia)'),
+        ],
+    },
+    {
+        'value': 'diagnostico_estomatologia_radiologia',
+        'label': 'Diagnóstico / Estomatologia / Radiologia',
+        'procedures': [
+            ('0201010526', 'Biópsia dos Tecidos Moles da Boca'),
+            ('0204010187', 'Radiografia Periapical / Interproximal (Bite-Wing)'),
+            ('0204010160', 'Radiografia Oclusal'),
+            ('0204010217', 'Radiografia Panorâmica de Mandíbula/Maxila (Ortopantomografia)'),
+            ('0204010225', 'Telerradiografia'),
+        ],
+    },
 ]
+
+
+ODONTOLOGY_SIGTAP_SEED = list({
+    code: name.upper()
+    for group in SIGTAP_SPECIALTY_GROUPS
+    for code, name in group['procedures']
+}.items())
 
 
 def normalize_sigtap_code(value):
@@ -264,3 +336,42 @@ def build_sigtap_options():
         }
         for item in search_sigtap_procedures(limit=120)
     ]
+
+
+def build_sigtap_specialty_groups(competence=None):
+    competence = competence or get_latest_sigtap_competence()
+    groups = []
+    for group in SIGTAP_SPECIALTY_GROUPS:
+        procedures = []
+        for code, name in group['procedures']:
+            sigtap = get_sigtap_procedure(code, competence) or get_sigtap_procedure(code)
+            procedures.append({
+                'code': code,
+                'competence': sigtap['competence'] if sigtap else competence,
+                'name': sigtap['name'] if sigtap else name.upper(),
+                'label': f"{code} - {(sigtap['name'] if sigtap else name.upper())}",
+            })
+        groups.append({
+            'value': group['value'],
+            'label': group['label'],
+            'procedures': procedures,
+        })
+    return groups
+
+
+def get_sigtap_specialty_label(value):
+    for group in SIGTAP_SPECIALTY_GROUPS:
+        if group['value'] == value:
+            return group['label']
+    return ''
+
+
+def is_sigtap_code_allowed_for_specialty(specialty, code):
+    normalized = normalize_sigtap_code(code)
+    if not specialty or not normalized:
+        return True
+    for group in SIGTAP_SPECIALTY_GROUPS:
+        if group['value'] != specialty:
+            continue
+        return any(procedure_code == normalized for procedure_code, _ in group['procedures'])
+    return False

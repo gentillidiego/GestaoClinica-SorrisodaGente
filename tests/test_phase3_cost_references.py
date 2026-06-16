@@ -13,9 +13,11 @@ from services.cost_reference_service import (
 def test_financial_cost_reference_permissions_are_restricted():
     assert role_has_permission(Role.ADMIN, 'financeiro:view')
     assert role_has_permission(Role.ADMIN, 'financeiro:write')
+    assert role_has_permission(Role.COORDENACAO, 'financeiro:view')
+    assert role_has_permission(Role.COORDENACAO, 'financeiro:write')
     assert role_has_permission(Role.FINANCEIRO, 'financeiro:view')
     assert role_has_permission(Role.FINANCEIRO, 'financeiro:write')
-    assert role_has_permission(Role.BI, 'financeiro:view') is False
+    assert role_has_permission(Role.BI, 'financeiro:view')
     assert role_has_permission(Role.AUDITORIA, 'financeiro:write') is False
 
 

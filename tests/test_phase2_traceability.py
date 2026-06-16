@@ -72,3 +72,38 @@ def test_patient_timeline_includes_cadastro_and_triage(monkeypatch):
     assert timeline[0]['status'] == 'Vinculada'
     assert timeline[1]['category'] == 'Cadastro'
     assert any('FROM patient_tcle' in sql for sql in calls)
+
+
+def test_patient_timeline_includes_human_readable_signature_event(monkeypatch):
+    def fake_query(sql, params=(), one=False):
+        if 'FROM patients' in sql and one:
+            return {'id': 7, 'nome': 'Paciente Teste', 'criado_em': dt.datetime(2026, 5, 1, 8, 0)}
+        if 'FROM signature_events' in sql:
+            return [{
+                'id': 101,
+                'created_at': dt.datetime(2026, 6, 16, 10, 0),
+                'document_type': 'patient_tcle',
+                'document_id': '55',
+                'signature_mode': 'a_rogo',
+                'document_hash': 'a' * 64,
+                'signer_username': 'dra.cibely',
+                'signer_role': 'clinicos',
+                'auth_method': 'login_senha_cd_a_rogo',
+                'witnesses': [
+                    {'name': 'Maria', 'document': '111'},
+                    {'name': 'Jose', 'document': '222'},
+                ],
+                'declaration_text': 'Declaração',
+            }]
+        return []
+
+    monkeypatch.setattr(traceability_service, 'query', fake_query)
+
+    timeline = TraceabilityService.get_patient_timeline(7)
+    signature_event = next(event for event in timeline if event['category'] == 'Assinaturas')
+
+    assert signature_event['title'] == 'TCLE'
+    assert signature_event['status'] == 'Assinatura a rogo'
+    assert 'paciente não alfabetizado' in signature_event['description']
+    assert 'Maria' in signature_event['description']
+    assert signature_event['metadata']['signature_event_id'] == 101

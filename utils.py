@@ -1,6 +1,6 @@
 from flask_login import UserMixin
 from database import query
-from constants import Role, get_role_label, role_has_permission
+from constants import Role, canonical_role, get_role_label, role_has_permission
 
 class User(UserMixin):
     def __init__(
@@ -10,6 +10,9 @@ class User(UserMixin):
         role,
         full_name=None,
         matricula=None,
+        email=None,
+        celular=None,
+        data_nascimento=None,
         cro=None,
         cro_uf=None,
         cns=None,
@@ -17,12 +20,16 @@ class User(UserMixin):
         cnes=None,
         ine=None,
         active=True,
+        is_first_access=False,
     ):
         self.id = id
         self.username = username
         self.role = role
         self.full_name = full_name
         self.matricula = matricula
+        self.email = email
+        self.celular = celular
+        self.data_nascimento = data_nascimento
         self.cro = cro
         self.cro_uf = cro_uf
         self.cns = cns
@@ -30,6 +37,7 @@ class User(UserMixin):
         self.cnes = cnes
         self.ine = ine
         self.active = active
+        self.is_first_access = is_first_access
 
     @staticmethod
     def get(user_id):
@@ -41,13 +49,17 @@ class User(UserMixin):
                 role=user_data['role'],
                 full_name=user_data.get('full_name'),
                 matricula=user_data.get('matricula'),
+                email=user_data.get('email'),
+                celular=user_data.get('celular'),
+                data_nascimento=user_data.get('data_nascimento'),
                 cro=user_data.get('cro'),
                 cro_uf=user_data.get('cro_uf'),
                 cns=user_data.get('cns'),
                 cbo=user_data.get('cbo'),
                 cnes=user_data.get('cnes'),
                 ine=user_data.get('ine'),
-                active=user_data.get('active', True)
+                active=user_data.get('active', True),
+                is_first_access=user_data.get('is_first_access', False),
             )
         return None
 
@@ -68,12 +80,12 @@ class User(UserMixin):
 
     @property
     def is_dentista(self):
-        return self.role == Role.DENTISTA
+        return canonical_role(self.role) == Role.CLINICOS
 
     @property
     def is_tsb(self):
-        return self.role == Role.TSB
+        return canonical_role(self.role) == Role.CLINICOS
 
     @property
     def is_atendente(self):
-        return self.role in [Role.ATENDENTE, Role.ATENDIMENTO_LEGACY]
+        return canonical_role(self.role) == Role.RECEPCAO

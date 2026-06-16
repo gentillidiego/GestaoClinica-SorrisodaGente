@@ -1,6 +1,6 @@
 # Gestão Saúde Oral - Programa Sorriso da Gente
 
-README 2.2 - atualizado em 15/06/2026.
+README 2.4 - atualizado em 16/06/2026.
 
 Plataforma de gestão clínica, operacional e institucional de saúde bucal para o programa Sorriso da Gente. O sistema reúne triagem municipal, agenda, prontuário odontológico, estomatologia, exames, estoque, Central de Comando, BI, epidemiologia, relatórios e preparação SIGTAP/e-SUS APS.
 
@@ -8,23 +8,37 @@ Stack principal: Python/Flask, PostgreSQL 16, Redis, Celery, WeasyPrint e Docker
 
 ## Status Executivo
 
-Estado atual do projeto:
+Leitura operacional atual:
 
 - Fase 0 concluída e validada: núcleo clínico de alta urgência, estomatologia, alerta vermelho e PDF de encaminhamento.
 - Fase 1 com base implementada: perfis, permissões, auditoria inicial, backup operacional, estrutura LGPD e hardening inicial de arquivos sensíveis. Ainda falta hardening de produção.
 - Fase 2 com primeira versão operacional concluída: triagem, agenda, Central de Comando, fila inteligente, alertas, rastreabilidade, estoque, unidades de execução e resumo diário.
 - Fase 3 iniciada e avançada: Epidemiologia, BI, relatórios institucionais, custos SIGTAP, PDF governamental e e-SUS draft. Ainda depende de homologações externas e integrações reais.
-- Módulo de Endodontia ampliado até a Etapa E10: anamnese vinculada, cancelamento lógico, queixa/exame/periodonto estruturados, diagnóstico AAE, CID-10 sugerido, bloqueios clínicos, odontometria canal a canal, Bregman, CRT sugerido/final, sessões estruturadas, fluxo de status, retorno vencido na Central de Comando, protocolo biomecânico, irrigação, medicação intracanal, obturação final, pendência restauradora, imagens endodônticas integradas à Biblioteca Visual, proservação com critérios de Strindberg, orçamento gerencial por canal com TUSS/SIGTAP de referência, QA automatizado e manual rápido de aceite clínico-operacional.
-- Última validação registrada em 15/06/2026: `.venv/bin/pytest -q` com `174 passed`.
+- Assinatura a rogo implementada para TCLE e confirmação do atendimento quando o paciente for não alfabetizado, com autenticação do CD, duas testemunhas, SHA-256, IP, user-agent, CPF do paciente e trilha de auditoria.
+- Pacote probatório de assinatura padronizado para TCLE, confirmação do atendimento, Anamnese, Prótese, Pagamentos e Endodontia, com eventos em `signature_events`, registros em `digital_signatures`, link de comprovante e exibição na Linha do Tempo.
+- Pré-cadastro profissional público implementado em `/cadastro/`, com página de confirmação dedicada, aprovação/recusa administrativa, criação de usuário em primeiro acesso e notificação por e-mail ao profissional.
+- Fluxo de primeiro acesso e recuperação de senha implementado: profissional aprovado entra com login + data de nascimento, define senha definitiva, confirma e-mail e pode redefinir senha por link temporário.
+- E-mail transacional configurado com serviço Docker `gestaosaudeoral-mail`, Postfix send-only, OpenDKIM, SPF, DKIM, DMARC e PTR/rDNS solicitado/registrado via API da Hostinger.
+- Módulo de Endodontia ampliado até a Etapa E10 em nível MVP clínico-operacional, mas **não é prioridade de evolução neste momento**.
+- Endodontia e Prótese permanecem temporariamente ocultas da navegação do prontuário por decisão operacional; os módulos não foram removidos.
+- Última validação registrada em 16/06/2026: `.venv/bin/pytest -q` com `190 passed`; Docker em execução; `/health` saudável com `database=ok`.
 - Status de produção: **não liberar produção plena ainda**. A aplicação está funcional e validada em Docker, mas ainda exige fechamento dos bloqueadores P0 de infraestrutura, LGPD, backup/restore, homologação operacional e aceite formal listados em `Plano de Prontidão para Produção`.
 
-Ponto atual de retomada:
+Prioridade atual de trabalho:
 
-1. Endodontia E0-E10 concluída em nível MVP clínico-operacional.
-2. Próxima frente recomendada: homologação institucional com clínica responsável e integração dos itens fora do MVP.
-3. Preservar sessão estruturada, assinatura do paciente, validação do profissional responsável, imagens E7, proservação E8, orçamento E9 e checklist E10.
-4. Manter anamnese apenas vinculada, sem novo formulário dentro de Endodontia.
+1. Atender as modificações solicitadas pelo Diego antes de iniciar novo passo a passo de evolução.
+2. Manter o sistema funcional em Docker, com testes verdes e `/health` saudável após cada mudança relevante.
+3. Preservar as regras operacionais já consolidadas: triagem não define unidade; agenda define unidade; Central respeita o recorte da agenda.
+4. Não iniciar melhorias novas de Endodontia, Prótese ou UX da Central de Comando sem solicitação explícita.
 5. Antes de produção plena, executar o plano P0 de produção e registrar evidências no Git.
+
+Fora do foco imediato:
+
+- Refinamentos do módulo de Endodontia.
+- Melhorias de UX da Endodontia.
+- Melhorias de UX da Central de Comando.
+- Visualizador DICOM avançado.
+- Integrações externas reais de e-SUS/WhatsApp/SMS sem credenciais, endpoint e homologação.
 
 ## Regras Permanentes
 
@@ -44,6 +58,7 @@ VOLTE E VERIFIQUE:
 - e-SUS APS está em draft, validação interna e pré-envio simulado. Transmissão real depende de endpoint, credenciais e homologação da prefeitura.
 - Backups Docker devem usar `scripts/docker_backup_postgres.sh`, que executa `pg_dump` via `postgres:16-alpine`, compatível com o PostgreSQL 16 do projeto.
 - AVISO RELEVANTE: os módulos `Endodontia` e `Prótese` estão temporariamente ocultos da navegação do prontuário do paciente. Sempre informar ao usuário que esses módulos estão ocultos por decisão operacional temporária, não removidos do sistema.
+- TCLE e confirmação de atendimento permitem assinatura a rogo apenas para paciente não alfabetizado, com login/senha do CD responsável e duas testemunhas. Não usar esse fluxo como substituto de conveniência para assinatura comum.
 
 ## Arquitetura Docker
 
@@ -54,6 +69,7 @@ VOLTE E VERIFIQUE:
 | `gestaosaudeoral-redis` | Redis, sessão, cache e broker | interno |
 | `gestaosaudeoral-celery` | Worker Celery para PDFs e tarefas | interno |
 | `gestaosaudeoral-beat` | Scheduler Celery Beat | interno |
+| `gestaosaudeoral-mail` | Postfix send-only + OpenDKIM para e-mail transacional | interno, SMTP `25` |
 
 Volumes nomeados:
 
@@ -63,6 +79,7 @@ Volumes nomeados:
 - `logs_oral`: logs.
 - `backups_oral`: backups operacionais.
 - `redis_data_oral`: Redis.
+- `deploy/mail/dkim`: chave DKIM privada local montada no container de e-mail. Diretório ignorado pelo Git, exceto `.gitkeep`.
 
 ## Comandos Operacionais
 
@@ -148,6 +165,14 @@ Copiar `.env.example` para `.env` e preencher:
 | `REPORTS_SCHEDULE_TYPES` | Tipos de relatório automático |
 | `SIGTAP_DEFAULT_COMPETENCE` | Competência SIGTAP padrão |
 | `TZ` | Fuso horário |
+| `APP_BASE_URL` | URL pública usada nos links de e-mail, ex.: `https://sorrisodagentealagoas.com` |
+| `SMTP_HOST` | Host SMTP interno, atualmente `mail` no Docker Compose |
+| `SMTP_PORT` | Porta SMTP, atualmente `25` |
+| `SMTP_USE_TLS` | Liga STARTTLS quando aplicável |
+| `SMTP_USE_SSL` | Liga SMTP SSL quando aplicável |
+| `SMTP_USERNAME` | Usuário SMTP, vazio no Postfix interno |
+| `SMTP_PASSWORD` | Senha SMTP, vazia no Postfix interno |
+| `MAIL_FROM` | Remetente transacional, ex.: `nao-responda@sorrisodagentealagoas.com` |
 
 VOLTE E VERIFIQUE: conferir `.env.example` sempre que adicionar nova variável.
 
@@ -180,6 +205,48 @@ Regra atual da Agenda:
 | CME / Estoque, Radiologia, Comunicação, SSA/SMS e Auditoria | Sem acesso à tela de Agenda | Não |
 
 VOLTE E VERIFIQUE: o escopo dos Clínicos deve ser aplicado por `dentista_id = current_user.id` no backend. Não basta ocultar filtros ou botões na interface.
+
+## Pré-cadastro, Primeiro Acesso e Senha
+
+Rotas públicas e administrativas:
+
+- `/cadastro/`: página pública de pré-cadastro profissional.
+- `/admin/professional-registrations`: análise administrativa dos pré-cadastros.
+- `/primeiro-acesso`: valida login + data de nascimento para profissional aprovado.
+- `/primeiro-acesso/definir-senha`: define senha definitiva e confirma e-mail.
+- `/esqueci-senha`: solicita link de recuperação.
+- `/redefinir-senha?token=...`: troca senha com token temporário.
+
+Fluxo atual:
+
+1. A equipe envia o link público `/cadastro/` ao profissional.
+2. O profissional informa dados principais, classe pretendida, dados profissionais quando exigidos e login desejado.
+3. Após envio, a tela não recarrega o formulário; exibe confirmação grande com protocolo e botão para login.
+4. A administração aprova ou recusa em `/admin/professional-registrations`.
+5. Ao aprovar, o sistema cria usuário ativo com `is_first_access = true` e envia e-mail de liberação com link para primeiro acesso.
+6. Ao recusar, o sistema exige observação administrativa no backend e envia e-mail com o motivo ao profissional.
+7. No primeiro acesso, o profissional usa login + data de nascimento, define senha definitiva duas vezes e confirma o e-mail de recuperação.
+8. No login comum, há botão `Esqueci minha senha`, que envia e-mail com token temporário de redefinição.
+
+Estado de UX/UI:
+
+- A tela pública de cadastro foi reorganizada com formulário maior, painel lateral de orientação, botão de login e confirmação dedicada pós-envio.
+- A tela administrativa de pré-cadastros foi convertida de tabela para cards por solicitação, com ações separadas para aprovar e recusar, evitando conflito de foco/click em formulários dentro de tabela.
+- O botão de pré-cadastro foi removido da tela de login padrão; o link deve ser enviado diretamente pela equipe.
+
+E-mail transacional:
+
+- Serviço Docker `gestaosaudeoral-mail` com Postfix send-only e OpenDKIM.
+- DNS autoritativo configurado na Hostinger: `A mail`, `MX`, `SPF`, `DKIM` e `DMARC`.
+- PTR/rDNS do IPv4 registrado na API Hostinger para `mail.sorrisodagentealagoas.com`; a consulta pública pode depender de propagação/cache.
+- Documentação operacional: `docs/auth_primeiro_acesso_postfix_2026-06-16.md` e `docs/email_producao_sorrisodagente_2026-06-16.md`.
+
+VOLTE E VERIFIQUE:
+
+- Nunca exibir novamente o link público de pré-cadastro na tela de login sem decisão explícita.
+- Motivo de recusa deve continuar obrigatório no backend, mesmo que não use `required` no HTML.
+- Testar envio real quando aprovar/recusar com e-mail externo.
+- Não commitar `deploy/mail/dkim/mail.private` nem qualquer token/senha.
 
 ## Fluxo Operacional Principal
 
@@ -273,6 +340,10 @@ Estado:
 - Alertas locais em abas responsáveis.
 - Linha do tempo consolidada.
 - Assinaturas existem em fluxos clínicos, mas assinatura digital institucional ainda está pendente.
+- TCLE e assinatura do paciente na evolução/atendimento aceitam assinatura comum em tela e assinatura a rogo para paciente não alfabetizado.
+- Assinatura a rogo exige autenticação do CD responsável por login/senha, declaração de leitura e explicação ao paciente, duas testemunhas e registro probatório com SHA-256, CPF do paciente, IP, user-agent, timestamp e auditoria.
+- O comprovante consolidado de assinatura fica disponível em `/documents/signatures/<event_id>` e pode ser acessado pela Linha do Tempo ou pelo TCLE impresso quando houver evento vinculado.
+- Assinaturas clínicas em Anamnese, Prótese, Pagamentos e Endodontia também geram evento probatório com SHA-256 e vínculo técnico ao documento, mesmo quando usam assinatura comum em tela.
 - Plano de Tratamento registra especialidade SIGTAP escolhida e valida se o código selecionado pertence à especialidade informada.
 - No prontuário do paciente, as abas visíveis seguem a ordem: Paciente, Anamnese, Exames, Plano de Tratamento, Atendimento, Estomatologia, Receituário, Atestado, Visual, Materiais quando permitido e Linha do Tempo.
 - Endodontia e Prótese permanecem implementadas, mas estão ocultas temporariamente da navegação do prontuário.
@@ -496,7 +567,7 @@ Inclui:
 VOLTE E VERIFIQUE:
 
 - Falta assinatura digital homologada.
-- Falta envio por e-mail institucional.
+- Envio transacional por e-mail existe para autenticação e pré-cadastro; envio institucional de relatórios por e-mail ainda não foi ativado.
 
 ### SIGTAP/e-SUS APS
 
@@ -606,6 +677,8 @@ Pronto:
 - Relatório de homologação e-SUS.
 - Validação interna de formato para CNS/CPF, CNS profissional, CBO, CNES, INE/equipe e CRO-UF.
 - Dados demonstrativos completos.
+- Pré-cadastro profissional público, primeiro acesso e recuperação de senha com e-mail transacional.
+- Postfix/OpenDKIM em Docker, DNS de e-mail configurado e documentação operacional.
 
 Pendente:
 
@@ -615,7 +688,7 @@ Pendente:
 - Substituição de valores demonstrativos por referências oficiais.
 - Calendário de revisão dos valores e responsável técnico.
 - Assinatura digital ICP-Brasil/Gov.br ou provedor homologado.
-- Envio institucional por e-mail.
+- Envio institucional de relatórios por e-mail, se a gestão decidir automatizar distribuição.
 - Validação da versão PEC/e-SUS APS da prefeitura.
 - Transmissão real para e-SUS quando houver endpoint e credenciais.
 - Validação final de compatibilidade externa com ambiente da prefeitura.
@@ -626,14 +699,14 @@ Objetivo:
 
 - Transformar a versão funcional atual em uma implantação segura, auditável e operável em produção, com critérios claros de entrada, responsáveis e evidências.
 
-Semáforo atual em 15/06/2026:
+Semáforo atual em 16/06/2026:
 
 | Área | Situação | Decisão |
 |---|---|---|
 | Funcionalidade clínica e operacional | Funcional em Docker, com testes automatizados verdes | Pode seguir para homologação assistida |
 | Segurança/LGPD | Base implementada, hardening final pendente | Bloqueador para produção plena |
 | Backup e continuidade | Scripts existem, automação/evidência final pendentes | Bloqueador para produção plena |
-| Infraestrutura pública | Docker funcional; falta proxy/TLS/firewall/domínio documentados | Bloqueador para produção plena |
+| Infraestrutura pública | Docker funcional; domínio e e-mail transacional configurados; ainda falta revisão final de proxy/TLS/firewall | Bloqueador para produção plena |
 | Homologação institucional | Fluxos e módulos avançados prontos, aceite formal pendente | Bloqueador para uso oficial |
 | Integrações externas | SIGTAP/e-SUS em draft/simulação | Não bloquear piloto interno; bloquear anúncio de integração real |
 | Treinamento | Base documental existe; manuais por perfil ainda pendentes | Bloqueador para entrada com equipe ampla |
@@ -783,7 +856,7 @@ Semáforo atual em 15/06/2026:
 ### P2 - Melhorias Pós-Entrada
 
 - Portal do paciente e TCLE versionado com revogação.
-- Notificações reais por WhatsApp/e-mail/SMS.
+- Notificações reais por WhatsApp/SMS e ampliação de e-mails transacionais para outros fluxos.
 - Visualizador DICOM avançado com medição/anotações.
 - Inventário físico periódico e relatórios avançados de perdas/reposição.
 - Instrumental esterilizado, caixas cirúrgicas e ciclos.
@@ -1219,7 +1292,7 @@ Backlog fora do MVP endodôntico:
 
 ## Plano de Finalização do Desenvolvimento
 
-Este plano é a rota recomendada para transformar a versão funcional em versão homologável/implantável.
+Este plano é a rota de referência para transformar a versão funcional em versão homologável/implantável. Ele não deve ser executado automaticamente antes das modificações solicitadas pelo Diego nesta nova rodada.
 
 ### Etapa 1 - Manuais Rápidos e Treinamento por Perfil
 
@@ -1556,7 +1629,14 @@ VOLTE E VERIFIQUE:
 
 ## Backlog Priorizado
 
-Prioridade 0 - antes de produção:
+Prioridade atual - modificações solicitadas:
+
+- Receber e implementar as modificações pontuais solicitadas pelo Diego.
+- Validar cada mudança com teste automatizado ou checagem operacional compatível com o risco.
+- Atualizar README e manuais quando a mudança alterar fluxo, tela, permissão, relatório, métrica ou rotina de uso.
+- Manter Endodontia, Prótese e UX avançada da Central fora do foco, salvo pedido explícito.
+
+Prioridade 0 - antes de produção plena:
 
 - Manuais rápidos por perfil.
 - QA ponta a ponta do fluxo triagem -> agenda -> atendimento -> gestão.
@@ -1583,6 +1663,9 @@ Prioridade 2 - refinamentos avançados:
 - Relatórios avançados de perdas, consumo médio e reposição.
 - Instrumental esterilizado, caixas cirúrgicas e ciclos.
 - Intercorrências e alta clínica avançada.
+- Refinamentos do módulo de Endodontia.
+- Melhorias de UX da Endodontia.
+- Melhorias de UX da Central de Comando.
 
 ## Checklist de Aceite Final
 
@@ -1611,8 +1694,8 @@ Prioridade 2 - refinamentos avançados:
 Base de manuais:
 
 - `docs/base_documentacao_manuais_usuarios.md`
-- `docs/manual_rapido_endodontia_e10_2026-06-14.md`
-- `docs/qa_endodontia_e10_2026-06-14.md`
+- `docs/manual_rapido_endodontia_e10_2026-06-14.md` (referência histórica/operacional; Endodontia não é prioridade atual)
+- `docs/qa_endodontia_e10_2026-06-14.md` (referência histórica/operacional; Endodontia não é prioridade atual)
 
 Manuais a criar:
 
@@ -1630,51 +1713,24 @@ VOLTE E VERIFIQUE:
 
 ## Ponto de Retomada
 
-Checkpoint de sessão em 14/06/2026:
+Checkpoint de sessão em 16/06/2026:
 
-- A ampliação do módulo de Endodontia está concluída até a `Etapa E10 - QA, Documentação e Aceite Clínico`.
-- Não considerar fluxos de aluno/clínica-escola vindos do documento-mãe; manter linguagem e regras como clínica privada/profissional responsável.
-- Não duplicar anamnese dentro de Endodontia. O módulo deve continuar apenas vinculando e resumindo a anamnese existente do prontuário.
-- Status implementado:
-  - `E0`: base de segurança do módulo, cancelamento lógico auditado, exclusão de casos cancelados da lista ativa/Central e revisão UX/UI inicial.
-  - `E1`: queixa/história da dor, exame extraoral/intraoral, periodonto do elemento e resumo de riscos da anamnese vinculada.
-  - `E2`: diagnóstico pulpar/apical estruturado AAE, CID-10 sugerido, tipo de fluxo e bloqueio de nova evolução sem diagnóstico obrigatório.
-  - `E3`: odontometria canal a canal com CRI, CAI, CRD por Bregman, CRT sugerido/final, justificativa de override, auditoria e sugestão anatômica por elemento FDI.
-  - `E4`: sessão endodôntica numerada, etapa/status da sessão, sessões planejadas, próxima sessão prevista, status do tratamento e retorno vencido na Central.
-  - `E5`: protocolo biomecânico por sessão, irrigação, EDTA, medicação intracanal, selamento provisório e bloqueios por alergia a hipoclorito/eugenol com alerta de látex.
-  - `E6`: obturação final, cone principal, cimento obturador, técnica, controle radiográfico, gaps/voids, restauração definitiva, selamento coronário e pendência restauradora na Central.
-  - `E7`: imagens endodônticas por etapa clínica, caso, sessão e canal, armazenadas em `endodontia_imagens` e integradas à Biblioteca Visual.
-  - `E8`: proservações automáticas de 6/12/24 meses, 48 meses para lesão periapical extensa, avaliação clínica/radiográfica por Strindberg e alerta de proservação vencida na Central.
-  - `E9`: orçamento gerencial por canal, complexidade por dente/canais, tratamento versus retratamento, TUSS/SIGTAP de referência e bloqueio para `polpa_normal`.
-  - `E10`: QA automatizado de rotas e fluxo clínico, manual rápido por perfil, checklist de aceite e documentação atualizada.
-- Arquivos centrais do trabalho de Endodontia:
-  - `blueprints/endodontia.py`
-  - `services/endodontia_service.py`
-  - `services/visual_media_service.py`
-  - `templates/endodontia/followup.html`
-  - `templates/patients/includes/_tab_endodontia.html`
-  - `templates/patients/includes/_tab_visual.html`
-  - `services/patient_service.py`
-  - `services/traceability_service.py`
-  - `services/command_center_service.py`
-  - `database.py`
-  - `tests/test_phase4_endodontia.py`
-  - `tests/test_phase2_command_center.py`
-  - `tests/test_phase2_visual_media.py`
-  - `docs/manual_rapido_endodontia_e10_2026-06-14.md`
-  - `docs/qa_endodontia_e10_2026-06-14.md`
-- Validação registrada nesta parada:
-  - `.venv/bin/pytest -q`: `168 passed`.
-  - Testes focados E8/E9/E10/Central: `75 passed`.
-  - `git diff --check`: sem erros.
-  - `python3 -m compileall blueprints/endodontia.py blueprints/patients.py services/endodontia_service.py services/visual_media_service.py services/command_center_service.py database.py`: sem erros.
-  - `docker compose up -d --build`: executado.
-  - `/health`: `status=healthy`, `database=ok`.
+- Aplicação validada em Docker com PostgreSQL 16, Redis, Celery worker, Celery Beat e serviço `mail` em execução.
+- `/health` respondeu `status=healthy` e `database=ok`.
+- Testes focados de autenticação, primeiro acesso, pré-cadastro e e-mail executados com `11 passed`.
+- Há muitas alterações locais não commitadas; tratar como trabalho existente e não reverter sem pedido explícito.
+- O README foi atualizado para refletir o fluxo de pré-cadastro público, aprovação/recusa por e-mail, primeiro acesso, recuperação de senha e infraestrutura Postfix/OpenDKIM.
+- Modificações desta rodada implementadas: assinatura a rogo, pacote probatório ampliado, pré-cadastro profissional, primeiro acesso, recuperação de senha, e-mail transacional e reorganização UX/UI das telas de cadastro/pré-cadastros.
+- Endodontia E0-E10 permanece implementada como MVP clínico-operacional, mas está fora da prioridade atual.
+- Melhorias de UX da Endodontia e da Central de Comando ficam estacionadas até solicitação explícita.
+- Antes de produção plena, continuam obrigatórios os bloqueadores P0: infraestrutura segura, segredos, LGPD/arquivos sensíveis, backup/restore, limpeza de dados demo, homologação ponta a ponta, treinamento e QA final.
 
 Próxima continuidade recomendada:
 
-- Homologar o módulo Endodontia com clínico responsável usando o checklist E10.
-- Priorizar pendências institucionais fora do MVP: TCLE endodôntico específico, ICP-Brasil/Gov.br, DICOM avançado, integração real de agenda/notificação e homologação oficial de faturamento TUSS/SIGTAP/e-SUS.
+- Seguir a próxima solicitação funcional/operacional do Diego.
+- Fazer alteração pequena, validável e bem documentada.
+- Rodar validação proporcional ao risco da mudança.
+- Atualizar README e manuais quando houver impacto em fluxo ou treinamento.
 
 ## Histórico Consolidado
 
@@ -1694,21 +1750,38 @@ Próxima continuidade recomendada:
 - 15/06/2026: Corrigido acesso à ficha `Acompanhar` da Endodontia quando o caso ainda não possui orçamento gerado; resumo financeiro vazio agora inicia com totais `Decimal('0.00')` e há teste automatizado específico para orçamento vazio.
 - 15/06/2026: Reorganizada a seção `Sessões endodônticas e fluxo de status` da ficha de acompanhamento, substituindo a tabela comprimida por histórico em cartões e formulário de nova sessão em grid responsivo.
 - 15/06/2026: Endodontia e Prótese foram temporariamente ocultas da navegação do prontuário do paciente; Estomatologia foi reposicionada para aparecer logo após Atendimento. Usuários devem ser avisados de que os módulos ocultos continuam existentes no sistema.
+- 16/06/2026: Implementada assinatura a rogo para TCLE e confirmação do atendimento quando o paciente for não alfabetizado, com autenticação do CD, duas testemunhas, evento probatório, SHA-256, IP, user-agent, CPF do paciente, registro em `digital_signatures` e auditoria.
+- 16/06/2026: Padronizado pacote probatório de assinatura para Anamnese, Prótese, Pagamentos e Endodontia; Linha do Tempo passou a exibir eventos de assinatura de forma legível; criada rota de comprovante consolidado `/documents/signatures/<event_id>`; modal de confirmação do atendimento passou a exibir nome e CPF do paciente.
+- 16/06/2026: Implementado pré-cadastro profissional público em `/cadastro/`, tela administrativa de análise, aprovação com criação de usuário em primeiro acesso e recusa com observação administrativa.
+- 16/06/2026: Implementados primeiro acesso com login + data de nascimento, definição de senha definitiva, confirmação de e-mail e recuperação de senha com token temporário por e-mail.
+- 16/06/2026: Configurado e-mail transacional com Docker `gestaosaudeoral-mail`, Postfix send-only, OpenDKIM, SPF, DKIM, DMARC e PTR/rDNS na Hostinger; documentação adicionada em `docs/auth_primeiro_acesso_postfix_2026-06-16.md` e `docs/email_producao_sorrisodagente_2026-06-16.md`.
+- 16/06/2026: Melhorada UX/UI do cadastro público e da tela administrativa de pré-cadastros; a análise administrativa passou de tabela para cards por solicitação, com ações separadas para aprovar ou recusar.
 
 ## Última Validação Técnica Registrada
 
-Resultado mais recente em 15/06/2026:
+Resultado mais recente em 16/06/2026:
 
-- `.venv/bin/pytest -q`: `170 passed`.
-- Testes focados Endodontia/Central/Visual: `tests/test_phase4_endodontia.py`, `tests/test_phase2_command_center.py` e `tests/test_phase2_visual_media.py`: `83 passed`.
-- Testes focados E8/E9/E10/Central: `tests/test_phase4_endodontia.py` e `tests/test_phase2_command_center.py`: `75 passed`.
-- `git diff --check`: sem erros.
-- `python3 -m compileall blueprints/endodontia.py blueprints/patients.py services/endodontia_service.py services/visual_media_service.py services/command_center_service.py database.py`: sem erros.
-- Templates carregados no container: `endodontia/followup.html`, `patients/includes/_tab_endodontia.html`, `patients/includes/_tab_visual.html` e `command_center.html`: sem erros.
-- Rotas resolvidas no container: `/endodontia/followup/1`, `/endodontia/followup/save_details/1`, `/endodontia/followup/add/1`, `/endodontia/proservation/1/evaluate`, `/endodontia/followup/1/budget/generate`, `/endodontia/followup/1/images/upload`, `/endodontia/image/1` e `/agenda/`.
-- `docker compose up -d --build`: executado com rebuild da aplicação web, worker Celery e beat.
+- `.venv/bin/pytest -q`: `190 passed`.
+- Testes focados de autenticação/pré-cadastro: `.venv/bin/pytest -q tests/test_auth_flow_service.py`: `11 passed`.
+- `python3 -m compileall blueprints/professional_registration.py blueprints/admin.py services/professional_registration_service.py`: sem erros.
+- `docker compose up -d --build gestaoclinica`: executado com rebuild da aplicação web.
 - `docker compose ps`: containers principais em execução; PostgreSQL e Redis saudáveis.
 - `/health`: `status=healthy`, `database=ok`.
+- Template administrativo de pré-cadastros carregado no container sem erro.
+
+Validações anteriores mantidas como referência histórica:
+
+- `.venv/bin/pytest -q`: `179 passed` em 16/06/2026 após pacote probatório.
+- Testes focados de assinatura probatória, linha do tempo e segurança: `tests/test_signature_evidence_service.py`, `tests/test_phase2_traceability.py` e `tests/test_phase1_security.py`: `17 passed`.
+- `git diff --check`: sem erros em validação anterior da rodada.
+- `python3 -m compileall blueprints/patients.py services/signature_evidence_service.py database.py`: sem erros.
+- `docker compose up -d --build`: executado com rebuild da aplicação web, worker Celery e beat.
+- Banco: tabela `signature_events` criada e indexada no PostgreSQL.
+- `.venv/bin/pytest -q`: `170 passed` em 15/06/2026.
+- Testes focados Endodontia/Central/Visual: `tests/test_phase4_endodontia.py`, `tests/test_phase2_command_center.py` e `tests/test_phase2_visual_media.py`: `83 passed`.
+- Testes focados E8/E9/E10/Central: `tests/test_phase4_endodontia.py` e `tests/test_phase2_command_center.py`: `75 passed`.
+- Templates carregados no container: `endodontia/followup.html`, `patients/includes/_tab_endodontia.html`, `patients/includes/_tab_visual.html` e `command_center.html`: sem erros.
+- Rotas resolvidas no container: `/endodontia/followup/1`, `/endodontia/followup/save_details/1`, `/endodontia/followup/add/1`, `/endodontia/proservation/1/evaluate`, `/endodontia/followup/1/budget/generate`, `/endodontia/followup/1/images/upload`, `/endodontia/image/1` e `/agenda/`.
 - Endodontia E6: obturação final, controle radiográfico, restauração definitiva e pendência restauradora na Central validados por testes.
 - Endodontia E7: `endodontia_imagens`, categorias endodônticas, metadados, origem `Endodontia` na Biblioteca Visual e arquivos sensíveis validados por testes e carga de template.
 - Endodontia E8: `endodontia_proservacao`, agenda longitudinal, Strindberg e pendência de proservação vencida na Central validados por testes.

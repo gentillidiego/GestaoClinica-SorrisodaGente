@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+
+{% block title %}Pré-cadastros Profissionais{% endblock %}
+
+{% block content %}
+<style>
+    .precad-page {
+        display: grid;
+        gap: 1.5rem;
+    }
+
+    .precad-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: hsl(var(--text-muted));
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 0.9rem;
+        width: fit-content;
+    }
+
+    .precad-back:hover {
+        color: hsl(var(--primary));
+    }
+
+    .precad-header {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .precad-title {
+        font-family: var(--font-heading);
+        font-size: 2rem;
+        font-weight: 800;
+        color: hsl(var(--primary));
+        line-height: 1.1;
+        margin: 0;
+    }
+
+    .precad-subtitle {
+        color: hsl(var(--text-muted));
+        margin-top: 0.5rem;
+        line-height: 1.55;
+    }
+
+    .precad-public-link {
+        display: inline-flex;
+        align-items: center;
+        min-height: 40px;
+        padding: 0 0.9rem;
+        border: 1px solid hsl(var(--border));
+        border-radius: 8px;
+        background: white;
+        color: hsl(var(--primary));
+        text-decoration: none;
+        font-weight: 800;
+        font-size: 0.9rem;
+    }
+
+    .precad-list {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .precad-card {
+        background: white;
+        border: 1px solid hsl(var(--border));
+        border-radius: 8px;
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+    }
+
+    .precad-card-main {
+        display: grid;
+        grid-template-columns: 84px minmax(220px, 1.2fr) minmax(160px, 0.8fr) minmax(210px, 1fr) minmax(150px, 0.7fr) minmax(130px, 0.7fr);
+        gap: 1rem;
+        align-items: center;
+        padding: 1.1rem;
+    }
+
+    .precad-protocol {
+        font-family: var(--font-heading);
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: hsl(var(--primary));
+    }
+
+    .precad-label {
+        display: block;
+        color: hsl(var(--text-muted));
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 0.35rem;
+    }
+
+    .precad-value {
+        color: hsl(var(--text-main));
+        font-weight: 700;
+        line-height: 1.35;
+    }
+
+    .precad-muted {
+        display: block;
+        color: hsl(var(--text-muted));
+        font-size: 0.82rem;
+        line-height: 1.35;
+        margin-top: 0.15rem;
+    }
+
+    .precad-status {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 28px;
+        padding: 0 0.7rem;
+        border-radius: 999px;
+        font-size: 0.73rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        width: fit-content;
+    }
+
+    .precad-status-approved {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .precad-status-rejected {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .precad-status-pending {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .precad-actions {
+        position: relative;
+        z-index: 2;
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) auto;
+        gap: 0.8rem;
+        align-items: start;
+        padding: 1rem 1.1rem 1.1rem;
+        border-top: 1px solid hsl(var(--border));
+        background: #f8fafc;
+        pointer-events: auto;
+    }
+
+    .precad-reject-form {
+        display: grid;
+        gap: 0.55rem;
+    }
+
+    .precad-reject-form .form-control {
+        min-height: 74px;
+        resize: vertical;
+        background: white;
+        border-radius: 8px;
+        pointer-events: auto;
+    }
+
+    .precad-button-row {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.55rem;
+        flex-wrap: wrap;
+    }
+
+    .precad-button-row .btn,
+    .precad-approve-form .btn {
+        min-height: 42px;
+        border-radius: 8px;
+        padding: 0.55rem 0.95rem;
+        font-size: 0.86rem;
+        pointer-events: auto;
+    }
+
+    .precad-approve-form {
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .precad-reviewed-note {
+        padding: 0 1.1rem 1.1rem;
+        color: hsl(var(--text-muted));
+        font-size: 0.9rem;
+    }
+
+    .precad-empty {
+        padding: 2rem;
+        text-align: center;
+        color: hsl(var(--text-muted));
+    }
+
+    @media (max-width: 1180px) {
+        .precad-card-main {
+            grid-template-columns: 72px repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 760px) {
+        .precad-card-main,
+        .precad-actions {
+            grid-template-columns: 1fr;
+        }
+
+        .precad-approve-form,
+        .precad-button-row {
+            justify-content: stretch;
+        }
+
+        .precad-button-row .btn,
+        .precad-approve-form .btn {
+            width: 100%;
+        }
+    }
+</style>
+
+<div class="precad-page animate-fade">
+    <a href="{{ url_for('admin.list_users') }}" class="precad-back">
+        <span>⬅️</span> Voltar para Usuários
+    </a>
+
+    <div class="precad-header">
+        <div>
+            <h1 class="precad-title">Pré-cadastros Profissionais</h1>
+            <p class="precad-subtitle">Solicitações recebidas pela página pública /cadastro/.</p>
+        </div>
+        <a class="precad-public-link" href="{{ url_for('professional_registration.public_registration') }}" target="_blank" rel="noopener">
+            Abrir página pública
+        </a>
+    </div>
+
+    <div class="precad-list">
+        {% for row in registrations %}
+        <article class="precad-card">
+            <div class="precad-card-main">
+                <div>
+                    <span class="precad-label">Protocolo</span>
+                    <div class="precad-protocol">#{{ row.id }}</div>
+                </div>
+
+                <div>
+                    <span class="precad-label">Profissional</span>
+                    <div class="precad-value">{{ row.full_name }}</div>
+                    <span class="precad-muted">{{ row.cpf }}</span>
+                    <span class="precad-muted">login: {{ row.desired_username }}</span>
+                </div>
+
+                <div>
+                    <span class="precad-label">Classe</span>
+                    <div class="precad-value">{{ row.requested_role_label }}</div>
+                    {% if row.cro %}
+                    <span class="precad-muted">CRO {{ row.cro }}{% if row.cro_uf %}/{{ row.cro_uf }}{% endif %}</span>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <span class="precad-label">Contato</span>
+                    <div class="precad-value">{{ row.email }}</div>
+                    <span class="precad-muted">{{ row.celular }}</span>
+                </div>
+
+                <div>
+                    <span class="precad-label">Nascimento</span>
+                    <div class="precad-value">{{ row.data_nascimento or '-' }}</div>
+                    <span class="precad-muted">{{ row.created_at.strftime('%d/%m/%Y %H:%M') if row.created_at else '-' }}</span>
+                </div>
+
+                <div>
+                    <span class="precad-label">Status</span>
+                    <span class="precad-status
+                        {% if row.status == 'approved' %}precad-status-approved
+                        {% elif row.status == 'rejected' %}precad-status-rejected
+                        {% else %}precad-status-pending{% endif %}">
+                        {% if row.status == 'approved' %}Aprovado{% elif row.status == 'rejected' %}Recusado{% else %}Pendente{% endif %}
+                    </span>
+                    {% if row.created_user_id %}
+                    <span class="precad-muted">usuário #{{ row.created_user_id }}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if row.status == 'pending' and can('users:write') %}
+            <div class="precad-actions">
+                <form class="precad-reject-form" action="{{ url_for('admin.reject_professional_registration', registration_id=row.id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <label class="form-label" for="review_notes_{{ row.id }}">Observação para recusa</label>
+                    <textarea class="form-control" id="review_notes_{{ row.id }}" name="review_notes" rows="2" placeholder="Descreva o motivo caso precise recusar. Essa observação será enviada por e-mail ao profissional."></textarea>
+                    <div class="precad-button-row">
+                        <button class="btn btn-outline" type="submit">Recusar e enviar e-mail</button>
+                    </div>
+                </form>
+
+                <form class="precad-approve-form" action="{{ url_for('admin.approve_professional_registration', registration_id=row.id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-primary" type="submit">Aprovar cadastro</button>
+                </form>
+            </div>
+            {% elif row.review_notes %}
+            <div class="precad-reviewed-note">
+                <strong>Observação:</strong> {{ row.review_notes }}
+            </div>
+            {% endif %}
+        </article>
+        {% else %}
+        <div class="card precad-empty">Nenhum pré-cadastro recebido até o momento.</div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

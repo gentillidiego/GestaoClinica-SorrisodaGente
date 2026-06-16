@@ -15,9 +15,9 @@
     </div>
 
     <!-- Cabeçalho Principal -->
-    <div style="text-align: center; margin-bottom: 3rem;">
-        <h1
-            style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 800; color: #000; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1rem;">
+	    <div style="text-align: center; margin-bottom: 3rem;">
+	        <h1
+	            style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 800; color: #000; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1rem;">
             FICHA ENDODÔNTICA E EVOLUÇÃO DE TRATAMENTO
         </h1>
         <div
@@ -26,11 +26,329 @@
             <span
                 style="border-bottom: 1px solid #000; flex: 1; max-width: 800px; text-align: left; padding: 0 0.5rem;">{{
                 endo.patient_name }}</span>
-        </div>
-    </div>
+	        </div>
+	    </div>
 
-    <form action="{{ url_for('endodontia.save_case_details', endo_id=endo.id) }}" method="POST">
+        <div class="endo-context-grid no-print">
+            <div class="endo-context-card">
+                <span>Elemento</span>
+                <strong>Dente {{ endo.elemento_dentario }}</strong>
+                <small>{{ endo.status or 'Ativo' }}</small>
+            </div>
+            <div class="endo-context-card">
+                <span>Profissional responsável</span>
+                <strong>{{ endo.profissional_nome or endo.profissional_username or 'Não informado' }}</strong>
+                <small>Responsável pelo acompanhamento registrado</small>
+            </div>
+            <div class="endo-context-card">
+                <span>Anamnese vinculada</span>
+                <strong>{{ 'Disponível' if linked_anamnesis else 'Pendente' }}</strong>
+                {% if linked_anamnesis %}
+                <small>{{ linked_anamnesis.data_anamnese.strftime('%d/%m/%Y') if linked_anamnesis.data_anamnese else 'Data não informada' }}</small>
+                {% else %}
+                <small>Registre na aba Anamnese antes de condutas avançadas</small>
+                {% endif %}
+            </div>
+            <div class="endo-context-card">
+                <span>Status endodôntico</span>
+                <strong>{{ session_context.status_label }}</strong>
+                <small>
+                    {% if session_context.next_session_date %}
+                    Retorno previsto: {{ session_context.next_session_date.strftime('%d/%m/%Y') if session_context.next_session_date.strftime is defined else session_context.next_session_date }}
+                    {% else %}
+                    Sem retorno previsto
+                    {% endif %}
+                </small>
+            </div>
+        </div>
+
+	    {% if pending_followups %}
+	    <div class="no-print" style="margin-bottom:2rem; padding:1rem 1.2rem; border-left:5px solid hsl(var(--warning)); background:#fffbeb; border-radius:var(--radius-md);">
+	        <strong style="display:block; color:hsl(var(--text-main)); margin-bottom:0.35rem;">Evoluções endodônticas com assinatura pendente</strong>
+	        <span style="display:block; color:hsl(var(--text-muted)); font-size:0.9rem;">
+	            {{ pending_followups|length }} sessão(ões) precisam de assinatura do paciente ou validação do dentista responsável antes do fechamento documental.
+	        </span>
+	    </div>
+	    {% endif %}
+
+	    <form action="{{ url_for('endodontia.save_case_details', endo_id=endo.id) }}" method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <section class="endo-form-section no-print">
+            <div class="endo-section-heading">
+                <span>01</span>
+                <div>
+                    <h2>Anamnese vinculada e riscos clínicos</h2>
+                    <p>A anamnese sistêmica é mantida na aba própria do prontuário. Aqui entram apenas o resumo e os alertas úteis para Endodontia.</p>
+                </div>
+            </div>
+            <div class="endo-linked-risk-card">
+                <div>
+                    <strong>{{ 'Anamnese disponível' if anamnesis_risks['available'] else 'Anamnese pendente' }}</strong>
+                    {% if linked_anamnesis %}
+                    <span>Registrada em {{ linked_anamnesis.data_anamnese.strftime('%d/%m/%Y') if linked_anamnesis.data_anamnese else 'data não informada' }}.</span>
+                    {% else %}
+                    <span>Registre a anamnese antes de condutas clínicas complexas.</span>
+                    {% endif %}
+                </div>
+                <a href="{{ url_for('patients.view_patient', id=endo.patient_id) }}#tab-anamnese" class="btn btn-outline">Abrir anamnese</a>
+            </div>
+
+            {% if anamnesis_risks['items'] %}
+            <div class="endo-risk-grid">
+                {% for item in anamnesis_risks['items'] %}
+                <div class="endo-risk-item {{ item.tone }}">
+                    <strong>{{ item.label }}</strong>
+                    <span>{{ item.value or 'Ver detalhes na anamnese.' }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="endo-risk-empty">
+                Nenhum risco sistêmico destacado automaticamente na anamnese vinculada.
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="endo-form-section">
+            <div class="endo-section-heading">
+                <span>02</span>
+                <div>
+                    <h2>Queixa endodôntica e história da dor</h2>
+                    <p>Registro específico do dente em tratamento, separado da anamnese sistêmica do paciente.</p>
+                </div>
+            </div>
+
+            <div class="endo-input-grid">
+                <div>
+                    <label class="form-label">Início</label>
+                    <select name="queixa_inicio" class="form-control">
+                        <option value="">Não informado</option>
+                        {% for value, label in endodontia_options.pain_onset %}
+                        <option value="{{ value }}" {% if endo.queixa_inicio == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Duração</label>
+                    <select name="queixa_duracao" class="form-control">
+                        <option value="">Não informado</option>
+                        {% for value, label in endodontia_options.pain_duration %}
+                        <option value="{{ value }}" {% if endo.queixa_duracao == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Intensidade</label>
+                    <select name="queixa_intensidade" class="form-control">
+                        <option value="">Não informado</option>
+                        {% for value, label in endodontia_options.pain_intensity %}
+                        <option value="{{ value }}" {% if endo.queixa_intensidade == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Localização</label>
+                    <select name="queixa_localizacao" class="form-control">
+                        <option value="">Não informado</option>
+                        {% for value, label in endodontia_options.pain_location %}
+                        <option value="{{ value }}" {% if endo.queixa_localizacao == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="endo-checkbox-columns">
+                <fieldset>
+                    <legend>Fatores de piora</legend>
+                    {% for value, label in endodontia_options.exacerbating_factors %}
+                    <label>
+                        <input type="checkbox" name="fatores_exacerbantes[]" value="{{ value }}" {% if value in selected_exacerbating_factors %}checked{% endif %}>
+                        <span>{{ label }}</span>
+                    </label>
+                    {% endfor %}
+                </fieldset>
+                <fieldset>
+                    <legend>Fatores de alívio</legend>
+                    {% for value, label in endodontia_options.relief_factors %}
+                    <label>
+                        <input type="checkbox" name="fatores_alivio[]" value="{{ value }}" {% if value in selected_relief_factors %}checked{% endif %}>
+                        <span>{{ label }}</span>
+                    </label>
+                    {% endfor %}
+                </fieldset>
+            </div>
+
+            <div>
+                <label class="form-label">Descrição livre da queixa</label>
+                <textarea name="queixa_descricao" class="form-control" rows="3" placeholder="Ex: dor espontânea noturna, piora à mastigação, irradiação...">{{ endo.queixa_descricao or '' }}</textarea>
+            </div>
+        </section>
+
+        <section class="endo-form-section">
+            <div class="endo-section-heading">
+                <span>03</span>
+                <div>
+                    <h2>Exame clínico endodôntico</h2>
+                    <p>Campos objetivos para extraoral, intraoral e periodonto do elemento.</p>
+                </div>
+            </div>
+
+            <div class="endo-clinical-grid">
+                <div class="endo-mini-card">
+                    <h3>Extraoral</h3>
+                    <div class="endo-check-grid">
+                        <label><input type="checkbox" name="linfadenopatia_cervical" value="1" {% if endo.linfadenopatia_cervical %}checked{% endif %}> Linfadenopatia cervical</label>
+                        <label><input type="checkbox" name="linfadenopatia_submandibular" value="1" {% if endo.linfadenopatia_submandibular %}checked{% endif %}> Linfadenopatia submandibular</label>
+                        <label><input type="checkbox" name="assimetria_facial" value="1" {% if endo.assimetria_facial %}checked{% endif %}> Assimetria facial</label>
+                        <label><input type="checkbox" name="edema_extraoral" value="1" {% if endo.edema_extraoral %}checked{% endif %}> Edema extraoral</label>
+                    </div>
+                    <label class="form-label">Observações extraorais</label>
+                    <textarea name="exame_extraoral_observacoes" class="form-control" rows="2">{{ endo.exame_extraoral_observacoes or '' }}</textarea>
+                </div>
+
+                <div class="endo-mini-card">
+                    <h3>Intraoral</h3>
+                    <div class="endo-check-grid">
+                        <label><input type="checkbox" name="edema_submucoso" value="1" {% if endo.edema_submucoso %}checked{% endif %}> Edema submucoso</label>
+                        <label><input type="checkbox" name="fistula_trajeto" value="1" {% if endo.fistula_trajeto %}checked{% endif %}> Fístula / trajeto</label>
+                        <label><input type="checkbox" name="carie_profunda" value="1" {% if endo.carie_profunda %}checked{% endif %}> Cárie profunda</label>
+                        <label><input type="checkbox" name="restauracao_inadequada" value="1" {% if endo.restauracao_inadequada %}checked{% endif %}> Restauração inadequada</label>
+                        <label><input type="checkbox" name="faceta_desgaste" value="1" {% if endo.faceta_desgaste %}checked{% endif %}> Faceta de desgaste</label>
+                    </div>
+                    <div class="endo-input-grid compact">
+                        <div>
+                            <label class="form-label">Localização da fístula</label>
+                            <input type="text" name="fistula_localizacao" class="form-control" value="{{ endo.fistula_localizacao or '' }}">
+                        </div>
+                    </div>
+                    <label class="form-label">Observações intraorais</label>
+                    <textarea name="exame_intraoral_observacoes" class="form-control" rows="2">{{ endo.exame_intraoral_observacoes or '' }}</textarea>
+                </div>
+            </div>
+
+            <div class="endo-mini-card">
+                <h3>Periodonto do elemento</h3>
+                <div class="endo-input-grid">
+                    <div>
+                        <label class="form-label">Mobilidade</label>
+                        <select name="mobilidade" class="form-control">
+                            <option value="">Não informado</option>
+                            {% for value, label in endodontia_options.mobility %}
+                            <option value="{{ value }}" {% if endo.mobilidade == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Tipo de lesão</label>
+                        <select name="tipo_lesao" class="form-control">
+                            <option value="">Não informado</option>
+                            {% for value, label in endodontia_options.lesion_type %}
+                            <option value="{{ value }}" {% if endo.tipo_lesao == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Sondagem mesial (mm)</label>
+                        <input type="number" step="0.1" min="0" max="99" name="sondagem_mesial_mm" class="form-control" value="{{ endo.sondagem_mesial_mm or '' }}">
+                    </div>
+                    <div>
+                        <label class="form-label">Sondagem distal (mm)</label>
+                        <input type="number" step="0.1" min="0" max="99" name="sondagem_distal_mm" class="form-control" value="{{ endo.sondagem_distal_mm or '' }}">
+                    </div>
+                    <div>
+                        <label class="form-label">Sondagem vestibular (mm)</label>
+                        <input type="number" step="0.1" min="0" max="99" name="sondagem_vestibular_mm" class="form-control" value="{{ endo.sondagem_vestibular_mm or '' }}">
+                    </div>
+                    <div>
+                        <label class="form-label">Sondagem lingual/palatina (mm)</label>
+                        <input type="number" step="0.1" min="0" max="99" name="sondagem_lingual_palatino_mm" class="form-control" value="{{ endo.sondagem_lingual_palatino_mm or '' }}">
+                    </div>
+                </div>
+                <label class="endo-inline-check no-print">
+                    <input type="checkbox" name="lesao_periapical_extensa" value="1" {% if endo.lesao_periapical_extensa %}checked{% endif %}>
+                    <span>Lesão periapical extensa no diagnóstico inicial</span>
+                </label>
+            </div>
+        </section>
+
+        <section class="endo-form-section">
+            <div class="endo-section-heading">
+                <span>04</span>
+                <div>
+                    <h2>Diagnóstico AAE e decisão clínica</h2>
+                    <p>Selecione diagnóstico pulpar e apical antes de avançar para evolução/sessões. O diagnóstico livre abaixo fica apenas como observação de apoio.</p>
+                </div>
+            </div>
+
+            {% if not diagnosis_context['can_advance'] %}
+            <div class="endo-diagnosis-banner blocked">
+                <strong>Avanço clínico bloqueado</strong>
+                <span>
+                    {% if diagnosis_context['missing'] %}
+                    Falta preencher: {{ diagnosis_context['missing']|join(', ') }}.
+                    {% endif %}
+                    {% if diagnosis_context['blockers'] %}
+                    {{ diagnosis_context['blockers']|join(' ') }}
+                    {% endif %}
+                </span>
+            </div>
+            {% endif %}
+
+            <div class="endo-input-grid">
+                <div>
+                    <label class="form-label">Diagnóstico pulpar</label>
+                    <select name="diagnostico_pulpar" class="form-control">
+                        <option value="">Selecione</option>
+                        {% for value, label in endodontia_options.pulp_diagnosis %}
+                        <option value="{{ value }}" {% if endo.diagnostico_pulpar == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Diagnóstico apical</label>
+                    <select name="diagnostico_apical" class="form-control">
+                        <option value="">Selecione</option>
+                        {% for value, label in endodontia_options.apical_diagnosis %}
+                        <option value="{{ value }}" {% if endo.diagnostico_apical == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="endo-input-grid compact">
+                <div>
+                    <label class="form-label">Justificativa para avanço com polpa normal</label>
+                    <textarea name="polpa_normal_justificativa" class="form-control" rows="2" placeholder="Obrigatório apenas se diagnóstico pulpar for Polpa normal e houver necessidade clínica de prosseguir.">{{ endo.polpa_normal_justificativa or '' }}</textarea>
+                </div>
+            </div>
+
+            <div class="endo-diagnosis-summary">
+                <div>
+                    <span>CID-10 sugerido</span>
+                    <strong>{{ diagnosis_context['cid10'] or 'Aguardando diagnóstico' }}</strong>
+                </div>
+                <div>
+                    <span>Fluxo</span>
+                    <strong>{{ diagnosis_context['workflow_label'] }}</strong>
+                </div>
+                <div>
+                    <span>Status</span>
+                    <strong>{{ diagnosis_context['status']|capitalize }}</strong>
+                </div>
+            </div>
+
+            {% if diagnosis_context['alerts'] %}
+            <div class="endo-risk-grid">
+                {% for alert in diagnosis_context['alerts'] %}
+                <div class="endo-risk-item {{ alert.tone }}">
+                    <strong>{{ alert.label }}</strong>
+                    <span>{{ alert.detail }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </section>
 
         <section style="margin-bottom: 3.5rem;">
             <h2
@@ -80,7 +398,7 @@
         <section style="margin-bottom: 3.5rem;">
             <h2
                 style="font-family: var(--font-heading); font-size: 1.2rem; color: #b45f5f; text-align: center; text-transform: uppercase; margin-bottom: 1.5rem; font-weight: 700;">
-                DIAGNÓSTICO PROVÁVEL
+                OBSERVAÇÃO DIAGNÓSTICA LIVRE
             </h2>
             <div style="display: flex; flex-direction: column; gap: 1.5rem; max-width: 800px; margin: 0 auto;">
                 <div style="display: flex; gap: 1rem; align-items: center;">
@@ -89,8 +407,9 @@
                         endo.elemento_dentario }}</span>
                 </div>
                 <div style="display: flex; gap: 1rem; align-items: flex-end;">
-                    <span style="font-weight: 700; white-space: nowrap;">Diagnóstico:</span>
+                    <span style="font-weight: 700; white-space: nowrap;">Observação:</span>
                     <input type="text" name="diagnostico" value="{{ endo.diagnostico or '' }}"
+                        placeholder="Campo legado/opcional. Use os diagnósticos AAE estruturados acima."
                         style="border: none; border-bottom: 1px solid #000; padding: 0.2rem 0.5rem; flex: 1; outline: none; font-size: 1rem;">
                 </div>
             </div>
@@ -115,18 +434,46 @@
                             style="border: none; border-bottom: 1px solid #000; outline: none; flex: 1; font-size: 1rem;">
                     </div>
                 </div>
-                <div style="overflow-x: auto;">
-                    <table style="width: 100%; border-collapse: collapse; min-width: 900px;" id="table-canais">
+                <div class="no-print" style="display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 1rem; padding: 1rem 1.5rem; border-bottom: 1px solid #000; background:#f8fafc;">
+                    <div>
+                        <span style="display:block; font-size:0.72rem; text-transform:uppercase; color:#64748b; font-weight:800; margin-bottom:0.35rem;">Anatomia esperada</span>
+                        <strong style="display:block; color:#0f172a;">{{ channel_suggestions.group or 'Sem sugestão automática' }}</strong>
+                        <span style="display:block; color:#334155; font-size:0.9rem; margin-top:0.25rem;">
+                            {{ channel_suggestions.channels|join(', ') if channel_suggestions.channels else 'Preencher canais conforme avaliação clínica.' }}
+                        </span>
+                    </div>
+                    <div>
+                        <span style="display:block; font-size:0.72rem; text-transform:uppercase; color:#64748b; font-weight:800; margin-bottom:0.35rem;">Variações a conferir</span>
+                        {% if channel_suggestions.alerts %}
+                        {% for alert in channel_suggestions.alerts %}
+                        <span style="display:block; color:#92400e; font-size:0.88rem; line-height:1.35;">{{ alert }}</span>
+                        {% endfor %}
+                        {% else %}
+                        <span style="display:block; color:#334155; font-size:0.88rem;">Sem alerta anatômico específico para o grupo.</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+                    <table style="width: 100%; border-collapse: collapse; min-width: 1780px;" id="table-canais">
                         <thead>
-                            <tr style="text-align: center; font-weight: 700; background: #fff;">
-                                <td style="border: 1px solid #000; padding: 0.75rem; width: 15%;">Canal</td>
-                                <td style="border: 1px solid #000; padding: 0.75rem; width: 10%;">CAD</td>
-                                <td style="border: 1px solid #000; padding: 0.75rem; width: 15%;">Referência</td>
-                                <td style="border: 1px solid #000; padding: 0.75rem; width: 10%;">CT</td>
-                                <td style="border: 1px solid #000; padding: 0.75rem; width: 15%;">Lima Inicial</td>
-                                <td style="border: 1px solid #000; padding: 0.75rem; width: 15%;">Lima final</td>
-                                <td style="border: 1px solid #000; padding: 0.75rem; width: 10%;">Cone</td>
-                                <td style="border: 1px solid #000; padding: 0.75rem; width: 10%;">Selamento</td>
+                            <tr style="text-align: center; font-weight: 700; background: #fff; font-size: 0.82rem;">
+                                <td style="border: 1px solid #000; padding: 0.6rem; width: 105px;">Canal</td>
+                                <td style="border: 1px solid #000; padding: 0.6rem; width: 145px;">Ponto ref. coronário</td>
+                                <td style="border: 1px solid #000; padding: 0.6rem; width: 80px;">CAD</td>
+                                <td style="border: 1px solid #000; padding: 0.6rem; width: 80px;">CRI</td>
+                                <td style="border: 1px solid #000; padding: 0.6rem; width: 80px;">CAI</td>
+                                <td style="border: 1px solid #000; padding: 0.6rem; width: 90px;">CRD auto</td>
+                                <td style="border: 1px solid #000; padding: 0.6rem; width: 100px;">CRT sugerido</td>
+                                <td style="border: 1px solid #000; padding: 0.6rem; width: 95px;">CRT final</td>
+                                <td style="border: 1px solid #000; padding: 0.6rem; width: 190px;">Justificativa CRT</td>
+                                <td style="border: 1px solid #000; padding: 0.6rem; width: 95px;">Localizador</td>
+                                <td style="border: 1px solid #000; padding: 0.6rem; width: 120px;">Modelo</td>
+                                <td style="border: 1px solid #000; padding: 0.6rem; width: 90px;">Leitura</td>
+                                <td style="border: 1px solid #000; padding: 0.6rem; width: 95px;">Conf. eletrônica</td>
+                                <td style="border: 1px solid #000; padding: 0.6rem; width: 105px;">Lima inicial</td>
+                                <td style="border: 1px solid #000; padding: 0.6rem; width: 105px;">Lima final</td>
+                                <td style="border: 1px solid #000; padding: 0.6rem; width: 85px;">Cone</td>
+                                <td style="border: 1px solid #000; padding: 0.6rem; width: 110px;">Selamento</td>
                             </tr>
                         </thead>
                         <tbody>
@@ -135,35 +482,87 @@
                             <tr>
                                 <td style="border: 1px solid #000;"><input type="text" name="canal[]"
                                         value="{{ c.canal or '' }}"
-                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center; font-size: 0.95rem;">
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;">
+                                </td>
+                                <td style="border: 1px solid #000;">
+                                    <input type="hidden" name="referencia[]" value="{{ c.referencia or '' }}">
+                                    <input type="text" name="ponto_referencia_coronario[]"
+                                        value="{{ c.ponto_referencia_coronario or c.referencia or '' }}"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;">
                                 </td>
                                 <td style="border: 1px solid #000;"><input type="text" name="cad[]"
                                         value="{{ c.cad or '' }}"
-                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center; font-size: 0.95rem;">
+                                        inputmode="decimal"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;">
                                 </td>
-                                <td style="border: 1px solid #000;"><input type="text" name="referencia[]"
-                                        value="{{ c.referencia or '' }}"
-                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center; font-size: 0.95rem;">
+                                <td style="border: 1px solid #000;"><input type="text" name="cri_mm[]"
+                                        value="{{ c.cri_mm if c.cri_mm is not none else '' }}"
+                                        inputmode="decimal"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;">
                                 </td>
-                                <td style="border: 1px solid #000;"><input type="text" name="ct[]"
-                                        value="{{ c.ct or '' }}"
-                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center; font-size: 0.95rem;">
+                                <td style="border: 1px solid #000;"><input type="text" name="cai_mm[]"
+                                        value="{{ c.cai_mm if c.cai_mm is not none else '' }}"
+                                        inputmode="decimal"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;">
+                                </td>
+                                <td style="border: 1px solid #000;">
+                                    <input type="text" value="{{ c.crd_mm if c.crd_mm is not none else '' }}" readonly
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem; background:#f8fafc; color:#475569;">
+                                </td>
+                                <td style="border: 1px solid #000;">
+                                    <input type="text" value="{{ c.crt_sugerido_mm if c.crt_sugerido_mm is not none else '' }}" readonly
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem; background:#f8fafc; color:#475569;">
+                                </td>
+                                <td style="border: 1px solid #000;">
+                                    <input type="hidden" name="ct[]" value="{{ c.ct or '' }}">
+                                    <input type="text" name="crt_final_mm[]"
+                                        value="{{ c.crt_final_mm if c.crt_final_mm is not none else '' }}"
+                                        inputmode="decimal"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;">
+                                </td>
+                                <td style="border: 1px solid #000;"><input type="text" name="crt_override_justificativa[]"
+                                        value="{{ c.crt_override_justificativa or '' }}"
+                                        placeholder="Obrigatória se alterar"
+                                        style="width: 100%; border: none; padding: 0.55rem; font-size: 0.86rem;">
+                                </td>
+                                <td style="border: 1px solid #000;">
+                                    <select name="localizador_apical_usado[]"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.86rem; background: transparent;">
+                                        <option value="0" {% if not c.localizador_apical_usado %}selected{% endif %}>Não</option>
+                                        <option value="1" {% if c.localizador_apical_usado %}selected{% endif %}>Sim</option>
+                                    </select>
+                                </td>
+                                <td style="border: 1px solid #000;"><input type="text" name="modelo_localizador[]"
+                                        value="{{ c.modelo_localizador or '' }}"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.86rem;">
+                                </td>
+                                <td style="border: 1px solid #000;"><input type="text" name="leitura_localizador[]"
+                                        value="{{ c.leitura_localizador if c.leitura_localizador is not none else '' }}"
+                                        inputmode="decimal"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.86rem;">
+                                </td>
+                                <td style="border: 1px solid #000;">
+                                    <select name="confirmacao_eletronica[]"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.86rem; background: transparent;">
+                                        <option value="0" {% if not c.confirmacao_eletronica %}selected{% endif %}>Não</option>
+                                        <option value="1" {% if c.confirmacao_eletronica %}selected{% endif %}>Sim</option>
+                                    </select>
                                 </td>
                                 <td style="border: 1px solid #000;"><input type="text" name="lima_inicial[]"
                                         value="{{ c.lima_inicial or '' }}"
-                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center; font-size: 0.95rem;">
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;">
                                 </td>
                                 <td style="border: 1px solid #000;"><input type="text" name="lima_final[]"
                                         value="{{ c.lima_final or '' }}"
-                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center; font-size: 0.95rem;">
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;">
                                 </td>
                                 <td style="border: 1px solid #000;"><input type="text" name="cone[]"
                                         value="{{ c.cone or '' }}"
-                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center; font-size: 0.95rem;">
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;">
                                 </td>
                                 <td style="border: 1px solid #000;"><input type="text" name="selamento[]"
                                         value="{{ c.selamento or '' }}"
-                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center; font-size: 0.95rem;">
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;">
                                 </td>
                             </tr>
                             {% endfor %}
@@ -171,21 +570,60 @@
                             {% for _ in range(6 - (canais|length if canais else 0)) %}
                             <tr>
                                 <td style="border: 1px solid #000;"><input type="text" name="canal[]"
-                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center;"></td>
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;"></td>
+                                <td style="border: 1px solid #000;">
+                                    <input type="hidden" name="referencia[]" value="">
+                                    <input type="text" name="ponto_referencia_coronario[]"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;">
+                                </td>
                                 <td style="border: 1px solid #000;"><input type="text" name="cad[]"
-                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center;"></td>
-                                <td style="border: 1px solid #000;"><input type="text" name="referencia[]"
-                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center;"></td>
-                                <td style="border: 1px solid #000;"><input type="text" name="ct[]"
-                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center;"></td>
+                                        inputmode="decimal"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;"></td>
+                                <td style="border: 1px solid #000;"><input type="text" name="cri_mm[]"
+                                        inputmode="decimal"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;"></td>
+                                <td style="border: 1px solid #000;"><input type="text" name="cai_mm[]"
+                                        inputmode="decimal"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;"></td>
+                                <td style="border: 1px solid #000;"><input type="text" readonly
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem; background:#f8fafc; color:#475569;"></td>
+                                <td style="border: 1px solid #000;"><input type="text" readonly
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem; background:#f8fafc; color:#475569;"></td>
+                                <td style="border: 1px solid #000;">
+                                    <input type="hidden" name="ct[]" value="">
+                                    <input type="text" name="crt_final_mm[]" inputmode="decimal"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;">
+                                </td>
+                                <td style="border: 1px solid #000;"><input type="text" name="crt_override_justificativa[]"
+                                        placeholder="Obrigatória se alterar"
+                                        style="width: 100%; border: none; padding: 0.55rem; font-size: 0.86rem;"></td>
+                                <td style="border: 1px solid #000;">
+                                    <select name="localizador_apical_usado[]"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.86rem; background: transparent;">
+                                        <option value="0" selected>Não</option>
+                                        <option value="1">Sim</option>
+                                    </select>
+                                </td>
+                                <td style="border: 1px solid #000;"><input type="text" name="modelo_localizador[]"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.86rem;"></td>
+                                <td style="border: 1px solid #000;"><input type="text" name="leitura_localizador[]"
+                                        inputmode="decimal"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.86rem;"></td>
+                                <td style="border: 1px solid #000;">
+                                    <select name="confirmacao_eletronica[]"
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.86rem; background: transparent;">
+                                        <option value="0" selected>Não</option>
+                                        <option value="1">Sim</option>
+                                    </select>
+                                </td>
                                 <td style="border: 1px solid #000;"><input type="text" name="lima_inicial[]"
-                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center;"></td>
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;"></td>
                                 <td style="border: 1px solid #000;"><input type="text" name="lima_final[]"
-                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center;"></td>
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;"></td>
                                 <td style="border: 1px solid #000;"><input type="text" name="cone[]"
-                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center;"></td>
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;"></td>
                                 <td style="border: 1px solid #000;"><input type="text" name="selamento[]"
-                                        style="width: 100%; border: none; padding: 0.75rem; text-align: center;"></td>
+                                        style="width: 100%; border: none; padding: 0.55rem; text-align: center; font-size: 0.9rem;"></td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -201,7 +639,7 @@
             <div style="margin-top: 2rem; display: flex; justify-content: flex-end;" class="no-print">
                 <button type="submit" class="btn btn-primary"
                     style="padding: 0.85rem 3rem; font-weight: 700; border-radius: 4px;">
-                    💾 SALVAR INFORMAÇÕES TÉCNICAS
+                    SALVAR INFORMAÇÕES TÉCNICAS
                 </button>
             </div>
         </section>
@@ -210,38 +648,645 @@
     <section style="margin-bottom: 4rem;">
         <h2
             style="font-family: var(--font-heading); font-size: 1.2rem; color: #b45f5f; text-align: center; text-transform: uppercase; margin-bottom: 1.5rem; font-weight: 700;">
-            EVOLUÇÃO DO TRATAMENTO
+            SESSÕES ENDODÔNTICAS E FLUXO DE STATUS
         </h2>
 
-        <div style="border: 1px solid #000; border-radius: 0; overflow: hidden;">
-            <table style="width: 100%; border-collapse: collapse;">
+        <div class="endo-session-summary no-print">
+            <div>
+                <span>Status do tratamento</span>
+                <strong>{{ session_context.status_label }}</strong>
+            </div>
+            <div>
+                <span>Sessões planejadas</span>
+                <strong>{{ session_context.planned_sessions or 'Não informado' }}</strong>
+            </div>
+            <div>
+                <span>Próxima sessão</span>
+                <strong>
+                    {% if session_context.next_session_date %}
+                    {{ session_context.next_session_date.strftime('%d/%m/%Y') if session_context.next_session_date.strftime is defined else session_context.next_session_date }}
+                    {% else %}
+                    Não definida
+                    {% endif %}
+                </strong>
+            </div>
+        </div>
+
+        {% if protocol_safety.blocks_hypochlorite or protocol_safety.blocks_eugenol or protocol_safety.latex_alert %}
+        <div class="endo-protocol-alerts no-print">
+            {% if protocol_safety.blocks_hypochlorite %}
+            <span>Hipoclorito bloqueado pela anamnese vinculada.</span>
+            {% endif %}
+            {% if protocol_safety.blocks_eugenol %}
+            <span>Materiais com eugenol bloqueados pela anamnese vinculada.</span>
+            {% endif %}
+            {% if protocol_safety.latex_alert %}
+            <span>Alerta de látex ativo para o atendimento.</span>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if session_context.status == 'obturado_aguardando_restauracao' and not endo.restauracao_definitiva_registrada %}
+        <div class="endo-restorative-alert no-print">
+            <div>
+                <strong>Obturação final concluída, restauração definitiva pendente</strong>
+                <span>Este caso permanece ativo na gestão até registrar restauração coronária definitiva e selamento adequado.</span>
+            </div>
+            <a href="{{ url_for('agenda.agenda_index') }}" class="btn btn-outline">Ver agenda</a>
+        </div>
+        {% endif %}
+
+        <div class="endo-session-board">
+            <div class="endo-session-history-head">
+                <div>
+                    <strong>Histórico de sessões</strong>
+                    <span>{{ followups|length if followups else 0 }} sessão(ões) registrada(s)</span>
+                </div>
+                <span class="endo-session-next-pill">Próxima: sessão {{ session_context.next_number }}</span>
+            </div>
+
+            {% if followups %}
+            <div class="endo-session-card-list">
+                {% for f in followups %}
+                {% set f_pending = not f.assinatura_paciente_base64 or not f.professor_id %}
+                <article class="endo-session-card {{ 'pending' if f_pending else '' }}">
+                    <header class="endo-session-card-header">
+                        <div class="endo-session-number">
+                            <span>Sessão</span>
+                            <strong>{{ f.numero_sessao or '-' }}</strong>
+                        </div>
+                        <div class="endo-session-title">
+                            <strong>{{ session_context.stage_labels.get(f.etapa_realizada, 'Evolução legada') }}</strong>
+                            <span>{{ f.data }}</span>
+                        </div>
+                        <span class="endo-session-badge {{ f.status_sessao or 'pendente' }}">
+                            {{ session_context.session_status_labels.get(f.status_sessao, f.status or 'Pendente') }}
+                        </span>
+                    </header>
+
+                    <div class="endo-session-card-body">
+                        <div class="endo-session-main">
+                            <div class="endo-session-text">
+                                <strong>Procedimento executado</strong>
+                                <p>{{ f.evolucao or 'Sem descrição registrada.' }}</p>
+                                {% if f.observacao_clinica %}
+                                <small>Obs.: {{ f.observacao_clinica }}</small>
+                                {% endif %}
+                            </div>
+
+                            {% if f.lai_mm or f.tecnica_instrumentacao or f.solucao_irrigadora or f.medicacao_intracanal or f.selamento_provisorio %}
+                            <div class="endo-protocol-readout">
+                                <strong>Protocolo E5</strong>
+                                {% if f.lai_mm or f.tecnica_instrumentacao or f.sistema_instrumentacao or f.liga_instrumento %}
+                                <span>
+                                    Instrumentação:
+                                    {% if f.lai_mm %}LAI {{ f.lai_mm }} mm{% endif %}
+                                    {% if f.tecnica_instrumentacao %} · {{ session_context.instrumentation_technique_labels.get(f.tecnica_instrumentacao, f.tecnica_instrumentacao) }}{% endif %}
+                                    {% if f.sistema_instrumentacao %} · {{ f.sistema_instrumentacao }}{% endif %}
+                                    {% if f.liga_instrumento %} · {{ session_context.instrument_alloy_labels.get(f.liga_instrumento, f.liga_instrumento) }}{% endif %}
+                                </span>
+                                {% endif %}
+                                {% if f.solucao_irrigadora or f.edta_usado or f.tempo_irrigacao_min or f.agitacao_irrigadora or f.volume_irrigacao_ml %}
+                                <span>
+                                    Irrigação:
+                                    {% if f.solucao_irrigadora %}{{ session_context.irrigant_labels.get(f.solucao_irrigadora, f.solucao_irrigadora) }}{% endif %}
+                                    {% if f.edta_usado %} · EDTA{% endif %}
+                                    {% if f.tempo_irrigacao_min %} · {{ f.tempo_irrigacao_min }} min{% endif %}
+                                    {% if f.volume_irrigacao_ml %} · {{ f.volume_irrigacao_ml }} ml{% endif %}
+                                    {% if f.agitacao_irrigadora %} · {{ session_context.irrigation_agitation_labels.get(f.agitacao_irrigadora, f.agitacao_irrigadora) }}{% endif %}
+                                </span>
+                                {% endif %}
+                                {% if f.medicacao_intracanal or f.selamento_provisorio %}
+                                <span>
+                                    Medicação/selamento:
+                                    {% if f.medicacao_intracanal %}{{ session_context.intracanal_medication_labels.get(f.medicacao_intracanal, f.medicacao_intracanal) }}{% endif %}
+                                    {% if f.medicacao_intracanal_outra %} ({{ f.medicacao_intracanal_outra }}){% endif %}
+                                    {% if f.medicacao_veiculo %} · veículo {{ f.medicacao_veiculo }}{% endif %}
+                                    {% if f.medicacao_quantidade %} · {{ f.medicacao_quantidade }}{% endif %}
+                                    {% if f.selamento_provisorio %} · selamento {{ session_context.temporary_sealing_labels.get(f.selamento_provisorio, f.selamento_provisorio) }}{% endif %}
+                                    {% if f.selamento_provisorio_outro %} ({{ f.selamento_provisorio_outro }}){% endif %}
+                                </span>
+                                {% endif %}
+                                {% if f.protocolo_observacoes or f.irrigacao_observacoes %}
+                                <span>{{ f.protocolo_observacoes or f.irrigacao_observacoes }}</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+
+                            {% if f.cone_principal_material or f.tecnica_obturacao or f.cimento_obturador or f.radiografia_final_aprovada or f.restauracao_definitiva_registrada %}
+                            <div class="endo-obturation-readout">
+                                <strong>Obturação e restauração E6</strong>
+                                {% if f.cone_principal_material or f.cone_principal_calibre or f.cone_principal_conicidade or f.crt_confirmado_mm %}
+                                <span>
+                                    Cone:
+                                    {% if f.cone_principal_material %}{{ f.cone_principal_material }}{% endif %}
+                                    {% if f.cone_principal_calibre %} · ISO {{ f.cone_principal_calibre }}{% endif %}
+                                    {% if f.cone_principal_conicidade %} · {{ f.cone_principal_conicidade }}{% endif %}
+                                    {% if f.prova_cone %} · prova de cone{% endif %}
+                                    {% if f.tug_back %} · tug-back{% endif %}
+                                    {% if f.crt_confirmado_mm %} · CRT {{ f.crt_confirmado_mm }} mm{% endif %}
+                                </span>
+                                {% endif %}
+                                {% if f.cimento_obturador or f.cimento_classe or f.tecnica_obturacao %}
+                                <span>
+                                    Obturação:
+                                    {% if f.tecnica_obturacao %}{{ session_context.obturation_technique_labels.get(f.tecnica_obturacao, f.tecnica_obturacao) }}{% endif %}
+                                    {% if f.tecnica_obturacao_outra %} ({{ f.tecnica_obturacao_outra }}){% endif %}
+                                    {% if f.cimento_obturador %} · {{ f.cimento_obturador }}{% endif %}
+                                    {% if f.cimento_classe %} · {{ session_context.sealer_class_labels.get(f.cimento_classe, f.cimento_classe) }}{% endif %}
+                                    {% if f.cimento_lote %} · lote {{ f.cimento_lote }}{% endif %}
+                                    {% if f.cimento_validade %} · validade {{ f.cimento_validade.strftime('%d/%m/%Y') if f.cimento_validade.strftime is defined else f.cimento_validade }}{% endif %}
+                                </span>
+                                {% endif %}
+                                {% if f.radiografia_final_aprovada or f.radiografia_final_gaps or f.radiografia_final_voids %}
+                                <span>
+                                    Controle radiográfico:
+                                    {% if f.radiografia_final_aprovada %}aprovado{% endif %}
+                                    {% if f.radiografia_final_gaps %} · gaps{% endif %}
+                                    {% if f.radiografia_final_voids %} · voids{% endif %}
+                                </span>
+                                {% endif %}
+                                {% if f.restauracao_definitiva_registrada %}
+                                <span>
+                                    Restauração definitiva:
+                                    {{ f.restauracao_definitiva_material or 'registrada' }}
+                                    {% if f.restauracao_definitiva_data %} · {{ f.restauracao_definitiva_data.strftime('%d/%m/%Y') if f.restauracao_definitiva_data.strftime is defined else f.restauracao_definitiva_data }}{% endif %}
+                                    {% if f.selamento_coronario_adequado %} · selamento coronário adequado{% endif %}
+                                </span>
+                                {% endif %}
+                                {% if f.controle_qualidade_observacoes or f.restauracao_observacoes %}
+                                <span>{{ f.controle_qualidade_observacoes or f.restauracao_observacoes }}</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <aside class="endo-session-aside">
+                            <div>
+                                <span>Próximo retorno</span>
+                                {% if f.proxima_sessao_prevista %}
+                                <strong>{{ f.proxima_sessao_prevista.strftime('%d/%m/%Y') if f.proxima_sessao_prevista.strftime is defined else f.proxima_sessao_prevista }}</strong>
+                                {% if f.janela_retorno_dias is not none %}
+                                <small>Janela: {{ f.janela_retorno_dias }} dia(s)</small>
+                                {% endif %}
+                                {% else %}
+                                <strong>Sem retorno</strong>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <span>Profissional</span>
+                                <strong>{{ endo.profissional_nome or endo.profissional_username or 'Não informado' }}</strong>
+                            </div>
+                            <div>
+                                <span>Assinatura paciente</span>
+                                {% if f.assinatura_paciente_base64 %}
+                                <img src="{{ f.assinatura_paciente_base64 }}" alt="Assinatura do paciente">
+                                {% else %}
+                                <button type="button" class="btn btn-outline btn-sm no-print"
+                                    onclick="openPatientSignModal('{{ url_for('endodontia.sign_patient', followup_id=f.id) }}')">Assinar</button>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <span>Dentista/validador</span>
+                                {% if f.professor_id %}
+                                <strong>
+                                    {% if f.professor_role == 'admin' %}Adm. {% elif f.professor_role == 'clinicos' %}Clín. {% elif f.professor_role == 'dentista' %}Dent. {% elif f.professor_role == 'tsb' %}TSB {% else %}Resp. {% endif %}{{ f.professor_nome }}
+                                </strong>
+                                {% else %}
+                                <button type="button" class="btn btn-outline btn-sm no-print"
+                                    onclick="openProfessorSignModal('{{ url_for('endodontia.sign_professor', followup_id=f.id) }}')">Validar</button>
+                                {% endif %}
+                            </div>
+                        </aside>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="endo-session-empty">Nenhuma sessão registrada neste acompanhamento.</div>
+            {% endif %}
+
+            {% if endo.status != 'Concluído' and diagnosis_context['can_advance'] %}
+            <form action="{{ url_for('endodontia.add_followup', endo_id=endo.id) }}" method="POST" class="endo-session-form no-print">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="endo-session-form-head">
+                    <div>
+                        <span>Nova sessão</span>
+                        <strong>Sessão {{ session_context.next_number }}</strong>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Adicionar sessão</button>
+                </div>
+
+                <div class="endo-session-form-grid">
+                    <label>
+                        <span>Data</span>
+                        <input type="date" name="data" value="{{ current_date }}">
+                    </label>
+                    <label>
+                        <span>Etapa realizada</span>
+                        <select name="etapa_realizada" required>
+                            <option value="">Selecionar etapa</option>
+                            {% for value, label in endodontia_options.session_stage %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label>
+                        <span>Status da sessão</span>
+                        <select name="status_sessao">
+                            {% for value, label in endodontia_options.session_status %}
+                            <option value="{{ value }}" {% if value == 'realizada' %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label>
+                        <span>Próxima sessão</span>
+                        <input type="date" name="proxima_sessao_prevista">
+                    </label>
+                    <label>
+                        <span>Janela retorno</span>
+                        <input type="number" min="0" max="365" name="janela_retorno_dias" placeholder="Dias">
+                    </label>
+                    <label>
+                        <span>Sessões planejadas</span>
+                        <input type="number" min="1" max="99" name="sessoes_planejadas" value="{{ session_context.planned_sessions or '' }}" placeholder="Total">
+                    </label>
+                    <label>
+                        <span>Status tratamento</span>
+                        <select name="status_tratamento">
+                            <option value="">Status automático</option>
+                            {% for value, label in endodontia_options.treatment_status %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="endo-form-wide">
+                        <span>Procedimento executado</span>
+                        <textarea name="evolucao" rows="3" placeholder="Procedimento executado, achados e conduta..."></textarea>
+                    </label>
+                    <label class="endo-form-wide">
+                        <span>Observação clínica</span>
+                        <textarea name="observacao_clinica" rows="2" placeholder="Observação clínica complementar opcional"></textarea>
+                    </label>
+                </div>
+
+                <details class="endo-session-details" open>
+                    <summary>Protocolo biomecânico, irrigação e medicação</summary>
+                    <div class="endo-protocol-grid">
+                        <label>
+                            <span>LAI (mm)</span>
+                            <input type="number" step="0.01" min="0" max="99" name="lai_mm">
+                        </label>
+                        <label>
+                            <span>Técnica</span>
+                            <select name="tecnica_instrumentacao">
+                                <option value="">Não informar</option>
+                                {% for value, label in endodontia_options.instrumentation_technique %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>
+                            <span>Sistema</span>
+                            <input type="text" name="sistema_instrumentacao" placeholder="Ex.: ProTaper, Reciproc">
+                        </label>
+                        <label>
+                            <span>Liga</span>
+                            <select name="liga_instrumento">
+                                <option value="">Não informar</option>
+                                {% for value, label in endodontia_options.instrument_alloy %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>
+                            <span>Solução irrigadora</span>
+                            <select name="solucao_irrigadora">
+                                <option value="">Não informar</option>
+                                {% for value, label in endodontia_options.irrigant %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>
+                            <span>Volume (ml)</span>
+                            <input type="number" step="0.01" min="0" max="999" name="volume_irrigacao_ml">
+                        </label>
+                        <label>
+                            <span>Tempo (min)</span>
+                            <input type="number" min="0" max="240" name="tempo_irrigacao_min">
+                        </label>
+                        <label>
+                            <span>Agitação</span>
+                            <select name="agitacao_irrigadora">
+                                <option value="">Não informar</option>
+                                {% for value, label in endodontia_options.irrigation_agitation %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label class="endo-protocol-check">
+                            <input type="checkbox" name="edta_usado" value="1">
+                            <span>EDTA utilizado</span>
+                        </label>
+                        <label>
+                            <span>Medicação intracanal</span>
+                            <select name="medicacao_intracanal">
+                                <option value="">Não informar</option>
+                                {% for value, label in endodontia_options.intracanal_medication %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>
+                            <span>Medicação outra</span>
+                            <input type="text" name="medicacao_intracanal_outra">
+                        </label>
+                        <label>
+                            <span>Veículo</span>
+                            <input type="text" name="medicacao_veiculo" placeholder="Ex.: propilenoglicol">
+                        </label>
+                        <label>
+                            <span>Quantidade</span>
+                            <input type="text" name="medicacao_quantidade" placeholder="Ex.: preenchimento do canal">
+                        </label>
+                        <label>
+                            <span>Selamento provisório</span>
+                            <select name="selamento_provisorio">
+                                <option value="">Não informar</option>
+                                {% for value, label in endodontia_options.temporary_sealing %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>
+                            <span>Selamento outro</span>
+                            <input type="text" name="selamento_provisorio_outro">
+                        </label>
+                        <label class="endo-form-wide">
+                            <span>Observações de instrumentação</span>
+                            <textarea name="protocolo_observacoes" rows="2"></textarea>
+                        </label>
+                        <label class="endo-form-wide">
+                            <span>Observações de irrigação</span>
+                            <textarea name="irrigacao_observacoes" rows="2"></textarea>
+                        </label>
+                    </div>
+                </details>
+
+                <details class="endo-session-details">
+                    <summary>Obturação final e restauração</summary>
+                    <div class="endo-protocol-grid">
+                        <label>
+                            <span>Cone principal</span>
+                            <input type="text" name="cone_principal_material" placeholder="Ex.: guta-percha">
+                        </label>
+                        <label>
+                            <span>Calibre ISO</span>
+                            <input type="text" name="cone_principal_calibre" placeholder="Ex.: 35">
+                        </label>
+                        <label>
+                            <span>Conicidade</span>
+                            <input type="text" name="cone_principal_conicidade" placeholder="Ex.: .04">
+                        </label>
+                        <label>
+                            <span>CRT confirmado</span>
+                            <input type="number" step="0.01" min="0" max="99" name="crt_confirmado_mm" placeholder="mm">
+                        </label>
+                        <label>
+                            <span>Cimento obturador</span>
+                            <input type="text" name="cimento_obturador" placeholder="Nome comercial">
+                        </label>
+                        <label>
+                            <span>Classe do cimento</span>
+                            <select name="cimento_classe">
+                                <option value="">Não informar</option>
+                                {% for value, label in endodontia_options.sealer_class %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>
+                            <span>Classe outra</span>
+                            <input type="text" name="cimento_classe_outro">
+                        </label>
+                        <label>
+                            <span>Lote</span>
+                            <input type="text" name="cimento_lote">
+                        </label>
+                        <label>
+                            <span>Validade</span>
+                            <input type="date" name="cimento_validade">
+                        </label>
+                        <label>
+                            <span>Técnica obturadora</span>
+                            <select name="tecnica_obturacao">
+                                <option value="">Não informar</option>
+                                {% for value, label in endodontia_options.obturation_technique %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>
+                            <span>Técnica outra</span>
+                            <input type="text" name="tecnica_obturacao_outra">
+                        </label>
+                        <label class="endo-protocol-check">
+                            <input type="checkbox" name="prova_cone" value="1">
+                            <span>Prova de cone</span>
+                        </label>
+                        <label class="endo-protocol-check">
+                            <input type="checkbox" name="tug_back" value="1">
+                            <span>Tug-back</span>
+                        </label>
+                        <label class="endo-protocol-check">
+                            <input type="checkbox" name="radiografia_final_aprovada" value="1">
+                            <span>Rx final aprovada</span>
+                        </label>
+                        <label class="endo-protocol-check">
+                            <input type="checkbox" name="radiografia_final_gaps" value="1">
+                            <span>Gaps</span>
+                        </label>
+                        <label class="endo-protocol-check">
+                            <input type="checkbox" name="radiografia_final_voids" value="1">
+                            <span>Voids</span>
+                        </label>
+                        <label class="endo-protocol-check">
+                            <input type="checkbox" name="restauracao_definitiva_registrada" value="1">
+                            <span>Restauração definitiva</span>
+                        </label>
+                        <label>
+                            <span>Data restauração</span>
+                            <input type="date" name="restauracao_definitiva_data">
+                        </label>
+                        <label>
+                            <span>Material restauração</span>
+                            <input type="text" name="restauracao_definitiva_material" placeholder="Ex.: resina composta">
+                        </label>
+                        <label class="endo-protocol-check">
+                            <input type="checkbox" name="selamento_coronario_adequado" value="1">
+                            <span>Selamento coronário adequado</span>
+                        </label>
+                        <label class="endo-form-wide">
+                            <span>Controle de qualidade</span>
+                            <textarea name="controle_qualidade_observacoes" rows="2"></textarea>
+                        </label>
+                        <label class="endo-form-wide">
+                            <span>Observações restauradoras</span>
+                            <textarea name="restauracao_observacoes" rows="2"></textarea>
+                        </label>
+                    </div>
+                </details>
+            </form>
+            {% elif endo.status != 'Concluído' %}
+            <div class="endo-session-blocked no-print">
+                Preencha diagnóstico pulpar e apical estruturados para liberar nova evolução/sessão.
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="endo-session-legacy-table" style="border: 1px solid #000; border-radius: 0; overflow-x: auto; -webkit-overflow-scrolling: touch;">
+            <table style="width: 100%; min-width: 1180px; border-collapse: collapse;">
                 <thead>
                     <tr style="text-align: center; font-weight: 700; background: #fff;">
+                        <td style="border: 1px solid #000; padding: 1rem; width: 86px;">SESSÃO</td>
                         <td style="border: 1px solid #000; padding: 1rem; width: 120px;">DATA</td>
-                        <td style="border: 1px solid #000; padding: 1rem;">PRROCEDIMENTO EXECUTADO</td>
+                        <td style="border: 1px solid #000; padding: 1rem; width: 175px;">ETAPA / STATUS</td>
+                        <td style="border: 1px solid #000; padding: 1rem;">PROCEDIMENTO EXECUTADO</td>
+                        <td style="border: 1px solid #000; padding: 1rem; width: 150px;">PRÓXIMO RETORNO</td>
                         <td style="border: 1px solid #000; padding: 1rem; width: 130px;">Profissional</td>
                         <td style="border: 1px solid #000; padding: 1rem; width: 130px;">Ass Paciente</td>
                         <td style="border: 1px solid #000; padding: 1rem; width: 130px;">Dentista/Validador</td>
                     </tr>
                 </thead>
                 <tbody>
-                    {% if followups %}
-                    {% for f in followups %}
-                    <tr>
+	                    {% if followups %}
+	                    {% for f in followups %}
+	                    {% set f_pending = not f.assinatura_paciente_base64 or not f.professor_id %}
+	                    <tr style="{{ 'background:#fffbeb;' if f_pending else '' }}">
+                        <td style="border: 1px solid #000; padding: 1rem; text-align: center; font-weight: 800;">
+                            {{ f.numero_sessao or '-' }}
+                        </td>
                         <td style="border: 1px solid #000; padding: 1rem; text-align: center; font-weight: 600;">{{
                             f.data }}</td>
+                        <td style="border: 1px solid #000; padding: 1rem; vertical-align: top;">
+                            <strong style="display:block; color:#0f172a;">
+                                {{ session_context.stage_labels.get(f.etapa_realizada, 'Evolução legada') }}
+                            </strong>
+                            <span class="endo-session-badge {{ f.status_sessao or 'pendente' }}">
+                                {{ session_context.session_status_labels.get(f.status_sessao, f.status or 'Pendente') }}
+                            </span>
+                        </td>
                         <td style="border: 1px solid #000; padding: 1rem; vertical-align: top; line-height: 1.5;">{{
-                            f.evolucao }}</td>
+                            f.evolucao }}
+                            {% if f.observacao_clinica %}
+                            <small style="display:block; margin-top:0.5rem; color:#475569;">Obs.: {{ f.observacao_clinica }}</small>
+                            {% endif %}
+                            {% if f.lai_mm or f.tecnica_instrumentacao or f.solucao_irrigadora or f.medicacao_intracanal or f.selamento_provisorio %}
+                            <div class="endo-protocol-readout">
+                                <strong>Protocolo E5</strong>
+                                {% if f.lai_mm or f.tecnica_instrumentacao or f.sistema_instrumentacao or f.liga_instrumento %}
+                                <span>
+                                    Instrumentação:
+                                    {% if f.lai_mm %}LAI {{ f.lai_mm }} mm{% endif %}
+                                    {% if f.tecnica_instrumentacao %} · {{ session_context.instrumentation_technique_labels.get(f.tecnica_instrumentacao, f.tecnica_instrumentacao) }}{% endif %}
+                                    {% if f.sistema_instrumentacao %} · {{ f.sistema_instrumentacao }}{% endif %}
+                                    {% if f.liga_instrumento %} · {{ session_context.instrument_alloy_labels.get(f.liga_instrumento, f.liga_instrumento) }}{% endif %}
+                                </span>
+                                {% endif %}
+                                {% if f.solucao_irrigadora or f.edta_usado or f.tempo_irrigacao_min or f.agitacao_irrigadora or f.volume_irrigacao_ml %}
+                                <span>
+                                    Irrigação:
+                                    {% if f.solucao_irrigadora %}{{ session_context.irrigant_labels.get(f.solucao_irrigadora, f.solucao_irrigadora) }}{% endif %}
+                                    {% if f.edta_usado %} · EDTA{% endif %}
+                                    {% if f.tempo_irrigacao_min %} · {{ f.tempo_irrigacao_min }} min{% endif %}
+                                    {% if f.volume_irrigacao_ml %} · {{ f.volume_irrigacao_ml }} ml{% endif %}
+                                    {% if f.agitacao_irrigadora %} · {{ session_context.irrigation_agitation_labels.get(f.agitacao_irrigadora, f.agitacao_irrigadora) }}{% endif %}
+                                </span>
+                                {% endif %}
+                                {% if f.medicacao_intracanal or f.selamento_provisorio %}
+                                <span>
+                                    Medicação/selamento:
+                                    {% if f.medicacao_intracanal %}{{ session_context.intracanal_medication_labels.get(f.medicacao_intracanal, f.medicacao_intracanal) }}{% endif %}
+                                    {% if f.medicacao_intracanal_outra %} ({{ f.medicacao_intracanal_outra }}){% endif %}
+                                    {% if f.medicacao_veiculo %} · veículo {{ f.medicacao_veiculo }}{% endif %}
+                                    {% if f.medicacao_quantidade %} · {{ f.medicacao_quantidade }}{% endif %}
+                                    {% if f.selamento_provisorio %} · selamento {{ session_context.temporary_sealing_labels.get(f.selamento_provisorio, f.selamento_provisorio) }}{% endif %}
+                                    {% if f.selamento_provisorio_outro %} ({{ f.selamento_provisorio_outro }}){% endif %}
+                                </span>
+                                {% endif %}
+                                {% if f.protocolo_observacoes or f.irrigacao_observacoes %}
+                                <span>{{ f.protocolo_observacoes or f.irrigacao_observacoes }}</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            {% if f.cone_principal_material or f.tecnica_obturacao or f.cimento_obturador or f.radiografia_final_aprovada or f.restauracao_definitiva_registrada %}
+                            <div class="endo-obturation-readout">
+                                <strong>Obturação e restauração E6</strong>
+                                {% if f.cone_principal_material or f.cone_principal_calibre or f.cone_principal_conicidade or f.crt_confirmado_mm %}
+                                <span>
+                                    Cone:
+                                    {% if f.cone_principal_material %}{{ f.cone_principal_material }}{% endif %}
+                                    {% if f.cone_principal_calibre %} · ISO {{ f.cone_principal_calibre }}{% endif %}
+                                    {% if f.cone_principal_conicidade %} · {{ f.cone_principal_conicidade }}{% endif %}
+                                    {% if f.prova_cone %} · prova de cone{% endif %}
+                                    {% if f.tug_back %} · tug-back{% endif %}
+                                    {% if f.crt_confirmado_mm %} · CRT {{ f.crt_confirmado_mm }} mm{% endif %}
+                                </span>
+                                {% endif %}
+                                {% if f.cimento_obturador or f.cimento_classe or f.tecnica_obturacao %}
+                                <span>
+                                    Obturação:
+                                    {% if f.tecnica_obturacao %}{{ session_context.obturation_technique_labels.get(f.tecnica_obturacao, f.tecnica_obturacao) }}{% endif %}
+                                    {% if f.tecnica_obturacao_outra %} ({{ f.tecnica_obturacao_outra }}){% endif %}
+                                    {% if f.cimento_obturador %} · {{ f.cimento_obturador }}{% endif %}
+                                    {% if f.cimento_classe %} · {{ session_context.sealer_class_labels.get(f.cimento_classe, f.cimento_classe) }}{% endif %}
+                                    {% if f.cimento_lote %} · lote {{ f.cimento_lote }}{% endif %}
+                                    {% if f.cimento_validade %} · validade {{ f.cimento_validade.strftime('%d/%m/%Y') if f.cimento_validade.strftime is defined else f.cimento_validade }}{% endif %}
+                                </span>
+                                {% endif %}
+                                {% if f.radiografia_final_aprovada or f.radiografia_final_gaps or f.radiografia_final_voids %}
+                                <span>
+                                    Controle radiográfico:
+                                    {% if f.radiografia_final_aprovada %}aprovado{% endif %}
+                                    {% if f.radiografia_final_gaps %} · gaps{% endif %}
+                                    {% if f.radiografia_final_voids %} · voids{% endif %}
+                                </span>
+                                {% endif %}
+                                {% if f.restauracao_definitiva_registrada %}
+                                <span>
+                                    Restauração definitiva:
+                                    {{ f.restauracao_definitiva_material or 'registrada' }}
+                                    {% if f.restauracao_definitiva_data %} · {{ f.restauracao_definitiva_data.strftime('%d/%m/%Y') if f.restauracao_definitiva_data.strftime is defined else f.restauracao_definitiva_data }}{% endif %}
+                                    {% if f.selamento_coronario_adequado %} · selamento coronário adequado{% endif %}
+                                </span>
+                                {% endif %}
+                                {% if f.controle_qualidade_observacoes or f.restauracao_observacoes %}
+                                <span>{{ f.controle_qualidade_observacoes or f.restauracao_observacoes }}</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td style="border: 1px solid #000; padding: 1rem; text-align: center; font-size:0.88rem;">
+                            {% if f.proxima_sessao_prevista %}
+                            <strong>{{ f.proxima_sessao_prevista.strftime('%d/%m/%Y') if f.proxima_sessao_prevista.strftime is defined else f.proxima_sessao_prevista }}</strong>
+                            {% if f.janela_retorno_dias is not none %}
+                            <small style="display:block; color:#64748b;">Janela: {{ f.janela_retorno_dias }} dia(s)</small>
+                            {% endif %}
+                            {% else %}
+                            <span style="color:#94a3b8;">Sem retorno</span>
+                            {% endif %}
+                        </td>
                         <td
                             style="border: 1px solid #000; padding: 1rem; text-align: center; font-size: 0.85rem; color: #444;">
-                            <u>{{ endo.aluno_nome }}</u>
+                            <u>{{ endo.profissional_nome or endo.profissional_username or 'Não informado' }}</u>
                         </td>
                         <td style="border: 1px solid #000; padding: 1rem; text-align: center;">
                             {% if f.assinatura_paciente_base64 %}
                             <img src="{{ f.assinatura_paciente_base64 }}"
                                 style="max-height: 50px; filter: grayscale(1) contrast(1.5);">
                             {% else %}
-                            <button class="btn btn-outline btn-sm no-print"
+                            <button type="button" class="btn btn-outline btn-sm no-print"
                                 onclick="openPatientSignModal('{{ url_for('endodontia.sign_patient', followup_id=f.id) }}')">✍️
                                 Assinar</button>
                             {% endif %}
@@ -249,10 +1294,10 @@
                         <td style="border: 1px solid #000; padding: 1rem; text-align: center;">
                             {% if f.professor_id %}
                             <div style="font-weight: 700; color: #000; font-size: 0.8rem;">
-                                {% if f.professor_role == 'admin' %}Adm. {% elif f.professor_role == 'dentista' %}Dent. {% elif f.professor_role == 'tsb' %}TSB {% else %}Prof. {% endif %}{{ f.professor_nome }}
+                                {% if f.professor_role == 'admin' %}Adm. {% elif f.professor_role == 'clinicos' %}Clín. {% elif f.professor_role == 'dentista' %}Dent. {% elif f.professor_role == 'tsb' %}TSB {% else %}Resp. {% endif %}{{ f.professor_nome }}
                             </div>
                             {% else %}
-                            <button class="btn btn-outline btn-sm no-print"
+                            <button type="button" class="btn btn-outline btn-sm no-print"
                                 onclick="openProfessorSignModal('{{ url_for('endodontia.sign_professor', followup_id=f.id) }}')">🔑
                                 Validar</button>
                             {% endif %}
@@ -270,33 +1315,593 @@
                         <td style="border: 1px solid #000;"></td>
                         <td style="border: 1px solid #000;"></td>
                         <td style="border: 1px solid #000;"></td>
+                        <td style="border: 1px solid #000;"></td>
+                        <td style="border: 1px solid #000;"></td>
+                        <td style="border: 1px solid #000;"></td>
                     </tr>
                     {% endfor %}
                     {% endif %}
 
-                    {% if endo.status != 'Concluído' %}
+                    {% if endo.status != 'Concluído' and diagnosis_context['can_advance'] %}
                     <tr class="no-print" style="background: #fafafa;">
                         <form action="{{ url_for('endodontia.add_followup', endo_id=endo.id) }}" method="POST">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <td style="border: 1px solid #000; padding: 0.75rem; text-align:center; font-weight:800;">
+                                {{ session_context.next_number }}
+                            </td>
                             <td style="border: 1px solid #000; padding: 0.75rem;">
                                 <input type="date" name="data" value="{{ current_date }}"
                                     style="width: 100%; border: 1px solid #ddd; padding: 0.5rem; border-radius: 4px;">
                             </td>
                             <td style="border: 1px solid #000; padding: 0.75rem;">
+                                <select name="etapa_realizada" required
+                                    style="width: 100%; border: 1px solid #ddd; padding: 0.5rem; border-radius: 4px; margin-bottom:0.5rem;">
+                                    <option value="">Etapa</option>
+                                    {% for value, label in endodontia_options.session_stage %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <select name="status_sessao"
+                                    style="width: 100%; border: 1px solid #ddd; padding: 0.5rem; border-radius: 4px;">
+                                    {% for value, label in endodontia_options.session_status %}
+                                    <option value="{{ value }}" {% if value == 'realizada' %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td style="border: 1px solid #000; padding: 0.75rem;">
                                 <textarea name="evolucao" rows="2"
                                     style="width: 100%; border: 1px solid #ddd; padding: 0.5rem; border-radius: 4px; outline: none;"
-                                    placeholder="Nova Evolução..."></textarea>
+                                    placeholder="Procedimento executado, achados e conduta..."></textarea>
+                                <textarea name="observacao_clinica" rows="2"
+                                    style="width: 100%; border: 1px solid #ddd; padding: 0.5rem; border-radius: 4px; outline: none; margin-top:0.5rem;"
+                                    placeholder="Observação clínica complementar opcional"></textarea>
+                                <div class="endo-protocol-form">
+                                    <strong>Protocolo biomecânico, irrigação e medicação</strong>
+                                    <div class="endo-protocol-grid">
+                                        <label>
+                                            <span>LAI (mm)</span>
+                                            <input type="number" step="0.01" min="0" max="99" name="lai_mm">
+                                        </label>
+                                        <label>
+                                            <span>Técnica</span>
+                                            <select name="tecnica_instrumentacao">
+                                                <option value="">Não informar</option>
+                                                {% for value, label in endodontia_options.instrumentation_technique %}
+                                                <option value="{{ value }}">{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </label>
+                                        <label>
+                                            <span>Sistema</span>
+                                            <input type="text" name="sistema_instrumentacao" placeholder="Ex.: ProTaper, Reciproc">
+                                        </label>
+                                        <label>
+                                            <span>Liga</span>
+                                            <select name="liga_instrumento">
+                                                <option value="">Não informar</option>
+                                                {% for value, label in endodontia_options.instrument_alloy %}
+                                                <option value="{{ value }}">{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </label>
+                                        <label>
+                                            <span>Solução irrigadora</span>
+                                            <select name="solucao_irrigadora">
+                                                <option value="">Não informar</option>
+                                                {% for value, label in endodontia_options.irrigant %}
+                                                <option value="{{ value }}">{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </label>
+                                        <label>
+                                            <span>Volume (ml)</span>
+                                            <input type="number" step="0.01" min="0" max="999" name="volume_irrigacao_ml">
+                                        </label>
+                                        <label>
+                                            <span>Tempo (min)</span>
+                                            <input type="number" min="0" max="240" name="tempo_irrigacao_min">
+                                        </label>
+                                        <label>
+                                            <span>Agitação</span>
+                                            <select name="agitacao_irrigadora">
+                                                <option value="">Não informar</option>
+                                                {% for value, label in endodontia_options.irrigation_agitation %}
+                                                <option value="{{ value }}">{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </label>
+                                        <label class="endo-protocol-check">
+                                            <input type="checkbox" name="edta_usado" value="1">
+                                            <span>EDTA utilizado</span>
+                                        </label>
+                                        <label>
+                                            <span>Medicação intracanal</span>
+                                            <select name="medicacao_intracanal">
+                                                <option value="">Não informar</option>
+                                                {% for value, label in endodontia_options.intracanal_medication %}
+                                                <option value="{{ value }}">{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </label>
+                                        <label>
+                                            <span>Medicação outra</span>
+                                            <input type="text" name="medicacao_intracanal_outra">
+                                        </label>
+                                        <label>
+                                            <span>Veículo</span>
+                                            <input type="text" name="medicacao_veiculo" placeholder="Ex.: propilenoglicol">
+                                        </label>
+                                        <label>
+                                            <span>Quantidade</span>
+                                            <input type="text" name="medicacao_quantidade" placeholder="Ex.: preenchimento do canal">
+                                        </label>
+                                        <label>
+                                            <span>Selamento provisório</span>
+                                            <select name="selamento_provisorio">
+                                                <option value="">Não informar</option>
+                                                {% for value, label in endodontia_options.temporary_sealing %}
+                                                <option value="{{ value }}">{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </label>
+                                        <label>
+                                            <span>Selamento outro</span>
+                                            <input type="text" name="selamento_provisorio_outro">
+                                        </label>
+                                    </div>
+                                    <textarea name="protocolo_observacoes" rows="2"
+                                        placeholder="Observações de instrumentação..."
+                                        style="width: 100%; border: 1px solid #ddd; padding: 0.5rem; border-radius: 4px; outline: none; margin-top:0.5rem;"></textarea>
+                                    <textarea name="irrigacao_observacoes" rows="2"
+                                        placeholder="Observações de irrigação..."
+                                        style="width: 100%; border: 1px solid #ddd; padding: 0.5rem; border-radius: 4px; outline: none; margin-top:0.5rem;"></textarea>
+                                </div>
+                                <div class="endo-obturation-form">
+                                    <strong>Obturação final e restauração</strong>
+                                    <div class="endo-protocol-grid">
+                                        <label>
+                                            <span>Cone principal</span>
+                                            <input type="text" name="cone_principal_material" placeholder="Ex.: guta-percha">
+                                        </label>
+                                        <label>
+                                            <span>Calibre ISO</span>
+                                            <input type="text" name="cone_principal_calibre" placeholder="Ex.: 35">
+                                        </label>
+                                        <label>
+                                            <span>Conicidade</span>
+                                            <input type="text" name="cone_principal_conicidade" placeholder="Ex.: .04">
+                                        </label>
+                                        <label>
+                                            <span>CRT confirmado (mm)</span>
+                                            <input type="number" step="0.01" min="0" max="99" name="crt_confirmado_mm">
+                                        </label>
+                                        <label>
+                                            <span>Cimento obturador</span>
+                                            <input type="text" name="cimento_obturador" placeholder="Nome comercial">
+                                        </label>
+                                        <label>
+                                            <span>Classe do cimento</span>
+                                            <select name="cimento_classe">
+                                                <option value="">Não informar</option>
+                                                {% for value, label in endodontia_options.sealer_class %}
+                                                <option value="{{ value }}">{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </label>
+                                        <label>
+                                            <span>Classe outra</span>
+                                            <input type="text" name="cimento_classe_outro">
+                                        </label>
+                                        <label>
+                                            <span>Lote</span>
+                                            <input type="text" name="cimento_lote">
+                                        </label>
+                                        <label>
+                                            <span>Validade</span>
+                                            <input type="date" name="cimento_validade">
+                                        </label>
+                                        <label>
+                                            <span>Técnica obturadora</span>
+                                            <select name="tecnica_obturacao">
+                                                <option value="">Não informar</option>
+                                                {% for value, label in endodontia_options.obturation_technique %}
+                                                <option value="{{ value }}">{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </label>
+                                        <label>
+                                            <span>Técnica outra</span>
+                                            <input type="text" name="tecnica_obturacao_outra">
+                                        </label>
+                                        <label class="endo-protocol-check">
+                                            <input type="checkbox" name="prova_cone" value="1">
+                                            <span>Prova de cone</span>
+                                        </label>
+                                        <label class="endo-protocol-check">
+                                            <input type="checkbox" name="tug_back" value="1">
+                                            <span>Tug-back</span>
+                                        </label>
+                                        <label class="endo-protocol-check">
+                                            <input type="checkbox" name="radiografia_final_aprovada" value="1">
+                                            <span>Rx final aprovada</span>
+                                        </label>
+                                        <label class="endo-protocol-check">
+                                            <input type="checkbox" name="radiografia_final_gaps" value="1">
+                                            <span>Gaps</span>
+                                        </label>
+                                        <label class="endo-protocol-check">
+                                            <input type="checkbox" name="radiografia_final_voids" value="1">
+                                            <span>Voids</span>
+                                        </label>
+                                        <label class="endo-protocol-check">
+                                            <input type="checkbox" name="restauracao_definitiva_registrada" value="1">
+                                            <span>Restauração definitiva</span>
+                                        </label>
+                                        <label>
+                                            <span>Data restauração</span>
+                                            <input type="date" name="restauracao_definitiva_data">
+                                        </label>
+                                        <label>
+                                            <span>Material restauração</span>
+                                            <input type="text" name="restauracao_definitiva_material" placeholder="Ex.: resina composta">
+                                        </label>
+                                        <label class="endo-protocol-check">
+                                            <input type="checkbox" name="selamento_coronario_adequado" value="1">
+                                            <span>Selamento coronário adequado</span>
+                                        </label>
+                                    </div>
+                                    <textarea name="controle_qualidade_observacoes" rows="2"
+                                        placeholder="Controle radiográfico final, gaps/voids e qualidade..."
+                                        style="width: 100%; border: 1px solid #ddd; padding: 0.5rem; border-radius: 4px; outline: none; margin-top:0.5rem;"></textarea>
+                                    <textarea name="restauracao_observacoes" rows="2"
+                                        placeholder="Observações restauradoras..."
+                                        style="width: 100%; border: 1px solid #ddd; padding: 0.5rem; border-radius: 4px; outline: none; margin-top:0.5rem;"></textarea>
+                                </div>
                             </td>
-                            <td colspan="3" style="border: 1px solid #000; padding: 0.75rem; text-align: center;">
+                            <td style="border: 1px solid #000; padding: 0.75rem;">
+                                <input type="date" name="proxima_sessao_prevista"
+                                    style="width: 100%; border: 1px solid #ddd; padding: 0.5rem; border-radius: 4px; margin-bottom:0.5rem;">
+                                <input type="number" min="0" max="365" name="janela_retorno_dias" placeholder="Janela em dias"
+                                    style="width: 100%; border: 1px solid #ddd; padding: 0.5rem; border-radius: 4px;">
+                            </td>
+                            <td colspan="3" style="border: 1px solid #000; padding: 0.75rem;">
+                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.5rem; margin-bottom:0.6rem;">
+                                    <input type="number" min="1" max="99" name="sessoes_planejadas" value="{{ session_context.planned_sessions or '' }}" placeholder="Total sessões"
+                                        style="width: 100%; border: 1px solid #ddd; padding: 0.5rem; border-radius: 4px;">
+                                    <select name="status_tratamento"
+                                        style="width: 100%; border: 1px solid #ddd; padding: 0.5rem; border-radius: 4px;">
+                                        <option value="">Status automático</option>
+                                        {% for value, label in endodontia_options.treatment_status %}
+                                        <option value="{{ value }}">{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
                                 <button type="submit" class="btn btn-primary"
-                                    style="width: 100%; height: 60px; font-weight: 700;">➕ ADICIONAR EVOLUÇÃO</button>
+                                    style="width: 100%; min-height: 54px; font-weight: 700;">➕ ADICIONAR SESSÃO</button>
                             </td>
                         </form>
+                    </tr>
+                    {% elif endo.status != 'Concluído' %}
+                    <tr class="no-print" style="background:#fef2f2;">
+                        <td colspan="8" style="border: 1px solid #000; padding: 1rem; color:#991b1b; font-weight:700;">
+                            Preencha diagnóstico pulpar e apical estruturados para liberar nova evolução/sessão.
+                        </td>
                     </tr>
                     {% endif %}
                 </tbody>
             </table>
         </div>
+    </section>
+
+    <section class="endo-form-section no-print">
+        <div class="endo-section-heading">
+            <span>07</span>
+            <div>
+                <h2>Imagens endodônticas e Biblioteca Visual</h2>
+                <p>Registros do caso por etapa clínica, dente, canal e sessão.</p>
+            </div>
+        </div>
+
+        <form action="{{ url_for('endodontia.upload_image', endo_id=endo.id) }}" method="POST" enctype="multipart/form-data" class="endo-image-upload">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="endo-image-upload-grid">
+                <label>
+                    <span>Arquivo</span>
+                    <input type="file" name="imagem" accept=".jpg,.jpeg,.png,.webp,.tif,.tiff,.dcm,.dicom" required>
+                </label>
+                <label>
+                    <span>Etapa visual</span>
+                    <select name="visual_category" required>
+                        {% for value, label in endodontia_image_category_options %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>
+                    <span>Sessão vinculada</span>
+                    <select name="followup_id">
+                        <option value="">Caso geral</option>
+                        {% for f in followups %}
+                        <option value="{{ f.id }}">Sessão {{ f.numero_sessao or '-' }} · {{ session_context.stage_labels.get(f.etapa_realizada, 'Evolução') }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>
+                    <span>Canal</span>
+                    <input type="text" name="canal" placeholder="Ex.: MV, ML, D">
+                </label>
+                <label>
+                    <span>Equipamento</span>
+                    <input type="text" name="equipamento" placeholder="Sensor, placa, CBCT">
+                </label>
+                <label>
+                    <span>Data de captura</span>
+                    <input type="datetime-local" name="taken_at">
+                </label>
+                <label>
+                    <span>Comparativo</span>
+                    <select name="comparison_label">
+                        {% for value, label in visual_comparison_options %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>
+                    <span>Grupo</span>
+                    <input type="text" name="comparison_group" value="Endodontia dente {{ endo.elemento_dentario }}">
+                </label>
+                <label class="full">
+                    <span>Legenda</span>
+                    <input type="text" name="caption" required placeholder="Ex.: radiografia final de qualidade do dente {{ endo.elemento_dentario }}">
+                </label>
+                <label class="full">
+                    <span>Anotação clínica</span>
+                    <textarea name="clinical_context" rows="2" placeholder="Achados radiográficos, qualidade, referência clínica ou observação da sessão."></textarea>
+                </label>
+            </div>
+            <div style="display:flex; justify-content:flex-end; margin-top:1rem;">
+                <button type="submit" class="btn btn-primary" style="font-weight:800;">Enviar imagem</button>
+            </div>
+        </form>
+
+        {% if endodontia_images %}
+        <div class="endo-image-grid">
+            {% for image in endodontia_images %}
+            {% set image_url = url_for('endodontia.serve_image', image_id=image.id) %}
+            <article class="endo-image-card">
+                {% if image.previewable %}
+                <img src="{{ image_url }}" alt="{{ image.caption or image.filename }}" onclick="window.open('{{ image_url }}', '_blank', 'noopener')">
+                {% else %}
+                <a href="{{ image_url }}" target="_blank" rel="noopener" class="endo-image-file">{{ image.format_label }}</a>
+                {% endif %}
+                <div>
+                    <strong>{{ image.caption or image.filename }}</strong>
+                    <span>{{ image.category_label }}</span>
+                    <small>
+                        Dente {{ endo.elemento_dentario }}
+                        {% if image.canal %} · canal {{ image.canal }}{% endif %}
+                        {% if image.numero_sessao %} · sessão {{ image.numero_sessao }}{% endif %}
+                    </small>
+                    {% if image.equipamento or image.clinical_context %}
+                    <small>
+                        {% if image.equipamento %}{{ image.equipamento }}{% endif %}
+                        {% if image.equipamento and image.clinical_context %} · {% endif %}
+                        {% if image.clinical_context %}{{ image.clinical_context }}{% endif %}
+                    </small>
+                    {% endif %}
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="endo-image-empty">
+            Nenhuma imagem endodôntica vinculada a este caso.
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="endo-form-section no-print">
+        <div class="endo-section-heading">
+            <span>08</span>
+            <div>
+                <h2>Proservação e critérios de Strindberg</h2>
+                <p>Retornos gerados após obturação final e avaliação clínico-radiográfica do resultado.</p>
+            </div>
+        </div>
+
+        {% if proservations %}
+        <div class="endo-proservation-list">
+            {% for item in proservations %}
+            <article class="endo-proservation-card {{ item.resultado_strindberg or item.status }}">
+                <div class="endo-proservation-head">
+                    <div>
+                        <strong>{{ session_context.proservation_return_labels.get(item.tipo_retorno, item.tipo_retorno) }}</strong>
+                        <span>
+                            Previsto: {{ item.data_prevista.strftime('%d/%m/%Y') if item.data_prevista and item.data_prevista.strftime is defined else item.data_prevista }}
+                            {% if item.status == 'planejado' and item.data_prevista and item.data_prevista < today_date %}
+                            · vencido
+                            {% endif %}
+                        </span>
+                    </div>
+                    <span class="endo-proservation-status">
+                        {{ session_context.proservation_status_labels.get(item.status, item.status or 'Planejado') }}
+                    </span>
+                </div>
+
+                {% if item.resultado_strindberg %}
+                <div class="endo-proservation-result">
+                    <strong>{{ session_context.strindberg_result_labels.get(item.resultado_strindberg, item.resultado_strindberg) }}</strong>
+                    <span>
+                        Realizado: {{ item.data_realizada.strftime('%d/%m/%Y') if item.data_realizada and item.data_realizada.strftime is defined else item.data_realizada or 'data não informada' }}
+                    </span>
+                    {% if item.resultado_observacoes %}
+                    <small>{{ item.resultado_observacoes }}</small>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <form action="{{ url_for('endodontia.evaluate_proservation', proservation_id=item.id) }}" method="POST" class="endo-proservation-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="endo-proservation-grid">
+                        <label>
+                            <span>Data realizada</span>
+                            <input type="date" name="data_realizada" value="{{ item.data_realizada or current_date }}">
+                        </label>
+                        <label>
+                            <span>Status</span>
+                            <select name="status">
+                                {% for value, label in endodontia_options.proservation_status %}
+                                <option value="{{ value }}" {% if (item.resultado_strindberg and item.status == value) or (not item.resultado_strindberg and value == 'concluido') %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>
+                            <span>Restauração</span>
+                            <select name="restauracao_tipo">
+                                <option value="">Não informar</option>
+                                {% for value, label in endodontia_options.restoration_type %}
+                                <option value="{{ value }}" {% if item.restauracao_tipo == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>
+                            <span>Data restauração</span>
+                            <input type="date" name="restauracao_data" value="{{ item.restauracao_data or endo.restauracao_definitiva_data or '' }}">
+                        </label>
+                    </div>
+
+                    <div class="endo-proservation-checks">
+                        <fieldset>
+                            <legend>Critérios clínicos favoráveis</legend>
+                            <label><input type="checkbox" name="dente_funcao_mastigatoria" value="1" {% if item.dente_funcao_mastigatoria %}checked{% endif %}> Dente em função mastigatória</label>
+                            <label><input type="checkbox" name="ausencia_dor_percussao" value="1" {% if item.ausencia_dor_percussao %}checked{% endif %}> Ausência de dor à percussão</label>
+                            <label><input type="checkbox" name="ausencia_dor_palpacao_apical" value="1" {% if item.ausencia_dor_palpacao_apical %}checked{% endif %}> Ausência de dor à palpação apical</label>
+                            <label><input type="checkbox" name="ausencia_edema_mucosa" value="1" {% if item.ausencia_edema_mucosa %}checked{% endif %}> Ausência de edema de mucosa</label>
+                            <label><input type="checkbox" name="ausencia_fistula" value="1" {% if item.ausencia_fistula %}checked{% endif %}> Ausência de fístula</label>
+                        </fieldset>
+                        <fieldset>
+                            <legend>Critérios radiográficos favoráveis</legend>
+                            <label><input type="checkbox" name="espaco_periodontal_normal" value="1" {% if item.espaco_periodontal_normal %}checked{% endif %}> Espaço periodontal normal</label>
+                            <label><input type="checkbox" name="lamina_dura_integra" value="1" {% if item.lamina_dura_integra %}checked{% endif %}> Lâmina dura íntegra</label>
+                            <label><input type="checkbox" name="ausencia_lesao_radiolucida" value="1" {% if item.ausencia_lesao_radiolucida %}checked{% endif %}> Ausência de lesão radiolúcida</label>
+                            <label><input type="checkbox" name="reducao_lesao_preexistente" value="1" {% if item.reducao_lesao_preexistente %}checked{% endif %}> Redução de lesão preexistente</label>
+                            <label><input type="checkbox" name="criterio_negativo_instavel" value="1" {% if item.criterio_negativo_instavel %}checked{% endif %}> Critério negativo instável</label>
+                            <label><input type="checkbox" name="restauracao_selamento_adequado" value="1" {% if item.restauracao_selamento_adequado or endo.selamento_coronario_adequado %}checked{% endif %}> Selamento restaurador adequado</label>
+                        </fieldset>
+                    </div>
+
+                    <div class="endo-proservation-grid notes">
+                        <label>
+                            <span>Observações clínicas</span>
+                            <textarea name="clinica_observacoes" rows="2">{{ item.clinica_observacoes or '' }}</textarea>
+                        </label>
+                        <label>
+                            <span>Observações radiográficas</span>
+                            <textarea name="radiografica_observacoes" rows="2">{{ item.radiografica_observacoes or '' }}</textarea>
+                        </label>
+                        <label>
+                            <span>Observações do resultado</span>
+                            <textarea name="resultado_observacoes" rows="2">{{ item.resultado_observacoes or '' }}</textarea>
+                        </label>
+                        <label>
+                            <span>Observações restauradoras</span>
+                            <textarea name="restauracao_observacoes" rows="2">{{ item.restauracao_observacoes or endo.restauracao_observacoes or '' }}</textarea>
+                        </label>
+                    </div>
+
+                    <div style="display:flex; justify-content:flex-end; margin-top:0.9rem;">
+                        <button type="submit" class="btn btn-primary" style="font-weight:800;">Registrar proservação</button>
+                    </div>
+                </form>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="endo-image-empty">
+            A proservação será gerada automaticamente após salvar uma sessão de obturação final realizada.
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="endo-form-section no-print">
+        <div class="endo-section-heading">
+            <span>09</span>
+            <div>
+                <h2>Orçamento, TUSS/SIGTAP e indicadores</h2>
+                <p>Geração operacional canal a canal com diferenciação entre tratamento e retratamento.</p>
+            </div>
+        </div>
+
+        <div class="endo-budget-actions">
+            <div>
+                <strong>{{ budget_summary.count }} item(ns) orçamentário(s)</strong>
+                <span>
+                    Total referência: R$ {{ '%.2f'|format(budget_summary.total_private|float) }}
+                    · Público/SIGTAP: R$ {{ '%.2f'|format(budget_summary.total_public|float) }}
+                    · Economia estimada: R$ {{ '%.2f'|format(budget_summary.total_savings|float) }}
+                </span>
+            </div>
+            <form action="{{ url_for('endodontia.generate_budget', endo_id=endo.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-primary" style="font-weight:800;" {% if endo.diagnostico_pulpar == 'polpa_normal' or not diagnosis_context.can_advance %}disabled{% endif %}>
+                    Gerar orçamento
+                </button>
+            </form>
+        </div>
+
+        {% if endo.diagnostico_pulpar == 'polpa_normal' %}
+        <div class="endo-diagnosis-banner blocked">
+            <strong>Orçamento bloqueado</strong>
+            <span>Diagnóstico pulpar como Polpa normal não libera orçamento endodôntico para tratamento radical.</span>
+        </div>
+        {% endif %}
+
+        {% if budget_items %}
+        <div class="endo-budget-table-wrap">
+            <table class="endo-budget-table">
+                <thead>
+                    <tr>
+                        <th>Dente</th>
+                        <th>Canal</th>
+                        <th>Procedimento</th>
+                        <th>TUSS</th>
+                        <th>SIGTAP</th>
+                        <th>CID-10</th>
+                        <th>Valor ref.</th>
+                        <th>Público</th>
+                        <th>Indicador</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in budget_items %}
+                    <tr>
+                        <td>{{ item.dente_numero }}</td>
+                        <td>{{ item.canal_id }}</td>
+                        <td>{{ session_context.budget_procedure_labels.get(item.procedimento, item.procedimento) }}</td>
+                        <td>{{ item.codigo_tuss or '-' }}</td>
+                        <td>
+                            {{ item.codigo_sigtap or '-' }}
+                            {% if item.sigtap_name %}
+                            <small>{{ item.sigtap_name }}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.codigo_cid10 or '-' }}</td>
+                        <td>R$ {{ '%.2f'|format(item.valor_unitario|float) }}</td>
+                        <td>R$ {{ '%.2f'|format(item.valor_publico_unitario|float) }}</td>
+                        <td>
+                            {{ item.complexidade or 'avaliar' }}
+                            <small>mult. {{ item.multiplicador or '1.00' }} · {{ item.sessoes_previstas or '-' }} sessão(ões)</small>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="endo-image-empty">
+            Nenhum orçamento endodôntico gerado para este caso.
+        </div>
+        {% endif %}
     </section>
 
 </div>
@@ -328,13 +1933,13 @@
 <div id="professorSignModal" class="modal-overlay" style="display: none;">
     <div class="modal-content" style="max-width: 400px;">
         <div class="modal-header">
-            <h3 style="font-weight: 700;">Validação de Responsável</h3>
+            <h3 style="font-weight: 700;">Validação do Dentista Responsável</h3>
         </div>
         <form id="professorSignForm" method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="endo_id" value="{{ endo.id }}">
             <div style="padding: 2rem; display: flex; flex-direction: column; gap: 1.5rem;">
-                <input type="text" name="prof_username" class="form-control" placeholder="Usuário do dentista" required
+                <input type="text" name="prof_username" class="form-control" placeholder="Usuário do dentista responsável" required
                     style="height: 50px; font-size: 1.1rem;">
                 <input type="password" name="prof_password" class="form-control" placeholder="Senha" required
                     style="height: 50px; font-size: 1.1rem;">
@@ -387,6 +1992,1173 @@
 </script>
 
 <style>
+    .endo-context-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .endo-context-card {
+        padding: 1rem 1.15rem;
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-md);
+        background: hsl(var(--surface));
+        box-shadow: var(--shadow-sm);
+    }
+
+    .endo-context-card span {
+        display: block;
+        color: hsl(var(--text-muted));
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        margin-bottom: 0.35rem;
+    }
+
+    .endo-context-card strong {
+        display: block;
+        color: hsl(var(--text-main));
+        font-family: var(--font-heading);
+        font-size: 1.05rem;
+    }
+
+    .endo-context-card small {
+        display: block;
+        color: hsl(var(--text-muted));
+        line-height: 1.4;
+        margin-top: 0.25rem;
+    }
+
+    .endo-form-section {
+        margin-bottom: 2rem;
+        padding: 1.25rem;
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-md);
+        background: hsl(var(--surface));
+        box-shadow: var(--shadow-sm);
+    }
+
+    .endo-section-heading {
+        display: flex;
+        gap: 0.9rem;
+        align-items: flex-start;
+        margin-bottom: 1.25rem;
+    }
+
+    .endo-section-heading > span {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        border-radius: var(--radius-sm);
+        background: hsl(var(--primary));
+        color: #fff;
+        font-weight: 800;
+        flex: 0 0 auto;
+    }
+
+    .endo-section-heading h2 {
+        margin: 0;
+        color: hsl(var(--text-main));
+        font-family: var(--font-heading);
+        font-size: 1.12rem;
+    }
+
+    .endo-section-heading p {
+        margin: 0.3rem 0 0;
+        color: hsl(var(--text-muted));
+        line-height: 1.45;
+    }
+
+    .endo-linked-risk-card {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: center;
+        padding: 1rem;
+        border-radius: var(--radius-md);
+        background: hsl(var(--primary-soft));
+        border: 1px solid hsl(var(--primary) / 0.16);
+        margin-bottom: 1rem;
+    }
+
+    .endo-linked-risk-card strong {
+        display: block;
+        color: hsl(var(--primary));
+        font-family: var(--font-heading);
+    }
+
+    .endo-linked-risk-card span,
+    .endo-risk-empty {
+        display: block;
+        color: hsl(var(--text-muted));
+        line-height: 1.45;
+        margin-top: 0.25rem;
+    }
+
+    .endo-risk-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .endo-risk-item {
+        padding: 0.9rem 1rem;
+        border-radius: var(--radius-md);
+        border: 1px solid hsl(var(--border));
+        background: #fff;
+    }
+
+    .endo-risk-item strong,
+    .endo-risk-item span {
+        display: block;
+    }
+
+    .endo-risk-item strong {
+        color: hsl(var(--text-main));
+        margin-bottom: 0.25rem;
+    }
+
+    .endo-risk-item span {
+        color: hsl(var(--text-muted));
+        line-height: 1.4;
+        font-size: 0.9rem;
+    }
+
+    .endo-risk-item.danger {
+        border-color: #fecaca;
+        background: #fef2f2;
+    }
+
+    .endo-risk-item.warning {
+        border-color: #fde68a;
+        background: #fffbeb;
+    }
+
+    .endo-risk-item.info {
+        border-color: #bfdbfe;
+        background: #eff6ff;
+    }
+
+    .endo-inline-check {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.6rem;
+        color: hsl(var(--text-main));
+        font-weight: 700;
+    }
+
+    .endo-inline-check input {
+        width: 18px;
+        height: 18px;
+    }
+
+    .endo-session-legacy-table {
+        display: none !important;
+    }
+
+    .endo-session-summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.8rem;
+        margin-bottom: 1rem;
+    }
+
+    .endo-session-summary > div {
+        padding: 0.95rem 1rem;
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-md);
+        background: hsl(var(--surface));
+    }
+
+    .endo-session-summary span {
+        display: block;
+        color: hsl(var(--text-muted));
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        margin-bottom: 0.25rem;
+    }
+
+    .endo-session-summary strong {
+        display: block;
+        color: hsl(var(--primary));
+        font-family: var(--font-heading);
+        font-size: 1rem;
+    }
+
+    .endo-session-board {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .endo-session-history-head,
+    .endo-session-card-header,
+    .endo-session-form-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .endo-session-history-head {
+        padding: 1rem;
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-md);
+        background: hsl(var(--surface));
+    }
+
+    .endo-session-history-head strong,
+    .endo-session-history-head span,
+    .endo-session-form-head strong,
+    .endo-session-form-head span {
+        display: block;
+    }
+
+    .endo-session-history-head strong,
+    .endo-session-form-head strong {
+        color: hsl(var(--text-main));
+        font-family: var(--font-heading);
+        font-size: 1.05rem;
+    }
+
+    .endo-session-history-head span,
+    .endo-session-form-head span {
+        color: hsl(var(--text-muted));
+        font-size: 0.78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        margin-bottom: 0.2rem;
+    }
+
+    .endo-session-next-pill {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        min-height: 34px;
+        margin: 0 !important;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        background: hsl(var(--primary-soft));
+        color: hsl(var(--primary)) !important;
+        white-space: nowrap;
+    }
+
+    .endo-session-card-list {
+        display: grid;
+        gap: 0.9rem;
+    }
+
+    .endo-session-card {
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-md);
+        background: hsl(var(--surface));
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .endo-session-card.pending {
+        border-color: #fde68a;
+        background: #fffbeb;
+    }
+
+    .endo-session-card-header {
+        padding: 0.9rem 1rem;
+        border-bottom: 1px solid hsl(var(--border));
+        background: #f8fafc;
+    }
+
+    .endo-session-number {
+        width: 68px;
+        height: 58px;
+        border-radius: var(--radius-sm);
+        background: hsl(var(--primary));
+        color: white;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+    }
+
+    .endo-session-number span,
+    .endo-session-number strong {
+        display: block;
+    }
+
+    .endo-session-number span {
+        font-size: 0.62rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        opacity: 0.9;
+    }
+
+    .endo-session-number strong {
+        font-family: var(--font-heading);
+        font-size: 1.25rem;
+        line-height: 1;
+    }
+
+    .endo-session-title {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .endo-session-title strong,
+    .endo-session-title span {
+        display: block;
+    }
+
+    .endo-session-title strong {
+        color: hsl(var(--text-main));
+        font-family: var(--font-heading);
+        font-size: 1rem;
+        line-height: 1.25;
+    }
+
+    .endo-session-title span {
+        color: hsl(var(--text-muted));
+        font-size: 0.85rem;
+        margin-top: 0.2rem;
+    }
+
+    .endo-session-card-body {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+        gap: 1rem;
+        padding: 1rem;
+    }
+
+    .endo-session-main {
+        display: grid;
+        gap: 0.75rem;
+        min-width: 0;
+    }
+
+    .endo-session-text {
+        padding: 0.85rem;
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-sm);
+        background: #fff;
+    }
+
+    .endo-session-text strong,
+    .endo-session-text p,
+    .endo-session-text small {
+        display: block;
+    }
+
+    .endo-session-text strong {
+        color: hsl(var(--text-main));
+        font-size: 0.82rem;
+        margin-bottom: 0.35rem;
+    }
+
+    .endo-session-text p {
+        color: hsl(var(--text-main));
+        line-height: 1.5;
+        margin: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .endo-session-text small {
+        color: hsl(var(--text-muted));
+        line-height: 1.4;
+        margin-top: 0.4rem;
+    }
+
+    .endo-session-aside {
+        display: grid;
+        gap: 0.65rem;
+        align-content: start;
+    }
+
+    .endo-session-aside > div {
+        padding: 0.75rem;
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-sm);
+        background: #fff;
+    }
+
+    .endo-session-aside span,
+    .endo-session-aside strong,
+    .endo-session-aside small {
+        display: block;
+    }
+
+    .endo-session-aside span {
+        color: hsl(var(--text-muted));
+        font-size: 0.66rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        margin-bottom: 0.25rem;
+    }
+
+    .endo-session-aside strong {
+        color: hsl(var(--text-main));
+        line-height: 1.3;
+        font-size: 0.9rem;
+    }
+
+    .endo-session-aside small {
+        color: hsl(var(--text-muted));
+        margin-top: 0.2rem;
+    }
+
+    .endo-session-aside img {
+        max-width: 100%;
+        max-height: 54px;
+        filter: grayscale(1) contrast(1.5);
+    }
+
+    .endo-session-empty,
+    .endo-session-blocked {
+        padding: 1rem;
+        border-radius: var(--radius-md);
+        border: 1px dashed hsl(var(--border));
+        background: hsl(var(--surface));
+        color: hsl(var(--text-muted));
+        text-align: center;
+        font-weight: 700;
+    }
+
+    .endo-session-blocked {
+        border-color: #fecaca;
+        background: #fef2f2;
+        color: #991b1b;
+    }
+
+    .endo-session-form {
+        display: grid;
+        gap: 1rem;
+        padding: 1rem;
+        border: 1px solid hsl(var(--border));
+        border-left: 5px solid hsl(var(--primary));
+        border-radius: var(--radius-md);
+        background: #f8fafc;
+    }
+
+    .endo-session-form-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
+
+    .endo-session-form-grid label,
+    .endo-form-wide {
+        min-width: 0;
+    }
+
+    .endo-session-form-grid label,
+    .endo-protocol-grid label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+    }
+
+    .endo-session-form-grid label span,
+    .endo-session-details summary,
+    .endo-protocol-grid label span {
+        color: #475569;
+        font-size: 0.72rem;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .endo-session-form-grid input,
+    .endo-session-form-grid select,
+    .endo-session-form-grid textarea,
+    .endo-protocol-grid input,
+    .endo-protocol-grid select,
+    .endo-protocol-grid textarea {
+        width: 100%;
+        min-height: 42px;
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-sm);
+        padding: 0.55rem 0.65rem;
+        background: #fff;
+        color: hsl(var(--text-main));
+        font-size: 0.88rem;
+    }
+
+    .endo-session-form-grid textarea,
+    .endo-protocol-grid textarea {
+        resize: vertical;
+        line-height: 1.45;
+    }
+
+    .endo-form-wide {
+        grid-column: 1 / -1;
+    }
+
+    .endo-session-details {
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-md);
+        background: #fff;
+        overflow: hidden;
+    }
+
+    .endo-session-details summary {
+        cursor: pointer;
+        padding: 0.85rem 1rem;
+        background: #eef6ff;
+        color: hsl(var(--primary));
+        list-style-position: inside;
+    }
+
+    .endo-session-details .endo-protocol-grid {
+        padding: 1rem;
+    }
+
+    .endo-session-badge {
+        display: inline-flex;
+        margin-top: 0.45rem;
+        padding: 0.25rem 0.55rem;
+        border-radius: 999px;
+        background: #e0f2fe;
+        color: #075985;
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .endo-session-badge.realizada {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .endo-session-badge.cancelada {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .endo-session-badge.aguardando_retorno {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .endo-session-badge.pendente {
+        background: #f1f5f9;
+        color: #475569;
+    }
+
+    .endo-protocol-alerts {
+        display: grid;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .endo-protocol-alerts span {
+        display: block;
+        padding: 0.75rem 0.9rem;
+        border: 1px solid #fecaca;
+        border-radius: var(--radius-sm);
+        background: #fef2f2;
+        color: #991b1b;
+        font-weight: 800;
+        line-height: 1.35;
+    }
+
+    .endo-restorative-alert {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        border: 1px solid #fed7aa;
+        border-left: 5px solid #ea580c;
+        border-radius: var(--radius-md);
+        background: #fff7ed;
+    }
+
+    .endo-restorative-alert strong,
+    .endo-restorative-alert span {
+        display: block;
+    }
+
+    .endo-restorative-alert strong {
+        color: #9a3412;
+        font-family: var(--font-heading);
+        margin-bottom: 0.25rem;
+    }
+
+    .endo-restorative-alert span {
+        color: #7c2d12;
+        line-height: 1.4;
+        font-size: 0.9rem;
+    }
+
+    .endo-image-upload {
+        padding: 1rem;
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-md);
+        background: #f8fafc;
+        margin-bottom: 1rem;
+    }
+
+    .endo-image-upload-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
+
+    .endo-image-upload-grid label,
+    .endo-image-card {
+        min-width: 0;
+    }
+
+    .endo-image-upload-grid label span {
+        display: block;
+        color: hsl(var(--text-muted));
+        font-size: 0.68rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        margin-bottom: 0.3rem;
+    }
+
+    .endo-image-upload-grid input,
+    .endo-image-upload-grid select,
+    .endo-image-upload-grid textarea {
+        width: 100%;
+        padding: 0.58rem 0.65rem;
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-sm);
+        background: white;
+        color: hsl(var(--text-main));
+        font-size: 0.84rem;
+    }
+
+    .endo-image-upload-grid .full {
+        grid-column: 1 / -1;
+    }
+
+    .endo-image-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 0.9rem;
+        margin-top: 1rem;
+    }
+
+    .endo-image-card {
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-md);
+        background: white;
+        overflow: hidden;
+    }
+
+    .endo-image-card img,
+    .endo-image-file {
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #e0f2fe;
+        color: #075985;
+        object-fit: cover;
+        text-decoration: none;
+        font-weight: 900;
+        cursor: pointer;
+    }
+
+    .endo-image-card div {
+        padding: 0.85rem;
+    }
+
+    .endo-image-card strong,
+    .endo-image-card span,
+    .endo-image-card small {
+        display: block;
+    }
+
+    .endo-image-card strong {
+        color: hsl(var(--text-main));
+        line-height: 1.25;
+        margin-bottom: 0.3rem;
+    }
+
+    .endo-image-card span {
+        color: hsl(var(--primary));
+        font-weight: 800;
+        font-size: 0.78rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .endo-image-card small,
+    .endo-image-empty {
+        color: hsl(var(--text-muted));
+        line-height: 1.4;
+        font-size: 0.82rem;
+    }
+
+    .endo-image-empty {
+        padding: 1.2rem;
+        border: 1px dashed hsl(var(--border));
+        border-radius: var(--radius-md);
+        text-align: center;
+        background: #fff;
+    }
+
+    .endo-proservation-list {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .endo-proservation-card {
+        border: 1px solid hsl(var(--border));
+        border-left: 5px solid #64748b;
+        border-radius: var(--radius-md);
+        background: white;
+        padding: 1rem;
+    }
+
+    .endo-proservation-card.sucesso {
+        border-left-color: #16a34a;
+    }
+
+    .endo-proservation-card.duvida {
+        border-left-color: #ca8a04;
+    }
+
+    .endo-proservation-card.insucesso {
+        border-left-color: #dc2626;
+    }
+
+    .endo-proservation-head,
+    .endo-proservation-result {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 0.85rem;
+    }
+
+    .endo-proservation-head strong,
+    .endo-proservation-head span,
+    .endo-proservation-result strong,
+    .endo-proservation-result span,
+    .endo-proservation-result small {
+        display: block;
+    }
+
+    .endo-proservation-head strong,
+    .endo-proservation-result strong {
+        color: hsl(var(--text-main));
+        font-family: var(--font-heading);
+    }
+
+    .endo-proservation-head span,
+    .endo-proservation-result span,
+    .endo-proservation-result small {
+        color: hsl(var(--text-muted));
+        line-height: 1.4;
+        font-size: 0.86rem;
+    }
+
+    .endo-proservation-status {
+        border-radius: 999px;
+        padding: 0.28rem 0.6rem;
+        background: hsl(var(--primary-soft));
+        color: hsl(var(--primary)) !important;
+        font-weight: 900;
+        text-transform: uppercase;
+        font-size: 0.68rem !important;
+        white-space: nowrap;
+    }
+
+    .endo-proservation-form {
+        border-top: 1px solid hsl(var(--border));
+        padding-top: 0.9rem;
+    }
+
+    .endo-proservation-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.65rem;
+    }
+
+    .endo-proservation-grid.notes {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-top: 0.75rem;
+    }
+
+    .endo-proservation-grid label {
+        min-width: 0;
+    }
+
+    .endo-proservation-grid label span {
+        display: block;
+        color: hsl(var(--text-muted));
+        font-size: 0.68rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        margin-bottom: 0.3rem;
+    }
+
+    .endo-proservation-grid input,
+    .endo-proservation-grid select,
+    .endo-proservation-grid textarea {
+        width: 100%;
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-sm);
+        padding: 0.55rem;
+        background: white;
+        color: hsl(var(--text-main));
+        font-size: 0.84rem;
+    }
+
+    .endo-proservation-checks {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+        margin-top: 0.75rem;
+    }
+
+    .endo-proservation-checks fieldset {
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-md);
+        padding: 0.8rem;
+        margin: 0;
+        background: #f8fafc;
+    }
+
+    .endo-proservation-checks legend {
+        padding: 0 0.35rem;
+        color: hsl(var(--primary));
+        font-size: 0.78rem;
+        font-weight: 900;
+    }
+
+    .endo-proservation-checks label {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        color: hsl(var(--text-main));
+        font-size: 0.86rem;
+        margin-top: 0.45rem;
+    }
+
+    .endo-proservation-checks input {
+        width: 16px;
+        height: 16px;
+        flex: 0 0 auto;
+    }
+
+    .endo-budget-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-md);
+        background: #f8fafc;
+        margin-bottom: 1rem;
+    }
+
+    .endo-budget-actions strong,
+    .endo-budget-actions span {
+        display: block;
+    }
+
+    .endo-budget-actions strong {
+        color: hsl(var(--text-main));
+        font-family: var(--font-heading);
+        margin-bottom: 0.25rem;
+    }
+
+    .endo-budget-actions span {
+        color: hsl(var(--text-muted));
+        line-height: 1.4;
+        font-size: 0.9rem;
+    }
+
+    .endo-budget-table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-md);
+    }
+
+    .endo-budget-table {
+        width: 100%;
+        min-width: 1050px;
+        border-collapse: collapse;
+        background: white;
+    }
+
+    .endo-budget-table th,
+    .endo-budget-table td {
+        padding: 0.75rem;
+        border-bottom: 1px solid hsl(var(--border));
+        text-align: left;
+        vertical-align: top;
+        font-size: 0.84rem;
+    }
+
+    .endo-budget-table th {
+        color: hsl(var(--text-muted));
+        font-size: 0.68rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        background: #f8fafc;
+    }
+
+    .endo-budget-table small {
+        display: block;
+        color: hsl(var(--text-muted));
+        line-height: 1.35;
+        margin-top: 0.2rem;
+        max-width: 240px;
+    }
+
+    .endo-protocol-readout {
+        margin-top: 0.65rem;
+        padding: 0.7rem 0.8rem;
+        border: 1px solid #bfdbfe;
+        border-radius: var(--radius-sm);
+        background: #eff6ff;
+        color: #1e3a8a;
+        font-size: 0.82rem;
+    }
+
+    .endo-protocol-readout strong,
+    .endo-protocol-readout span {
+        display: block;
+    }
+
+    .endo-protocol-readout strong {
+        margin-bottom: 0.25rem;
+        color: #0f172a;
+    }
+
+    .endo-protocol-readout span + span {
+        margin-top: 0.2rem;
+    }
+
+    .endo-obturation-readout {
+        margin-top: 0.65rem;
+        padding: 0.7rem 0.8rem;
+        border: 1px solid #fed7aa;
+        border-radius: var(--radius-sm);
+        background: #fff7ed;
+        color: #9a3412;
+        font-size: 0.82rem;
+    }
+
+    .endo-obturation-readout strong,
+    .endo-obturation-readout span {
+        display: block;
+    }
+
+    .endo-obturation-readout strong {
+        margin-bottom: 0.25rem;
+        color: #0f172a;
+    }
+
+    .endo-obturation-readout span + span {
+        margin-top: 0.2rem;
+    }
+
+    .endo-protocol-form,
+    .endo-obturation-form {
+        margin-top: 0.75rem;
+        padding: 0.75rem;
+        border: 1px solid #dbeafe;
+        border-radius: var(--radius-sm);
+        background: #f8fbff;
+    }
+
+    .endo-obturation-form {
+        border-color: #fed7aa;
+        background: #fffaf5;
+    }
+
+    .endo-protocol-form > strong,
+    .endo-obturation-form > strong {
+        display: block;
+        margin-bottom: 0.55rem;
+        color: #0f172a;
+        font-size: 0.85rem;
+    }
+
+    .endo-protocol-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.5rem;
+    }
+
+    .endo-protocol-grid label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        min-width: 0;
+    }
+
+    .endo-protocol-grid label span {
+        color: #475569;
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .endo-protocol-grid input,
+    .endo-protocol-grid select {
+        width: 100%;
+        min-height: 38px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 0.45rem;
+        background: #fff;
+        color: #0f172a;
+        font-size: 0.85rem;
+    }
+
+    .endo-protocol-check {
+        justify-content: end;
+        flex-direction: row !important;
+        align-items: center;
+        min-height: 58px;
+    }
+
+    .endo-protocol-check input {
+        width: 18px;
+        min-height: 18px;
+    }
+
+    .endo-risk-empty {
+        padding: 1rem;
+        border-radius: var(--radius-md);
+        border: 1px dashed hsl(var(--border));
+        background: hsl(var(--bg-main));
+    }
+
+    .endo-diagnosis-banner {
+        padding: 1rem;
+        border-radius: var(--radius-md);
+        margin-bottom: 1rem;
+        border-left: 5px solid hsl(var(--warning));
+        background: #fffbeb;
+    }
+
+    .endo-diagnosis-banner.blocked {
+        border-left-color: hsl(var(--danger));
+        background: #fef2f2;
+    }
+
+    .endo-diagnosis-banner strong,
+    .endo-diagnosis-banner span {
+        display: block;
+    }
+
+    .endo-diagnosis-banner strong {
+        color: hsl(var(--text-main));
+        margin-bottom: 0.25rem;
+    }
+
+    .endo-diagnosis-banner span {
+        color: hsl(var(--text-muted));
+        line-height: 1.45;
+    }
+
+    .endo-diagnosis-summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.75rem;
+        margin: 1rem 0;
+    }
+
+    .endo-diagnosis-summary > div {
+        padding: 0.95rem 1rem;
+        border-radius: var(--radius-md);
+        border: 1px solid hsl(var(--border));
+        background: hsl(var(--bg-main));
+    }
+
+    .endo-diagnosis-summary span,
+    .endo-diagnosis-summary strong {
+        display: block;
+    }
+
+    .endo-diagnosis-summary span {
+        color: hsl(var(--text-muted));
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        margin-bottom: 0.25rem;
+    }
+
+    .endo-diagnosis-summary strong {
+        color: hsl(var(--text-main));
+        font-family: var(--font-heading);
+        font-size: 1rem;
+    }
+
+    .endo-input-grid,
+    .endo-clinical-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .endo-input-grid.compact {
+        grid-template-columns: 1fr;
+    }
+
+    .endo-checkbox-columns {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+
+    .endo-checkbox-columns fieldset,
+    .endo-mini-card {
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-md);
+        background: hsl(var(--bg-main));
+        padding: 1rem;
+    }
+
+    .endo-checkbox-columns legend,
+    .endo-mini-card h3 {
+        color: hsl(var(--text-main));
+        font-family: var(--font-heading);
+        font-size: 0.95rem;
+        font-weight: 800;
+        margin-bottom: 0.75rem;
+    }
+
+    .endo-checkbox-columns label,
+    .endo-check-grid label {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        min-height: 34px;
+        color: hsl(var(--text-main));
+        font-size: 0.92rem;
+    }
+
+    .endo-checkbox-columns input,
+    .endo-check-grid input {
+        width: 18px;
+        height: 18px;
+        flex: 0 0 auto;
+    }
+
+    .endo-check-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.35rem 0.75rem;
+        margin-bottom: 1rem;
+    }
+
     .modal-overlay {
         position: fixed;
         top: 0;
@@ -431,6 +3203,73 @@
     input:focus,
     textarea:focus {
         background: #fffef0;
+    }
+
+    @media (max-width: 860px) {
+        .endo-context-grid,
+        .endo-session-summary {
+            grid-template-columns: 1fr;
+        }
+
+        .endo-linked-risk-card,
+        .endo-section-heading,
+        .endo-session-history-head,
+        .endo-session-card-header,
+        .endo-session-form-head {
+            align-items: stretch;
+        }
+
+        .endo-linked-risk-card {
+            flex-direction: column;
+        }
+
+        .endo-linked-risk-card,
+        .endo-checkbox-columns,
+        .endo-input-grid,
+        .endo-clinical-grid,
+        .endo-diagnosis-summary,
+        .endo-session-card-body,
+        .endo-session-form-grid,
+        .endo-protocol-grid,
+        .endo-image-upload-grid,
+        .endo-proservation-grid,
+        .endo-proservation-grid.notes,
+        .endo-proservation-checks {
+            grid-template-columns: 1fr;
+        }
+
+        .endo-session-history-head,
+        .endo-session-card-header,
+        .endo-session-form-head {
+            flex-direction: column;
+        }
+
+        .endo-session-form-head .btn {
+            width: 100%;
+        }
+
+        .endo-restorative-alert,
+        .endo-proservation-head,
+        .endo-proservation-result,
+        .endo-budget-actions {
+            align-items: stretch;
+            flex-direction: column;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .modal-content {
+            width: calc(100% - 2rem);
+        }
+
+        .endo-form-section,
+        .endo-mini-card {
+            padding: 1rem;
+        }
+
+        .endo-check-grid {
+            grid-template-columns: 1fr;
+        }
     }
 
     @media print {

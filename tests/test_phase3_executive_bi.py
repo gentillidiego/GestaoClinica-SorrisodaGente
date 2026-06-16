@@ -14,8 +14,11 @@ from services.executive_bi_service import (
 
 def test_bi_permission_is_available_to_bi_roles():
     assert role_has_permission(Role.ADMIN, 'bi:view')
+    assert role_has_permission(Role.COORDENACAO, 'bi:view')
+    assert role_has_permission(Role.SSA_SMS, 'bi:view')
+    assert role_has_permission(Role.COMUNICACAO, 'bi:view')
     assert role_has_permission(Role.BI, 'bi:view')
-    assert role_has_permission(Role.EPIDEMIOLOGIA, 'bi:view') is False
+    assert role_has_permission(Role.EPIDEMIOLOGIA, 'bi:view')
     assert role_has_permission(Role.RECEPCAO, 'bi:view') is False
 
 

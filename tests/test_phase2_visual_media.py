@@ -2,10 +2,12 @@ import datetime as dt
 
 import services.visual_media_service as visual_media_service
 from services.visual_media_service import (
+    build_endodontia_image_metadata,
     build_comparison_groups,
     get_patient_visual_media_summary,
     normalize_comparison_label,
     normalize_visual_category,
+    update_endodontia_image_metadata,
     update_exam_image_metadata,
 )
 
@@ -13,6 +15,8 @@ from services.visual_media_service import (
 def test_visual_media_normalizes_categories_and_comparison_labels():
     assert normalize_visual_category('Radiografias') == 'radiografia'
     assert normalize_visual_category('Antes Depois') == 'antes_depois'
+    assert normalize_visual_category('Prova de cone') == 'prova_cone'
+    assert normalize_visual_category('Tomografia CBCT') == 'cbct'
     assert normalize_visual_category('valor desconhecido') == 'radiografia'
 
     assert normalize_comparison_label('Pré') == 'antes'
@@ -69,6 +73,45 @@ def test_visual_media_summary_merges_exam_images_and_lesion_photos(monkeypatch):
     assert summary['visual_comparisons'][0]['title'] == 'Caso 42'
 
 
+def test_visual_media_summary_includes_endodontia_images(monkeypatch):
+    def fake_query(sql, params=(), one=False):
+        assert params == (42,)
+        if 'FROM endodontia_imagens' in sql:
+            return [{
+                'source_type': 'endodontia_image',
+                'source_id': 13,
+                'patient_id': 42,
+                'endodontia_id': 8,
+                'followup_id': 3,
+                'filename': 'final_36.webp',
+                'file_path': 'uploads/endodontia/final_36.webp',
+                'visual_category': 'final_qualidade',
+                'caption': 'Radiografia final dente 36',
+                'clinical_context': 'Controle de qualidade aprovado',
+                'comparison_label': 'controle',
+                'comparison_group': 'Endodontia dente 36',
+                'taken_at': dt.datetime(2026, 6, 12, 11, 0),
+                'uploaded_at': dt.datetime(2026, 6, 12, 11, 5),
+                'elemento_dentario': '36',
+                'canal': 'D',
+                'equipamento': 'Sensor digital',
+                'numero_sessao': 4,
+            }]
+        return []
+
+    monkeypatch.setattr(visual_media_service, 'query', fake_query)
+
+    summary = get_patient_visual_media_summary(42)
+
+    assert summary['visual_stats']['total'] == 1
+    assert summary['visual_stats']['endodontia'] == 1
+    assert summary['visual_groups'][0]['slug'] == 'final_qualidade'
+    item = summary['visual_groups'][0]['items'][0]
+    assert item['source_label'] == 'Endodontia'
+    assert item['visual_category_label'] == 'Final de qualidade'
+    assert item['is_previewable'] is True
+
+
 def test_comparison_groups_require_same_group_and_order_by_visual_stage():
     items = [
         {'comparison_group': 'Lesão A', 'comparison_label': 'depois', 'taken_at': dt.datetime(2026, 6, 20)},
@@ -115,4 +158,64 @@ def test_update_exam_image_metadata_validates_patient_and_persists(monkeypatch):
         'Sorriso inicial',
         '2026-06-03T10:00',
         99,
+    )
+
+
+def test_endodontia_image_metadata_normalizes_e7_fields():
+    metadata = build_endodontia_image_metadata({
+        'visual_category': 'Proservação 1 ano',
+        'caption': 'Controle de 1 ano',
+        'anotacao_clinica': 'Sem rarefação apical.',
+        'comparison_label': 'controle',
+        'comparison_group': 'Endodontia dente 36',
+        'taken_at': '2026-06-12T11:00',
+        'canal': ' D ',
+        'equipamento': ' Sensor digital ',
+    })
+
+    assert metadata['visual_category'] == 'proservacao_1a'
+    assert metadata['caption'] == 'Controle de 1 ano'
+    assert metadata['clinical_context'] == 'Sem rarefação apical.'
+    assert metadata['comparison_label'] == 'controle'
+    assert metadata['canal'] == 'D'
+    assert metadata['equipamento'] == 'Sensor digital'
+
+
+def test_update_endodontia_image_metadata_persists_case_fields(monkeypatch):
+    executed = {}
+
+    def fake_query(sql, params=(), one=False):
+        assert params == (13, 42)
+        assert one is True
+        return {'id': 13, 'endodontia_id': 8, 'patient_id': 42}
+
+    def fake_execute(sql, params=()):
+        executed['sql'] = sql
+        executed['params'] = params
+
+    monkeypatch.setattr(visual_media_service, 'query', fake_query)
+    monkeypatch.setattr(visual_media_service, 'execute', fake_execute)
+
+    record = update_endodontia_image_metadata(13, 42, {
+        'visual_category': 'final_qualidade',
+        'caption': 'Radiografia final',
+        'clinical_context': 'Controle aprovado',
+        'comparison_label': 'controle',
+        'comparison_group': 'Endodontia dente 36',
+        'taken_at': '2026-06-12T11:00',
+        'canal': 'MV',
+        'equipamento': 'Sensor Schick',
+    })
+
+    assert record['endodontia_id'] == 8
+    assert executed['params'] == (
+        'final_qualidade',
+        'Radiografia final',
+        'Controle aprovado',
+        'controle',
+        'Endodontia dente 36',
+        '2026-06-12T11:00',
+        'MV',
+        'Sensor Schick',
+        13,
     )

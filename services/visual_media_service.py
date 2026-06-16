@@ -6,6 +6,16 @@ from database import execute, query
 
 VISUAL_CATEGORIES = [
     ('radiografia', 'Radiografia'),
+    ('periapical_inicial', 'Periapical inicial'),
+    ('odontometria', 'Odontometria'),
+    ('prova_cone', 'Prova de cone'),
+    ('final_qualidade', 'Final de qualidade'),
+    ('proservacao_6m', 'Proservação 6m'),
+    ('proservacao_1a', 'Proservação 1a'),
+    ('proservacao_2a', 'Proservação 2a'),
+    ('proservacao_4a', 'Proservação 4a'),
+    ('cbct', 'CBCT'),
+    ('endodontia_outra', 'Endodontia outra'),
     ('lesao', 'Lesão'),
     ('antes_depois', 'Antes/Depois'),
     ('evolucao', 'Evolução'),
@@ -30,6 +40,26 @@ _CATEGORY_ALIASES = {
     'raiox': 'radiografia',
     'lesoes': 'lesao',
     'lesao_bucal': 'lesao',
+    'periapical': 'periapical_inicial',
+    'periapical_inicial': 'periapical_inicial',
+    'rx_inicial': 'periapical_inicial',
+    'raio_x_inicial': 'periapical_inicial',
+    'prova_de_cone': 'prova_cone',
+    'prova cone': 'prova_cone',
+    'final': 'final_qualidade',
+    'final_qualidade': 'final_qualidade',
+    'radiografia_final': 'final_qualidade',
+    'proservacao_6_meses': 'proservacao_6m',
+    'proservacao_12m': 'proservacao_1a',
+    'proservacao_1_ano': 'proservacao_1a',
+    'proservacao_24m': 'proservacao_2a',
+    'proservacao_2_anos': 'proservacao_2a',
+    'proservacao_48m': 'proservacao_4a',
+    'proservacao_4_anos': 'proservacao_4a',
+    'tomografia': 'cbct',
+    'tomografia_cbct': 'cbct',
+    'endodontia': 'endodontia_outra',
+    'endo_outra': 'endodontia_outra',
     'antesdepois': 'antes_depois',
     'antes_depois': 'antes_depois',
     'antes depois': 'antes_depois',
@@ -59,6 +89,7 @@ _COMPARISON_ORDER = {
     'pos_operatorio': 5,
     'depois': 6,
 }
+_PREVIEWABLE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
 
 
 def _slug(value):
@@ -133,6 +164,25 @@ def get_visual_category_options():
     return VISUAL_CATEGORIES
 
 
+def get_endodontia_image_category_options():
+    return [
+        (value, label)
+        for value, label in VISUAL_CATEGORIES
+        if value in {
+            'periapical_inicial',
+            'odontometria',
+            'prova_cone',
+            'final_qualidade',
+            'proservacao_6m',
+            'proservacao_1a',
+            'proservacao_2a',
+            'proservacao_4a',
+            'cbct',
+            'endodontia_outra',
+        }
+    ]
+
+
 def get_comparison_label_options():
     return COMPARISON_LABELS
 
@@ -164,15 +214,48 @@ def build_estomatologia_photo_metadata(form_data):
     return metadata
 
 
+def build_endodontia_image_metadata(form_data):
+    metadata = _metadata_from_form(form_data, 'periapical_inicial', 'diagnostico')
+    metadata['clinical_context'] = _clean_text(
+        form_data.get('clinical_context') or form_data.get('anotacao_clinica')
+    )
+    metadata['canal'] = _clean_text(form_data.get('canal'))
+    metadata['equipamento'] = _clean_text(form_data.get('equipamento'))
+    return metadata
+
+
+def is_previewable_visual_file(filename):
+    lowered = str(filename or '').lower()
+    return any(lowered.endswith(ext) for ext in _PREVIEWABLE_EXTENSIONS)
+
+
+def _file_extension_label(filename):
+    value = str(filename or '').strip().lower()
+    if '.' not in value:
+        return 'arquivo'
+    return value.rsplit('.', 1)[-1].upper()
+
+
 def _decorate_item(raw_item):
     item = dict(raw_item)
+    source_type = item.get('source_type')
+    if source_type == 'estomatologia_photo':
+        default_category = 'lesao'
+        source_label = 'Estomatologia'
+    elif source_type == 'endodontia_image':
+        default_category = 'periapical_inicial'
+        source_label = 'Endodontia'
+    else:
+        default_category = 'radiografia'
+        source_label = 'Exame de imagem'
+
     category = normalize_visual_category(
         item.get('visual_category'),
-        'lesao' if item.get('source_type') == 'estomatologia_photo' else 'radiografia',
+        default_category,
     )
     comparison = normalize_comparison_label(
         item.get('comparison_label'),
-        'evolucao' if item.get('source_type') == 'estomatologia_photo' else 'diagnostico',
+        'evolucao' if source_type == 'estomatologia_photo' else 'diagnostico',
     )
     item['visual_category'] = category
     item['visual_category_label'] = _CATEGORY_LABELS[category]
@@ -183,11 +266,9 @@ def _decorate_item(raw_item):
     item['clinical_context'] = _clean_text(item.get('clinical_context'))
     item['taken_at_input'] = _format_datetime_input(item.get('taken_at') or item.get('uploaded_at'))
     item['taken_at_display'] = _format_datetime_display(item.get('taken_at') or item.get('uploaded_at'))
-    item['source_label'] = (
-        'Estomatologia'
-        if item.get('source_type') == 'estomatologia_photo'
-        else 'Exame de imagem'
-    )
+    item['source_label'] = source_label
+    item['is_previewable'] = is_previewable_visual_file(item.get('filename') or item.get('file_path'))
+    item['file_extension_label'] = _file_extension_label(item.get('filename') or item.get('file_path'))
     return item
 
 
@@ -256,8 +337,50 @@ def list_patient_visual_media(patient_id):
         """,
         (patient_id,),
     )
+    endodontia_images = query(
+        """
+        SELECT
+            'endodontia_image' AS source_type,
+            img.id AS source_id,
+            img.patient_id,
+            img.endodontia_id,
+            img.followup_id,
+            img.filename,
+            img.file_path,
+            img.visual_category,
+            COALESCE(NULLIF(img.caption, ''), img.filename) AS caption,
+            img.clinical_context,
+            img.comparison_label,
+            img.comparison_group,
+            COALESCE(img.taken_at, img.created_at) AS taken_at,
+            img.created_at AS uploaded_at,
+            img.uploaded_by,
+            u.username AS uploaded_by_username,
+            u.full_name AS uploaded_by_full_name,
+            e.elemento_dentario,
+            img.canal,
+            img.equipamento,
+            f.numero_sessao
+        FROM endodontia_imagens img
+        JOIN endodontia e ON e.id = img.endodontia_id
+        LEFT JOIN endodontia_followup f ON f.id = img.followup_id
+        LEFT JOIN users u ON u.id = img.uploaded_by
+        WHERE img.patient_id = %s
+          AND COALESCE(img.active, TRUE) = TRUE
+          AND e.cancelado_em IS NULL
+          AND COALESCE(e.status, 'Ativo') != 'Cancelado'
+        """,
+        (patient_id,),
+    )
 
-    items = [_decorate_item(row) for row in [*exam_images, *lesion_photos]]
+    items = [
+        _decorate_item(row)
+        for row in [
+            *(exam_images or []),
+            *(lesion_photos or []),
+            *(endodontia_images or []),
+        ]
+    ]
     return sorted(
         items,
         key=lambda item: _as_datetime(item.get('taken_at')) or dt.datetime.min,
@@ -307,6 +430,7 @@ def get_patient_visual_media_summary(patient_id):
         'total': len(items),
         'radiografias': sum(1 for item in items if item['visual_category'] == 'radiografia'),
         'lesoes': sum(1 for item in items if item['visual_category'] == 'lesao'),
+        'endodontia': sum(1 for item in items if item['source_type'] == 'endodontia_image'),
         'comparativos': len(build_comparison_groups(items)),
     }
     return {
@@ -356,6 +480,53 @@ def update_exam_image_metadata(arquivo_id, patient_id, form_data):
             metadata['comparison_group'],
             metadata['taken_at'] or '',
             arquivo_id,
+        ),
+    )
+    return dict(record)
+
+
+def update_endodontia_image_metadata(image_id, patient_id, form_data):
+    record = query(
+        """
+        SELECT id, endodontia_id, patient_id
+        FROM endodontia_imagens
+        WHERE id = %s
+          AND patient_id = %s
+          AND COALESCE(active, TRUE) = TRUE
+        """,
+        (image_id, patient_id),
+        one=True,
+    )
+    if not record:
+        return None
+
+    metadata = build_endodontia_image_metadata(form_data)
+    if not metadata['caption']:
+        raise ValueError('A legenda da imagem endodôntica é obrigatória.')
+
+    execute(
+        """
+        UPDATE endodontia_imagens
+        SET visual_category = %s,
+            caption = %s,
+            clinical_context = %s,
+            comparison_label = %s,
+            comparison_group = %s,
+            taken_at = NULLIF(%s, '')::timestamp,
+            canal = %s,
+            equipamento = %s
+        WHERE id = %s
+        """,
+        (
+            metadata['visual_category'],
+            metadata['caption'],
+            metadata['clinical_context'],
+            metadata['comparison_label'],
+            metadata['comparison_group'],
+            metadata['taken_at'] or '',
+            metadata['canal'],
+            metadata['equipamento'],
+            image_id,
         ),
     )
     return dict(record)

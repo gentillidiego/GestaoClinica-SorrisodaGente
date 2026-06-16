@@ -1,81 +1,401 @@
+<section class="endo-module">
+    {% set unsigned_items = clinical_alerts.unsigned_documents['items'] if clinical_alerts else [] %}
+    {% set endodontia_pending = unsigned_items|selectattr('document_type', 'equalto', 'endodontia_followup')|list %}
+    {% set endo_status_labels = {
+        'aguardando_inicio': 'Aguardando início',
+        'em_andamento': 'Em andamento',
+        'aguardando_retorno': 'Aguardando retorno',
+        'obturado_aguardando_restauracao': 'Obturado aguardando restauração',
+        'concluido': 'Concluído',
+        'abandono': 'Abandono',
+        'retratamento_necessario': 'Retratamento necessário'
+    } %}
 
-    <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-            <h3 style="font-family: var(--font-heading); font-size: 1.25rem; color: hsl(var(--primary));">
-                🦷 Acompanhamento de Endodontia</h3>
+    <div class="endo-header">
+        <div>
+            <span class="endo-kicker">Prontuário odontológico</span>
+            <h3>Acompanhamento de Endodontia</h3>
+            <p>
+                Controle por elemento dentário, com ficha técnica, canais, evoluções e validações clínicas.
+                A anamnese sistêmica permanece vinculada à aba própria do prontuário.
+            </p>
         </div>
-
-        <!-- Formulário para adicionar novo elemento -->
-        <div
-            style="margin-bottom: 2rem; background: hsl(var(--bg-main)); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid hsl(var(--border));">
-            <h4 style="font-size: 0.95rem; font-weight: 700; color: hsl(var(--text-main)); margin-bottom: 1rem;">
-                Iniciar Novo Acompanhamento</h4>
-            <form action="{{ url_for('endodontia.add_element', patient_id=patient.id) }}" method="POST"
-                style="display: grid; grid-template-columns: 1fr auto; gap: 1rem; align-items: end;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div>
-                    <label class="form-label" style="font-size: 0.8rem;">Elemento Dentário (Nº)</label>
-                    <input type="text" name="elemento_dentario" class="form-control" placeholder="Ex: 11, 26, 48..."
-                        required>
-                </div>
-                <div>
-                    <button type="submit" class="btn btn-primary" style="height: 48px; padding: 0 1.5rem;">➕
-                        Adicionar Elemento</button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Lista de Elementos (Cards) -->
-        <div
-            style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 1rem;">
-            {% if endodontia_elements %}
-            {% for element in endodontia_elements %}
-            <div class="card"
-                style="padding: 1.5rem; border: 1.5px solid hsl(var(--border) / 0.8); display: flex; flex-direction: column; transition: all 0.2s; position: relative;"
-                onmouseover="this.style.borderColor='hsl(var(--primary)/0.4)'; this.style.boxShadow='var(--shadow-md)';"
-                onmouseout="this.style.borderColor='hsl(var(--border)/0.8)'; this.style.boxShadow='var(--shadow-sm)';">
-                <div
-                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                        <div
-                            style="width: 40px; height: 40px; background: hsl(var(--primary)/0.1); color: hsl(var(--primary)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem;">
-                            {{ element.elemento_dentario }}
-                        </div>
-                        <div>
-                            <h4 style="font-size: 1rem; font-weight: 700; margin: 0; color: hsl(var(--text-main));">
-                                Dente {{ element.elemento_dentario }}</h4>
-                            <span style="font-size: 0.75rem; color: hsl(var(--text-muted));">Iniciado em {{
-                                (element.criado_em|string).split(' ')[0] }}</span>
-                        </div>
-                    </div>
-                    <span class="badge {{ 'badge-success' if element.status == 'Concluído' else 'badge-primary' }}"
-                        style="font-size: 0.65rem;">
-                        {{ element.status|upper }}
-                    </span>
-                </div>
-
-                <div style="margin-bottom: 1.5rem; font-size: 0.85rem; color: hsl(var(--text-muted));">
-                    <strong>Profissional:</strong> {{ element.aluno_nome }}
-                </div>
-
-                <div style="display: flex; gap: 0.5rem; margin-top: auto;">
-                    <a href="{{ url_for('endodontia.followup', endo_id=element.id) }}" class="btn btn-primary"
-                        style="flex: 2; font-size: 0.85rem; justify-content: center;">
-                        👁️ Acompanhamento
-                    </a>
-                    <button type="button" class="btn btn-outline"
-                        style="flex: 1; justify-content: center; color: hsl(var(--danger)); border-color: hsl(var(--danger));"
-                        onclick="openDeleteEndoModal('{{ url_for('endodontia.delete_element', endo_id=element.id) }}', '{{ element.elemento_dentario }}')">
-                        🗑️
-                    </button>
-                </div>
-            </div>
-            {% endfor %}
+        <div class="endo-status-stack">
+            <span class="endo-status-chip">{{ endodontia_elements|length if endodontia_elements else 0 }} caso(s) ativo(s)</span>
+            {% if endodontia_pending %}
+            <span class="endo-status-chip warning">{{ endodontia_pending|length }} assinatura(s) pendente(s)</span>
             {% else %}
-            <div
-                style="grid-column: 1 / -1; padding: 3rem; text-align: center; color: hsl(var(--text-muted)); background: hsl(var(--bg-main)); border-radius: var(--radius-md);">
-                <p style="margin: 0;">Nenhum dente em acompanhamento endodôntico.</p>
-            </div>
+            <span class="endo-status-chip success">Sem pendência local</span>
             {% endif %}
         </div>
     </div>
+
+    {% if endodontia_pending %}
+    <div class="endo-alert warning">
+        <strong>Evoluções endodônticas com assinatura pendente</strong>
+        <span>{{ endodontia_pending|length }} evolução(ões) precisam de assinatura do paciente ou validação do dentista responsável.</span>
+    </div>
+    {% endif %}
+
+    <div class="endo-setup-grid">
+        <div class="endo-panel">
+            <div class="endo-panel-title">
+                <span>01</span>
+                <div>
+                    <h4>Iniciar acompanhamento</h4>
+                    <p>Abra um caso por dente. O sistema preserva o histórico mesmo quando o acompanhamento é cancelado.</p>
+                </div>
+            </div>
+            <form action="{{ url_for('endodontia.add_element', patient_id=patient.id) }}" method="POST" class="endo-start-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label class="form-label">Elemento dentário</label>
+                    <input type="text" name="elemento_dentario" class="form-control" placeholder="Ex: 11, 26, 48" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Adicionar</button>
+            </form>
+        </div>
+
+        <div class="endo-panel linked">
+            <div class="endo-panel-title">
+                <span>02</span>
+                <div>
+                    <h4>Anamnese vinculada</h4>
+                    {% if linked_anamnesis %}
+                    <p>Última anamnese encontrada neste prontuário. Use-a como fonte para riscos sistêmicos, alergias e medicações.</p>
+                    {% else %}
+                    <p>Nenhuma anamnese foi encontrada. Registre a anamnese antes de avançar em condutas clínicas complexas.</p>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="endo-anamnesis-summary">
+                <span class="endo-status-chip {{ 'success' if linked_anamnesis else 'warning' }}">
+                    {{ 'Anamnese registrada' if linked_anamnesis else 'Anamnese pendente' }}
+                </span>
+                {% if linked_anamnesis %}
+                <small>
+                    Registrada em
+                    {{ linked_anamnesis.data_anamnese.strftime('%d/%m/%Y') if linked_anamnesis.data_anamnese else 'data não informada' }}
+                </small>
+                {% endif %}
+            </div>
+            <a href="#tab-anamnese" class="btn btn-outline" onclick="handleTabClick(event, 'tab-anamnese')">
+                Abrir anamnese
+            </a>
+        </div>
+    </div>
+
+    <div class="endo-cases-header">
+        <div>
+            <h4>Casos ativos</h4>
+            <p>Cartões resumem cada elemento em acompanhamento. A tela completa mantém a ficha técnica e evolução.</p>
+        </div>
+    </div>
+
+    {% if endodontia_elements %}
+    <div class="endo-case-grid">
+        {% for element in endodontia_elements %}
+        <article class="endo-case-card">
+            <div class="endo-case-main">
+                <div class="endo-tooth-badge">{{ element.elemento_dentario }}</div>
+                <div>
+                    <span class="endo-kicker">Elemento</span>
+                    <h5>Dente {{ element.elemento_dentario }}</h5>
+                    <p>
+                        Responsável:
+                        <strong>{{ element.profissional_nome or element.profissional_username or 'Não informado' }}</strong>
+                    </p>
+                </div>
+            </div>
+
+            <div class="endo-case-meta">
+                <span class="endo-status-chip {{ 'success' if element.status_tratamento == 'concluido' else '' }}">
+                    {{ endo_status_labels.get(element.status_tratamento or 'aguardando_inicio', 'Aguardando início') }}
+                </span>
+                {% if element.proxima_sessao_prevista %}
+                <span>
+                    Próxima sessão:
+                    {{ element.proxima_sessao_prevista.strftime('%d/%m/%Y') if element.proxima_sessao_prevista else 'data não informada' }}
+                </span>
+                {% endif %}
+                {% if element.restauracao_definitiva_registrada %}
+                <span>
+                    Restauração definitiva:
+                    {{ element.restauracao_definitiva_material or 'registrada' }}
+                </span>
+                {% elif element.status_tratamento == 'obturado_aguardando_restauracao' %}
+                <span>Restauração definitiva pendente</span>
+                {% endif %}
+                {% if element.diagnostico %}
+                <span title="{{ element.diagnostico }}">Diagnóstico livre registrado</span>
+                {% else %}
+                <span>Diagnóstico estruturado pendente</span>
+                {% endif %}
+                <span>
+                    Iniciado em
+                    {{ element.criado_em.strftime('%d/%m/%Y') if element.criado_em else 'data não informada' }}
+                </span>
+            </div>
+
+            <div class="endo-case-actions">
+                <a href="{{ url_for('endodontia.followup', endo_id=element.id) }}" class="btn btn-primary">Acompanhar</a>
+                <button type="button"
+                    class="btn btn-outline endo-danger-action"
+                    onclick="openDeleteEndoModal('{{ url_for('endodontia.delete_element', endo_id=element.id) }}', '{{ element.elemento_dentario }}')">
+                    Cancelar
+                </button>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="endo-empty-state">
+        <h4>Nenhum dente em acompanhamento endodôntico</h4>
+        <p>Comece pelo elemento dentário. Depois, a ficha completa poderá receber canais, evolução, assinatura e validação clínica.</p>
+    </div>
+    {% endif %}
+</section>
+
+<style>
+    .endo-module {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .endo-header,
+    .endo-panel,
+    .endo-case-card,
+    .endo-empty-state {
+        background: hsl(var(--surface));
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .endo-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 1.5rem;
+        padding: 1.5rem;
+        border-left: 5px solid hsl(var(--primary));
+    }
+
+    .endo-kicker {
+        display: block;
+        color: hsl(var(--primary));
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0;
+        text-transform: uppercase;
+        margin-bottom: 0.35rem;
+    }
+
+    .endo-header h3,
+    .endo-cases-header h4,
+    .endo-panel h4,
+    .endo-empty-state h4 {
+        margin: 0;
+        color: hsl(var(--text-main));
+        font-family: var(--font-heading);
+    }
+
+    .endo-header h3 {
+        font-size: 1.35rem;
+    }
+
+    .endo-header p,
+    .endo-panel p,
+    .endo-cases-header p,
+    .endo-empty-state p,
+    .endo-case-card p {
+        margin: 0.35rem 0 0;
+        color: hsl(var(--text-muted));
+        line-height: 1.5;
+    }
+
+    .endo-status-stack,
+    .endo-anamnesis-summary,
+    .endo-case-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .endo-status-chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        padding: 0.35rem 0.7rem;
+        border-radius: 999px;
+        background: hsl(var(--primary-soft));
+        color: hsl(var(--primary));
+        font-size: 0.78rem;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .endo-status-chip.warning {
+        background: #fffbeb;
+        color: #92400e;
+    }
+
+    .endo-status-chip.success {
+        background: #ecfdf5;
+        color: #047857;
+    }
+
+    .endo-alert {
+        padding: 1rem 1.2rem;
+        border-radius: var(--radius-md);
+        border-left: 5px solid hsl(var(--warning));
+        background: #fffbeb;
+        color: hsl(var(--text-main));
+    }
+
+    .endo-alert span {
+        display: block;
+        margin-top: 0.25rem;
+        color: hsl(var(--text-muted));
+        font-size: 0.92rem;
+    }
+
+    .endo-setup-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+        gap: 1rem;
+    }
+
+    .endo-panel {
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .endo-panel.linked {
+        background: linear-gradient(180deg, #fff, hsl(var(--primary-soft)));
+    }
+
+    .endo-panel-title {
+        display: flex;
+        gap: 0.9rem;
+        align-items: flex-start;
+    }
+
+    .endo-panel-title > span {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: var(--radius-sm);
+        background: hsl(var(--primary));
+        color: white;
+        font-weight: 800;
+        flex: 0 0 auto;
+    }
+
+    .endo-start-form {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 1rem;
+        align-items: end;
+    }
+
+    .endo-cases-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: flex-end;
+    }
+
+    .endo-case-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 1rem;
+    }
+
+    .endo-case-card {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1.25rem;
+    }
+
+    .endo-case-main {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+
+    .endo-tooth-badge {
+        width: 52px;
+        height: 52px;
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: hsl(var(--primary));
+        color: white;
+        font-family: var(--font-heading);
+        font-size: 1.2rem;
+        font-weight: 800;
+        flex: 0 0 auto;
+    }
+
+    .endo-case-main h5 {
+        margin: 0;
+        font-size: 1.05rem;
+        color: hsl(var(--text-main));
+    }
+
+    .endo-case-meta {
+        color: hsl(var(--text-muted));
+        font-size: 0.84rem;
+    }
+
+    .endo-case-actions {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.75rem;
+        margin-top: auto;
+    }
+
+    .endo-danger-action {
+        color: hsl(var(--danger));
+        border-color: hsl(var(--danger));
+    }
+
+    .endo-empty-state {
+        padding: 2rem;
+        text-align: center;
+    }
+
+    @media (max-width: 860px) {
+        .endo-header,
+        .endo-cases-header {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .endo-setup-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 560px) {
+        .endo-header,
+        .endo-panel,
+        .endo-case-card,
+        .endo-empty-state {
+            padding: 1rem;
+        }
+
+        .endo-start-form,
+        .endo-case-actions {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>

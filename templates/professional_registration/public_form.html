@@ -1,0 +1,546 @@
+{% extends "base.html" %}
+
+{% block title %}Cadastro Profissional - Sorriso da Gente{% endblock %}
+
+{% block content %}
+<style>
+    .registration-page {
+        min-height: 100vh;
+        background:
+            linear-gradient(180deg, rgba(13, 71, 161, 0.10), rgba(255, 255, 255, 0) 360px),
+            linear-gradient(120deg, rgba(15, 118, 110, 0.08), rgba(245, 158, 11, 0.04) 42%, transparent 72%),
+            hsl(var(--bg-main));
+        padding: clamp(28px, 4vw, 56px) 20px 64px;
+    }
+
+    .registration-shell {
+        width: min(1180px, 100%);
+        margin: 0 auto;
+    }
+
+    .registration-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 28px;
+        margin-bottom: 30px;
+    }
+
+    .registration-brand-actions {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    .registration-logo {
+        height: 68px;
+        width: auto;
+        display: block;
+    }
+
+    .registration-kicker {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        padding: 0 11px;
+        border: 1px solid rgba(15, 118, 110, 0.18);
+        border-radius: 999px;
+        background: rgba(240, 253, 250, 0.85);
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #0f766e;
+        margin-bottom: 14px;
+    }
+
+    .registration-title {
+        font-family: var(--font-heading);
+        font-size: clamp(2.15rem, 4vw, 3.15rem);
+        font-weight: 800;
+        color: hsl(var(--primary));
+        line-height: 1.05;
+        letter-spacing: 0;
+        max-width: 760px;
+    }
+
+    .registration-subtitle {
+        color: hsl(var(--text-muted));
+        margin-top: 14px;
+        max-width: 720px;
+        font-size: 1.02rem;
+        line-height: 1.6;
+    }
+
+    .registration-layout {
+        display: grid;
+        grid-template-columns: minmax(700px, 1fr) 330px;
+        gap: 26px;
+        align-items: start;
+    }
+
+    .registration-form-card,
+    .registration-summary {
+        background: white;
+        border: 1px solid hsl(var(--border));
+        border-radius: 8px;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .registration-form-card {
+        padding: clamp(28px, 3.2vw, 40px);
+        border-top: 4px solid hsl(var(--primary));
+    }
+
+    .registration-summary {
+        padding: 24px;
+        position: sticky;
+        top: 24px;
+    }
+
+    .registration-section-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-family: var(--font-heading);
+        font-size: 1.08rem;
+        font-weight: 800;
+        color: hsl(var(--text-main));
+    }
+
+    .registration-section-index {
+        display: inline-flex;
+        width: 30px;
+        height: 30px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        background: hsl(var(--primary));
+        color: white;
+        font-size: 0.85rem;
+        font-weight: 800;
+        flex: 0 0 auto;
+    }
+
+    .registration-summary p,
+    .registration-hint {
+        color: hsl(var(--text-muted));
+        font-size: 0.94rem;
+        line-height: 1.55;
+    }
+
+    .registration-section {
+        border-top: 1px solid hsl(var(--border));
+        padding-top: 28px;
+        margin-top: 30px;
+    }
+
+    .registration-section:first-child {
+        border-top: none;
+        padding-top: 0;
+        margin-top: 0;
+    }
+
+    .registration-fields {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    .registration-field-full {
+        grid-column: 1 / -1;
+    }
+
+    .registration-form-card .form-label {
+        font-size: 0.92rem;
+        font-weight: 750;
+        color: #1f2937;
+    }
+
+    .registration-form-card .form-control {
+        min-height: 48px;
+        background: #f8fafc;
+        border-color: #dbe4f0;
+        border-radius: 8px;
+    }
+
+    .registration-form-card textarea.form-control {
+        min-height: 96px;
+        resize: vertical;
+    }
+
+    .registration-required {
+        color: hsl(var(--danger));
+    }
+
+    .registration-check {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 16px;
+        border: 1px solid #dbe4f0;
+        border-radius: 8px;
+        background: #f8fafc;
+        margin-top: 14px;
+    }
+
+    .registration-check input {
+        margin-top: 3px;
+        width: 20px;
+        height: 20px;
+        flex: 0 0 auto;
+        accent-color: hsl(var(--primary));
+    }
+
+    .registration-check label {
+        line-height: 1.5;
+        color: hsl(var(--text-main));
+        font-weight: 600;
+        font-size: 0.92rem;
+    }
+
+    .registration-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 32px;
+    }
+
+    .registration-actions .btn {
+        min-width: 230px;
+        height: 52px;
+        border-radius: 8px;
+        font-weight: 800;
+    }
+
+    .registration-summary-title {
+        font-family: var(--font-heading);
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: hsl(var(--primary));
+        margin-bottom: 8px;
+    }
+
+    .registration-summary-block {
+        border-top: 1px solid hsl(var(--border));
+        margin-top: 18px;
+        padding-top: 18px;
+    }
+
+    .registration-summary-list {
+        display: grid;
+        gap: 12px;
+        margin-top: 14px;
+    }
+
+    .registration-summary-item {
+        display: grid;
+        grid-template-columns: 30px 1fr;
+        gap: 10px;
+        align-items: start;
+    }
+
+    .registration-summary-marker {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 999px;
+        background: #ecfeff;
+        border: 1px solid #a5f3fc;
+        color: #0e7490;
+        font-weight: 800;
+        font-size: 0.78rem;
+    }
+
+    .registration-summary-item strong {
+        display: block;
+        color: hsl(var(--text-main));
+        font-size: 0.92rem;
+        margin-bottom: 2px;
+    }
+
+    .registration-summary-item span {
+        display: block;
+        color: hsl(var(--text-muted));
+        line-height: 1.45;
+        font-size: 0.86rem;
+    }
+
+    .role-dependent {
+        display: none;
+    }
+
+    @media (max-width: 980px) {
+        .registration-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .registration-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .registration-summary {
+            position: static;
+            order: -1;
+        }
+    }
+
+    @media (max-width: 620px) {
+        .registration-page {
+            padding: 20px 12px 36px;
+        }
+
+        .registration-form-card {
+            padding: 18px;
+        }
+
+        .registration-title {
+            font-size: 1.55rem;
+        }
+
+        .registration-fields {
+            grid-template-columns: 1fr;
+            gap: 14px;
+        }
+
+        .registration-brand-actions {
+            width: 100%;
+            justify-content: space-between;
+        }
+
+        .registration-logo {
+            height: 58px;
+        }
+
+        .registration-actions {
+            justify-content: stretch;
+        }
+
+        .registration-actions .btn {
+            width: 100%;
+        }
+    }
+</style>
+
+<div class="registration-page">
+    <div class="registration-shell">
+        <header class="registration-header">
+            <div>
+                <div class="registration-kicker">Pre-cadastro profissional</div>
+                <h1 class="registration-title">Programa Sorriso da Gente</h1>
+                <p class="registration-subtitle">
+                    Solicite seu cadastro para a equipe operacional. O acesso ao sistema sera liberado somente apos conferencia administrativa.
+                </p>
+            </div>
+            <div class="registration-brand-actions">
+                <a href="{{ url_for('main.index') }}" aria-label="Sorriso da Gente">
+                    <img class="registration-logo" src="{{ url_for('static', filename='logo_sorriso_horizontal.png') }}" alt="Sorriso da Gente">
+                </a>
+                <a class="btn btn-outline" href="{{ url_for('auth.login') }}">Ir para login</a>
+            </div>
+        </header>
+
+        <div class="registration-layout">
+            <form class="registration-form-card" method="POST" action="{{ url_for('professional_registration.public_registration') }}" data-registration-form>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <section class="registration-section">
+                    <h2 class="registration-section-title"><span class="registration-section-index">1</span>Identificacao</h2>
+                    <p class="registration-hint">Informe os dados principais para conferencia do cadastro.</p>
+
+                    <div class="registration-fields">
+                        <div>
+                            <label class="form-label" for="full_name">Nome completo <span class="registration-required">*</span></label>
+                            <input class="form-control" type="text" id="full_name" name="full_name" value="{{ form_data.get('full_name', '') }}" required autofocus>
+                        </div>
+                        <div>
+                            <label class="form-label" for="cpf">CPF <span class="registration-required">*</span></label>
+                            <input class="form-control" type="text" id="cpf" name="cpf" value="{{ form_data.get('cpf', '') }}" inputmode="numeric" required>
+                        </div>
+                        <div>
+                            <label class="form-label" for="data_nascimento">Data de nascimento <span class="registration-required">*</span></label>
+                            <input class="form-control" type="date" id="data_nascimento" name="data_nascimento" value="{{ form_data.get('data_nascimento', '') }}" required>
+                        </div>
+                        <div>
+                            <label class="form-label" for="email">E-mail <span class="registration-required">*</span></label>
+                            <input class="form-control" type="email" id="email" name="email" value="{{ form_data.get('email', '') }}" required>
+                        </div>
+                        <div>
+                            <label class="form-label" for="celular">Celular/WhatsApp <span class="registration-required">*</span></label>
+                            <input class="form-control" type="text" id="celular" name="celular" value="{{ form_data.get('celular', '') }}" inputmode="tel" required>
+                        </div>
+                        <div>
+                            <label class="form-label" for="desired_username">Login desejado <span class="registration-required">*</span></label>
+                            <input class="form-control" type="text" id="desired_username" name="desired_username" value="{{ form_data.get('desired_username', '') }}" autocomplete="username" required>
+                        </div>
+                        <div class="registration-field-full">
+                            <label class="form-label" for="requested_role">Classe pretendida <span class="registration-required">*</span></label>
+                            <select class="form-control" id="requested_role" name="requested_role" required>
+                                <option value="">Selecione...</option>
+                                {% for role_value, role_name in role_choices %}
+                                <option value="{{ role_value }}" {% if form_data.get('requested_role') == role_value %}selected{% endif %}>{{ role_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="registration-section role-dependent" data-professional-fields>
+                    <h2 class="registration-section-title"><span class="registration-section-index">2</span>Dados profissionais</h2>
+                    <p class="registration-hint">CNS e CBO sao solicitados para Clinicos, Radiologia e CME/Estoque.</p>
+
+                    <div class="registration-fields">
+                        <div>
+                            <label class="form-label" for="cns">CNS do profissional <span class="registration-required">*</span></label>
+                            <input class="form-control professional-required" type="text" id="cns" name="cns" value="{{ form_data.get('cns', '') }}" inputmode="numeric">
+                        </div>
+                        <div>
+                            <label class="form-label" for="cbo">CBO <span class="registration-required">*</span></label>
+                            <input class="form-control professional-required" type="text" id="cbo" name="cbo" value="{{ form_data.get('cbo', '') }}" inputmode="numeric">
+                        </div>
+                    </div>
+                </section>
+
+                <section class="registration-section role-dependent" data-dental-fields>
+                    <h2 class="registration-section-title"><span class="registration-section-index">3</span>Registro profissional</h2>
+                    <p class="registration-hint">CRO e UF sao solicitados apenas para Clinicos.</p>
+
+                    <div class="registration-fields">
+                        <div>
+                            <label class="form-label" for="cro">CRO <span class="registration-required">*</span></label>
+                            <input class="form-control dental-required" type="text" id="cro" name="cro" value="{{ form_data.get('cro', '') }}">
+                        </div>
+                        <div>
+                            <label class="form-label" for="cro_uf">CRO-UF <span class="registration-required">*</span></label>
+                            <input class="form-control dental-required" type="text" id="cro_uf" name="cro_uf" value="{{ form_data.get('cro_uf', '') }}" maxlength="2">
+                        </div>
+                    </div>
+                </section>
+
+                <section class="registration-section">
+                    <h2 class="registration-section-title"><span class="registration-section-index">OK</span>Confirmacao</h2>
+                    <div class="registration-fields">
+                        <div class="registration-field-full">
+                            <label class="form-label" for="notes">Observacoes</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3">{{ form_data.get('notes', '') }}</textarea>
+                        </div>
+                    </div>
+
+                    <div class="registration-check">
+                        <input type="checkbox" id="truth_accepted" name="truth_accepted" value="1" {% if form_data.get('truth_accepted') %}checked{% endif %} required>
+                        <label for="truth_accepted">Declaro que as informacoes prestadas sao verdadeiras.</label>
+                    </div>
+
+                    <div class="registration-check">
+                        <input type="checkbox" id="lgpd_accepted" name="lgpd_accepted" value="1" {% if form_data.get('lgpd_accepted') %}checked{% endif %} required>
+                        <label for="lgpd_accepted">Autorizo o tratamento destes dados para analise e cadastro profissional no Programa Sorriso da Gente.</label>
+                    </div>
+                </section>
+
+                <div class="registration-actions">
+                    <button class="btn btn-primary" type="submit" data-submit-button>Enviar pre-cadastro</button>
+                </div>
+            </form>
+
+            <aside class="registration-summary">
+                <div class="registration-summary-title">Como funciona</div>
+                <p>Depois do envio, a administracao confere os dados e envia a resposta para o e-mail cadastrado.</p>
+
+                <div class="registration-summary-block">
+                    <div class="registration-summary-title">Fluxo</div>
+                    <div class="registration-summary-list">
+                        <div class="registration-summary-item">
+                            <span class="registration-summary-marker">1</span>
+                            <div>
+                                <strong>Envio</strong>
+                                <span>Voce preenche e recebe o protocolo na tela.</span>
+                            </div>
+                        </div>
+                        <div class="registration-summary-item">
+                            <span class="registration-summary-marker">2</span>
+                            <div>
+                                <strong>Analise</strong>
+                                <span>A equipe valida classe, documentos e login desejado.</span>
+                            </div>
+                        </div>
+                        <div class="registration-summary-item">
+                            <span class="registration-summary-marker">3</span>
+                            <div>
+                                <strong>Resposta</strong>
+                                <span>Se aprovado, o primeiro acesso fica liberado.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="registration-summary-block">
+                    <div class="registration-summary-title">Campos por classe</div>
+                    <div class="registration-summary-list">
+                        <div class="registration-summary-item">
+                            <span class="registration-summary-marker">CD</span>
+                            <div>
+                                <strong>Clinicos</strong>
+                                <span>CNS, CBO, CRO e CRO-UF.</span>
+                            </div>
+                        </div>
+                        <div class="registration-summary-item">
+                            <span class="registration-summary-marker">RX</span>
+                            <div>
+                                <strong>Radiologia e CME/Estoque</strong>
+                                <span>CNS e CBO.</span>
+                            </div>
+                        </div>
+                        <div class="registration-summary-item">
+                            <span class="registration-summary-marker">ADM</span>
+                            <div>
+                                <strong>Demais classes</strong>
+                                <span>Apenas os dados principais.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+</div>
+
+<script>
+    const professionalRoles = ['clinicos', 'cme', 'radiologia'];
+    const dentalRoles = ['clinicos'];
+
+    function setRequired(selector, required) {
+        document.querySelectorAll(selector).forEach((field) => {
+            field.required = required;
+        });
+    }
+
+    function toggleRoleFields() {
+        const role = document.getElementById('requested_role').value;
+        const professionalSection = document.querySelector('[data-professional-fields]');
+        const dentalSection = document.querySelector('[data-dental-fields]');
+        const needsProfessional = professionalRoles.includes(role);
+        const needsDental = dentalRoles.includes(role);
+
+        professionalSection.style.display = needsProfessional ? 'block' : 'none';
+        dentalSection.style.display = needsDental ? 'block' : 'none';
+        setRequired('.professional-required', needsProfessional);
+        setRequired('.dental-required', needsDental);
+    }
+
+    document.getElementById('requested_role').addEventListener('change', toggleRoleFields);
+    toggleRoleFields();
+
+    const registrationForm = document.querySelector('[data-registration-form]');
+    const submitButton = document.querySelector('[data-submit-button]');
+    if (registrationForm && submitButton) {
+        registrationForm.addEventListener('submit', () => {
+            submitButton.disabled = true;
+            submitButton.textContent = 'Enviando...';
+        });
+    }
+</script>
+{% endblock %}

@@ -4,7 +4,9 @@ from database import execute, query
 from werkzeug.security import check_password_hash
 import json
 import re
-from services.security_service import audit_log
+from constants import can_sign_clinical_document
+from services.security_service import audit_log, permission_required
+from services.sensitive_file_service import sensitive_file_response
 from services.visual_media_service import build_exam_image_metadata
 
 exams_bp = Blueprint('exams', __name__, url_prefix='/exams')
@@ -313,7 +315,7 @@ def imagem(anamnesis_id, exam_id=None):
 import os
 import uuid
 from werkzeug.utils import secure_filename
-from flask import send_file, jsonify
+from flask import jsonify
 
 @exams_bp.route('/imagem/<int:exam_id>/upload', methods=['POST'])
 @login_required
@@ -417,6 +419,7 @@ def upload_imagem(exam_id):
 
 @exams_bp.route('/imagem/arquivo/<int:arquivo_id>')
 @login_required
+@permission_required('patients:view')
 def serve_imagem(arquivo_id):
     arquivo = query(
         """
@@ -441,7 +444,7 @@ def serve_imagem(arquivo_id):
         patient_id=arquivo['patient_id'],
         details={'filename': arquivo.get('filename'), 'caption': arquivo.get('caption')},
     )
-    return send_file(os.path.abspath(arquivo['file_path']))
+    return sensitive_file_response(arquivo['file_path'])
 
 @exams_bp.route('/delete/<int:exam_id>', methods=['POST'])
 @login_required
@@ -460,8 +463,7 @@ def delete_exam(exam_id):
         flash('Usuário ou senha inválidos para autorização.', 'danger')
         return redirect(request.referrer or url_for('patients.list'))
         
-    # Verificar papel (apenas admin ou dentista)
-    if prof['role'] not in ['admin', 'dentista']:
+    if not can_sign_clinical_document(prof['role']):
         flash('O usuário informado não tem permissão para excluir exames.', 'danger')
         return redirect(request.referrer or url_for('patients.list'))
 

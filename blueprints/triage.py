@@ -3,14 +3,13 @@ from datetime import datetime
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from constants import Role
 from database import execute, query
 
 triage_bp = Blueprint('triage', __name__, url_prefix='/triagem')
 
 
 def _can_manage_triage():
-    return current_user.role in [Role.ADMIN, Role.ATENDENTE]
+    return current_user.can('triage:write')
 
 
 def _normalize_code(value):
@@ -21,7 +20,7 @@ def _normalize_code(value):
 @login_required
 def require_triage_access():
     if not _can_manage_triage():
-        flash('Acesso negado. Apenas administradores e atendentes podem gerenciar a triagem.', 'danger')
+        flash('Acesso negado para gerenciar a triagem.', 'danger')
         return redirect(url_for('main.dashboard'))
 
 
@@ -40,7 +39,10 @@ def list_actions():
         GROUP BY a.id, m.nome, m.codigo
         ORDER BY a.data_acao DESC, a.id DESC
     ''')
-    return render_template('triage/index.html', actions=actions)
+    return render_template(
+        'triage/index.html',
+        actions=actions,
+    )
 
 
 @triage_bp.route('/acoes/nova', methods=['GET', 'POST'])
@@ -55,7 +57,10 @@ def create_action():
 
         if not municipio_id or not data_acao:
             flash('Município e data da ação são obrigatórios.', 'danger')
-            return render_template('triage/action_form.html', municipios=municipios)
+            return render_template(
+                'triage/action_form.html',
+                municipios=municipios,
+            )
 
         try:
             datetime.strptime(data_acao, '%Y-%m-%d')
@@ -71,7 +76,10 @@ def create_action():
         except Exception as e:
             flash(f'Erro ao criar ação de triagem: {str(e)}', 'danger')
 
-    return render_template('triage/action_form.html', municipios=municipios)
+    return render_template(
+        'triage/action_form.html',
+        municipios=municipios,
+    )
 
 
 @triage_bp.route('/acoes/<int:action_id>')
@@ -104,10 +112,25 @@ def view_action(action_id):
     ''', (action_id,))
     tickets = query('''
         SELECT s.*, e.nome as especialidade_nome, e.codigo as especialidade_codigo,
-               p.nome as patient_nome
+               p.nome as patient_nome,
+               COALESCE(eu.name, planned.execution_unit) as execution_unit_label,
+               planned.data_consulta as scheduled_at,
+               planned.status as appointment_status
         FROM triagem_senhas s
         JOIN especialidades e ON s.especialidade_id = e.id
         LEFT JOIN patients p ON s.patient_id = p.id
+        LEFT JOIN LATERAL (
+            SELECT c.execution_unit, c.data_consulta, c.status
+            FROM consultas c
+            WHERE c.patient_id = s.patient_id
+              AND c.status NOT IN ('Cancelado', 'Faltou')
+            ORDER BY
+              CASE WHEN c.data_consulta >= NOW() THEN 0 ELSE 1 END,
+              CASE WHEN c.data_consulta >= NOW() THEN c.data_consulta END ASC,
+              c.data_consulta DESC
+            LIMIT 1
+        ) planned ON TRUE
+        LEFT JOIN execution_units eu ON eu.code = planned.execution_unit
         WHERE s.triagem_acao_id = %s
         ORDER BY e.nome, s.numero
     ''', (action_id,))
@@ -175,12 +198,27 @@ def list_tickets():
 
     sql = '''
         SELECT s.*, e.nome as especialidade_nome, m.nome as municipio_nome,
-               a.data_acao, p.nome as patient_nome
+               a.data_acao, p.nome as patient_nome,
+               COALESCE(eu.name, planned.execution_unit) as execution_unit_label,
+               planned.data_consulta as scheduled_at,
+               planned.status as appointment_status
         FROM triagem_senhas s
         JOIN especialidades e ON s.especialidade_id = e.id
         JOIN municipios m ON s.municipio_id = m.id
         JOIN triagem_acoes a ON s.triagem_acao_id = a.id
         LEFT JOIN patients p ON s.patient_id = p.id
+        LEFT JOIN LATERAL (
+            SELECT c.execution_unit, c.data_consulta, c.status
+            FROM consultas c
+            WHERE c.patient_id = s.patient_id
+              AND c.status NOT IN ('Cancelado', 'Faltou')
+            ORDER BY
+              CASE WHEN c.data_consulta >= NOW() THEN 0 ELSE 1 END,
+              CASE WHEN c.data_consulta >= NOW() THEN c.data_consulta END ASC,
+              c.data_consulta DESC
+            LIMIT 1
+        ) planned ON TRUE
+        LEFT JOIN execution_units eu ON eu.code = planned.execution_unit
         WHERE 1=1
     '''
     params = []

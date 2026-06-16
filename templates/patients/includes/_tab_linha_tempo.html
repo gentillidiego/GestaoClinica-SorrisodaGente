@@ -57,6 +57,12 @@
                     {% if event.metadata.encaminhado_para_biopsia %}
                     <span class="trace-chip">Encaminhado para biópsia</span>
                     {% endif %}
+                    {% if event.metadata.signature_event_id %}
+                    <a class="trace-chip" style="text-decoration:none; color:hsl(var(--primary));"
+                        href="{{ url_for('documents.signature_receipt', event_id=event.metadata.signature_event_id) }}">
+                        Comprovante
+                    </a>
+                    {% endif %}
                 </div>
             </div>
         </div>

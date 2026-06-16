@@ -113,6 +113,41 @@ def _ensure_columns_exist(table_name, columns):
             execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def}")
 
 
+def _migrate_legacy_user_roles():
+    from constants import get_legacy_role_migrations
+
+    for legacy_role, canonical in get_legacy_role_migrations():
+        execute(
+            "UPDATE users SET role = %s WHERE role = %s",
+            (canonical, legacy_role),
+        )
+
+
+def _seed_execution_units():
+    from constants import DEFAULT_EXECUTION_UNIT, EXECUTION_UNITS
+
+    for code, name in EXECUTION_UNITS:
+        execute(
+            """
+            INSERT INTO execution_units (code, name, active, is_default)
+            VALUES (%s, %s, TRUE, %s)
+            ON CONFLICT (code) DO UPDATE
+            SET name = COALESCE(NULLIF(execution_units.name, ''), EXCLUDED.name),
+                active = COALESCE(execution_units.active, TRUE),
+                updated_at = NOW()
+            """,
+            (code, name, code == DEFAULT_EXECUTION_UNIT),
+        )
+    execute(
+        """
+        UPDATE execution_units
+        SET is_default = (code = %s)
+        WHERE is_default = TRUE OR code = %s
+        """,
+        (DEFAULT_EXECUTION_UNIT, DEFAULT_EXECUTION_UNIT),
+    )
+
+
 def _acquire_schema_lock():
     conn = get_db_connection()
     cur = conn.cursor()
@@ -131,14 +166,40 @@ def _release_schema_lock(conn):
 
 MIGRATIONS = {
     'anamnesis': [
-        ('assinatura_base64', 'TEXT')
+        ('assinatura_base64', 'TEXT'),
+        ('assinatura_modo', "TEXT DEFAULT 'patient_canvas'"),
+        ('assinatura_event_id', 'INTEGER'),
+        ('assinatura_document_hash', 'TEXT'),
+        ('assinatura_auth_method', 'TEXT'),
+        ('assinatura_source_ip', 'TEXT'),
+        ('assinatura_user_agent', 'TEXT')
     ],
     'atendimentos': [
         ('assinatura_paciente_base64', 'TEXT'),
+        ('assinatura_modo', "TEXT DEFAULT 'patient_canvas'"),
+        ('assinatura_event_id', 'INTEGER'),
+        ('assinatura_document_hash', 'TEXT'),
+        ('assinatura_a_rogo_por', 'INTEGER'),
+        ('assinatura_a_rogo_declaracao', 'TEXT'),
+        ('assinatura_a_rogo_testemunhas', 'JSONB'),
+        ('assinatura_auth_method', 'TEXT'),
+        ('assinatura_source_ip', 'TEXT'),
+        ('assinatura_user_agent', 'TEXT'),
         ('professor_id', 'INTEGER'),
         ('aluno_executor_id', 'INTEGER'),
         ('status', "TEXT DEFAULT 'Pendente'"),
         ('created_by', 'INTEGER')
+    ],
+    'patient_tcle': [
+        ('assinatura_modo', "TEXT DEFAULT 'patient_canvas'"),
+        ('assinatura_event_id', 'INTEGER'),
+        ('assinatura_document_hash', 'TEXT'),
+        ('assinatura_a_rogo_por', 'INTEGER'),
+        ('assinatura_a_rogo_declaracao', 'TEXT'),
+        ('assinatura_a_rogo_testemunhas', 'JSONB'),
+        ('assinatura_auth_method', 'TEXT'),
+        ('assinatura_source_ip', 'TEXT'),
+        ('assinatura_user_agent', 'TEXT')
     ],
     'exam_odontograma': [
         ('notas_dentes', 'TEXT')
@@ -146,6 +207,16 @@ MIGRATIONS = {
     'users': [
         ('full_name', 'TEXT'),
         ('matricula', 'TEXT'),
+        ('email', 'TEXT'),
+        ('celular', 'TEXT'),
+        ('data_nascimento', 'DATE'),
+        ('is_first_access', 'BOOLEAN DEFAULT FALSE'),
+        ('first_access_completed_at', 'TIMESTAMP'),
+        ('email_confirmed_at', 'TIMESTAMP'),
+        ('password_changed_at', 'TIMESTAMP'),
+        ('password_reset_token_hash', 'TEXT'),
+        ('password_reset_expires_at', 'TIMESTAMP'),
+        ('password_reset_used_at', 'TIMESTAMP'),
         ('cro', 'TEXT'),
         ('cro_uf', 'TEXT'),
         ('active', 'BOOLEAN DEFAULT TRUE'),
@@ -160,6 +231,12 @@ MIGRATIONS = {
         ('is_demo', 'BOOLEAN DEFAULT FALSE'),
         ('demo_profile', 'TEXT'),
         ('demo_seed_run_id', 'INTEGER')
+    ],
+    'triagem_acoes': [
+        ('execution_unit', "TEXT DEFAULT 'unidade_principal'")
+    ],
+    'consultas': [
+        ('execution_unit', "TEXT DEFAULT 'unidade_principal'")
     ],
     'exams': [
         ('professor_id', 'INTEGER'),
@@ -185,6 +262,7 @@ MIGRATIONS = {
         ('delivery_channel', "TEXT DEFAULT 'painel_seguro'")
     ],
     'tratamento_procedimentos': [
+        ('especialidade_sigtap', 'TEXT'),
         ('sigtap_code', 'TEXT'),
         ('sigtap_competence', 'TEXT'),
         ('sigtap_name', 'TEXT'),
@@ -219,12 +297,149 @@ MIGRATIONS = {
         ('uploaded_by', 'INTEGER'),
         ('active', 'BOOLEAN DEFAULT TRUE')
     ],
+    'endodontia': [
+        ('updated_at', 'TIMESTAMP'),
+        ('cancelado_em', 'TIMESTAMP'),
+        ('cancelado_por', 'INTEGER'),
+        ('motivo_cancelamento', 'TEXT'),
+        ('diagnostico_estruturado_status', "TEXT DEFAULT 'pendente'"),
+        ('queixa_inicio', 'TEXT'),
+        ('queixa_duracao', 'TEXT'),
+        ('queixa_intensidade', 'TEXT'),
+        ('queixa_localizacao', 'TEXT'),
+        ('fatores_exacerbantes', 'TEXT'),
+        ('fatores_alivio', 'TEXT'),
+        ('queixa_descricao', 'TEXT'),
+        ('linfadenopatia_cervical', 'BOOLEAN DEFAULT FALSE'),
+        ('linfadenopatia_submandibular', 'BOOLEAN DEFAULT FALSE'),
+        ('assimetria_facial', 'BOOLEAN DEFAULT FALSE'),
+        ('edema_extraoral', 'BOOLEAN DEFAULT FALSE'),
+        ('exame_extraoral_observacoes', 'TEXT'),
+        ('edema_submucoso', 'BOOLEAN DEFAULT FALSE'),
+        ('fistula_trajeto', 'BOOLEAN DEFAULT FALSE'),
+        ('fistula_localizacao', 'TEXT'),
+        ('carie_profunda', 'BOOLEAN DEFAULT FALSE'),
+        ('restauracao_inadequada', 'BOOLEAN DEFAULT FALSE'),
+        ('faceta_desgaste', 'BOOLEAN DEFAULT FALSE'),
+        ('exame_intraoral_observacoes', 'TEXT'),
+        ('mobilidade', 'TEXT'),
+        ('sondagem_mesial_mm', 'NUMERIC(5,2)'),
+        ('sondagem_distal_mm', 'NUMERIC(5,2)'),
+        ('sondagem_vestibular_mm', 'NUMERIC(5,2)'),
+        ('sondagem_lingual_palatino_mm', 'NUMERIC(5,2)'),
+        ('tipo_lesao', 'TEXT'),
+        ('diagnostico_pulpar', 'TEXT'),
+        ('diagnostico_apical', 'TEXT'),
+        ('cid10_sugerido', 'TEXT'),
+        ('workflow_tipo', "TEXT DEFAULT 'tratamento'"),
+        ('polpa_normal_justificativa', 'TEXT'),
+        ('status_tratamento', "TEXT DEFAULT 'aguardando_inicio'"),
+        ('sessoes_planejadas', 'INTEGER'),
+        ('proxima_sessao_prevista', 'DATE'),
+        ('janela_retorno_dias', 'INTEGER'),
+        ('restauracao_definitiva_registrada', 'BOOLEAN DEFAULT FALSE'),
+        ('restauracao_definitiva_data', 'DATE'),
+        ('restauracao_definitiva_material', 'TEXT'),
+        ('selamento_coronario_adequado', 'BOOLEAN DEFAULT FALSE'),
+        ('restauracao_observacoes', 'TEXT'),
+        ('lesao_periapical_extensa', 'BOOLEAN DEFAULT FALSE')
+    ],
+    'endodontia_canais': [
+        ('ponto_referencia_coronario', 'TEXT'),
+        ('cri_mm', 'NUMERIC(6,2)'),
+        ('cai_mm', 'NUMERIC(6,2)'),
+        ('crd_mm', 'NUMERIC(6,2)'),
+        ('crt_sugerido_mm', 'NUMERIC(6,2)'),
+        ('crt_final_mm', 'NUMERIC(6,2)'),
+        ('crt_override_justificativa', 'TEXT'),
+        ('localizador_apical_usado', 'BOOLEAN DEFAULT FALSE'),
+        ('modelo_localizador', 'TEXT'),
+        ('leitura_localizador', 'NUMERIC(5,2)'),
+        ('confirmacao_eletronica', 'BOOLEAN DEFAULT FALSE')
+    ],
+    'endodontia_followup': [
+        ('assinatura_modo', "TEXT DEFAULT 'patient_canvas'"),
+        ('assinatura_event_id', 'INTEGER'),
+        ('assinatura_document_hash', 'TEXT'),
+        ('assinatura_auth_method', 'TEXT'),
+        ('assinatura_source_ip', 'TEXT'),
+        ('assinatura_user_agent', 'TEXT'),
+        ('numero_sessao', 'INTEGER'),
+        ('etapa_realizada', 'TEXT'),
+        ('status_sessao', "TEXT DEFAULT 'realizada'"),
+        ('proxima_sessao_prevista', 'DATE'),
+        ('janela_retorno_dias', 'INTEGER'),
+        ('observacao_clinica', 'TEXT'),
+        ('lai_mm', 'NUMERIC(5,2)'),
+        ('tecnica_instrumentacao', 'TEXT'),
+        ('sistema_instrumentacao', 'TEXT'),
+        ('liga_instrumento', 'TEXT'),
+        ('protocolo_observacoes', 'TEXT'),
+        ('solucao_irrigadora', 'TEXT'),
+        ('edta_usado', 'BOOLEAN DEFAULT FALSE'),
+        ('tempo_irrigacao_min', 'INTEGER'),
+        ('agitacao_irrigadora', 'TEXT'),
+        ('volume_irrigacao_ml', 'NUMERIC(6,2)'),
+        ('irrigacao_observacoes', 'TEXT'),
+        ('medicacao_intracanal', 'TEXT'),
+        ('medicacao_intracanal_outra', 'TEXT'),
+        ('medicacao_veiculo', 'TEXT'),
+        ('medicacao_quantidade', 'TEXT'),
+        ('selamento_provisorio', 'TEXT'),
+        ('selamento_provisorio_outro', 'TEXT'),
+        ('cone_principal_material', 'TEXT'),
+        ('cone_principal_calibre', 'TEXT'),
+        ('cone_principal_conicidade', 'TEXT'),
+        ('prova_cone', 'BOOLEAN DEFAULT FALSE'),
+        ('tug_back', 'BOOLEAN DEFAULT FALSE'),
+        ('crt_confirmado_mm', 'NUMERIC(5,2)'),
+        ('cimento_obturador', 'TEXT'),
+        ('cimento_classe', 'TEXT'),
+        ('cimento_classe_outro', 'TEXT'),
+        ('cimento_lote', 'TEXT'),
+        ('cimento_validade', 'DATE'),
+        ('tecnica_obturacao', 'TEXT'),
+        ('tecnica_obturacao_outra', 'TEXT'),
+        ('radiografia_final_aprovada', 'BOOLEAN DEFAULT FALSE'),
+        ('radiografia_final_gaps', 'BOOLEAN DEFAULT FALSE'),
+        ('radiografia_final_voids', 'BOOLEAN DEFAULT FALSE'),
+        ('controle_qualidade_observacoes', 'TEXT'),
+        ('restauracao_definitiva_registrada', 'BOOLEAN DEFAULT FALSE'),
+        ('restauracao_definitiva_data', 'DATE'),
+        ('restauracao_definitiva_material', 'TEXT'),
+        ('selamento_coronario_adequado', 'BOOLEAN DEFAULT FALSE'),
+        ('restauracao_observacoes', 'TEXT')
+    ],
     'procedure_cost_references': [
         ('methodology_status', "TEXT DEFAULT 'draft'"),
         ('notes', 'TEXT'),
         ('validated_by', 'INTEGER'),
         ('validated_at', 'TIMESTAMP'),
         ('validation_notes', 'TEXT')
+    ],
+    'prosthesis_etapas': [
+        ('assinatura_modo', "TEXT DEFAULT 'patient_canvas'"),
+        ('assinatura_event_id', 'INTEGER'),
+        ('assinatura_document_hash', 'TEXT'),
+        ('assinatura_auth_method', 'TEXT'),
+        ('assinatura_source_ip', 'TEXT'),
+        ('assinatura_user_agent', 'TEXT')
+    ],
+    'prosthesis_pagamentos': [
+        ('assinatura_modo', "TEXT DEFAULT 'patient_canvas'"),
+        ('assinatura_event_id', 'INTEGER'),
+        ('assinatura_document_hash', 'TEXT'),
+        ('assinatura_auth_method', 'TEXT'),
+        ('assinatura_source_ip', 'TEXT'),
+        ('assinatura_user_agent', 'TEXT')
+    ],
+    'professional_registration_requests': [
+        ('data_nascimento', 'DATE'),
+        ('review_notes', 'TEXT'),
+        ('reviewed_by', 'INTEGER'),
+        ('reviewed_at', 'TIMESTAMP'),
+        ('created_user_id', 'INTEGER'),
+        ('updated_at', 'TIMESTAMP DEFAULT NOW()')
     ]
 }
 
@@ -265,6 +480,16 @@ def _init_db_locked():
             role TEXT DEFAULT 'atendente',
             full_name TEXT,
             matricula TEXT,
+            email TEXT,
+            celular TEXT,
+            data_nascimento DATE,
+            is_first_access BOOLEAN DEFAULT FALSE,
+            first_access_completed_at TIMESTAMP,
+            email_confirmed_at TIMESTAMP,
+            password_changed_at TIMESTAMP,
+            password_reset_token_hash TEXT,
+            password_reset_expires_at TIMESTAMP,
+            password_reset_used_at TIMESTAMP,
             cro TEXT,
             cro_uf TEXT,
             cns TEXT,
@@ -278,17 +503,65 @@ def _init_db_locked():
     ''')
 
     execute('''
+        CREATE TABLE IF NOT EXISTS professional_registration_requests (
+            id SERIAL PRIMARY KEY,
+            full_name TEXT NOT NULL,
+            cpf TEXT NOT NULL,
+            data_nascimento DATE NOT NULL,
+            email TEXT NOT NULL,
+            celular TEXT NOT NULL,
+            desired_username TEXT NOT NULL,
+            requested_role TEXT NOT NULL,
+            cns TEXT,
+            cbo TEXT,
+            cro TEXT,
+            cro_uf TEXT,
+            notes TEXT,
+            truth_accepted BOOLEAN DEFAULT FALSE,
+            lgpd_accepted BOOLEAN DEFAULT FALSE,
+            status TEXT DEFAULT 'pending',
+            review_notes TEXT,
+            reviewed_by INTEGER,
+            reviewed_at TIMESTAMP,
+            created_user_id INTEGER,
+            source_ip TEXT,
+            user_agent TEXT,
+            submitted_payload JSONB,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY (created_user_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+    ''')
+
+    execute('''
         CREATE TABLE IF NOT EXISTS triagem_acoes (
             id SERIAL PRIMARY KEY,
             municipio_id INTEGER NOT NULL,
             data_acao DATE NOT NULL,
             local TEXT,
+            execution_unit TEXT DEFAULT 'unidade_principal',
             observacoes TEXT,
             status TEXT DEFAULT 'Aberta',
             created_by INTEGER,
             criado_em TIMESTAMP DEFAULT NOW(),
             FOREIGN KEY (municipio_id) REFERENCES municipios(id),
             FOREIGN KEY (created_by) REFERENCES users(id)
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS execution_units (
+            id SERIAL PRIMARY KEY,
+            code TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            cnes TEXT,
+            address TEXT,
+            notes TEXT,
+            active BOOLEAN DEFAULT TRUE,
+            is_default BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
         )
     ''')
 
@@ -421,6 +694,31 @@ def _init_db_locked():
     ''')
 
     execute('''
+        CREATE TABLE IF NOT EXISTS signature_events (
+            id SERIAL PRIMARY KEY,
+            document_type TEXT NOT NULL,
+            document_id TEXT,
+            patient_id INTEGER,
+            patient_name TEXT,
+            patient_cpf TEXT,
+            signature_mode TEXT DEFAULT 'patient_canvas',
+            document_hash TEXT NOT NULL,
+            signed_by INTEGER,
+            signer_username TEXT,
+            signer_role TEXT,
+            auth_method TEXT,
+            source_ip TEXT,
+            user_agent TEXT,
+            declaration_text TEXT,
+            witnesses JSONB,
+            metadata JSONB,
+            created_at TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE SET NULL,
+            FOREIGN KEY (signed_by) REFERENCES users(id) ON DELETE SET NULL
+        )
+    ''')
+
+    execute('''
         CREATE TABLE IF NOT EXISTS triagem_senhas (
             id SERIAL PRIMARY KEY,
             triagem_acao_id INTEGER NOT NULL,
@@ -476,6 +774,12 @@ def _init_db_locked():
             ingere_alcool TEXT, ingere_alcool_frequencia TEXT,
             exercicios_fisicos TEXT, exercicios_fisicos_frequencia TEXT,
             assinatura_base64 TEXT,
+            assinatura_modo TEXT DEFAULT 'patient_canvas',
+            assinatura_event_id INTEGER,
+            assinatura_document_hash TEXT,
+            assinatura_auth_method TEXT,
+            assinatura_source_ip TEXT,
+            assinatura_user_agent TEXT,
             data_anamnese TIMESTAMP DEFAULT NOW(),
             FOREIGN KEY (patient_id) REFERENCES patients (id)
         )
@@ -580,6 +884,15 @@ def _init_db_locked():
             data TIMESTAMP DEFAULT NOW(),
             observacoes TEXT,
             assinatura_paciente_base64 TEXT,
+            assinatura_modo TEXT DEFAULT 'patient_canvas',
+            assinatura_event_id INTEGER,
+            assinatura_document_hash TEXT,
+            assinatura_a_rogo_por INTEGER,
+            assinatura_a_rogo_declaracao TEXT,
+            assinatura_a_rogo_testemunhas JSONB,
+            assinatura_auth_method TEXT,
+            assinatura_source_ip TEXT,
+            assinatura_user_agent TEXT,
             professor_id INTEGER,
             aluno_executor_id INTEGER,
             status TEXT DEFAULT 'Pendente',
@@ -630,6 +943,12 @@ def _init_db_locked():
             data_envio_lab TEXT,
             servico_solicitado TEXT,
             assinatura_paciente_base64 TEXT,
+            assinatura_modo TEXT DEFAULT 'patient_canvas',
+            assinatura_event_id INTEGER,
+            assinatura_document_hash TEXT,
+            assinatura_auth_method TEXT,
+            assinatura_source_ip TEXT,
+            assinatura_user_agent TEXT,
             professor_id INTEGER,
             status TEXT DEFAULT 'Pendente',
             FOREIGN KEY (prosthesis_id) REFERENCES prosthesis (id),
@@ -645,6 +964,12 @@ def _init_db_locked():
             valor REAL NOT NULL,
             responsavel_id INTEGER NOT NULL,
             assinatura_paciente_base64 TEXT,
+            assinatura_modo TEXT DEFAULT 'patient_canvas',
+            assinatura_event_id INTEGER,
+            assinatura_document_hash TEXT,
+            assinatura_auth_method TEXT,
+            assinatura_source_ip TEXT,
+            assinatura_user_agent TEXT,
             FOREIGN KEY (prosthesis_id) REFERENCES prosthesis (id),
             FOREIGN KEY (responsavel_id) REFERENCES users (id)
         )
@@ -657,6 +982,7 @@ def _init_db_locked():
             data_sessao TEXT,
             dente TEXT,
             descricao TEXT,
+            especialidade_sigtap TEXT,
             sigtap_code TEXT,
             sigtap_competence TEXT,
             sigtap_name TEXT,
@@ -836,8 +1162,54 @@ def _init_db_locked():
             diagnostico TEXT,
             grampo TEXT,
             finalidade_protetica TEXT,
+            updated_at TIMESTAMP,
+            cancelado_em TIMESTAMP,
+            cancelado_por INTEGER,
+            motivo_cancelamento TEXT,
+            diagnostico_estruturado_status TEXT DEFAULT 'pendente',
+            queixa_inicio TEXT,
+            queixa_duracao TEXT,
+            queixa_intensidade TEXT,
+            queixa_localizacao TEXT,
+            fatores_exacerbantes TEXT,
+            fatores_alivio TEXT,
+            queixa_descricao TEXT,
+            linfadenopatia_cervical BOOLEAN DEFAULT FALSE,
+            linfadenopatia_submandibular BOOLEAN DEFAULT FALSE,
+            assimetria_facial BOOLEAN DEFAULT FALSE,
+            edema_extraoral BOOLEAN DEFAULT FALSE,
+            exame_extraoral_observacoes TEXT,
+            edema_submucoso BOOLEAN DEFAULT FALSE,
+            fistula_trajeto BOOLEAN DEFAULT FALSE,
+            fistula_localizacao TEXT,
+            carie_profunda BOOLEAN DEFAULT FALSE,
+            restauracao_inadequada BOOLEAN DEFAULT FALSE,
+            faceta_desgaste BOOLEAN DEFAULT FALSE,
+            exame_intraoral_observacoes TEXT,
+            mobilidade TEXT,
+            sondagem_mesial_mm NUMERIC(5,2),
+            sondagem_distal_mm NUMERIC(5,2),
+            sondagem_vestibular_mm NUMERIC(5,2),
+            sondagem_lingual_palatino_mm NUMERIC(5,2),
+            tipo_lesao TEXT,
+            diagnostico_pulpar TEXT,
+            diagnostico_apical TEXT,
+            cid10_sugerido TEXT,
+            workflow_tipo TEXT DEFAULT 'tratamento',
+            polpa_normal_justificativa TEXT,
+            status_tratamento TEXT DEFAULT 'aguardando_inicio',
+            sessoes_planejadas INTEGER,
+            proxima_sessao_prevista DATE,
+            janela_retorno_dias INTEGER,
+            restauracao_definitiva_registrada BOOLEAN DEFAULT FALSE,
+            restauracao_definitiva_data DATE,
+            restauracao_definitiva_material TEXT,
+            selamento_coronario_adequado BOOLEAN DEFAULT FALSE,
+            restauracao_observacoes TEXT,
+            lesao_periapical_extensa BOOLEAN DEFAULT FALSE,
             FOREIGN KEY (patient_id) REFERENCES patients (id),
-            FOREIGN KEY (aluno_id) REFERENCES users (id)
+            FOREIGN KEY (aluno_id) REFERENCES users (id),
+            FOREIGN KEY (cancelado_por) REFERENCES users (id)
         )
     ''')
 
@@ -849,6 +1221,17 @@ def _init_db_locked():
             cad TEXT,
             referencia TEXT,
             ct TEXT,
+            ponto_referencia_coronario TEXT,
+            cri_mm NUMERIC(6,2),
+            cai_mm NUMERIC(6,2),
+            crd_mm NUMERIC(6,2),
+            crt_sugerido_mm NUMERIC(6,2),
+            crt_final_mm NUMERIC(6,2),
+            crt_override_justificativa TEXT,
+            localizador_apical_usado BOOLEAN DEFAULT FALSE,
+            modelo_localizador TEXT,
+            leitura_localizador NUMERIC(5,2),
+            confirmacao_eletronica BOOLEAN DEFAULT FALSE,
             lima_inicial TEXT,
             lima_final TEXT,
             cone TEXT,
@@ -864,11 +1247,159 @@ def _init_db_locked():
             data TEXT NOT NULL,
             evolucao TEXT NOT NULL,
             assinatura_paciente_base64 TEXT,
+            assinatura_modo TEXT DEFAULT 'patient_canvas',
+            assinatura_event_id INTEGER,
+            assinatura_document_hash TEXT,
+            assinatura_auth_method TEXT,
+            assinatura_source_ip TEXT,
+            assinatura_user_agent TEXT,
             professor_id INTEGER,
             status TEXT DEFAULT 'Pendente',
+            numero_sessao INTEGER,
+            etapa_realizada TEXT,
+            status_sessao TEXT DEFAULT 'realizada',
+            proxima_sessao_prevista DATE,
+            janela_retorno_dias INTEGER,
+            observacao_clinica TEXT,
+            lai_mm NUMERIC(5,2),
+            tecnica_instrumentacao TEXT,
+            sistema_instrumentacao TEXT,
+            liga_instrumento TEXT,
+            protocolo_observacoes TEXT,
+            solucao_irrigadora TEXT,
+            edta_usado BOOLEAN DEFAULT FALSE,
+            tempo_irrigacao_min INTEGER,
+            agitacao_irrigadora TEXT,
+            volume_irrigacao_ml NUMERIC(6,2),
+            irrigacao_observacoes TEXT,
+            medicacao_intracanal TEXT,
+            medicacao_intracanal_outra TEXT,
+            medicacao_veiculo TEXT,
+            medicacao_quantidade TEXT,
+            selamento_provisorio TEXT,
+            selamento_provisorio_outro TEXT,
+            cone_principal_material TEXT,
+            cone_principal_calibre TEXT,
+            cone_principal_conicidade TEXT,
+            prova_cone BOOLEAN DEFAULT FALSE,
+            tug_back BOOLEAN DEFAULT FALSE,
+            crt_confirmado_mm NUMERIC(5,2),
+            cimento_obturador TEXT,
+            cimento_classe TEXT,
+            cimento_classe_outro TEXT,
+            cimento_lote TEXT,
+            cimento_validade DATE,
+            tecnica_obturacao TEXT,
+            tecnica_obturacao_outra TEXT,
+            radiografia_final_aprovada BOOLEAN DEFAULT FALSE,
+            radiografia_final_gaps BOOLEAN DEFAULT FALSE,
+            radiografia_final_voids BOOLEAN DEFAULT FALSE,
+            controle_qualidade_observacoes TEXT,
+            restauracao_definitiva_registrada BOOLEAN DEFAULT FALSE,
+            restauracao_definitiva_data DATE,
+            restauracao_definitiva_material TEXT,
+            selamento_coronario_adequado BOOLEAN DEFAULT FALSE,
+            restauracao_observacoes TEXT,
             criado_em TIMESTAMP DEFAULT NOW(),
             FOREIGN KEY (endodontia_id) REFERENCES endodontia (id),
             FOREIGN KEY (professor_id) REFERENCES users (id)
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS endodontia_imagens (
+            id SERIAL PRIMARY KEY,
+            patient_id INTEGER NOT NULL,
+            endodontia_id INTEGER NOT NULL,
+            followup_id INTEGER,
+            filename TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            visual_category TEXT DEFAULT 'periapical_inicial',
+            caption TEXT,
+            clinical_context TEXT,
+            comparison_label TEXT DEFAULT 'diagnostico',
+            comparison_group TEXT,
+            canal TEXT,
+            equipamento TEXT,
+            formato TEXT,
+            taken_at TIMESTAMP,
+            uploaded_by INTEGER,
+            active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (patient_id) REFERENCES patients (id),
+            FOREIGN KEY (endodontia_id) REFERENCES endodontia (id),
+            FOREIGN KEY (followup_id) REFERENCES endodontia_followup (id),
+            FOREIGN KEY (uploaded_by) REFERENCES users (id)
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS endodontia_proservacao (
+            id SERIAL PRIMARY KEY,
+            patient_id INTEGER NOT NULL,
+            endodontia_id INTEGER NOT NULL,
+            followup_id INTEGER,
+            tipo_retorno TEXT NOT NULL,
+            data_prevista DATE NOT NULL,
+            status TEXT DEFAULT 'planejado',
+            lembrete_dias INTEGER DEFAULT 7,
+            data_realizada DATE,
+            dente_funcao_mastigatoria BOOLEAN DEFAULT FALSE,
+            ausencia_dor_percussao BOOLEAN DEFAULT FALSE,
+            ausencia_dor_palpacao_apical BOOLEAN DEFAULT FALSE,
+            ausencia_edema_mucosa BOOLEAN DEFAULT FALSE,
+            ausencia_fistula BOOLEAN DEFAULT FALSE,
+            clinica_observacoes TEXT,
+            espaco_periodontal_normal BOOLEAN DEFAULT FALSE,
+            lamina_dura_integra BOOLEAN DEFAULT FALSE,
+            ausencia_lesao_radiolucida BOOLEAN DEFAULT FALSE,
+            reducao_lesao_preexistente BOOLEAN DEFAULT FALSE,
+            radiografica_observacoes TEXT,
+            criterio_negativo_instavel BOOLEAN DEFAULT FALSE,
+            resultado_strindberg TEXT,
+            resultado_observacoes TEXT,
+            restauracao_tipo TEXT,
+            restauracao_selamento_adequado BOOLEAN DEFAULT FALSE,
+            restauracao_data DATE,
+            restauracao_cd_id INTEGER,
+            restauracao_observacoes TEXT,
+            criado_em TIMESTAMP DEFAULT NOW(),
+            atualizado_em TIMESTAMP DEFAULT NOW(),
+            UNIQUE (endodontia_id, tipo_retorno),
+            FOREIGN KEY (patient_id) REFERENCES patients (id),
+            FOREIGN KEY (endodontia_id) REFERENCES endodontia (id),
+            FOREIGN KEY (followup_id) REFERENCES endodontia_followup (id),
+            FOREIGN KEY (restauracao_cd_id) REFERENCES users (id)
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS endodontia_orcamento_items (
+            id SERIAL PRIMARY KEY,
+            patient_id INTEGER NOT NULL,
+            endodontia_id INTEGER NOT NULL,
+            dente_numero TEXT,
+            canal_id TEXT,
+            procedimento TEXT,
+            codigo_tuss TEXT,
+            codigo_sigtap TEXT,
+            sigtap_name TEXT,
+            codigo_cid10 TEXT,
+            valor_unitario NUMERIC(12,2) DEFAULT 0,
+            valor_publico_unitario NUMERIC(12,2) DEFAULT 0,
+            economia_estimada_unitaria NUMERIC(12,2) DEFAULT 0,
+            sessoes_previstas INTEGER,
+            complexidade TEXT,
+            grupo_dentario TEXT,
+            multiplicador NUMERIC(5,2) DEFAULT 1,
+            observacoes TEXT,
+            status TEXT DEFAULT 'gerado',
+            created_by INTEGER,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (patient_id) REFERENCES patients (id),
+            FOREIGN KEY (endodontia_id) REFERENCES endodontia (id),
+            FOREIGN KEY (created_by) REFERENCES users (id)
         )
     ''')
 
@@ -878,6 +1409,15 @@ def _init_db_locked():
             patient_id INTEGER NOT NULL,
             aluno_id INTEGER NOT NULL,
             assinatura_base64 TEXT NOT NULL,
+            assinatura_modo TEXT DEFAULT 'patient_canvas',
+            assinatura_event_id INTEGER,
+            assinatura_document_hash TEXT,
+            assinatura_a_rogo_por INTEGER,
+            assinatura_a_rogo_declaracao TEXT,
+            assinatura_a_rogo_testemunhas JSONB,
+            assinatura_auth_method TEXT,
+            assinatura_source_ip TEXT,
+            assinatura_user_agent TEXT,
             data_assinatura TIMESTAMP DEFAULT NOW(),
             texto_opcional TEXT,
             FOREIGN KEY (patient_id) REFERENCES patients (id),
@@ -1053,14 +1593,37 @@ def _init_db_locked():
         )
     ''')
 
+    execute('''
+        CREATE TABLE IF NOT EXISTS consultas (
+            id SERIAL PRIMARY KEY,
+            patient_id INTEGER NOT NULL,
+            dentista_id INTEGER NOT NULL,
+            data_consulta TIMESTAMP NOT NULL,
+            duracao_minutos INTEGER DEFAULT 30,
+            status TEXT DEFAULT 'Pendente',
+            execution_unit TEXT DEFAULT 'unidade_principal',
+            observacoes TEXT,
+            created_by INTEGER NOT NULL,
+            criado_em TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE,
+            FOREIGN KEY (dentista_id) REFERENCES users(id) ON DELETE RESTRICT,
+            FOREIGN KEY (created_by) REFERENCES users(id)
+        )
+    ''')
+
     # Colunas adicionadas em atualizações graduais (já incorporadas no DDL acima,
     # mas mantido para retrocompatibilidade caso o schema já exista)
     for table, cols in MIGRATIONS.items():
         _ensure_columns_exist(table, cols)
 
+    _migrate_legacy_user_roles()
+
     # Normaliza valores legados gravados sem acento para o padrão exibido na UI.
     execute("UPDATE tratamento_procedimentos SET status = 'Concluído' WHERE status = 'Concluido'")
     execute("UPDATE atendimentos SET status = 'Concluído' WHERE status = 'Concluido'")
+    execute("UPDATE triagem_acoes SET execution_unit = 'unidade_principal' WHERE execution_unit IS NULL OR execution_unit = ''")
+    execute("UPDATE consultas SET execution_unit = 'unidade_principal' WHERE execution_unit IS NULL OR execution_unit = ''")
+    _seed_execution_units()
     execute("""
         UPDATE exam_imagem_arquivos a
         SET patient_id = e.patient_id
@@ -1103,6 +1666,7 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_patients_is_demo ON patients(is_demo)",
         "CREATE INDEX IF NOT EXISTS idx_patients_demo_seed_run ON patients(demo_seed_run_id)",
         "CREATE INDEX IF NOT EXISTS idx_anamnesis_patient_id ON anamnesis(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_anamnesis_signature_event ON anamnesis(assinatura_event_id)",
         "CREATE INDEX IF NOT EXISTS idx_exams_patient_id ON exams(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_exam_imagem_arquivos_exam_id ON exam_imagem_arquivos(exam_id)",
         "CREATE INDEX IF NOT EXISTS idx_exam_imagem_arquivos_patient_id ON exam_imagem_arquivos(patient_id)",
@@ -1135,15 +1699,45 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_tratamento_esus_status ON tratamento_procedimentos(esus_export_status)",
         "CREATE INDEX IF NOT EXISTS idx_prosthesis_patient_id ON prosthesis(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_prosthesis_etapas_id ON prosthesis_etapas(prosthesis_id)",
+        "CREATE INDEX IF NOT EXISTS idx_prosthesis_etapas_signature_event ON prosthesis_etapas(assinatura_event_id)",
         "CREATE INDEX IF NOT EXISTS idx_prosthesis_pag_id ON prosthesis_pagamentos(prosthesis_id)",
+        "CREATE INDEX IF NOT EXISTS idx_prosthesis_pag_signature_event ON prosthesis_pagamentos(assinatura_event_id)",
         "CREATE INDEX IF NOT EXISTS idx_endodontia_patient_id ON endodontia(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_status ON endodontia(status)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_status_tratamento ON endodontia(status_tratamento)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_proxima_sessao ON endodontia(proxima_sessao_prevista)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_cancelado_em ON endodontia(cancelado_em)",
         "CREATE INDEX IF NOT EXISTS idx_endodontia_canais_id ON endodontia_canais(endodontia_id)",
         "CREATE INDEX IF NOT EXISTS idx_endodontia_followup_id ON endodontia_followup(endodontia_id)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_followup_signature_event ON endodontia_followup(assinatura_event_id)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_followup_status_sessao ON endodontia_followup(status_sessao)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_followup_proxima_sessao ON endodontia_followup(proxima_sessao_prevista)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_imagens_patient_id ON endodontia_imagens(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_imagens_endo_id ON endodontia_imagens(endodontia_id)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_imagens_followup_id ON endodontia_imagens(followup_id)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_imagens_visual_category ON endodontia_imagens(visual_category)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_imagens_comparison_group ON endodontia_imagens(comparison_group)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_proservacao_patient_id ON endodontia_proservacao(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_proservacao_endo_id ON endodontia_proservacao(endodontia_id)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_proservacao_data_prevista ON endodontia_proservacao(data_prevista)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_proservacao_status ON endodontia_proservacao(status)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_orcamento_patient_id ON endodontia_orcamento_items(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_orcamento_endo_id ON endodontia_orcamento_items(endodontia_id)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_orcamento_status ON endodontia_orcamento_items(status)",
+        "CREATE INDEX IF NOT EXISTS idx_endodontia_orcamento_sigtap ON endodontia_orcamento_items(codigo_sigtap)",
         "CREATE INDEX IF NOT EXISTS idx_receituarios_patient_id ON receituarios(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_atestados_patient_id ON atestados(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_patient_tcle_patient_id ON patient_tcle(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_patient_tcle_signature_event ON patient_tcle(assinatura_event_id)",
         "CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)",
         "CREATE INDEX IF NOT EXISTS idx_users_active ON users(active)",
+        "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)",
+        "CREATE INDEX IF NOT EXISTS idx_users_password_reset_hash ON users(password_reset_token_hash)",
+        "CREATE INDEX IF NOT EXISTS idx_prof_reg_requests_status ON professional_registration_requests(status)",
+        "CREATE INDEX IF NOT EXISTS idx_prof_reg_requests_cpf ON professional_registration_requests(cpf)",
+        "CREATE INDEX IF NOT EXISTS idx_prof_reg_requests_email ON professional_registration_requests(email)",
+        "CREATE INDEX IF NOT EXISTS idx_prof_reg_requests_role ON professional_registration_requests(requested_role)",
+        "CREATE INDEX IF NOT EXISTS idx_prof_reg_requests_created_at ON professional_registration_requests(created_at)",
         "CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at)",
         "CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id)",
         "CREATE INDEX IF NOT EXISTS idx_audit_logs_patient_id ON audit_logs(patient_id)",
@@ -1153,6 +1747,10 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_patient_consents_status ON patient_consents(status)",
         "CREATE INDEX IF NOT EXISTS idx_digital_signatures_document ON digital_signatures(document_type, document_id)",
         "CREATE INDEX IF NOT EXISTS idx_digital_signatures_patient_id ON digital_signatures(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_signature_events_document ON signature_events(document_type, document_id)",
+        "CREATE INDEX IF NOT EXISTS idx_signature_events_patient_id ON signature_events(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_signature_events_hash ON signature_events(document_hash)",
+        "CREATE INDEX IF NOT EXISTS idx_signature_events_mode ON signature_events(signature_mode)",
         "CREATE INDEX IF NOT EXISTS idx_exam_fisico_exam_id ON exam_fisico(exam_id)",
         "CREATE INDEX IF NOT EXISTS idx_exam_odontograma_exam_id ON exam_odontograma(exam_id)",
         "CREATE INDEX IF NOT EXISTS idx_exam_placa_exam_id ON exam_controle_placa(exam_id)",
@@ -1194,6 +1792,7 @@ def _init_db_locked():
             data_consulta TIMESTAMP NOT NULL,
             duracao_minutos INTEGER DEFAULT 30,
             status TEXT DEFAULT 'Pendente',
+            execution_unit TEXT DEFAULT 'unidade_principal',
             observacoes TEXT,
             created_by INTEGER NOT NULL,
             criado_em TIMESTAMP DEFAULT NOW(),

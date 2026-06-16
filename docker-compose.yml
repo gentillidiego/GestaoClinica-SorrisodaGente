@@ -17,8 +17,25 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      mail:
+        condition: service_started
     environment:
       - REDIS_URL=redis://redis:6379/0
+
+  mail:
+    build:
+      context: .
+      dockerfile: deploy/mail/Dockerfile
+    container_name: gestaosaudeoral-mail
+    restart: always
+    environment:
+      MAIL_DOMAIN: sorrisodagentealagoas.com
+      MAIL_HOSTNAME: mail.sorrisodagentealagoas.com
+      DKIM_SELECTOR: mail
+    volumes:
+      - ./deploy/mail/dkim:/dkim:ro
+    expose:
+      - "25"
 
   redis:
     image: redis:7-alpine
@@ -50,6 +67,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      mail:
+        condition: service_started
     environment:
       - REDIS_URL=redis://redis:6379/0
 
@@ -71,6 +90,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      mail:
+        condition: service_started
     environment:
       - REDIS_URL=redis://redis:6379/0
 

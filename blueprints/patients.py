@@ -1,8 +1,23 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app, send_file
+from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app
 from flask_login import login_required, current_user
 from werkzeug.security import check_password_hash
 from database import execute, query, execute_transaction
-from constants import Role
+from constants import CLINICAL_EXECUTOR_ROLES, can_sign_clinical_document
+from services.security_service import audit_log, permission_required
+from services.sensitive_file_service import sensitive_file_response
+from services.signature_evidence_service import (
+    A_ROGO_DECLARATION,
+    SIGNATURE_MARKER_A_ROGO,
+    SIGNATURE_MODE_A_ROGO,
+    SIGNATURE_MODE_CANVAS,
+    build_atendimento_payload,
+    build_tcle_payload,
+    collect_a_rogo_witnesses,
+    json_dumps,
+    register_signature_event,
+    validate_a_rogo_signer,
+    wants_a_rogo,
+)
 import math
 import os
 from datetime import datetime
@@ -254,10 +269,16 @@ def edit_patient(id):
     return render_template('patients/edit.html', patient=patient)
 
 from services.patient_service import PatientService
-from services.sigtap_service import get_sigtap_procedure, normalize_sigtap_code, build_sigtap_options
-from services.security_service import audit_log
+from services.sigtap_service import (
+    build_sigtap_options,
+    build_sigtap_specialty_groups,
+    get_sigtap_procedure,
+    is_sigtap_code_allowed_for_specialty,
+    normalize_sigtap_code,
+)
 from services.visual_media_service import (
     build_estomatologia_photo_metadata,
+    update_endodontia_image_metadata,
     update_estomatologia_photo_metadata,
     update_exam_image_metadata,
 )
@@ -274,14 +295,19 @@ def view_patient(id):
         flash('Paciente não encontrado.', 'danger')
         return redirect(url_for('patients.list_patients'))
     data['sigtap_procedures'] = build_sigtap_options()
+    data['sigtap_specialty_groups'] = build_sigtap_specialty_groups()
     return render_template('patients/view.html', **data)
 
 from extensions import cache
 
 @cache.cached(timeout=600, key_prefix='students_list')
 def get_students_cached():
-    # Retorna TSBs e Dentistas — quem pode executar procedimentos
-    return query("SELECT id, username, full_name FROM users WHERE role IN (%s, %s) ORDER BY full_name ASC", (Role.TSB, Role.DENTISTA))
+    roles = tuple(sorted(CLINICAL_EXECUTOR_ROLES))
+    placeholders = ', '.join(['%s'] * len(roles))
+    return query(
+        f"SELECT id, username, full_name FROM users WHERE role IN ({placeholders}) ORDER BY full_name ASC",
+        roles,
+    )
 
 @patients_bp.route('/view/<int:id>/tab/<tab_name>')
 @login_required
@@ -368,12 +394,21 @@ def get_tab_content(id, tab_name):
     else:
         context[config['context_key']] = data
         
-    # Adicionar alunos se for uma aba que precisa (atendimento, tratamento, endodontia, protese)
+    # Adicionar profissionais clínicos quando a aba precisa de responsáveis/validadores.
     if tab_name in ['tab-atendimento', 'tab-tratamento', 'tab-endodontia', 'tab-protese', 'tab-materiais']:
-        context['students'] = get_students_cached()
+        clinical_users = get_students_cached()
+        context['clinical_users'] = clinical_users
+        context['students'] = clinical_users  # Alias legado para templates ainda não migrados.
+
+    if tab_name == 'tab-endodontia':
+        context['linked_anamnesis'] = PatientService.get_patient_anamnesis(id)
 
     if tab_name == 'tab-tratamento':
         context['sigtap_procedures'] = data.get('sigtap_procedures', build_sigtap_options())
+        context['sigtap_specialty_groups'] = data.get(
+            'sigtap_specialty_groups',
+            build_sigtap_specialty_groups(),
+        )
 
     context['now'] = datetime.now()
 
@@ -468,6 +503,7 @@ def complete_material_post_op(id, usage_id):
 
 @patients_bp.route('/<int:id>/visual/estomatologia-photo/<int:photo_id>')
 @login_required
+@permission_required('patients:view')
 def serve_estomatologia_photo(id, photo_id):
     photo = query(
         '''
@@ -492,7 +528,7 @@ def serve_estomatologia_photo(id, photo_id):
         patient_id=id,
         details={'filename': photo.get('filename'), 'caption': photo.get('legenda')},
     )
-    return send_file(os.path.abspath(photo['file_path']))
+    return sensitive_file_response(photo['file_path'])
 
 
 @patients_bp.route('/<int:id>/visual/exam-image/<int:arquivo_id>/metadata', methods=['POST'])
@@ -552,6 +588,36 @@ def update_estomatologia_visual_metadata(id, photo_id):
         flash(f'Erro ao atualizar foto: {str(exc)}', 'danger')
     return redirect(url_for('patients.view_patient', id=id) + '#tab-visual')
 
+
+@patients_bp.route('/<int:id>/visual/endodontia-image/<int:image_id>/metadata', methods=['POST'])
+@login_required
+def update_endodontia_visual_metadata(id, image_id):
+    try:
+        record = update_endodontia_image_metadata(image_id, id, request.form)
+        if not record:
+            flash('Imagem endodôntica não encontrada ou sem vínculo com este paciente.', 'danger')
+            return redirect(url_for('patients.view_patient', id=id) + '#tab-visual')
+        audit_log(
+            action='visual_media_metadata_updated',
+            module='visual_media',
+            entity_type='endodontia_imagens',
+            entity_id=image_id,
+            patient_id=id,
+            details={
+                'source': 'endodontia_image',
+                'visual_category': request.form.get('visual_category'),
+                'comparison_label': request.form.get('comparison_label'),
+                'comparison_group': request.form.get('comparison_group'),
+                'canal': request.form.get('canal'),
+            },
+        )
+        flash('Metadados da imagem endodôntica atualizados.', 'success')
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+    except Exception as exc:
+        flash(f'Erro ao atualizar imagem endodôntica: {str(exc)}', 'danger')
+    return redirect(url_for('patients.view_patient', id=id) + '#tab-visual')
+
 @patients_bp.route('/tcle/<int:id>', methods=['GET', 'POST'])
 @login_required
 def patient_tcle(id):
@@ -574,15 +640,82 @@ def patient_tcle(id):
 
     if request.method == 'POST':
         assinatura = request.form.get('assinatura_base64')
-        if not assinatura:
+        signature_mode = SIGNATURE_MODE_A_ROGO if wants_a_rogo(request.form) else SIGNATURE_MODE_CANVAS
+        signer = current_user
+        witnesses = []
+        declaration_text = None
+        auth_method = 'patient_canvas_session'
+
+        if signature_mode == SIGNATURE_MODE_A_ROGO:
+            try:
+                signer = validate_a_rogo_signer(
+                    request.form.get('rogo_prof_username'),
+                    request.form.get('rogo_prof_password'),
+                )
+                witnesses = collect_a_rogo_witnesses(request.form)
+                declaration_text = A_ROGO_DECLARATION
+                assinatura = SIGNATURE_MARKER_A_ROGO
+                auth_method = 'login_senha_cd_a_rogo'
+            except ValueError as exc:
+                flash(str(exc), 'danger')
+                return render_template('patients/tcle.html', patient=patient)
+        elif not assinatura:
             flash('A assinatura do paciente é obrigatória.', 'danger')
             return render_template('patients/tcle.html', patient=patient)
 
         try:
+            signer_id = signer['id'] if isinstance(signer, dict) else signer.id
+            tcle_id = execute('''
+                INSERT INTO patient_tcle (
+                    patient_id, aluno_id, assinatura_base64, assinatura_modo,
+                    assinatura_a_rogo_por, assinatura_a_rogo_declaracao,
+                    assinatura_a_rogo_testemunhas, assinatura_auth_method
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s)
+                RETURNING id
+            ''', (
+                id,
+                signer_id,
+                assinatura,
+                signature_mode,
+                signer_id if signature_mode == SIGNATURE_MODE_A_ROGO else None,
+                declaration_text,
+                json_dumps(witnesses),
+                auth_method,
+            ))
+            payload = build_tcle_payload(
+                patient,
+                signature_mode,
+                signature_capture=assinatura if signature_mode == SIGNATURE_MODE_CANVAS else None,
+                witnesses=witnesses,
+                signer=signer,
+            )
+            evidence = register_signature_event(
+                document_type='patient_tcle',
+                document_id=tcle_id,
+                patient=patient,
+                signature_mode=signature_mode,
+                payload=payload,
+                signed_by_user=signer,
+                auth_method=auth_method,
+                declaration_text=declaration_text,
+                witnesses=witnesses,
+                metadata={'tcle_version': 'tcle-odontologico-v1'},
+            )
             execute('''
-                INSERT INTO patient_tcle (patient_id, aluno_id, assinatura_base64)
-                VALUES (%s, %s, %s)
-            ''', (id, current_user.id, assinatura))
+                UPDATE patient_tcle
+                SET assinatura_event_id = %s,
+                    assinatura_document_hash = %s,
+                    assinatura_source_ip = %s,
+                    assinatura_user_agent = %s
+                WHERE id = %s
+            ''', (
+                evidence['event_id'],
+                evidence['document_hash'],
+                evidence['source_ip'],
+                evidence['user_agent'],
+                tcle_id,
+            ))
             flash('Termo de Consentimento assinado com sucesso!', 'success')
             return redirect(url_for('patients.view_patient', id=id))
         except Exception as e:
@@ -594,6 +727,7 @@ def patient_tcle(id):
 @login_required
 def add_treatment(id):
     dente = request.form.get('dente')
+    especialidade_sigtap = request.form.get('especialidade_sigtap') or None
     descricao = request.form.get('descricao')
     sigtap_code = normalize_sigtap_code(request.form.get('sigtap_code'))
     sigtap_competence = request.form.get('sigtap_competence') or None
@@ -605,17 +739,22 @@ def add_treatment(id):
     if request.form.get('sigtap_code') and not sigtap:
         flash('Código SIGTAP não encontrado na competência carregada.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-tratamento')
+    if not is_sigtap_code_allowed_for_specialty(especialidade_sigtap, sigtap_code):
+        flash('Código SIGTAP não pertence à especialidade selecionada.', 'danger')
+        return redirect(url_for('patients.view_patient', id=id) + '#tab-tratamento')
         
     try:
         execute('''
             INSERT INTO tratamento_procedimentos (
-                patient_id, dente, descricao, sigtap_code, sigtap_competence, sigtap_name
+                patient_id, dente, descricao, especialidade_sigtap,
+                sigtap_code, sigtap_competence, sigtap_name
             )
-            VALUES (%s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
         ''', (
             id,
             dente,
             descricao,
+            especialidade_sigtap,
             sigtap['code'] if sigtap else None,
             sigtap['competence'] if sigtap else None,
             sigtap['name'] if sigtap else None,
@@ -630,6 +769,7 @@ def add_treatment(id):
 @login_required
 def edit_treatment(id, proc_id):
     dente = request.form.get('dente')
+    especialidade_sigtap = request.form.get('especialidade_sigtap') or None
     descricao = request.form.get('descricao')
     sigtap_code = normalize_sigtap_code(request.form.get('sigtap_code'))
     sigtap_competence = request.form.get('sigtap_competence') or None
@@ -641,12 +781,16 @@ def edit_treatment(id, proc_id):
     if request.form.get('sigtap_code') and not sigtap:
         flash('Código SIGTAP não encontrado na competência carregada.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-tratamento')
+    if not is_sigtap_code_allowed_for_specialty(especialidade_sigtap, sigtap_code):
+        flash('Código SIGTAP não pertence à especialidade selecionada.', 'danger')
+        return redirect(url_for('patients.view_patient', id=id) + '#tab-tratamento')
         
     try:
         execute('''
             UPDATE tratamento_procedimentos 
             SET dente = %s,
                 descricao = %s,
+                especialidade_sigtap = %s,
                 sigtap_code = %s,
                 sigtap_competence = %s,
                 sigtap_name = %s,
@@ -658,6 +802,7 @@ def edit_treatment(id, proc_id):
         ''', (
             dente,
             descricao,
+            especialidade_sigtap,
             sigtap['code'] if sigtap else None,
             sigtap['competence'] if sigtap else None,
             sigtap['name'] if sigtap else None,
@@ -760,24 +905,95 @@ def add_atendimento(id):
 @login_required
 def sign_patient_atendimento(id, appt_id):
     assinatura_base64 = request.form.get('assinatura_base64')
-    
-    if not assinatura_base64:
+    signature_mode = SIGNATURE_MODE_A_ROGO if wants_a_rogo(request.form) else SIGNATURE_MODE_CANVAS
+    patient = query("SELECT * FROM patients WHERE id = %s", (id,), one=True)
+    appt = query("SELECT * FROM atendimentos WHERE id = %s AND patient_id = %s", (appt_id, id), one=True)
+
+    if not patient or not appt:
+        flash('Atendimento não encontrado para assinatura.', 'danger')
+        return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
+
+    signer = current_user
+    witnesses = []
+    declaration_text = None
+    auth_method = 'patient_canvas_session'
+
+    if signature_mode == SIGNATURE_MODE_A_ROGO:
+        try:
+            signer = validate_a_rogo_signer(
+                request.form.get('rogo_prof_username'),
+                request.form.get('rogo_prof_password'),
+            )
+            witnesses = collect_a_rogo_witnesses(request.form)
+            declaration_text = A_ROGO_DECLARATION
+            assinatura_base64 = SIGNATURE_MARKER_A_ROGO
+            auth_method = 'login_senha_cd_a_rogo'
+        except ValueError as exc:
+            flash(str(exc), 'danger')
+            return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
+    elif not assinatura_base64:
         flash('Nenhuma assinatura fornecida.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
         
     try:
+        signer_id = signer['id'] if isinstance(signer, dict) else getattr(signer, 'id', None)
+        payload = build_atendimento_payload(
+            patient,
+            appt,
+            signature_mode,
+            signature_capture=assinatura_base64 if signature_mode == SIGNATURE_MODE_CANVAS else None,
+            witnesses=witnesses,
+            signer=signer,
+        )
+        evidence = register_signature_event(
+            document_type='atendimento_patient_confirmation',
+            document_id=appt_id,
+            patient=patient,
+            signature_mode=signature_mode,
+            payload=payload,
+            signed_by_user=signer,
+            auth_method=auth_method,
+            declaration_text=declaration_text,
+            witnesses=witnesses,
+            metadata={'atendimento_id': appt_id},
+        )
         execute('''
             UPDATE atendimentos 
-            SET assinatura_paciente_base64 = %s
+            SET assinatura_paciente_base64 = %s,
+                assinatura_modo = %s,
+                assinatura_event_id = %s,
+                assinatura_document_hash = %s,
+                assinatura_a_rogo_por = %s,
+                assinatura_a_rogo_declaracao = %s,
+                assinatura_a_rogo_testemunhas = %s::jsonb,
+                assinatura_auth_method = %s,
+                assinatura_source_ip = %s,
+                assinatura_user_agent = %s
             WHERE id = %s AND patient_id = %s
-        ''', (assinatura_base64, appt_id, id))
+        ''', (
+            assinatura_base64,
+            signature_mode,
+            evidence['event_id'],
+            evidence['document_hash'],
+            signer_id if signature_mode == SIGNATURE_MODE_A_ROGO else None,
+            declaration_text,
+            json_dumps(witnesses),
+            auth_method,
+            evidence['source_ip'],
+            evidence['user_agent'],
+            appt_id,
+            id,
+        ))
         
         # Verifica se já tem assinatura do professor e do aluno executor para gerar a data
         appt = query("SELECT data, professor_id, aluno_executor_id FROM atendimentos WHERE id = %s", (appt_id,), one=True)
         if appt['professor_id'] and appt['aluno_executor_id'] and (not appt['data'] or appt['data'] == ''):
             execute("UPDATE atendimentos SET data = %s WHERE id = %s", (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), appt_id))
             
-        flash('Assinatura do paciente registrada com sucesso!', 'success')
+        if signature_mode == SIGNATURE_MODE_A_ROGO:
+            flash('Assinatura a rogo registrada com evidência de leitura, consentimento e testemunhas.', 'success')
+        else:
+            flash('Assinatura do paciente registrada com sucesso!', 'success')
     except Exception as e:
         flash(f'Erro ao registrar assinatura: {str(e)}', 'danger')
         
@@ -996,7 +1212,7 @@ def validate_exam(id, exam_id):
     prof = query("SELECT id, password, role FROM users WHERE username = %s", (username,), one=True)
     
     # Apenas dentista ou admin podem validar exames
-    if not prof or not check_password_hash(prof['password'], password) or prof['role'] not in [Role.DENTISTA, Role.ADMIN]:
+    if not prof or not check_password_hash(prof['password'], password) or not can_sign_clinical_document(prof['role']):
         flash('Credenciais inválidas ou usuário sem permissão para validar exames.', 'danger')
         return redirect(url_for('patients.view_patient', id=id))
         

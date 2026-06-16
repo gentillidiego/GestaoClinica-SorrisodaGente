@@ -189,11 +189,39 @@
                     {{ '✅ Termo Assinado' if tcle_signed else '📜 Termo Consentimento' }}
                 </a>
             </div>
+	    </div>
+	</div>
+
+    {% if clinical_alerts and clinical_alerts.has_alerts %}
+    <div class="card" style="margin-bottom:2rem; border-left:5px solid hsl(var(--warning)); padding:1.25rem 1.4rem;">
+        <div style="display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
+            <div>
+                <h2 style="font-family:var(--font-heading); font-size:1.05rem; margin:0 0 0.35rem; color:hsl(var(--text-main));">Alertas Clínicos do Prontuário</h2>
+                <p style="margin:0; color:hsl(var(--text-muted)); font-size:0.9rem;">Pendências que exigem conferência antes de encerrar atendimento, evolução ou documentação.</p>
+            </div>
+            <strong style="color:hsl(var(--warning)); font-size:1.25rem;">{{ clinical_alerts.total }}</strong>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:0.8rem; margin-top:1rem;">
+            {% if clinical_alerts.pending_exams.total %}
+            <a href="#tab-exames" onclick="handleTabClick(event, 'tab-exames')" style="display:flex; flex-direction:column; gap:0.25rem; padding:0.85rem 1rem; border-radius:var(--radius-md); border:1px solid hsl(var(--border)); background:#fff; text-decoration:none;">
+                <span style="font-size:0.76rem; font-weight:800; color:hsl(var(--text-muted)); text-transform:uppercase;">Exames pendentes</span>
+                <strong style="color:hsl(var(--text-main));">{{ clinical_alerts.pending_exams.total }} exame(s)</strong>
+                <small style="color:hsl(var(--warning)); font-weight:700;">Aguardando validação clínica</small>
+            </a>
+            {% endif %}
+            {% if clinical_alerts.unsigned_documents.total %}
+            <a href="#tab-atendimento" onclick="handleTabClick(event, 'tab-atendimento')" style="display:flex; flex-direction:column; gap:0.25rem; padding:0.85rem 1rem; border-radius:var(--radius-md); border:1px solid hsl(var(--border)); background:#fff; text-decoration:none;">
+                <span style="font-size:0.76rem; font-weight:800; color:hsl(var(--text-muted)); text-transform:uppercase;">Documentos sem assinatura</span>
+                <strong style="color:hsl(var(--text-main));">{{ clinical_alerts.unsigned_documents.total }} documento(s)</strong>
+                <small style="color:hsl(var(--warning)); font-weight:700;">Paciente, executor ou dentista pendente</small>
+            </a>
+            {% endif %}
         </div>
     </div>
+    {% endif %}
 
-    <!-- Sistema de Abas (Tabs) -->
-    <div class="tabs-container">
+	<!-- Sistema de Abas (Tabs) -->
+	<div class="tabs-container">
         <div class="tabs-header"
             style="display: flex; gap: 0.5rem; margin-bottom: 2rem; border-bottom: 2px solid hsl(var(--border)); padding-bottom: 1px;">
             <button class="tab-btn active" onclick="switchTab(event, 'tab-paciente')">Paciente</button>
@@ -202,19 +230,15 @@
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-exames')">Exames</button>
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
-                onclick="handleTabClick(event, 'tab-tratamento')">Tratamento</button>
+                onclick="handleTabClick(event, 'tab-tratamento')">Plano de Tratamento</button>
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-atendimento')">Atendimento</button>
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
-                onclick="handleTabClick(event, 'tab-endodontia')">Endodontia</button>
-            <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
-                onclick="handleTabClick(event, 'tab-protese')">Prótese</button>
+                onclick="handleTabClick(event, 'tab-estomatologia')">🚨 Estomatologia</button>
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-receituario')">Receituário</button>
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-atestado')">Atestado</button>
-            <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
-                onclick="handleTabClick(event, 'tab-estomatologia')">🚨 Estomatologia</button>
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-visual')">Visual</button>
             {% if can('inventory:view') %}
@@ -232,11 +256,10 @@
         <div id="tab-exames" class="tab-content" data-loaded="false"></div>
         <div id="tab-tratamento" class="tab-content" data-loaded="false"></div>
         <div id="tab-atendimento" class="tab-content" data-loaded="false"></div>
-        <div id="tab-endodontia" class="tab-content" data-loaded="false"></div>
-        <div id="tab-protese" class="tab-content" data-loaded="false"></div>
+        {# Endodontia e Prótese estão temporariamente ocultos da navegação do prontuário. #}
+        <div id="tab-estomatologia" class="tab-content" data-loaded="false"></div>
         <div id="tab-receituario" class="tab-content" data-loaded="false"></div>
         <div id="tab-atestado" class="tab-content" data-loaded="false"></div>
-        <div id="tab-estomatologia" class="tab-content" data-loaded="false"></div>
         <div id="tab-visual" class="tab-content" data-loaded="false"></div>
         {% if can('inventory:view') %}
         <div id="tab-materiais" class="tab-content" data-loaded="false"></div>

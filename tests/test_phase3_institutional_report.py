@@ -53,6 +53,9 @@ def _epidemiology_fixture():
 
 def test_reports_permission_allows_management_roles():
     assert role_has_permission(Role.ADMIN, 'reports:view')
+    assert role_has_permission(Role.COORDENACAO, 'reports:view')
+    assert role_has_permission(Role.SSA_SMS, 'reports:view')
+    assert role_has_permission(Role.COMUNICACAO, 'reports:view')
     assert role_has_permission(Role.BI, 'reports:view')
     assert role_has_permission(Role.EPIDEMIOLOGIA, 'reports:view')
     assert role_has_permission(Role.PREFEITURA, 'reports:view')
@@ -62,12 +65,13 @@ def test_reports_permission_allows_management_roles():
 
 
 def test_report_type_access_is_limited_by_government_role():
-    assert get_report_types_for_role(Role.PREFEITURA) == ['institucional']
-    assert get_report_types_for_role(Role.SSA) == ['ssa']
-    assert get_report_types_for_role(Role.SMS) == ['sms']
+    assert set(get_report_types_for_role(Role.COORDENACAO)) == {'institucional', 'ssa', 'sms'}
+    assert set(get_report_types_for_role(Role.SSA_SMS)) == {'institucional', 'ssa', 'sms'}
+    assert set(get_report_types_for_role(Role.PREFEITURA)) == {'institucional', 'ssa', 'sms'}
     assert set(get_report_types_for_role(Role.BI)) == {'institucional', 'ssa', 'sms'}
+    assert get_report_types_for_role(Role.COMUNICACAO) == ['institucional']
     assert role_can_access_report_type(Role.SSA, 'ssa')
-    assert role_can_access_report_type(Role.SSA, 'sms') is False
+    assert role_can_access_report_type(Role.SSA, 'sms')
 
 
 def test_institutional_highlights_use_executive_and_epidemiology_data():

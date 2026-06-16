@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Unidade - Administração{% endblock %}
+
+{% block content %}
+<div style="max-width: 720px; margin: 3rem auto;" class="animate-fade">
+    <div style="margin-bottom: 2rem;">
+        <a href="{{ url_for('admin.execution_units') }}"
+            style="display: inline-flex; align-items: center; gap: 0.5rem; color: hsl(var(--text-muted)); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.2s;"
+            onmouseover="this.style.color='hsl(var(--primary))'" onmouseout="this.style.color='hsl(var(--text-muted))'">
+            <span>⬅️</span> Voltar para Unidades
+        </a>
+    </div>
+
+    <div class="card" style="padding: 2.5rem;">
+        <div style="margin-bottom: 2rem;">
+            <h1 class="page-title" style="margin-bottom:0.35rem;">Editar Unidade</h1>
+            <p class="page-subtitle">{{ unit.name }}</p>
+        </div>
+
+        <form method="POST" style="display:grid; gap:1.25rem;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem;">
+                <div>
+                    <label for="name" class="form-label">Nome *</label>
+                    <input type="text" name="name" id="name" class="form-control" value="{{ unit.name }}" required autofocus>
+                </div>
+                <div>
+                    <label for="code" class="form-label">Código interno</label>
+                    <input type="text" id="code" class="form-control" value="{{ unit.code }}" readonly>
+                </div>
+                <div>
+                    <label for="cnes" class="form-label">CNES</label>
+                    <input type="text" name="cnes" id="cnes" class="form-control" value="{{ unit.cnes or '' }}">
+                </div>
+            </div>
+
+            <div>
+                <label for="address" class="form-label">Endereço</label>
+                <input type="text" name="address" id="address" class="form-control" value="{{ unit.address or '' }}">
+            </div>
+
+            <div>
+                <label for="notes" class="form-label">Observações</label>
+                <textarea name="notes" id="notes" class="form-control" rows="3">{{ unit.notes or '' }}</textarea>
+            </div>
+
+            <div style="display:flex; gap:1.25rem; align-items:center; flex-wrap:wrap;">
+                {% if unit.is_default %}
+                <input type="hidden" name="active" value="1">
+                <input type="hidden" name="is_default" value="1">
+                <label style="display:inline-flex; align-items:center; gap:0.45rem; font-weight:800; color:hsl(var(--text-main));">
+                    <input type="checkbox" checked disabled>
+                    Ativa
+                </label>
+                <label style="display:inline-flex; align-items:center; gap:0.45rem; font-weight:800; color:hsl(var(--text-main));">
+                    <input type="checkbox" checked disabled>
+                    Padrão
+                </label>
+                {% else %}
+                <label style="display:inline-flex; align-items:center; gap:0.45rem; font-weight:800; color:hsl(var(--text-main));">
+                    <input type="checkbox" id="active" name="active" value="1" {% if unit.active %}checked{% endif %}>
+                    Ativa
+                </label>
+                <label style="display:inline-flex; align-items:center; gap:0.45rem; font-weight:800; color:hsl(var(--text-main));">
+                    <input type="checkbox" id="is_default" name="is_default" value="1">
+                    Tornar padrão
+                </label>
+                {% endif %}
+            </div>
+
+            <div style="display:flex; gap:1rem; flex-wrap:wrap; margin-top:0.5rem;">
+                <button type="submit" class="btn btn-primary" style="min-width:180px;">Salvar Alterações</button>
+                <a href="{{ url_for('admin.execution_units') }}" class="btn btn-outline">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if not unit.is_default %}
+<script>
+    const activeCheckbox = document.getElementById('active');
+    const defaultCheckbox = document.getElementById('is_default');
+    if (activeCheckbox && defaultCheckbox) {
+        defaultCheckbox.addEventListener('change', () => {
+            if (defaultCheckbox.checked) activeCheckbox.checked = true;
+        });
+    }
+</script>
+{% endif %}
+{% endblock %}

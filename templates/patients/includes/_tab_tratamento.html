@@ -12,18 +12,29 @@
                 style="font-size: 0.95rem; font-weight: 700; color: hsl(var(--text-main)); margin-bottom: 1rem;">
                 Adicionar Procedimento</h4>
             <form action="{{ url_for('patients.add_treatment', id=patient.id) }}" method="POST"
-                style="display: grid; grid-template-columns: 0.8fr minmax(220px, 1.4fr) minmax(260px, 1.8fr) auto; gap: 1rem; align-items: end;">
+                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; align-items: end;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div>
                     <label class="form-label" style="font-size: 0.8rem;">Dente</label>
                     <input type="text" name="dente" class="form-control" placeholder="Ex: 46">
                 </div>
                 <div>
+                    <label class="form-label" style="font-size: 0.8rem;">Especialidade</label>
+                    <select name="especialidade_sigtap" class="form-control treatment-specialty-select" data-target="#add_treatment_sigtap_code">
+                        <option value="">Selecionar especialidade</option>
+                        {% for group in sigtap_specialty_groups or [] %}
+                        <option value="{{ group.value }}">{{ group.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
                     <label class="form-label" style="font-size: 0.8rem;">Código SUS/SIGTAP</label>
-                    <select name="sigtap_code" class="form-control">
+                    <select name="sigtap_code" id="add_treatment_sigtap_code" class="form-control treatment-sigtap-select">
                         <option value="">Selecionar código</option>
-                        {% for item in sigtap_procedures or [] %}
-                        <option value="{{ item.code }}">{{ item.code }} - {{ item.name }}</option>
+                        {% for group in sigtap_specialty_groups or [] %}
+                        {% for item in group.procedures %}
+                        <option value="{{ item.code }}" data-specialty="{{ group.value }}" data-name="{{ item.name }}">{{ item.code }} - {{ item.name }}</option>
+                        {% endfor %}
                         {% endfor %}
                     </select>
                 </div>
@@ -53,6 +64,9 @@
                             Dente</th>
                         <th
                             style="padding: 1rem; font-size: 0.85rem; font-weight: 700; color: hsl(var(--text-muted)); text-transform: uppercase;">
+                            Especialidade</th>
+                        <th
+                            style="padding: 1rem; font-size: 0.85rem; font-weight: 700; color: hsl(var(--text-muted)); text-transform: uppercase;">
                             Procedimento a ser realizado</th>
                         <th
                             style="padding: 1rem; font-size: 0.85rem; font-weight: 700; color: hsl(var(--text-muted)); text-transform: uppercase;">
@@ -71,6 +85,15 @@
                     <tr style="border-bottom: 1px solid hsl(var(--border));">
                         <td style="padding: 1rem;">{{ loop.index }}</td>
                         <td style="padding: 1rem; font-weight: 600;">{{ proc.dente }}</td>
+                        <td style="padding: 1rem;">
+                            {% set specialty = namespace(label='') %}
+                            {% for group in sigtap_specialty_groups or [] %}
+                                {% if group.value == proc.especialidade_sigtap %}
+                                    {% set specialty.label = group.label %}
+                                {% endif %}
+                            {% endfor %}
+                            {{ specialty.label or 'Não informada' }}
+                        </td>
                         <td style="padding: 1rem;">{{ proc.descricao }}</td>
                         <td style="padding: 1rem;">
                             {% if proc.sigtap_code %}
@@ -93,6 +116,7 @@
                                 style="display: inline-flex; align-items: center; gap: 0.4rem; color: hsl(var(--success)); font-weight: 600; font-size: 0.9rem; background: hsl(var(--success)/0.1); padding: 0.4rem 0.8rem; border-radius: var(--radius-sm);">
                                 ✅ 
                                 {% if proc.professor_role == 'admin' %}Adm.
+                                {% elif proc.professor_role == 'clinicos' %}Clín.
                                 {% elif proc.professor_role == 'dentista' %}Dent.
                                 {% elif proc.professor_role == 'tsb' %}TSB
                                 {% else %}Prof.{% endif %}
@@ -103,7 +127,8 @@
                         <td style="padding: 1rem; text-align: right; white-space: nowrap;">
                             <button class="btn btn-outline" style="padding: 0.4rem; font-size: 0.85rem;"
                                 title="Editar" data-id="{{ proc.id }}" data-dente="{{ proc.dente }}"
-                                data-desc="{{ proc.descricao }}" data-sigtap-code="{{ proc.sigtap_code or '' }}"
+                                data-desc="{{ proc.descricao }}" data-specialty="{{ proc.especialidade_sigtap or '' }}"
+                                data-sigtap-code="{{ proc.sigtap_code or '' }}"
                                 onclick="openEditTreatmentModal(this)">✏️</button>
 
                             <form
@@ -119,7 +144,7 @@
                     {% endfor %}
                     {% else %}
                     <tr class="no-paginate">
-                        <td colspan="6"
+                        <td colspan="7"
                             style="padding: 3rem; text-align: center; color: hsl(var(--text-muted));">
                             <span style="font-size: 1.5rem; display: block; margin-bottom: 0.5rem;">📋</span>
                             Nenhum procedimento registrado neste plano de tratamento.

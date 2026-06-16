@@ -148,7 +148,7 @@
 
     <div class="epi-geo-layout">
       <div class="epi-map-canvas" aria-label="Mapa epidemiológico georreferenciado">
-        <div class="epi-map-grid"></div>
+        <div class="epi-map-image" aria-hidden="true"></div>
         {% for feature in data.geo.features %}
         <button
           type="button"
@@ -625,28 +625,28 @@
 .epi-map-canvas {
   position:relative;
   min-height:430px;
+  aspect-ratio:2048 / 1240;
   border:1px solid hsl(var(--border));
   border-radius:var(--radius-md);
-  background:
-    linear-gradient(135deg, rgba(37,99,235,0.10), rgba(15,118,110,0.08)),
-    #f8fafc;
+  background:#f8fafc;
   overflow:hidden;
 }
-.epi-map-canvas::before {
-  content:"";
-  position:absolute;
-  inset:7% 9% 8% 8%;
-  border:2px solid rgba(37,99,235,0.22);
-  border-radius:45% 55% 52% 48%;
-  transform:rotate(-9deg);
-}
-.epi-map-grid {
+.epi-map-image {
   position:absolute;
   inset:0;
   background-image:
-    linear-gradient(rgba(15,23,42,0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15,23,42,0.05) 1px, transparent 1px);
-  background-size:52px 52px;
+    linear-gradient(rgba(248,250,252,0.14), rgba(248,250,252,0.14)),
+    url("{{ url_for('static', filename='mapaalagoas.png') }}");
+  background-size:100% 100%;
+  background-position:center;
+  background-repeat:no-repeat;
+}
+.epi-map-canvas::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  background:linear-gradient(135deg, rgba(37,99,235,0.06), rgba(15,118,110,0.05));
+  pointer-events:none;
 }
 .epi-map-marker {
   position:absolute;
@@ -658,7 +658,7 @@
   font-size:0.68rem;
   font-weight:900;
   cursor:pointer;
-  z-index:2;
+  z-index:3;
 }
 .epi-map-marker span {
   display:flex;

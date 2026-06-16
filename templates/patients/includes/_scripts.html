@@ -69,6 +69,7 @@
                     target.setAttribute('data-loaded', 'true');
                     
                     if (typeof initPagination === 'function') initPagination(target);
+                    if (typeof initTreatmentSpecialtyFilters === 'function') initTreatmentSpecialtyFilters(target);
                     
                     // Re-inicialização de componentes específicos se necessário
                     if (tabName === 'tab-receituario' || tabName === 'tab-atestado') {
@@ -94,6 +95,7 @@
     }
 
     document.addEventListener("DOMContentLoaded", function () {
+        initTreatmentSpecialtyFilters(document);
         if (window.location.hash) {
             const hash = window.location.hash.substring(1);
             if (document.getElementById(hash) && document.getElementById(hash).classList.contains('tab-content')) {
@@ -107,6 +109,55 @@
             switchTab(null, 'tab-paciente');
         }
     });
+
+    function filterTreatmentSigtapOptions(specialtySelect) {
+        const targetSelector = specialtySelect.getAttribute('data-target');
+        const sigtapSelect = targetSelector ? document.querySelector(targetSelector) : null;
+        if (!sigtapSelect) return;
+
+        const selectedSpecialty = specialtySelect.value;
+        Array.from(sigtapSelect.options).forEach(option => {
+            if (!option.value) {
+                option.hidden = false;
+                option.disabled = false;
+                return;
+            }
+            const sameSpecialty = !selectedSpecialty || option.getAttribute('data-specialty') === selectedSpecialty;
+            option.hidden = !sameSpecialty;
+            option.disabled = !sameSpecialty;
+        });
+
+        const selectedOption = sigtapSelect.selectedOptions[0];
+        if (selectedOption && selectedOption.disabled) {
+            sigtapSelect.value = '';
+        }
+    }
+
+    function initTreatmentSpecialtyFilters(container) {
+        const root = container || document;
+        root.querySelectorAll('.treatment-specialty-select').forEach(select => {
+            if (select.dataset.specialtyFilterReady === '1') {
+                filterTreatmentSigtapOptions(select);
+                return;
+            }
+            select.dataset.specialtyFilterReady = '1';
+            select.addEventListener('change', () => filterTreatmentSigtapOptions(select));
+            filterTreatmentSigtapOptions(select);
+        });
+
+        root.querySelectorAll('.treatment-sigtap-select').forEach(select => {
+            if (select.dataset.descriptionAutofillReady === '1') return;
+            select.dataset.descriptionAutofillReady = '1';
+            select.addEventListener('change', () => {
+                const option = select.selectedOptions[0];
+                const form = select.closest('form');
+                const descriptionInput = form ? form.querySelector('input[name="descricao"]') : null;
+                if (option && option.value && descriptionInput && !descriptionInput.value.trim()) {
+                    descriptionInput.value = option.getAttribute('data-name') || '';
+                }
+            });
+        });
+    }
 
     function openSignModal(actionUrl) {
         const modal = document.getElementById('signModal');
@@ -290,10 +341,46 @@
         alert('Acesso Bloqueado: Este prontuário só será liberado após o paciente assinar o Termo de Consentimento (TCLE).');
     }
 
-    function openPatientSignModal(actionUrl) {
+    function openPatientSignModal(actionUrl, allowProxySignature = false, patientName = '', patientCpf = '') {
         const modal = document.getElementById('patientSignModal');
         const form = document.getElementById('patientSignForm');
         form.action = actionUrl;
+        form.dataset.allowProxySignature = allowProxySignature ? '1' : '0';
+        const identityBox = document.getElementById('patient-sign-identity');
+        const identityName = document.getElementById('patient-sign-name');
+        const identityCpf = document.getElementById('patient-sign-cpf');
+        if (identityBox && identityName && identityCpf) {
+            identityName.textContent = patientName || 'Paciente';
+            identityCpf.textContent = patientCpf || 'não informado';
+            identityBox.style.display = allowProxySignature ? 'block' : 'none';
+        }
+
+        const proxySection = document.getElementById('patient-proxy-signature-section');
+        const proxyCheckbox = document.getElementById('patient_not_literate_modal');
+        const proxyFields = document.getElementById('patient-proxy-fields');
+        const proxyRequiredFields = document.querySelectorAll('.patient-proxy-required');
+
+        function syncProxySignatureFields() {
+            const proxyEnabled = allowProxySignature && proxyCheckbox && proxyCheckbox.checked;
+            if (proxyFields) {
+                proxyFields.style.display = proxyEnabled ? 'block' : 'none';
+            }
+            proxyRequiredFields.forEach((field) => {
+                field.required = proxyEnabled;
+                if (!proxyEnabled) {
+                    field.value = '';
+                }
+            });
+        }
+
+        if (proxySection) {
+            proxySection.style.display = allowProxySignature ? 'block' : 'none';
+        }
+        if (proxyCheckbox) {
+            proxyCheckbox.checked = false;
+            proxyCheckbox.onchange = syncProxySignatureFields;
+        }
+        syncProxySignatureFields();
 
         // Setup signature pad for patient sign modal
         const canvas = document.getElementById('signature-pad-patient');
@@ -302,6 +389,12 @@
             document.getElementById('clear-signature-patient').addEventListener('click', () => signaturePad.clear());
 
             form.addEventListener('submit', function (e) {
+                const proxyAllowed = form.dataset.allowProxySignature === '1';
+                const proxyChecked = proxyAllowed && document.getElementById('patient_not_literate_modal')?.checked;
+                if (proxyChecked) {
+                    document.getElementById('assinatura_base64_patient').value = '';
+                    return;
+                }
                 if (signaturePad.isEmpty()) {
                     e.preventDefault();
                     alert('Por favor, assine no quadro ou clique em Cancelar.');
@@ -336,6 +429,11 @@
         const modal = document.getElementById('patientSignModal');
         modal.style.display = 'none';
         document.getElementById('patientSignForm').reset();
+        document.querySelectorAll('.patient-proxy-required').forEach((field) => {
+            field.required = false;
+        });
+        const proxyFields = document.getElementById('patient-proxy-fields');
+        if (proxyFields) proxyFields.style.display = 'none';
     }
 
     function openEditAtendimentoModal(btn) {
@@ -366,6 +464,7 @@
         const procId = btn.getAttribute('data-id');
         const dente = btn.getAttribute('data-dente');
         const desc = btn.getAttribute('data-desc');
+        const specialty = btn.getAttribute('data-specialty');
         const sigtapCode = btn.getAttribute('data-sigtap-code');
 
         const modal = document.getElementById('editTreatmentModal');
@@ -376,6 +475,11 @@
 
         document.getElementById('edit_proc_dente').value = dente;
         document.getElementById('edit_proc_desc').value = desc;
+        const specialtySelect = document.getElementById('edit_proc_specialty');
+        if (specialtySelect) {
+            specialtySelect.value = specialty || '';
+            filterTreatmentSigtapOptions(specialtySelect);
+        }
         const sigtapSelect = document.getElementById('edit_proc_sigtap_code');
         if (sigtapSelect) {
             sigtapSelect.value = sigtapCode || '';
@@ -408,15 +512,31 @@
         const originalTitleText = title.innerText;
         const originalTitleColor = title.style.color;
 
-        title.innerText = 'Validação de Professor (Excluir Dente ' + elemento + ')';
+        title.innerText = 'Cancelar acompanhamento endodôntico - Dente ' + elemento;
         title.style.color = 'hsl(var(--danger))';
 
         const sub = modal.querySelector('button[type="submit"]');
         const originalSubText = sub.innerText;
         const originalSubClass = sub.className;
+        const originalSubStyle = sub.getAttribute('style') || '';
 
-        sub.innerText = 'Confirmar Exclusão';
+        sub.innerText = 'Confirmar cancelamento';
         sub.className = 'btn btn-danger';
+        sub.style.flex = '1';
+
+        let reasonWrap = form.querySelector('[data-endo-cancel-reason]');
+        if (!reasonWrap) {
+            reasonWrap = document.createElement('div');
+            reasonWrap.setAttribute('data-endo-cancel-reason', 'true');
+            reasonWrap.style.marginBottom = '1.5rem';
+            reasonWrap.innerHTML = `
+                <label class="form-label" style="font-size: 0.9rem;">Motivo do cancelamento</label>
+                <textarea name="motivo_cancelamento" class="form-control" rows="3"
+                    placeholder="Descreva o motivo clínico ou operacional..." required></textarea>
+            `;
+            const actions = form.querySelector('div:last-child');
+            form.insertBefore(reasonWrap, actions);
+        }
 
         const originalClose = window.closeSignModal;
         window.closeSignModal = function () {
@@ -424,6 +544,9 @@
             title.style.color = originalTitleColor;
             sub.innerText = originalSubText;
             sub.className = originalSubClass;
+            sub.setAttribute('style', originalSubStyle);
+            const dynamicReason = form.querySelector('[data-endo-cancel-reason]');
+            if (dynamicReason) dynamicReason.remove();
             originalClose();
             window.closeSignModal = originalClose;
         };

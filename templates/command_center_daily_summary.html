@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Resumo Operacional Diário - Central de Comando</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 14mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #eef2f7;
+      color: #172033;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 18px;
+      background: #ffffff;
+      border-bottom: 1px solid #d7dde8;
+    }
+
+    .toolbar strong {
+      font-size: 13px;
+    }
+
+    .toolbar-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 0 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #1d4ed8;
+      font-size: 12px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      border-color: #1d4ed8;
+      background: #1d4ed8;
+      color: #ffffff;
+    }
+
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 18px auto;
+      padding: 18mm;
+      background: #ffffff;
+      box-shadow: 0 10px 35px rgba(15, 23, 42, 0.12);
+    }
+
+    .report-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 170px;
+      gap: 16px;
+      align-items: start;
+      padding-bottom: 12px;
+      border-bottom: 3px solid #1d4ed8;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      color: #0f172a;
+      font-size: 24px;
+      line-height: 1.1;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .meta {
+      display: grid;
+      gap: 4px;
+      color: #475569;
+      font-size: 10px;
+      text-align: right;
+    }
+
+    .meta strong {
+      color: #0f172a;
+    }
+
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .filter-item,
+    .kpi,
+    .metric-box {
+      border: 1px solid #dbe3ef;
+      border-radius: 6px;
+      background: #f8fafc;
+      padding: 8px;
+    }
+
+    .filter-item span,
+    .kpi span,
+    .metric-box span {
+      display: block;
+      color: #64748b;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .filter-item strong,
+    .metric-box strong {
+      display: block;
+      margin-top: 2px;
+      color: #0f172a;
+      font-size: 11px;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .kpi strong {
+      display: block;
+      margin: 3px 0;
+      color: #1d4ed8;
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .kpi small {
+      color: #475569;
+      font-size: 10px;
+    }
+
+    h2 {
+      margin: 16px 0 7px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #dbe3ef;
+      color: #172033;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .recommendations {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 5px;
+    }
+
+    .recommendations li {
+      padding: 7px 9px;
+      border-left: 4px solid #1d4ed8;
+      background: #eff6ff;
+      color: #1e293b;
+      font-weight: 700;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+      page-break-inside: avoid;
+    }
+
+    th,
+    td {
+      padding: 6px;
+      border: 1px solid #dbe3ef;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #eef2f7;
+      color: #334155;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    td {
+      color: #1e293b;
+      font-size: 10px;
+    }
+
+    .severity-critical {
+      color: #b91c1c;
+      font-weight: 800;
+    }
+
+    .severity-warning {
+      color: #b45309;
+      font-weight: 800;
+    }
+
+    .goal-status-achieved {
+      color: #15803d;
+      font-weight: 800;
+    }
+
+    .goal-status-attention {
+      color: #b45309;
+      font-weight: 800;
+    }
+
+    .goal-status-critical {
+      color: #b91c1c;
+      font-weight: 800;
+    }
+
+    .two-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .empty {
+      margin: 0 0 10px;
+      padding: 9px;
+      border: 1px dashed #cbd5e1;
+      border-radius: 6px;
+      color: #64748b;
+      text-align: center;
+    }
+
+    .signature {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      margin-top: 26px;
+      page-break-inside: avoid;
+    }
+
+    .signature div {
+      padding-top: 22px;
+      border-top: 1px solid #334155;
+      color: #475569;
+      text-align: center;
+      font-size: 10px;
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+      }
+
+      .toolbar {
+        display: none;
+      }
+
+      .page {
+        width: auto;
+        min-height: auto;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+      }
+
+      h2,
+      table,
+      .metric-grid,
+      .recommendations,
+      .signature {
+        page-break-inside: avoid;
+      }
+    }
+
+    @media (max-width: 820px) {
+      .page {
+        width: auto;
+        min-height: auto;
+        margin: 0;
+        padding: 18px;
+      }
+
+      .report-header,
+      .filters,
+      .kpi-grid,
+      .two-columns,
+      .metric-grid,
+      .signature {
+        grid-template-columns: 1fr;
+      }
+
+      .meta {
+        text-align: left;
+      }
+    }
+  </style>
+</head>
+<body>
+{% set data = summary.source %}
+{% set command_query = request.query_string.decode() %}
+{% set command_url = url_for('main.command_center') ~ ('?' ~ command_query if command_query else '') %}
+{% set csv_url = url_for('main.export_command_center_daily_summary_csv') ~ ('?' ~ command_query if command_query else '') %}
+
+<div class="toolbar">
+  <strong>Resumo Operacional Diário</strong>
+  <div class="toolbar-actions">
+    <button type="button" class="btn btn-primary" onclick="window.print()">Imprimir</button>
+    <a href="{{ csv_url }}" class="btn">Exportar CSV</a>
+    <a href="{{ command_url }}" class="btn">Voltar à Central</a>
+  </div>
+</div>
+
+<main class="page">
+  <header class="report-header">
+    <div>
+      <h1>Resumo Operacional Diário</h1>
+      <p class="subtitle">Central de Comando - Gestão Saúde Oral</p>
+    </div>
+    <div class="meta">
+      <span><strong>Período:</strong> {{ summary.period_label }}</span>
+      <span><strong>Gerado em:</strong> {{ summary.generated_at.strftime('%d/%m/%Y %H:%M') }}</span>
+      <span><strong>Gerado por:</strong> {{ summary.generated_by }}</span>
+    </div>
+  </header>
+
+  <section class="filters" aria-label="Filtros aplicados">
+    {% for item in summary.applied_filters %}
+    <div class="filter-item">
+      <span>{{ item.label }}</span>
+      <strong>{{ item.value }}</strong>
+    </div>
+    {% endfor %}
+  </section>
+
+  <section class="kpi-grid" aria-label="Indicadores principais">
+    {% for item in summary.kpis %}
+    <div class="kpi">
+      <span>{{ item.label }}</span>
+      <strong>{{ item.value }}</strong>
+      <small>{{ item.detail }}</small>
+    </div>
+    {% endfor %}
+  </section>
+
+  <h2>Metas Operacionais Automáticas</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Meta</th>
+        <th>Atual / Alvo</th>
+        <th>Progresso</th>
+        <th>Status</th>
+        <th>Conduta</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for goal in data.operational_goals %}
+      <tr>
+        <td><strong>{{ goal.label }}</strong><br>{{ goal.detail }}</td>
+        <td>{{ goal.value_label }} {{ goal.unit }}</td>
+        <td>{{ goal.progress }}%</td>
+        <td class="goal-status-{{ goal.status }}">{{ goal.status_label }}</td>
+        <td>{{ goal.action }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Recomendações de Ação</h2>
+  <ul class="recommendations">
+    {% for item in summary.recommendations %}
+    <li>{{ item }}</li>
+    {% endfor %}
+  </ul>
+
+  <h2>Alertas Operacionais</h2>
+  {% if data.alerts %}
+  <table>
+    <thead>
+      <tr>
+        <th>Severidade</th>
+        <th>Alerta</th>
+        <th>Resumo</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for alert in data.alerts[:8] %}
+      <tr>
+        <td class="severity-{{ alert.severity }}">{{ 'Crítico' if alert.severity == 'critical' else 'Atenção' }}</td>
+        <td><strong>{{ alert.title }}</strong></td>
+        <td>{{ alert.message }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">Nenhum alerta operacional ativo no recorte.</p>
+  {% endif %}
+
+  <h2>Agenda e Produção</h2>
+  <div class="metric-grid">
+    <div class="metric-box">
+      <span>Pendentes</span>
+      <strong>{{ data.agenda.pending }}</strong>
+    </div>
+    <div class="metric-box">
+      <span>Confirmadas</span>
+      <strong>{{ data.agenda.confirmed }}</strong>
+    </div>
+    <div class="metric-box">
+      <span>Realizadas</span>
+      <strong>{{ data.agenda.done }}</strong>
+    </div>
+    <div class="metric-box">
+      <span>Canceladas</span>
+      <strong>{{ data.agenda.canceled }}</strong>
+    </div>
+    <div class="metric-box">
+      <span>Faltas</span>
+      <strong>{{ data.agenda.no_show }}</strong>
+    </div>
+    <div class="metric-box">
+      <span>Produção</span>
+      <strong>{{ data.production.today }}</strong>
+    </div>
+  </div>
+
+  {% if data.patients_today %}
+  <table>
+    <thead>
+      <tr>
+        <th>Horário</th>
+        <th>Paciente</th>
+        <th>Profissional</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in data.patients_today[:12] %}
+      <tr>
+        <td>{{ item.data_consulta.strftime('%d/%m %H:%M') if item.data_consulta else '-' }}</td>
+        <td><strong>{{ item.patient_nome }}</strong></td>
+        <td>{{ item.professional_name or 'Não informado' }}</td>
+        <td>{{ item.status }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">Nenhum paciente encontrado na agenda do recorte.</p>
+  {% endif %}
+
+  <h2>Fila Inteligente SUS</h2>
+  {% if data.priority_queue %}
+  <table>
+    <thead>
+      <tr>
+        <th>Paciente</th>
+        <th>Risco</th>
+        <th>Pontos</th>
+        <th>Especialidade</th>
+        <th>Motivos</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for patient in data.priority_queue[:10] %}
+      <tr>
+        <td><strong>{{ patient.nome }}</strong>{% if patient.age %}<br>{{ patient.age }} anos{% endif %}</td>
+        <td>
+          {% if patient.risk_level == 'critical' %}Crítico
+          {% elif patient.risk_level == 'high' %}Alto
+          {% elif patient.risk_level == 'medium' %}Médio
+          {% else %}Rotina{% endif %}
+        </td>
+        <td>{{ patient.score }}</td>
+        <td>
+          {{ patient.especialidade_nome or 'Sem especialidade' }}
+          {% if patient.waiting_days is not none %}<br>{{ patient.waiting_days }} dia(s) em espera{% endif %}
+        </td>
+        <td>{{ patient.reasons|join(', ') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">Nenhum paciente em fila prioritária no recorte.</p>
+  {% endif %}
+
+  <div class="two-columns">
+    <section>
+      <h2>Gargalos por Especialidade</h2>
+      {% if data.specialty_bottlenecks %}
+      <table>
+        <thead>
+          <tr>
+            <th>Especialidade</th>
+            <th>Casos</th>
+            <th>Maior Espera</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in data.specialty_bottlenecks[:6] %}
+          <tr>
+            <td><strong>{{ item.especialidade }}</strong></td>
+            <td>{{ item.total }} total, {{ item.critical }} crítico(s), {{ item.high }} alto(s)</td>
+            <td>{{ item.max_waiting_days }} dia(s){% if item.oldest_patient %}<br>{{ item.oldest_patient }}{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="empty">Sem gargalo prioritário por especialidade.</p>
+      {% endif %}
+    </section>
+
+    <section>
+      <h2>Pendências Clínicas</h2>
+      <table>
+        <tbody>
+          <tr>
+            <th>Exames pendentes</th>
+            <td>{{ data.clinical_pending.pending_exams.total }} exame(s) em {{ data.clinical_pending.pending_exams.patient_count }} paciente(s)</td>
+          </tr>
+          <tr>
+            <th>Docs sem assinatura</th>
+            <td>{{ data.clinical_pending.unsigned_documents.total }} documento(s) em {{ data.clinical_pending.unsigned_documents.patient_count }} paciente(s)</td>
+          </tr>
+          <tr>
+            <th>Tratamentos pendentes</th>
+            <td>{{ data.pending_treatments }} procedimento(s)</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <h2>Métricas Operacionais de Fila</h2>
+  <div class="metric-grid">
+    <div class="metric-box">
+      <span>Espera média concluída</span>
+      <strong>{{ data.queue_metrics.wait_time.current_avg_days }}d</strong>
+    </div>
+    <div class="metric-box">
+      <span>Espera ativa média</span>
+      <strong>{{ data.queue_metrics.wait_time.active_avg_days }}d</strong>
+    </div>
+    <div class="metric-box">
+      <span>Maior espera ativa</span>
+      <strong>{{ data.queue_metrics.wait_time.max_active_wait_days }}d</strong>
+    </div>
+    <div class="metric-box">
+      <span>Fila ativa 30d+</span>
+      <strong>{{ data.queue_metrics.wait_time.over_30_days }}</strong>
+    </div>
+    <div class="metric-box">
+      <span>Fila ativa 60d+</span>
+      <strong>{{ data.queue_metrics.wait_time.over_60_days }}</strong>
+    </div>
+    <div class="metric-box">
+      <span>Fila ativa 90d+</span>
+      <strong>{{ data.queue_metrics.wait_time.over_90_days }}</strong>
+    </div>
+  </div>
+
+  <div class="signature">
+    <div>Responsável pela Coordenação</div>
+    <div>Responsável Administrativo</div>
+  </div>
+</main>
+</body>
+</html>

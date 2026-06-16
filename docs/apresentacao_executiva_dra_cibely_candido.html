@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Validação Executiva - Gestão Saúde Oral</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 14mm 13mm 16mm;
+            @bottom-center {
+                content: "Gestão Saúde Oral - Programa Sorriso da Gente | Página " counter(page) " de " counter(pages);
+                font-family: Arial, sans-serif;
+                font-size: 7.5pt;
+                color: #64748b;
+            }
+        }
+
+        @page cover {
+            margin: 0;
+            @bottom-center {
+                content: "";
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            color: #152033;
+            font-family: Arial, sans-serif;
+            font-size: 9.4pt;
+            line-height: 1.44;
+            background: #ffffff;
+        }
+
+        h1,
+        h2,
+        h3,
+        p {
+            margin-top: 0;
+        }
+
+        .cover {
+            page: cover;
+            position: relative;
+            min-height: 297mm;
+            padding: 24mm 22mm;
+            color: #ffffff;
+            background: linear-gradient(150deg, #002d73 0%, #0d47a1 62%, #06448f 100%);
+            overflow: hidden;
+        }
+
+        .cover::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 100%;
+            height: 9mm;
+            background: linear-gradient(90deg, #ff6a00 0%, #ffc124 58%, #16a34a 100%);
+        }
+
+        .cover-mark {
+            width: 86mm;
+            padding: 4mm 5mm;
+            border-radius: 8px;
+            background: #ffffff;
+            box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
+        }
+
+        .cover-mark img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .cover-kicker {
+            margin: 17mm 0 5mm;
+            font-size: 9pt;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: #ffc124;
+        }
+
+        .cover h1 {
+            max-width: 118mm;
+            margin-bottom: 7mm;
+            font-size: 31pt;
+            line-height: 1.04;
+            letter-spacing: 0;
+        }
+
+        .cover-subtitle {
+            max-width: 112mm;
+            margin-bottom: 19mm;
+            font-size: 13pt;
+            color: #e8eef9;
+        }
+
+        .cover-meta {
+            display: table;
+            width: 150mm;
+            border-collapse: separate;
+            border-spacing: 0 4mm;
+        }
+
+        .cover-meta-row {
+            display: table-row;
+        }
+
+        .cover-meta-label,
+        .cover-meta-value {
+            display: table-cell;
+            padding: 4mm 5mm;
+            vertical-align: middle;
+            background: rgba(255, 255, 255, 0.12);
+            border-top: 1px solid rgba(255, 255, 255, 0.18);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .cover-meta-label {
+            width: 40mm;
+            border-left: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 8px 0 0 8px;
+            font-size: 8pt;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #bed2f4;
+        }
+
+        .cover-meta-value {
+            border-right: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 0 8px 8px 0;
+            font-size: 10.5pt;
+            font-weight: 700;
+        }
+
+        .cover-side-note {
+            width: 116mm;
+            margin-top: 11mm;
+            padding-left: 5mm;
+            border-left: 3px solid #ffc124;
+            color: #e8eef9;
+            font-size: 9.3pt;
+            line-height: 1.42;
+        }
+
+        .cover-side-note strong {
+            display: block;
+            margin-bottom: 2mm;
+            color: #ffc124;
+            font-size: 9pt;
+            text-transform: uppercase;
+        }
+
+        .section {
+            page-break-inside: avoid;
+            margin-bottom: 8mm;
+        }
+
+        .section.break-before {
+            page-break-before: always;
+        }
+
+        .eyebrow {
+            margin-bottom: 2mm;
+            color: #ff6a00;
+            font-size: 7.8pt;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        h2 {
+            margin-bottom: 4mm;
+            padding-bottom: 2.6mm;
+            border-bottom: 2px solid #dbeafe;
+            color: #002d73;
+            font-size: 18pt;
+            line-height: 1.15;
+            letter-spacing: 0;
+        }
+
+        h3 {
+            margin-bottom: 2mm;
+            color: #0d47a1;
+            font-size: 11.2pt;
+            line-height: 1.25;
+        }
+
+        .lead {
+            color: #334155;
+            font-size: 10.8pt;
+            line-height: 1.52;
+        }
+
+        .muted {
+            color: #64748b;
+        }
+
+        .callout {
+            margin: 4mm 0 7mm;
+            padding: 4.2mm 5mm;
+            border-left: 4px solid #ff6a00;
+            border-radius: 0 8px 8px 0;
+            background: #fff7ed;
+            color: #431407;
+        }
+
+        .status-strip {
+            display: table;
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 3mm;
+            margin: 4mm -3mm 7mm;
+        }
+
+        .status-item {
+            display: table-cell;
+            width: 25%;
+            padding: 4mm;
+            border: 1px solid #dbeafe;
+            border-radius: 8px;
+            background: #f8fbff;
+            vertical-align: top;
+        }
+
+        .status-label {
+            color: #64748b;
+            font-size: 7.4pt;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .status-value {
+            display: block;
+            margin-top: 1.5mm;
+            color: #002d73;
+            font-size: 12.5pt;
+            font-weight: 800;
+            line-height: 1.16;
+        }
+
+        .two-col {
+            display: table;
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 5mm 0;
+            margin-left: -5mm;
+        }
+
+        .col {
+            display: table-cell;
+            width: 50%;
+            vertical-align: top;
+            padding-left: 5mm;
+        }
+
+        .mini-list {
+            margin: 0;
+            padding-left: 4.5mm;
+        }
+
+        .mini-list li {
+            margin: 0 0 1.8mm;
+        }
+
+        .role-table,
+        .module-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 4mm 0 7mm;
+            page-break-inside: avoid;
+        }
+
+        .role-table th,
+        .role-table td,
+        .module-table th,
+        .module-table td {
+            border: 1px solid #dbe3ef;
+            padding: 2.8mm;
+            vertical-align: top;
+        }
+
+        .role-table th,
+        .module-table th {
+            background: #eef5ff;
+            color: #002d73;
+            font-size: 8.2pt;
+            text-align: left;
+            text-transform: uppercase;
+        }
+
+        .role-table td:first-child,
+        .module-table td:first-child {
+            width: 31mm;
+            color: #002d73;
+            font-weight: 800;
+        }
+
+        .badge {
+            display: inline-block;
+            margin: 0 1.5mm 1.5mm 0;
+            padding: 1mm 2mm;
+            border-radius: 999px;
+            background: #edf6ff;
+            color: #0d47a1;
+            font-size: 7.5pt;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .badge.orange {
+            background: #fff1e8;
+            color: #c2410c;
+        }
+
+        .badge.green {
+            background: #ecfdf3;
+            color: #15803d;
+        }
+
+        .module-grid {
+            display: table;
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 4mm;
+            margin: 2mm -4mm 5mm;
+        }
+
+        .module-row {
+            display: table-row;
+        }
+
+        .module-card {
+            display: table-cell;
+            width: 50%;
+            padding: 4mm;
+            border: 1px solid #dbe3ef;
+            border-radius: 8px;
+            background: #ffffff;
+            page-break-inside: avoid;
+            vertical-align: top;
+        }
+
+        .module-card h3 {
+            margin-bottom: 1.8mm;
+        }
+
+        .module-card p {
+            margin-bottom: 0;
+            color: #475569;
+        }
+
+        .flow {
+            margin: 5mm 0 8mm;
+        }
+
+        .flow-step {
+            display: table;
+            width: 100%;
+            margin-bottom: 2.6mm;
+            page-break-inside: avoid;
+        }
+
+        .flow-number {
+            display: table-cell;
+            width: 12mm;
+            height: 12mm;
+            border-radius: 50%;
+            background: #002d73;
+            color: #ffffff;
+            font-size: 12pt;
+            font-weight: 800;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .flow-content {
+            display: table-cell;
+            padding-left: 4mm;
+            vertical-align: middle;
+        }
+
+        .flow-content strong {
+            display: block;
+            margin-bottom: 0.8mm;
+            color: #002d73;
+            font-size: 10.5pt;
+        }
+
+        .flow-content span {
+            color: #475569;
+        }
+
+        .decision-grid {
+            display: table;
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 4mm;
+            margin: 2mm -4mm 7mm;
+        }
+
+        .decision-row {
+            display: table-row;
+        }
+
+        .decision-card {
+            display: table-cell;
+            width: 33.333%;
+            padding: 4mm;
+            border-radius: 8px;
+            background: #f8fafc;
+            border-top: 3px solid #ffc124;
+            vertical-align: top;
+        }
+
+        .decision-card strong {
+            display: block;
+            margin-bottom: 1.5mm;
+            color: #002d73;
+        }
+
+        .approval-grid {
+            display: table;
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 4mm;
+            margin: 2mm -4mm 7mm;
+        }
+
+        .approval-row {
+            display: table-row;
+        }
+
+        .approval-card {
+            display: table-cell;
+            width: 50%;
+            padding: 4mm;
+            border: 1px solid #dbe3ef;
+            border-radius: 8px;
+            background: #f8fbff;
+            vertical-align: top;
+            page-break-inside: avoid;
+        }
+
+        .approval-card strong {
+            display: block;
+            margin-bottom: 1.2mm;
+            color: #002d73;
+            font-size: 10.2pt;
+        }
+
+        .checkline {
+            display: block;
+            margin-bottom: 2mm;
+            color: #334155;
+        }
+
+        .checkbox {
+            display: inline-block;
+            width: 4mm;
+            height: 4mm;
+            margin-right: 2mm;
+            border: 1.4px solid #0d47a1;
+            border-radius: 2px;
+            vertical-align: -0.8mm;
+            background: #ffffff;
+        }
+
+        .approval-panel {
+            margin: 5mm 0 7mm;
+            padding: 5mm;
+            border: 1px solid #dbe3ef;
+            border-radius: 8px;
+            background: #ffffff;
+            page-break-inside: avoid;
+        }
+
+        .approval-panel h3 {
+            margin-bottom: 3mm;
+        }
+
+        .blank-line {
+            height: 8mm;
+            border-bottom: 1px solid #cbd5e1;
+            margin-bottom: 3mm;
+        }
+
+        .signature-grid {
+            display: table;
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 7mm 0;
+            margin: 10mm -7mm 4mm 0;
+        }
+
+        .signature-box {
+            display: table-cell;
+            width: 50%;
+            padding-top: 10mm;
+            border-top: 1px solid #334155;
+            color: #334155;
+            font-size: 8.8pt;
+            text-align: center;
+        }
+
+        .footer-signature {
+            margin-top: 11mm;
+            padding-top: 5mm;
+            border-top: 1px solid #dbe3ef;
+            color: #475569;
+            font-size: 8.8pt;
+        }
+    </style>
+</head>
+<body>
+    <section class="cover">
+        <div class="cover-mark">
+            <img src="../static/logo.png" alt="Logo Sorriso da Gente">
+        </div>
+
+        <div class="cover-kicker">Documento de Validação</div>
+        <h1>Gestão Saúde Oral</h1>
+        <p class="cover-subtitle">
+            Perfis, acessos, módulos e fluxo operacional para aprovação antes da criação dos manuais.
+        </p>
+
+        <div class="cover-meta">
+            <div class="cover-meta-row">
+                <div class="cover-meta-label">Contratante</div>
+                <div class="cover-meta-value">Dra. Cibely Candido</div>
+            </div>
+            <div class="cover-meta-row">
+                <div class="cover-meta-label">Escopo</div>
+                <div class="cover-meta-value">Aprovação de perfis, módulos, fluxos e decisões de implantação</div>
+            </div>
+            <div class="cover-meta-row">
+                <div class="cover-meta-label">Versão</div>
+                <div class="cover-meta-value">Documento para validação - 06/06/2026</div>
+            </div>
+        </div>
+
+        <div class="cover-side-note">
+            <strong>Objetivo</strong>
+            Obter aprovação conceitual da Contratante antes de produzir os manuais de uso,
+            treinamentos e documentos operacionais por perfil.
+        </div>
+    </section>
+
+    <main>
+        <section class="section">
+            <div class="eyebrow">Visão Geral</div>
+            <h2>O Sistema</h2>
+            <p class="lead">
+                O Gestão Saúde Oral organiza o trabalho do Programa Sorriso da Gente desde a triagem
+                municipal de campo até a agenda, atendimento clínico, prontuário, exames, estoque,
+                Central de Comando, epidemiologia, BI, relatórios institucionais e preparação para
+                SIGTAP/e-SUS APS.
+            </p>
+            <div class="callout">
+                Este documento deve ser usado para validar o desenho do sistema antes da criação dos
+                manuais. Se a Contratante solicitar ajustes em módulos, perfis ou fluxo, corrigimos
+                primeiro o desenho e só depois produzimos o material de treinamento.
+            </div>
+
+            <div class="status-strip">
+                <div class="status-item">
+                    <div class="status-label">Fase 0</div>
+                    <span class="status-value">Concluída</span>
+                    Núcleo clínico urgente, estomatologia e alerta vermelho.
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Fase 1</div>
+                    <span class="status-value">Base ativa</span>
+                    Perfis, permissões, auditoria inicial e backup operacional.
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Fase 2</div>
+                    <span class="status-value">Operacional</span>
+                    Triagem, agenda, Central, estoque, unidades e resumo diário.
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Fase 3</div>
+                    <span class="status-value">Avançada</span>
+                    BI, epidemiologia, relatórios, SIGTAP e e-SUS draft.
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="eyebrow">Finalidade da Aprovação</div>
+            <h2>O Que Precisamos Validar Agora</h2>
+            <p>
+                A aprovação esperada neste documento é de escopo funcional e fluxo operacional. Ela
+                não substitui homologação técnica, LGPD, backup, e-SUS real ou aceite final de produção;
+                ela serve para evitar retrabalho na criação dos manuais e treinamentos.
+            </p>
+
+            <div class="approval-grid">
+                <div class="approval-row">
+                    <div class="approval-card">
+                        <strong>1. Perfis e acessos</strong>
+                        Confirmar se os perfis refletem a operação real, quem usa cada perfil e quais acessos devem ser limitados ou ampliados.
+                    </div>
+                    <div class="approval-card">
+                        <strong>2. Módulos do sistema</strong>
+                        Confirmar quais módulos entram no piloto, quais ficam como opcionais e quais precisam de ajuste de linguagem ou regra.
+                    </div>
+                </div>
+                <div class="approval-row">
+                    <div class="approval-card">
+                        <strong>3. Fluxo triagem -> agenda -> atendimento</strong>
+                        Confirmar a regra de campo: triagem gera demanda e senha; a unidade de execução é definida posteriormente no agendamento.
+                    </div>
+                    <div class="approval-card">
+                        <strong>4. Decisões de implantação</strong>
+                        Confirmar unidades, responsáveis, relatórios prioritários, usuários do piloto e pendências antes dos manuais.
+                    </div>
+                </div>
+            </div>
+
+            <div class="callout">
+                Resultado esperado da reunião: aprovar o desenho atual ou registrar ajustes objetivos.
+                Com isso, os manuais serão produzidos com base em uma versão já validada pela Contratante.
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="eyebrow">Controle de Acesso</div>
+            <h2>Perfis e Permissões</h2>
+            <p>
+                Os perfis abaixo são a estrutura canônica de acesso. Perfis antigos ou específicos
+                de versões anteriores são tratados como aliases internos e direcionados para estes
+                perfis principais.
+            </p>
+
+            <table class="role-table">
+                <thead>
+                    <tr>
+                        <th>Perfil</th>
+                        <th>Acessos principais</th>
+                        <th>Uso esperado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Administrador</td>
+                        <td>
+                            <span class="badge">Usuários</span>
+                            <span class="badge">Permissões</span>
+                            <span class="badge">Unidades</span>
+                            <span class="badge">Auditoria</span>
+                            <span class="badge">Integrações</span>
+                            <span class="badge">Todos os módulos</span>
+                        </td>
+                        <td>Configuração do sistema, gestão de acessos, unidades de execução e apoio técnico à implantação.</td>
+                    </tr>
+                    <tr>
+                        <td>Coordenação</td>
+                        <td>
+                            <span class="badge">Central de Comando</span>
+                            <span class="badge">Agenda</span>
+                            <span class="badge">BI</span>
+                            <span class="badge">Epidemiologia</span>
+                            <span class="badge">Relatórios</span>
+                            <span class="badge">Custos</span>
+                            <span class="badge">Integrações</span>
+                        </td>
+                        <td>Acompanhamento operacional, metas, gargalos, filas, produção, relatórios e decisões de gestão.</td>
+                    </tr>
+                    <tr>
+                        <td>Clínicos</td>
+                        <td>
+                            <span class="badge">Pacientes</span>
+                            <span class="badge">Agenda</span>
+                            <span class="badge">Prontuário</span>
+                            <span class="badge">Exames</span>
+                            <span class="badge">Estomatologia</span>
+                            <span class="badge">Assinaturas</span>
+                            <span class="badge">Materiais</span>
+                        </td>
+                        <td>Atendimento, evolução clínica, plano de tratamento, documentos, registros especializados e baixa de materiais quando necessário.</td>
+                    </tr>
+                    <tr>
+                        <td>Recepção</td>
+                        <td>
+                            <span class="badge">Triagem</span>
+                            <span class="badge">Senhas</span>
+                            <span class="badge">Pacientes</span>
+                            <span class="badge">Agenda</span>
+                            <span class="badge">Documentos</span>
+                        </td>
+                        <td>Cadastro, vinculação de senha, organização de agenda, confirmação, remarcação e suporte ao fluxo de entrada.</td>
+                    </tr>
+                    <tr>
+                        <td>CME / Estoque</td>
+                        <td>
+                            <span class="badge">Estoque</span>
+                            <span class="badge">Materiais</span>
+                            <span class="badge">Laboratório</span>
+                            <span class="badge">Central</span>
+                        </td>
+                        <td>Controle de materiais, lotes, perdas, ajustes e alertas logísticos. O uso do estoque é opcional nesta etapa.</td>
+                    </tr>
+                    <tr>
+                        <td>Radiologia</td>
+                        <td>
+                            <span class="badge">Pacientes</span>
+                            <span class="badge">Exames</span>
+                            <span class="badge">Radiologia</span>
+                            <span class="badge">Central</span>
+                        </td>
+                        <td>Registro e organização de imagens, radiografias e documentação visual vinculada ao paciente.</td>
+                    </tr>
+                    <tr>
+                        <td>Comunicação</td>
+                        <td>
+                            <span class="badge">Relatórios</span>
+                            <span class="badge">BI</span>
+                            <span class="badge">Central</span>
+                        </td>
+                        <td>Apoio à leitura institucional de resultados, indicadores e materiais de prestação de contas.</td>
+                    </tr>
+                    <tr>
+                        <td>SSA/SMS</td>
+                        <td>
+                            <span class="badge">Relatórios</span>
+                            <span class="badge">BI</span>
+                            <span class="badge">Epidemiologia</span>
+                            <span class="badge">Central</span>
+                        </td>
+                        <td>Visão governamental, acompanhamento de impacto, territórios, demandas e indicadores de saúde pública.</td>
+                    </tr>
+                    <tr>
+                        <td>Auditoria</td>
+                        <td>
+                            <span class="badge">Auditoria</span>
+                            <span class="badge">Relatórios</span>
+                            <span class="badge">Pacientes</span>
+                            <span class="badge">Integrações</span>
+                        </td>
+                        <td>Rastreabilidade, verificação de registros, conformidade operacional e consulta a evidências do sistema.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section class="section break-before">
+            <div class="eyebrow">Módulos</div>
+            <h2>O Que Cada Área Entrega</h2>
+            <p>
+                Os módulos foram estruturados para atender a rotina assistencial e a prestação de
+                contas pública, mantendo rastreabilidade entre campo, agenda, atendimento e gestão.
+            </p>
+
+            <div class="module-grid">
+                <div class="module-row">
+                    <div class="module-card">
+                        <h3>Triagem Municipal</h3>
+                        <p>Cria ações de campo por município, data, local e especialidade. Gera senhas no formato municipal e identifica a demanda eleita.</p>
+                    </div>
+                    <div class="module-card">
+                        <h3>Agenda e Unidades</h3>
+                        <p>Define data, profissional, status e unidade de execução da consulta. A unidade administrativa pode ser cadastrada e editada pelo painel administrativo.</p>
+                    </div>
+                </div>
+                <div class="module-row">
+                    <div class="module-card">
+                        <h3>Prontuário Clínico</h3>
+                        <p>Reúne cadastro, anamnese, evolução, plano de tratamento, odontograma, documentos, materiais e linha do tempo do paciente.</p>
+                    </div>
+                    <div class="module-card">
+                        <h3>Estomatologia</h3>
+                        <p>Registra lesões, suspeitas, evolução fotográfica e encaminhamento expresso. Suspeita oncológica aciona alerta vermelho.</p>
+                    </div>
+                </div>
+                <div class="module-row">
+                    <div class="module-card">
+                        <h3>Biblioteca Visual</h3>
+                        <p>Organiza radiografias, fotos clínicas, lesões, antes/depois e documentos complementares com vínculo ao paciente.</p>
+                    </div>
+                    <div class="module-card">
+                        <h3>Central de Comando</h3>
+                        <p>Mostra pacientes do dia, fila, alertas, agenda por status, gargalos, pendências, metas automáticas e resumo diário imprimível/exportável.</p>
+                    </div>
+                </div>
+                <div class="module-row">
+                    <div class="module-card">
+                        <h3>Estoque e Materiais</h3>
+                        <p>Controla materiais, lotes, ajustes, perdas e uso no paciente. Gera alertas de estoque baixo, vencimento e pós-operatório de implante.</p>
+                    </div>
+                    <div class="module-card">
+                        <h3>Epidemiologia</h3>
+                        <p>Consolida lesões, suspeitas, câncer confirmado, perda dentária, absenteísmo, demanda reprimida e áreas críticas por território.</p>
+                    </div>
+                </div>
+                <div class="module-row">
+                    <div class="module-card">
+                        <h3>BI Executivo</h3>
+                        <p>Apresenta produção, filas, impacto social, metas, rankings, comparativos mensais e visões para Prefeitura, SSA, SMS e coordenação.</p>
+                    </div>
+                    <div class="module-card">
+                        <h3>Relatórios e Integrações</h3>
+                        <p>Gera relatórios institucionais em PDF, custos SIGTAP configuráveis, lote e-SUS APS draft, checklist e relatório de homologação.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="eyebrow">Fluxo Operacional</div>
+            <h2>Da Triagem à Gestão</h2>
+
+            <div class="flow">
+                <div class="flow-step">
+                    <div class="flow-number">1</div>
+                    <div class="flow-content">
+                        <strong>Triagem de campo</strong>
+                        <span>A equipe cria a ação municipal, registra local/data e gera senhas por especialidade. A triagem não escolhe a unidade de execução.</span>
+                    </div>
+                </div>
+                <div class="flow-step">
+                    <div class="flow-number">2</div>
+                    <div class="flow-content">
+                        <strong>Cadastro e vínculo da senha</strong>
+                        <span>A recepção cadastra ou localiza o paciente, vincula a senha e preserva a origem da demanda.</span>
+                    </div>
+                </div>
+                <div class="flow-step">
+                    <div class="flow-number">3</div>
+                    <div class="flow-content">
+                        <strong>Agendamento com destino operacional</strong>
+                        <span>A consulta define data, profissional e unidade. A população triada segue para a unidade determinada pela operação.</span>
+                    </div>
+                </div>
+                <div class="flow-step">
+                    <div class="flow-number">4</div>
+                    <div class="flow-content">
+                        <strong>Atendimento clínico</strong>
+                        <span>O profissional registra anamnese, evolução, plano, exames, documentos, materiais e encaminhamentos quando aplicável.</span>
+                    </div>
+                </div>
+                <div class="flow-step">
+                    <div class="flow-number">5</div>
+                    <div class="flow-content">
+                        <strong>Alertas e rastreabilidade</strong>
+                        <span>Casos críticos, pendências, faltas, materiais, imagens e movimentações relevantes aparecem para acompanhamento.</span>
+                    </div>
+                </div>
+                <div class="flow-step">
+                    <div class="flow-number">6</div>
+                    <div class="flow-content">
+                        <strong>Gestão e prestação de contas</strong>
+                        <span>Central, BI, Epidemiologia e Relatórios consolidam produção, demanda, impacto, custos estimados e evidências institucionais.</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="callout">
+                Ponto de validação com a Contratante: confirmar quem decide o destino operacional
+                por município, quais unidades entram no piloto e quais relatórios serão usados em
+                reuniões diárias, semanais e mensais.
+            </div>
+        </section>
+
+        <section class="section break-before">
+            <div class="eyebrow">Status e Implantação</div>
+            <h2>Pronto, Pendente e Decisões</h2>
+
+            <div class="two-col">
+                <div class="col">
+                    <h3>Já Consolidado</h3>
+                    <ul class="mini-list">
+                        <li>Fluxo base de triagem, senha, agenda, unidade e atendimento.</li>
+                        <li>Perfis simplificados com permissões por módulo.</li>
+                        <li>Central de Comando com resumo diário, impressão e CSV.</li>
+                        <li>BI, Epidemiologia e relatórios institucionais em versão avançada.</li>
+                        <li>Unidades de execução cadastráveis no painel administrativo.</li>
+                        <li>Última validação técnica registrada com testes automatizados verdes.</li>
+                    </ul>
+                </div>
+                <div class="col">
+                    <h3>A Homologar antes da Produção</h3>
+                    <ul class="mini-list">
+                        <li>Manuais rápidos por perfil e treinamento assistido.</li>
+                        <li>Fluxo ponta a ponta em ambiente Docker com usuários reais.</li>
+                        <li>Hardening LGPD, proteção de uploads sensíveis e auditoria de visualização.</li>
+                        <li>Backup diário automatizado e restauração testada.</li>
+                        <li>Assinatura digital formal e política de retenção/descarte.</li>
+                        <li>e-SUS APS real somente com endpoint, credenciais, CNES/INE e homologação.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="decision-grid">
+                <div class="decision-row">
+                    <div class="decision-card">
+                        <strong>Operação inicial</strong>
+                        Definir as unidades do piloto, horários, especialidades, volume esperado por município e quem pode alterar agenda.
+                    </div>
+                    <div class="decision-card">
+                        <strong>Governança</strong>
+                        Indicar responsáveis por usuários, LGPD, suporte, backups, relatórios oficiais e aceite final.
+                    </div>
+                    <div class="decision-card">
+                        <strong>Integrações</strong>
+                        Confirmar com a prefeitura as regras de e-SUS APS, CNES/INE, ambiente de homologação e transmissão real.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="eyebrow">Resumo Executivo</div>
+            <h2>Mensagem para Validação</h2>
+            <p class="lead">
+                O sistema está estruturado para sustentar uma operação de saúde bucal municipal
+                com controle assistencial, gestão de fila, rastreabilidade, relatórios e indicadores.
+                A próxima etapa recomendada é aprovar o desenho funcional aqui apresentado para,
+                somente depois, transformar a versão funcional em versão implantável com manuais por
+                perfil, teste ponta a ponta com usuários reais, hardening LGPD, backup comprovado e
+                homologações institucionais pendentes.
+            </p>
+
+            <table class="module-table">
+                <thead>
+                    <tr>
+                        <th>Validação</th>
+                        <th>O que confirmar com a gestão</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Perfis</td>
+                        <td>Quais usuários reais entram em cada perfil e quem poderá administrar acessos.</td>
+                    </tr>
+                    <tr>
+                        <td>Unidades</td>
+                        <td>Nomes finais das unidades, uso de uma ou duas unidades e critérios de direcionamento.</td>
+                    </tr>
+                    <tr>
+                        <td>Fluxo</td>
+                        <td>Como a triagem de campo será organizada, como a população será chamada e quem agenda o destino.</td>
+                    </tr>
+                    <tr>
+                        <td>Relatórios</td>
+                        <td>Quais indicadores devem estar em reunião diária, relatório mensal e prestação de contas institucional.</td>
+                    </tr>
+                    <tr>
+                        <td>Produção</td>
+                        <td>Data de entrada, ambiente definitivo, HTTPS, suporte, backup, restore e política LGPD.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="approval-panel">
+                <h3>Registro de decisão da Contratante</h3>
+                <span class="checkline"><span class="checkbox"></span>Aprovo os perfis, módulos e fluxo apresentados para servir de base aos manuais.</span>
+                <span class="checkline"><span class="checkbox"></span>Aprovo com ajustes, descritos abaixo, antes da criação dos manuais.</span>
+                <span class="checkline"><span class="checkbox"></span>Solicito revisão do desenho antes de aprovar a criação dos manuais.</span>
+
+                <p class="muted">Ajustes, ressalvas ou observações:</p>
+                <div class="blank-line"></div>
+                <div class="blank-line"></div>
+                <div class="blank-line"></div>
+
+                <div class="signature-grid">
+                    <div class="signature-box">Dra. Cibely Candido<br>Contratante</div>
+                    <div class="signature-box">Equipe de Desenvolvimento<br>Gestão Saúde Oral</div>
+                </div>
+            </div>
+
+            <div class="footer-signature">
+                Documento preparado para Dra. Cibely Candido, com base no README 2.0 do projeto
+                Gestão Saúde Oral - Programa Sorriso da Gente, atualizado em 06/06/2026.
+            </div>
+        </section>
+    </main>
+</body>
+</html>

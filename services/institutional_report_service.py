@@ -4,7 +4,7 @@ import json
 import os
 
 from database import execute, query
-from constants import Role
+from constants import Role, canonical_role
 from services.epidemiology_service import get_epidemiology_dashboard, normalize_period
 from services.executive_bi_service import get_executive_bi_dashboard
 
@@ -53,13 +53,9 @@ REPORT_PROFILES = {
 
 REPORT_ACCESS_BY_ROLE = {
     Role.ADMIN: {'institucional', 'ssa', 'sms'},
-    Role.BI: {'institucional', 'ssa', 'sms'},
+    Role.COORDENACAO: {'institucional', 'ssa', 'sms'},
     Role.AUDITORIA: {'institucional', 'ssa', 'sms'},
-    Role.EPIDEMIOLOGIA: {'institucional', 'ssa', 'sms'},
-    Role.PREFEITURA: {'institucional'},
-    Role.SSA: {'ssa'},
-    Role.SMS: {'sms'},
-    Role.FINANCEIRO: {'institucional'},
+    Role.SSA_SMS: {'institucional', 'ssa', 'sms'},
     Role.COMUNICACAO: {'institucional'},
 }
 
@@ -102,7 +98,7 @@ def get_report_profile(report_type=None):
 
 def get_report_types_for_role(role):
     return sorted(
-        REPORT_ACCESS_BY_ROLE.get(role, set()),
+        REPORT_ACCESS_BY_ROLE.get(canonical_role(role), set()),
         key=lambda item: list(REPORT_PROFILES.keys()).index(item)
     )
 

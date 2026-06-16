@@ -1,5 +1,6 @@
 import json
 import os
+import secrets
 
 from flask import Blueprint, Response, render_template, redirect, url_for, request, flash
 from flask_login import login_required, current_user
@@ -34,7 +35,24 @@ from services.inventory_service import (
     get_inventory_dashboard,
     register_inventory_adjustment,
 )
+from services.execution_unit_service import (
+    ExecutionUnitError,
+    MAX_ACTIVE_EXECUTION_UNITS,
+    create_execution_unit,
+    get_execution_unit,
+    list_execution_units,
+    update_execution_unit,
+)
+from services.professional_registration_service import list_registration_requests
+from services.professional_registration_service import (
+    RegistrationApprovalError,
+    approve_registration_request,
+    reject_registration_request,
+    send_registration_approved_email,
+    send_registration_rejected_email,
+)
 from services.sigtap_service import build_sigtap_options, get_sigtap_summary
+from services.sensitive_file_service import SENSITIVE_CACHE_HEADERS
 from tasks.pdf_tasks import generate_pdf_task
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -49,7 +67,7 @@ def admin_required(f):
     return decorated_function
 
 def admin_or_atendente_required(f):
-    """Permite visualização da lista de usuários para admin e atendente."""
+    """Permite visualização da lista de usuários conforme permissão."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated or not current_user.can('users:view'):
@@ -69,8 +87,6 @@ def _validate_required_professional_fields(role):
         required_fields.extend([
             ('cns', 'CNS do profissional'),
             ('cbo', 'CBO'),
-            ('cnes', 'CNES'),
-            ('ine', 'INE/equipe'),
         ])
     if role_requires_dental_license(role):
         required_fields.extend([
@@ -143,6 +159,20 @@ def _inventory_adjustment_form_payload():
     }
 
 
+def _execution_unit_form_payload(include_code=False):
+    payload = {
+        'name': request.form.get('name'),
+        'cnes': request.form.get('cnes'),
+        'address': request.form.get('address'),
+        'notes': request.form.get('notes'),
+        'active': request.form.get('active') == '1',
+        'is_default': request.form.get('is_default') == '1',
+    }
+    if include_code:
+        payload['code'] = request.form.get('code')
+    return payload
+
+
 def _audit_cost_reference_change(action, change, status='success', extra=None):
     reference = change.get('reference') or {}
     details = {
@@ -166,7 +196,7 @@ def _audit_cost_reference_change(action, change, status='success', extra=None):
 @admin_or_atendente_required
 def list_users():
     users = query("""
-        SELECT id, username, role, full_name, active, last_login_at, last_login_ip,
+        SELECT id, username, role, full_name, email, data_nascimento, is_first_access, active, last_login_at, last_login_ip,
                cns, cbo, cnes, ine, cro, cro_uf
         FROM users
         ORDER BY role, username
@@ -181,6 +211,10 @@ def add_user():
         full_name = _clean_form_value('full_name')
         username = _clean_form_value('username')
         password = request.form.get('password')
+        email = _clean_form_value('email').lower()
+        celular = _clean_form_value('celular')
+        data_nascimento = _clean_form_value('data_nascimento') or None
+        is_first_access = request.form.get('is_first_access') == '1'
         role = request.form.get('role')
         active = request.form.get('active') == '1'
         # matricula não é mais usada — campo removido
@@ -201,18 +235,29 @@ def add_user():
             flash(validation_error, 'danger')
             return render_template('admin/add_user.html', role_choices=get_role_choices())
 
-        hashed_password = generate_password_hash(password)
+        if is_first_access and not data_nascimento:
+            flash('Data de nascimento é obrigatória para usuário em primeiro acesso.', 'danger')
+            return render_template('admin/add_user.html', role_choices=get_role_choices())
+
+        if not is_first_access and not password:
+            flash('Informe a senha inicial ou marque o fluxo de primeiro acesso.', 'danger')
+            return render_template('admin/add_user.html', role_choices=get_role_choices())
+
+        hashed_password = generate_password_hash(password or secrets.token_urlsafe(24))
 
         try:
             user_id = execute_returning(
                 """
                 INSERT INTO users (
-                    username, password, role, full_name, cro, cro_uf,
-                    cns, cbo, cnes, ine, active
+                    username, password, role, full_name, email, celular, data_nascimento,
+                    is_first_access, cro, cro_uf, cns, cbo, cnes, ine, active
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
-                (username, hashed_password, role, full_name, cro, cro_uf, cns, cbo, cnes, ine, active)
+                (
+                    username, hashed_password, role, full_name, email or None, celular or None,
+                    data_nascimento, is_first_access, cro, cro_uf, cns, cbo, cnes, ine, active,
+                )
             )
             audit_log(
                 action='user_created',
@@ -223,6 +268,7 @@ def add_user():
                     'username': username,
                     'role': role,
                     'active': active,
+                    'is_first_access': is_first_access,
                     'professional_data_required': role_requires_professional_data(role),
                 }
             )
@@ -258,7 +304,8 @@ def delete_user(user_id):
 def edit_user(user_id):
     user = query(
         """
-        SELECT id, username, role, full_name, cro, cro_uf, cns, cbo, cnes, ine, active
+        SELECT id, username, role, full_name, email, celular, data_nascimento,
+               is_first_access, cro, cro_uf, cns, cbo, cnes, ine, active
         FROM users
         WHERE id = %s
         """,
@@ -273,6 +320,10 @@ def edit_user(user_id):
         full_name = _clean_form_value('full_name')
         username = _clean_form_value('username')
         password = request.form.get('password')
+        email = _clean_form_value('email').lower()
+        celular = _clean_form_value('celular')
+        data_nascimento = _clean_form_value('data_nascimento') or None
+        is_first_access = request.form.get('is_first_access') == '1'
         role = request.form.get('role')
         active = request.form.get('active') == '1'
         cro = _clean_form_value('cro')
@@ -295,6 +346,31 @@ def edit_user(user_id):
                 'username': username,
                 'role': role,
                 'full_name': full_name,
+                'email': email,
+                'celular': celular,
+                'data_nascimento': data_nascimento,
+                'is_first_access': is_first_access,
+                'cro': cro,
+                'cro_uf': cro_uf,
+                'cns': cns,
+                'cbo': cbo,
+                'cnes': cnes,
+                'ine': ine,
+                'active': active,
+            })
+            return render_template('admin/edit_user.html', user=form_user, role_choices=get_role_choices())
+
+        if is_first_access and not data_nascimento:
+            flash('Data de nascimento é obrigatória para usuário em primeiro acesso.', 'danger')
+            form_user = dict(user)
+            form_user.update({
+                'username': username,
+                'role': role,
+                'full_name': full_name,
+                'email': email,
+                'celular': celular,
+                'data_nascimento': data_nascimento,
+                'is_first_access': is_first_access,
                 'cro': cro,
                 'cro_uf': cro_uf,
                 'cns': cns,
@@ -311,21 +387,29 @@ def edit_user(user_id):
                 execute(
                     """
                     UPDATE users
-                    SET username=%s, password=%s, role=%s, full_name=%s,
-                        cro=%s, cro_uf=%s, cns=%s, cbo=%s, cnes=%s, ine=%s, active=%s
+                    SET username=%s, password=%s, role=%s, full_name=%s, email=%s, celular=%s,
+                        data_nascimento=%s, is_first_access=%s, cro=%s, cro_uf=%s,
+                        cns=%s, cbo=%s, cnes=%s, ine=%s, active=%s
                     WHERE id=%s
                     """,
-                    (username, hashed_password, role, full_name, cro, cro_uf, cns, cbo, cnes, ine, active, user_id)
+                    (
+                        username, hashed_password, role, full_name, email or None, celular or None,
+                        data_nascimento, is_first_access, cro, cro_uf, cns, cbo, cnes, ine, active, user_id,
+                    )
                 )
             else:
                 execute(
                     """
                     UPDATE users
-                    SET username=%s, role=%s, full_name=%s,
-                        cro=%s, cro_uf=%s, cns=%s, cbo=%s, cnes=%s, ine=%s, active=%s
+                    SET username=%s, role=%s, full_name=%s, email=%s, celular=%s,
+                        data_nascimento=%s, is_first_access=%s, cro=%s, cro_uf=%s,
+                        cns=%s, cbo=%s, cnes=%s, ine=%s, active=%s
                     WHERE id=%s
                     """,
-                    (username, role, full_name, cro, cro_uf, cns, cbo, cnes, ine, active, user_id)
+                    (
+                        username, role, full_name, email or None, celular or None, data_nascimento,
+                        is_first_access, cro, cro_uf, cns, cbo, cnes, ine, active, user_id,
+                    )
                 )
             audit_log(
                 action='user_updated',
@@ -337,6 +421,7 @@ def edit_user(user_id):
                     'previous_role': user['role'],
                     'new_role': role,
                     'active': active,
+                    'is_first_access': is_first_access,
                     'password_changed': bool(password)
                 }
             )
@@ -346,6 +431,81 @@ def edit_user(user_id):
             flash(f'Erro ao atualizar usuário: {str(e)}', 'danger')
 
     return render_template('admin/edit_user.html', user=user, role_choices=get_role_choices())
+
+
+@admin_bp.route('/execution-units')
+@login_required
+@admin_required
+def execution_units():
+    units = list_execution_units(include_inactive=True, with_usage=True)
+    active_count = sum(1 for unit in units if unit.get('active'))
+    return render_template(
+        'admin/execution_units.html',
+        units=units,
+        active_count=active_count,
+        max_active_units=MAX_ACTIVE_EXECUTION_UNITS,
+    )
+
+
+@admin_bp.route('/execution-units/create', methods=['POST'])
+@login_required
+@admin_required
+def create_execution_unit_route():
+    try:
+        unit = create_execution_unit(_execution_unit_form_payload(include_code=True))
+        audit_log(
+            action='execution_unit_created',
+            module='admin',
+            entity_type='execution_units',
+            entity_id=unit['id'],
+            details={
+                'code': unit['code'],
+                'name': unit['name'],
+                'active': unit['active'],
+                'is_default': unit['is_default'],
+            },
+        )
+        flash('Unidade criada com sucesso.', 'success')
+    except ExecutionUnitError as exc:
+        flash(str(exc), 'danger')
+    except Exception as exc:
+        flash(f'Erro ao criar unidade: {str(exc)}', 'danger')
+    return redirect(url_for('admin.execution_units'))
+
+
+@admin_bp.route('/execution-units/<int:unit_id>/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def edit_execution_unit(unit_id):
+    unit = get_execution_unit(unit_id)
+    if not unit:
+        flash('Unidade não encontrada.', 'danger')
+        return redirect(url_for('admin.execution_units'))
+
+    if request.method == 'POST':
+        try:
+            updated = update_execution_unit(unit_id, _execution_unit_form_payload())
+            audit_log(
+                action='execution_unit_updated',
+                module='admin',
+                entity_type='execution_units',
+                entity_id=unit_id,
+                details={
+                    'code': updated['code'],
+                    'previous_name': unit['name'],
+                    'new_name': updated['name'],
+                    'active': updated['active'],
+                    'is_default': updated['is_default'],
+                },
+            )
+            flash('Unidade atualizada com sucesso.', 'success')
+            return redirect(url_for('admin.execution_units'))
+        except ExecutionUnitError as exc:
+            flash(str(exc), 'danger')
+        except Exception as exc:
+            flash(f'Erro ao atualizar unidade: {str(exc)}', 'danger')
+
+    return render_template('admin/edit_execution_unit.html', unit=unit)
 
 
 @admin_bp.route('/audit')
@@ -358,6 +518,10 @@ def audit_logs():
         'action': request.args.get('action') or None,
         'patient_id': request.args.get('patient_id') or None,
         'status': request.args.get('status') or None,
+        'ip_address': request.args.get('ip_address') or None,
+        'created_from': request.args.get('created_from') or None,
+        'created_to': request.args.get('created_to') or None,
+        'severity': request.args.get('severity') or None,
     }
     logs = list_audit_logs(filters=filters, limit=300)
     users = query("SELECT id, username, full_name FROM users ORDER BY username")
@@ -369,6 +533,81 @@ def audit_logs():
         modules=modules,
         filters=filters,
     )
+
+
+@admin_bp.route('/professional-registrations')
+@login_required
+@permission_required('users:view')
+def professional_registrations():
+    registrations = list_registration_requests(limit=300)
+    return render_template('admin/professional_registrations.html', registrations=registrations)
+
+
+@admin_bp.route('/professional-registrations/<int:registration_id>/approve', methods=['POST'])
+@login_required
+@permission_required('users:write')
+def approve_professional_registration(registration_id):
+    try:
+        registration = approve_registration_request(registration_id, current_user.id)
+        audit_log(
+            action='professional_registration_approved',
+            module='admin',
+            entity_type='professional_registration_requests',
+            entity_id=registration_id,
+            details={
+                'created_user_id': registration.get('created_user_id'),
+                'desired_username': registration.get('desired_username'),
+                'requested_role': registration.get('requested_role'),
+            },
+        )
+        try:
+            send_registration_approved_email(registration)
+            flash('Pre-cadastro aprovado, usuario criado e e-mail de liberacao enviado.', 'success')
+        except Exception as exc:
+            flash(f'Pre-cadastro aprovado, mas nao foi possivel enviar o e-mail: {str(exc)}', 'warning')
+    except RegistrationApprovalError as exc:
+        flash(str(exc), 'danger')
+    except Exception as exc:
+        flash(f'Erro ao aprovar pre-cadastro: {str(exc)}', 'danger')
+    return redirect(url_for('admin.professional_registrations'))
+
+
+@admin_bp.route('/professional-registrations/<int:registration_id>/reject', methods=['POST'])
+@login_required
+@permission_required('users:write')
+def reject_professional_registration(registration_id):
+    try:
+        review_notes = request.form.get('review_notes')
+        if not (review_notes or '').strip():
+            flash('Informe o motivo da recusa para enviar ao profissional.', 'danger')
+            return redirect(url_for('admin.professional_registrations'))
+
+        registration = reject_registration_request(
+            registration_id,
+            current_user.id,
+            review_notes=review_notes,
+        )
+        audit_log(
+            action='professional_registration_rejected',
+            module='admin',
+            entity_type='professional_registration_requests',
+            entity_id=registration_id,
+            details={
+                'desired_username': registration.get('desired_username'),
+                'requested_role': registration.get('requested_role'),
+                'review_notes': registration.get('review_notes'),
+            },
+        )
+        try:
+            send_registration_rejected_email(registration)
+            flash('Pre-cadastro recusado e e-mail com observacoes enviado.', 'success')
+        except Exception as exc:
+            flash(f'Pre-cadastro recusado, mas nao foi possivel enviar o e-mail: {str(exc)}', 'warning')
+    except RegistrationApprovalError as exc:
+        flash(str(exc), 'danger')
+    except Exception as exc:
+        flash(f'Erro ao recusar pre-cadastro: {str(exc)}', 'danger')
+    return redirect(url_for('admin.professional_registrations'))
 
 
 @admin_bp.route('/finance/cost-references')
@@ -751,11 +990,13 @@ def download_esus_batch(batch_id):
     )
     filename = f"esus_lote_{batch_id}_{detail['batch']['reference_month']}.json"
     payload_json = json.dumps(detail['payload'], ensure_ascii=False, indent=2, default=str)
-    return Response(
+    response = Response(
         payload_json,
         mimetype='application/json; charset=utf-8',
         headers={'Content-Disposition': f'attachment; filename="{filename}"'},
     )
+    response.headers.update(SENSITIVE_CACHE_HEADERS)
+    return response
 
 
 @admin_bp.route('/integrations/esus/batches/<int:batch_id>/validate', methods=['POST'])

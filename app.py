@@ -80,7 +80,7 @@ def register_cli_commands(app):
         for patient in result['patients']:
             click.echo(
                 f"- #{patient['patient_id']} {patient['name']} | "
-                f"{patient['profile']} | {patient['municipality']}"
+                f"{patient['profile']} | {patient.get('territory') or patient['municipality']}"
             )
 
 def create_app():
@@ -150,6 +150,7 @@ def create_app():
     from blueprints.documents import documents_bp
     from blueprints.endodontia import endodontia_bp
     from blueprints.reports_bp import reports_bp
+    from blueprints.professional_registration import professional_registration_bp
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -163,6 +164,7 @@ def create_app():
     app.register_blueprint(agenda_bp)
     app.register_blueprint(triage_bp)
     app.register_blueprint(reports_bp)
+    app.register_blueprint(professional_registration_bp)
 
     # Configura logging e hooks de monitoramento
     configure_logging(app)

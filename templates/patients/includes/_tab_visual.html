@@ -82,6 +82,10 @@
                 <div style="font-size:1.8rem; font-weight:900; color:#b91c1c;">{{ visual_stats.lesoes }}</div>
             </div>
             <div class="visual-stat">
+                <div style="font-size:0.72rem; font-weight:800; color:hsl(var(--text-muted)); text-transform:uppercase;">Endodontia</div>
+                <div style="font-size:1.8rem; font-weight:900; color:#7c3aed;">{{ visual_stats.endodontia }}</div>
+            </div>
+            <div class="visual-stat">
                 <div style="font-size:0.72rem; font-weight:800; color:hsl(var(--text-muted)); text-transform:uppercase;">Comparativos</div>
                 <div style="font-size:1.8rem; font-weight:900; color:#047857;">{{ visual_stats.comparativos }}</div>
             </div>
@@ -104,11 +108,19 @@
                     {% for item in comparison.items %}
                         {% if item.source_type == 'exam_image' %}
                             {% set file_url = url_for('exams.serve_imagem', arquivo_id=item.source_id) %}
+                        {% elif item.source_type == 'endodontia_image' %}
+                            {% set file_url = url_for('endodontia.serve_image', image_id=item.source_id) %}
                         {% else %}
                             {% set file_url = url_for('patients.serve_estomatologia_photo', id=patient.id, photo_id=item.source_id) %}
                         {% endif %}
                         <div style="border:1px solid hsl(var(--border)); border-radius:var(--radius-sm); overflow:hidden; background:hsl(var(--bg-main));">
+                            {% if item.is_previewable %}
                             <img src="{{ file_url }}" alt="{{ item.caption }}" style="width:100%; aspect-ratio:4/3; object-fit:cover; display:block; cursor:zoom-in;" onclick="openVisualMediaModal('{{ file_url }}', {{ item.caption|tojson }})">
+                            {% else %}
+                            <a href="{{ file_url }}" target="_blank" rel="noopener" style="width:100%; aspect-ratio:4/3; display:flex; align-items:center; justify-content:center; text-decoration:none; color:hsl(var(--primary)); background:#f8fafc; font-weight:900;">
+                                {{ item.file_extension_label }}
+                            </a>
+                            {% endif %}
                             <div style="padding:0.65rem;">
                                 <div style="font-weight:800; font-size:0.82rem; color:hsl(var(--text-main));">{{ item.comparison_label_text }}</div>
                                 <div style="font-size:0.72rem; color:hsl(var(--text-muted));">{{ item.taken_at_display }}</div>
@@ -137,13 +149,22 @@
                     {% if item.source_type == 'exam_image' %}
                         {% set file_url = url_for('exams.serve_imagem', arquivo_id=item.source_id) %}
                         {% set metadata_url = url_for('patients.update_exam_visual_metadata', id=patient.id, arquivo_id=item.source_id) %}
+                    {% elif item.source_type == 'endodontia_image' %}
+                        {% set file_url = url_for('endodontia.serve_image', image_id=item.source_id) %}
+                        {% set metadata_url = url_for('patients.update_endodontia_visual_metadata', id=patient.id, image_id=item.source_id) %}
                     {% else %}
                         {% set file_url = url_for('patients.serve_estomatologia_photo', id=patient.id, photo_id=item.source_id) %}
                         {% set metadata_url = url_for('patients.update_estomatologia_visual_metadata', id=patient.id, photo_id=item.source_id) %}
                     {% endif %}
 
                     <div class="visual-item">
+                        {% if item.is_previewable %}
                         <img src="{{ file_url }}" alt="{{ item.caption }}" class="visual-thumb" onclick="openVisualMediaModal('{{ file_url }}', {{ item.caption|tojson }})">
+                        {% else %}
+                        <a href="{{ file_url }}" target="_blank" rel="noopener" class="visual-thumb" style="display:flex; align-items:center; justify-content:center; text-decoration:none; color:hsl(var(--primary)); font-weight:900;">
+                            {{ item.file_extension_label }}
+                        </a>
+                        {% endif %}
                         <div style="padding:1rem;">
                             <div style="display:flex; justify-content:space-between; gap:0.75rem; align-items:flex-start; margin-bottom:0.75rem;">
                                 <div>
@@ -191,6 +212,16 @@
                                     <label class="form-label" style="font-size:0.68rem; font-weight:800;">CONTEXTO CLÍNICO</label>
                                     <textarea name="clinical_context" rows="2" class="visual-input">{{ item.clinical_context or '' }}</textarea>
                                 </div>
+                                {% if item.source_type == 'endodontia_image' %}
+                                <div>
+                                    <label class="form-label" style="font-size:0.68rem; font-weight:800;">CANAL</label>
+                                    <input type="text" name="canal" value="{{ item.canal or '' }}" placeholder="Ex: MV, ML, D" class="visual-input">
+                                </div>
+                                <div>
+                                    <label class="form-label" style="font-size:0.68rem; font-weight:800;">EQUIPAMENTO</label>
+                                    <input type="text" name="equipamento" value="{{ item.equipamento or '' }}" placeholder="Sensor, placa, CBCT" class="visual-input">
+                                </div>
+                                {% endif %}
                                 <div class="full" style="display:flex; justify-content:flex-end;">
                                     <button type="submit" class="btn btn-outline" style="font-size:0.78rem; font-weight:800; padding:0.55rem 1rem;">
                                         Atualizar

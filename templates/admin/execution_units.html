@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Unidades de Execução - Administração{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; flex-wrap:wrap; margin-bottom:2rem;">
+        <div>
+            <h1 class="page-title">Unidades de Execução</h1>
+            <p class="page-subtitle">Cadastro simples para até 2 unidades operacionais ativas.</p>
+        </div>
+        <a href="{{ url_for('main.command_center') }}" class="btn btn-outline">Central de Comando</a>
+    </div>
+
+    <section class="card" style="margin-bottom:1.5rem;">
+        <div style="display:flex; justify-content:space-between; gap:1rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem;">
+            <h2 class="section-header" style="margin:0;">Cadastrar Unidade</h2>
+            <span style="color:hsl(var(--text-muted)); font-weight:700; font-size:0.82rem;">{{ active_count }}/{{ max_active_units }} ativa(s)</span>
+        </div>
+        <form method="POST" action="{{ url_for('admin.create_execution_unit_route') }}" style="display:grid; gap:1rem;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
+                <div>
+                    <label class="form-label">Nome *</label>
+                    <input class="form-control" name="name" required placeholder="Ex: Centro de Especialidades">
+                </div>
+                <div>
+                    <label class="form-label">Código</label>
+                    <input class="form-control" name="code" placeholder="Ex: ceo_centro">
+                </div>
+                <div>
+                    <label class="form-label">CNES</label>
+                    <input class="form-control" name="cnes" placeholder="Opcional">
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem;">
+                <div>
+                    <label class="form-label">Endereço</label>
+                    <input class="form-control" name="address" placeholder="Opcional">
+                </div>
+                <div>
+                    <label class="form-label">Observações</label>
+                    <input class="form-control" name="notes" placeholder="Opcional">
+                </div>
+            </div>
+            <div style="display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
+                <label style="display:inline-flex; align-items:center; gap:0.45rem; font-weight:800; color:hsl(var(--text-main));">
+                    <input type="checkbox" name="active" value="1" {% if active_count < max_active_units %}checked{% endif %}>
+                    Ativa
+                </label>
+                <label style="display:inline-flex; align-items:center; gap:0.45rem; font-weight:800; color:hsl(var(--text-main));">
+                    <input type="checkbox" name="is_default" value="1">
+                    Tornar padrão
+                </label>
+                <button type="submit" class="btn btn-primary">Salvar Unidade</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="card" style="padding:0; overflow:hidden;">
+        <div class="table-container">
+            <table style="width:100%; border-collapse:collapse; background:white;">
+                <thead>
+                    <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                        <th style="padding:1rem; color:hsl(var(--text-muted)); font-size:0.82rem;">Unidade</th>
+                        <th style="padding:1rem; color:hsl(var(--text-muted)); font-size:0.82rem;">CNES</th>
+                        <th style="padding:1rem; color:hsl(var(--text-muted)); font-size:0.82rem;">Uso</th>
+                        <th style="padding:1rem; color:hsl(var(--text-muted)); font-size:0.82rem;">Status</th>
+                        <th style="padding:1rem; text-align:right; color:hsl(var(--text-muted)); font-size:0.82rem;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for unit in units %}
+                    <tr style="border-bottom:1px solid hsl(var(--border));">
+                        <td style="padding:1rem;">
+                            <strong style="display:block; color:hsl(var(--text-main));">{{ unit.name }}</strong>
+                            <span style="display:block; color:hsl(var(--text-muted)); font-size:0.78rem;">{{ unit.code }}</span>
+                            {% if unit.address %}<span style="display:block; color:hsl(var(--text-muted)); font-size:0.78rem;">{{ unit.address }}</span>{% endif %}
+                        </td>
+                        <td style="padding:1rem;">{{ unit.cnes or '-' }}</td>
+                        <td style="padding:1rem; color:hsl(var(--text-muted));">
+                            <strong style="color:hsl(var(--text-main));">{{ unit.consultas_count or 0 }}</strong> consulta(s)
+                        </td>
+                        <td style="padding:1rem;">
+                            <span style="display:inline-flex; margin-bottom:0.3rem; padding:0.3rem 0.65rem; border-radius:999px; font-size:0.72rem; font-weight:900; {% if unit.active %}background:#dcfce7; color:#166534;{% else %}background:#fee2e2; color:#991b1b;{% endif %}">
+                                {{ 'Ativa' if unit.active else 'Inativa' }}
+                            </span>
+                            {% if unit.is_default %}
+                            <span style="display:inline-flex; padding:0.3rem 0.65rem; border-radius:999px; background:#dbeafe; color:#1d4ed8; font-size:0.72rem; font-weight:900;">Padrão</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding:1rem; text-align:right;">
+                            <a href="{{ url_for('admin.edit_execution_unit', unit_id=unit.id) }}" class="btn btn-outline" style="padding:0.45rem 0.8rem; font-size:0.82rem;">Editar</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">Nenhuma unidade cadastrada.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}

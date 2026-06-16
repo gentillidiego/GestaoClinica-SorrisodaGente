@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Comprovante de Assinatura{% endblock %}
+
+{% block content %}
+{% set metadata = event.metadata or {} %}
+{% set payload = metadata.payload or {} %}
+{% set witnesses = event.witnesses or [] %}
+
+<div class="animate-fade" style="max-width: 980px; margin: 2rem auto;">
+    <div class="card" style="padding: 2rem; border-left: 5px solid hsl(var(--primary));">
+        <div style="display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; align-items: flex-start;">
+            <div>
+                <span style="font-size: 0.75rem; font-weight: 900; color: hsl(var(--primary)); text-transform: uppercase;">
+                    Comprovante de assinatura
+                </span>
+                <h1 style="font-family: var(--font-heading); margin: 0.25rem 0 0; color: hsl(var(--text-main));">
+                    Evento #{{ event.id }}
+                </h1>
+                <p style="margin: 0.45rem 0 0; color: hsl(var(--text-muted));">
+                    Registro técnico de autoria, integridade e contexto do ato.
+                </p>
+            </div>
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                {% if event.patient_id %}
+                <a href="{{ url_for('patients.view_patient', id=event.patient_id) }}" class="btn btn-outline">
+                    Voltar ao prontuário
+                </a>
+                {% endif %}
+                <button type="button" class="btn btn-primary" onclick="window.print()">Imprimir</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="padding: 1.5rem; margin-top: 1rem;">
+        <h2 style="font-family: var(--font-heading); font-size: 1.05rem; margin: 0 0 1rem;">Documento</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+            <div>
+                <strong>Tipo</strong>
+                <p>{{ event.document_type }}</p>
+            </div>
+            <div>
+                <strong>ID do documento</strong>
+                <p>{{ event.document_id or '---' }}</p>
+            </div>
+            <div>
+                <strong>Modo</strong>
+                <p>{{ 'Assinatura a rogo' if event.signature_mode == 'a_rogo' else 'Assinatura em tela' }}</p>
+            </div>
+            <div>
+                <strong>Data/hora</strong>
+                <p>{{ event.created_at.strftime('%d/%m/%Y %H:%M:%S') if event.created_at else '---' }}</p>
+            </div>
+        </div>
+        <div style="margin-top: 1rem;">
+            <strong>SHA-256 do conteúdo assinado</strong>
+            <p style="word-break: break-all; font-family: monospace; font-size: 0.88rem;">{{ event.document_hash }}</p>
+        </div>
+    </div>
+
+    <div class="card" style="padding: 1.5rem; margin-top: 1rem;">
+        <h2 style="font-family: var(--font-heading); font-size: 1.05rem; margin: 0 0 1rem;">Paciente e Responsável</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+            <div>
+                <strong>Paciente</strong>
+                <p>{{ event.patient_display_name or event.patient_name or '---' }}</p>
+            </div>
+            <div>
+                <strong>CPF do paciente</strong>
+                <p>{{ event.patient_display_cpf or event.patient_cpf or '---' }}</p>
+            </div>
+            <div>
+                <strong>Profissional/signatário</strong>
+                <p>{{ event.signer_full_name or event.signer_username or '---' }}</p>
+            </div>
+            <div>
+                <strong>Perfil</strong>
+                <p>{{ event.signer_role or '---' }}</p>
+            </div>
+            <div>
+                <strong>CRO</strong>
+                <p>{% if event.signer_cro %}{{ event.signer_cro_uf or '---' }} {{ event.signer_cro }}{% else %}---{% endif %}</p>
+            </div>
+            <div>
+                <strong>Método de autenticação</strong>
+                <p>{{ event.auth_method or '---' }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="padding: 1.5rem; margin-top: 1rem;">
+        <h2 style="font-family: var(--font-heading); font-size: 1.05rem; margin: 0 0 1rem;">Contexto Técnico</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+            <div>
+                <strong>IP</strong>
+                <p>{{ event.source_ip or '---' }}</p>
+            </div>
+            <div>
+                <strong>Máquina/Navegador</strong>
+                <p style="word-break: break-word;">{{ event.user_agent or '---' }}</p>
+            </div>
+        </div>
+    </div>
+
+    {% if event.signature_mode == 'a_rogo' %}
+    <div class="card" style="padding: 1.5rem; margin-top: 1rem; border-left: 5px solid hsl(var(--warning));">
+        <h2 style="font-family: var(--font-heading); font-size: 1.05rem; margin: 0 0 1rem;">Assinatura a Rogo</h2>
+        <p style="color: hsl(var(--text-main));">{{ event.declaration_text or 'Declaração de leitura, explicação e consentimento registrada.' }}</p>
+        {% if witnesses %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1rem;">
+            {% for witness in witnesses %}
+            <div style="padding: 1rem; background: #fffbeb; border-radius: var(--radius-md); border: 1px solid hsl(var(--warning)/0.25);">
+                <strong>Testemunha {{ loop.index }}</strong>
+                <p style="margin: 0.4rem 0 0;">{{ witness.name }}</p>
+                <small>{{ witness.document }}</small>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

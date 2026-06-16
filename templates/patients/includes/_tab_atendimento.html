@@ -1,11 +1,22 @@
 
     <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-            <h3 style="font-family: var(--font-heading); font-size: 1.25rem; color: hsl(var(--primary));">
-                ✍️ Evolução Clínica</h3>
-        </div>
+	        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+	            <h3 style="font-family: var(--font-heading); font-size: 1.25rem; color: hsl(var(--primary));">
+	                ✍️ Evolução Clínica</h3>
+	        </div>
 
-        <!-- Formulário para adicionar nova evolução -->
+	        {% set unsigned_items = clinical_alerts.unsigned_documents['items'] if clinical_alerts else [] %}
+	        {% set atendimento_pending = unsigned_items|selectattr('document_type', 'equalto', 'atendimento')|list %}
+	        {% if atendimento_pending %}
+	        <div style="margin-bottom:1.5rem; padding:1rem 1.2rem; border-left:5px solid hsl(var(--warning)); background:#fffbeb; border-radius:var(--radius-md);">
+	            <strong style="display:block; color:hsl(var(--text-main)); margin-bottom:0.35rem;">Evoluções clínicas com assinatura pendente</strong>
+	            <span style="display:block; color:hsl(var(--text-muted)); font-size:0.9rem;">
+	                {{ atendimento_pending|length }} registro(s) nesta aba exigem assinatura do paciente, executor ou dentista responsável.
+	            </span>
+	        </div>
+	        {% endif %}
+
+	        <!-- Formulário para adicionar nova evolução -->
         <div
             style="margin-bottom: 2rem; background: hsl(var(--bg-main)); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid hsl(var(--border));">
             <h4
@@ -63,9 +74,10 @@
                     </tr>
                 </thead>
                 <tbody style="font-size: 0.95rem;">
-                    {% if appointments %}
-                    {% for appt in appointments %}
-                    <tr style="border-bottom: 1px solid hsl(var(--border));">
+	                    {% if appointments %}
+	                    {% for appt in appointments %}
+	                    {% set appt_pending = not appt.assinatura_paciente_base64 or not appt.aluno_executor_id or not appt.professor_id %}
+	                    <tr style="border-bottom: 1px solid hsl(var(--border)); {{ 'background:#fffbeb;' if appt_pending else '' }}">
                         <td style="padding: 1rem; white-space: nowrap;">{{ (appt.data|string).split(' ')[0] if appt.data
                             else '' }}</td>
                         <td style="padding: 1rem;">{{ appt.observacoes }}</td>
@@ -86,12 +98,18 @@
                         </td>
                         <td style="padding: 1rem; text-align: center;">
                             {% if appt.assinatura_paciente_base64 %}
+                            {% if appt.assinatura_modo == 'a_rogo' %}
+                            <span
+                                style="display: inline-flex; align-items: center; justify-content: center; background: hsl(var(--warning)/0.14); color: hsl(var(--warning)); border-radius: var(--radius-sm); padding: 0.35rem 0.55rem; font-weight: 800; font-size: 0.76rem;"
+                                title="Assinatura a rogo registrada pelo CD responsável">A rogo</span>
+                            {% else %}
                             <span
                                 style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: hsl(var(--success)/0.15); color: hsl(var(--success)); border-radius: 50%;"
                                 title="Assinado pelo Paciente">✅</span>
+                            {% endif %}
                             {% else %}
                             <button
-                                onclick="openPatientSignModal('{{ url_for('patients.sign_patient_atendimento', id=patient.id, appt_id=appt.id) }}')"
+                                onclick="openPatientSignModal('{{ url_for('patients.sign_patient_atendimento', id=patient.id, appt_id=appt.id) }}', true, {{ patient.nome|tojson }}, {{ patient.cpf|tojson }})"
                                 class="btn btn-outline"
                                 style="padding: 0.4rem 0.8rem; font-size: 0.85rem; color: hsl(var(--primary)); border-color: hsl(var(--primary));">
                                 📝 Paciente
@@ -104,6 +122,7 @@
                                 style="display: inline-flex; align-items: center; gap: 0.4rem; color: hsl(var(--success)); font-weight: 600; font-size: 0.9rem; background: hsl(var(--success)/0.1); padding: 0.4rem 0.8rem; border-radius: var(--radius-sm);">
                                 ✅ 
                                 {% if appt.professor_role == 'admin' %}Adm.
+                                {% elif appt.professor_role == 'clinicos' %}Clín.
                                 {% elif appt.professor_role == 'dentista' %}Dent.
                                 {% elif appt.professor_role == 'tsb' %}TSB
                                 {% else %}Prof.{% endif %}

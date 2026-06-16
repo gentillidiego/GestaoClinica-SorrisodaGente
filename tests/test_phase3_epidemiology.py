@@ -15,6 +15,8 @@ from services.epidemiology_service import (
 
 def test_epidemiology_permission_is_available_to_management_roles():
     assert role_has_permission(Role.ADMIN, 'epidemiologia:view')
+    assert role_has_permission(Role.COORDENACAO, 'epidemiologia:view')
+    assert role_has_permission(Role.SSA_SMS, 'epidemiologia:view')
     assert role_has_permission(Role.EPIDEMIOLOGIA, 'epidemiologia:view')
     assert role_has_permission(Role.BI, 'epidemiologia:view')
     assert role_has_permission(Role.AUDITORIA, 'epidemiologia:view') is False
@@ -167,6 +169,9 @@ def test_geo_payload_projects_exact_and_fallback_coordinates(monkeypatch):
     assert payload['coverage']['fallback_coordinates'] == 2
     assert payload['features'][0]['scope'] == 'municipio'
     assert payload['features'][0]['has_coordinates'] is True
+    assert payload['features'][0]['x'] == 80.51
+    assert payload['features'][0]['y'] == 52.07
+    assert payload['bounds']['projection'] == 'alagoas_static_map'
     assert payload['features'][1]['map_ready'] is True
     assert payload['missing_coordinates'][0]['scope'] in {'acao', 'bairro'}
 

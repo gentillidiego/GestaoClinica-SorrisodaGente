@@ -30,11 +30,40 @@ OCCUPATIONS = [
     'Agricultor', 'Professora', 'Autonomo', 'Aposentado', 'Comerciante',
     'Estudante', 'Pescador', 'Cuidadora', 'Motorista', 'Auxiliar de Servicos',
 ]
-NEIGHBORHOODS = [
-    'Centro', 'Benedito Bentes', 'Tabuleiro', 'Jacintinho', 'Ponta Grossa',
-    'Vergel', 'Cidade Universitaria', 'Santa Lucia', 'Primavera', 'Canafistula',
-    'Baixao', 'Nova Esperanca', 'Serraria', 'Pajucara', 'Farol',
-]
+DEMO_TERRITORIES = {
+    'Maceió': [
+        'Benedito Bentes', 'Tabuleiro do Martins', 'Jacintinho', 'Ponta Grossa',
+        'Vergel do Lago', 'Cidade Universitária', 'Santa Lúcia', 'Serraria',
+        'Pajuçara', 'Farol', 'Clima Bom', 'Trapiche da Barra',
+    ],
+    'Arapiraca': [
+        'Centro', 'Brasília', 'Canafístula', 'Baixão', 'Primavera',
+        'Nova Esperança', 'Alto do Cruzeiro', 'Caititus', 'Planalto', 'Cacimbas',
+    ],
+    'Rio Largo': ['Centro', 'Tabuleiro do Pinto', 'Mata do Rolo', 'Lourenço de Albuquerque'],
+    'Penedo': ['Centro', 'Santa Luzia', 'Santo Antônio', 'Senhor do Bonfim', 'Dom Constantino'],
+    'Palmeira dos Índios': ['Centro', 'São Cristóvão', 'Paraíso', 'Xucurus', 'Vila Maria'],
+    'União dos Palmares': ['Centro', 'Roberto Correia de Araújo', 'Newton Pereira', 'Abolição'],
+    'Marechal Deodoro': ['Centro', 'Taperaguá', 'Barra Nova', 'Massagueira', 'Francês'],
+    'São Miguel dos Campos': ['Centro', 'Canto da Saudade', 'Humberto Alves', 'Hélio Jatobá'],
+    'Coruripe': ['Centro', 'Pontal de Coruripe', 'Poxim', 'Botafogo', 'Barreiras'],
+    'Delmiro Gouveia': ['Centro', 'Eldorado', 'Campo Grande', 'Bom Sossego', 'Pedra Velha'],
+    'Santana do Ipanema': ['Centro', 'Camoxinga', 'Baraúna', 'Floresta', 'Monumento'],
+    'Maragogi': ['Centro', 'São Bento', 'Barra Grande', 'Peroba', 'Antunes'],
+    'Piranhas': ['Centro Histórico', 'Xingó', 'Nossa Senhora da Saúde', 'Piau'],
+    'Porto Calvo': ['Centro', 'Mangazala', 'Caxangá', 'Manguaba'],
+    'Pão de Açúcar': ['Centro', 'Impueiras', 'Limoeiro', 'Meirus'],
+    'Pilar': ['Centro', 'Chã do Pilar', 'Mangabeiras', 'Mucuri'],
+    'Atalaia': ['Centro', 'José Paulino', 'Alto da Boa Vista', 'Ouricuri'],
+    'Campo Alegre': ['Centro', 'Luziápolis', 'Chã da Imbira', 'Pimenteira'],
+    'São Luís do Quitunde': ['Centro', 'Quitunde', 'Tabuleiro', 'Boa Vista'],
+    'Teotônio Vilela': ['Centro', 'São Jorge', 'Feira Nova', 'Mutirão'],
+    'Viçosa': ['Centro', 'Sabalangá', 'Bananal', 'Tangil'],
+    'Murici': ['Centro', 'Cidade Alta', 'São José', 'Olhos d Água'],
+    'Porto Real do Colégio': ['Centro', 'Retiro', 'Tapera', 'Marcação'],
+    'Água Branca': ['Centro', 'Alto dos Coelhos', 'Serra do Cavalo', 'Cal'],
+    'Barra de São Miguel': ['Centro', 'Praia das Conchas', 'Barra Mar', 'Niquim'],
+}
 
 CLINICAL_PROFILES = [
     {
@@ -177,8 +206,18 @@ def _select_demo_profile(index):
 def _select_municipality(index):
     municipios = query("SELECT id, nome, codigo FROM municipios WHERE ativo = 1 ORDER BY nome")
     if not municipios:
-        return {'id': None, 'nome': 'Maceio', 'codigo': 'MCZ'}
+        return {'id': None, 'nome': 'Maceió', 'codigo': 'MCZ'}
+
+    by_name = {municipio['nome']: municipio for municipio in municipios}
+    curated = [by_name[name] for name in DEMO_TERRITORIES if name in by_name]
+    if curated:
+        return curated[index % len(curated)]
     return municipios[index % len(municipios)]
+
+
+def _select_neighborhood(municipality_name, index):
+    neighborhoods = DEMO_TERRITORIES.get(municipality_name) or ['Centro']
+    return neighborhoods[index % len(neighborhoods)]
 
 
 def _select_specialty(code):
@@ -204,7 +243,7 @@ def _ensure_demo_professional():
         (
             'demo.dentista',
             generate_password_hash('Demo@2026!'),
-            Role.DENTISTA,
+            Role.CLINICOS,
             'Dra. Marina Demo',
             '12345',
             'AL',
@@ -220,7 +259,7 @@ def _sigtap(code):
     return get_sigtap_procedure(code) or {'code': code, 'competence': None, 'name': None}
 
 
-def _create_triage_ticket(patient_id, municipality, specialty, index, created_by, created_at):
+def _create_triage_ticket(patient_id, municipality, specialty, neighborhood, index, created_by, created_at):
     if not municipality.get('id') or not specialty:
         return None
 
@@ -233,7 +272,7 @@ def _create_triage_ticket(patient_id, municipality, specialty, index, created_by
         (
             municipality['id'],
             created_at,
-            f"Acao demo - {municipality['nome']}",
+            f"UBS {neighborhood}",
             'Registro ficticio para demonstracao epidemiologica.',
             created_by,
             created_at,
@@ -563,6 +602,7 @@ def create_demo_patient(index, run_id, created_by=None):
     rng = random.Random(index)
     profile = _select_demo_profile(index)
     municipality = _select_municipality(index)
+    neighborhood = _select_neighborhood(municipality['nome'], index)
     specialty = _select_specialty(profile['specialty'])
     professional_id = _ensure_demo_professional()
     created_at = _created_at_for(index)
@@ -570,7 +610,6 @@ def create_demo_patient(index, run_id, created_by=None):
     gender = 'Fem' if index % 2 == 0 else 'Masc'
     first_name = rng.choice(FIRST_NAMES_F if gender == 'Fem' else FIRST_NAMES_M)
     full_name = f"{first_name} {rng.choice(LAST_NAMES)} {rng.choice(LAST_NAMES)}"
-    neighborhood = NEIGHBORHOODS[index % len(NEIGHBORHOODS)]
     attended_area = f"{neighborhood} - {municipality['nome']}"
 
     patient_id = execute(
@@ -613,7 +652,15 @@ def create_demo_patient(index, run_id, created_by=None):
     )
 
     if index % 3 != 0:
-        _create_triage_ticket(patient_id, municipality, specialty, index, created_by or professional_id, created_at)
+        _create_triage_ticket(
+            patient_id,
+            municipality,
+            specialty,
+            neighborhood,
+            index,
+            created_by or professional_id,
+            created_at,
+        )
 
     execute(
         """
@@ -635,6 +682,7 @@ def create_demo_patient(index, run_id, created_by=None):
         'name': full_name,
         'profile': profile['label'],
         'municipality': municipality['nome'],
+        'territory': attended_area,
     }
 
 

@@ -8,6 +8,22 @@ from constants import get_role_label, role_has_permission
 from database import execute, query
 
 
+AUDIT_SEVERITY_SQL = """
+    CASE
+        WHEN status IN ('denied', 'failed') THEN 'alta'
+        WHEN action ILIKE '%%delete%%'
+          OR action ILIKE '%%deleted%%'
+          OR action ILIKE '%%blocked%%'
+          OR action ILIKE '%%download%%'
+          OR action ILIKE '%%export%%'
+          OR action ILIKE '%%signature%%'
+          OR module IN ('auth', 'security')
+        THEN 'media'
+        ELSE 'baixa'
+    END
+"""
+
+
 def get_client_ip():
     forwarded_for = request.headers.get('X-Forwarded-For', '')
     if forwarded_for:
@@ -114,12 +130,25 @@ def list_audit_logs(filters=None, limit=200):
     if filters.get('status'):
         clauses.append('status = %s')
         params.append(filters['status'])
+    if filters.get('ip_address'):
+        clauses.append('ip_address ILIKE %s')
+        params.append(f"%{filters['ip_address']}%")
+    if filters.get('created_from'):
+        clauses.append('created_at >= %s')
+        params.append(f"{filters['created_from']} 00:00:00")
+    if filters.get('created_to'):
+        clauses.append('created_at <= %s')
+        params.append(f"{filters['created_to']} 23:59:59")
+    if filters.get('severity'):
+        clauses.append(f"({AUDIT_SEVERITY_SQL}) = %s")
+        params.append(filters['severity'])
 
     where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ''
     params.append(limit)
     return query(
         f"""
-        SELECT *
+        SELECT *,
+               {AUDIT_SEVERITY_SQL} AS severity
         FROM audit_logs
         {where_sql}
         ORDER BY created_at DESC

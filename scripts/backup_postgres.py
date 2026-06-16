@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+import re
 
 from dotenv import load_dotenv
 
@@ -16,10 +17,45 @@ def run(command):
     subprocess.run(command, check=True)
 
 
+def capture(command):
+    return subprocess.check_output(command, text=True).strip()
+
+
+def parse_major_version(version_text):
+    match = re.search(r'(\d+)(?:\.\d+)?', version_text)
+    if not match:
+        raise RuntimeError(f'Não foi possível identificar a versão PostgreSQL em: {version_text}')
+    return int(match.group(1))
+
+
+def assert_pg_dump_compatible(database_url):
+    client_version = capture(['pg_dump', '--version'])
+    server_version_num = capture([
+        'psql',
+        database_url,
+        '--tuples-only',
+        '--no-align',
+        '--command',
+        'SHOW server_version_num',
+    ])
+    client_major = parse_major_version(client_version)
+    server_major = int(server_version_num) // 10000
+
+    if client_major > server_major:
+        raise RuntimeError(
+            'Versão incompatível para backup: '
+            f'pg_dump={client_major}, servidor={server_major}. '
+            'Use scripts/docker_backup_postgres.sh para gerar backup com a mesma versão '
+            'principal do PostgreSQL do container do banco.'
+        )
+
+
 def create_backup(output_dir):
     database_url = os.getenv('DATABASE_URL')
     if not database_url:
         raise RuntimeError('DATABASE_URL não está definida.')
+
+    assert_pg_dump_compatible(database_url)
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)

@@ -25,6 +25,8 @@ from services.esus_export_service import (
     validate_esus_export_batch,
 )
 from services.sigtap_service import (
+    build_sigtap_specialty_groups,
+    is_sigtap_code_allowed_for_specialty,
     normalize_sigtap_code,
     parse_tb_procedimento_line,
     split_sigtap_code,
@@ -48,6 +50,18 @@ def test_parse_tb_procedimento_fixed_width_line():
     line = '0307030040' + name.ljust(250) + 'M'
 
     assert parse_tb_procedimento_line(line) == ('0307030040', name)
+
+
+def test_sigtap_specialty_groups_filter_treatment_codes(monkeypatch):
+    monkeypatch.setattr(sigtap_service, 'get_latest_sigtap_competence', lambda: '202606')
+    monkeypatch.setattr(sigtap_service, 'get_sigtap_procedure', lambda code, competence=None: None)
+
+    groups = build_sigtap_specialty_groups()
+    endodontia = next(group for group in groups if group['value'] == 'endodontia')
+
+    assert any(item['code'] == '0307020061' for item in endodontia['procedures'])
+    assert is_sigtap_code_allowed_for_specialty('endodontia', '0307020061')
+    assert not is_sigtap_code_allowed_for_specialty('endodontia', '0414020138')
 
 
 def test_upsert_sigtap_procedure_persists_group_fields(monkeypatch):
@@ -89,8 +103,8 @@ def test_build_esus_payload_uses_only_sigtap_ready_records(monkeypatch):
             'sigtap_name': 'PROFILAXIA / REMOÇÃO DA PLACA BACTERIANA',
             'criado_em': dt.datetime(2026, 5, 10, 9, 30),
             'professor_id': 7,
-            'cns': '123',
-            'cpf': '000',
+            'cns': '123456789012345',
+            'cpf': '12345678901',
             'patient_name': 'Paciente Teste',
             'professional_cns': '700000000000000',
             'professional_cbo': '223208',
@@ -110,8 +124,8 @@ def test_build_esus_payload_uses_only_sigtap_ready_records(monkeypatch):
             'sigtap_name': None,
             'criado_em': dt.datetime(2026, 5, 11, 9, 30),
             'professor_id': 7,
-            'cns': '456',
-            'cpf': '111',
+            'cns': '456789012345678',
+            'cpf': '98765432100',
             'patient_name': 'Paciente Sem Código',
             'professional_cns': '700000000000000',
             'professional_cbo': '223208',
@@ -143,6 +157,8 @@ def test_build_esus_payload_uses_only_sigtap_ready_records(monkeypatch):
 def test_integrations_permissions_are_restricted():
     assert role_has_permission(Role.ADMIN, 'integrations:view')
     assert role_has_permission(Role.ADMIN, 'integrations:write')
+    assert role_has_permission(Role.COORDENACAO, 'integrations:view')
+    assert role_has_permission(Role.COORDENACAO, 'integrations:write')
     assert role_has_permission(Role.AUDITORIA, 'integrations:view')
     assert role_has_permission(Role.AUDITORIA, 'integrations:write') is False
     assert role_has_permission(Role.BI, 'integrations:view')
@@ -150,8 +166,12 @@ def test_integrations_permissions_are_restricted():
 
 
 def test_professional_roles_require_esus_identification_fields():
+    assert role_requires_professional_data(Role.CLINICOS)
+    assert role_requires_professional_data(Role.CME)
+    assert role_requires_professional_data(Role.RADIOLOGIA)
     assert role_requires_professional_data(Role.DENTISTA)
-    assert role_requires_professional_data(Role.TRIAGEM)
+    assert role_requires_professional_data(Role.TRIAGEM) is False
+    assert role_requires_dental_license(Role.CLINICOS)
     assert role_requires_dental_license(Role.DENTISTA)
     assert role_requires_dental_license(Role.TRIAGEM) is False
     assert role_requires_professional_data(Role.RECEPCAO) is False
@@ -180,6 +200,31 @@ def test_classify_esus_missing_fields_flags_city_and_patient_data():
     assert 'CRO' in missing
     assert 'CNES' in missing
     assert 'INE/equipe' in missing
+
+
+def test_classify_esus_missing_fields_flags_invalid_formats():
+    row = {
+        'sigtap_code': '0307030040',
+        'sigtap_competence': '202605',
+        'cns': '123',
+        'cpf': '',
+        'professor_id': 9,
+        'professional_cns': '700',
+        'professional_cbo': '223',
+        'professional_cnes': '123',
+        'professional_ine': '000',
+        'cro': '1234',
+        'cro_uf': 'A1',
+    }
+
+    missing = classify_esus_missing_fields(row, settings={'cnes': '123', 'ine': '000'})
+
+    assert 'CNS/CPF inválido' in missing
+    assert 'CNS profissional inválido' in missing
+    assert 'CBO inválido' in missing
+    assert 'CNES inválido' in missing
+    assert 'INE/equipe inválido' in missing
+    assert 'CRO-UF inválido' in missing
 
 
 def test_update_treatment_sigtap_uses_loaded_catalog(monkeypatch):
@@ -519,7 +564,7 @@ def test_get_esus_dashboard_composes_operational_context(monkeypatch):
         'get_sigtap_summary',
         lambda: {'latest': {'total': 10, 'competence': '202605'}},
     )
-    monkeypatch.setattr(esus_export_service, 'get_patient_identifier_gaps', lambda: {'total': 2, 'missing_cns_or_cpf': 0})
+    monkeypatch.setattr(esus_export_service, 'get_patient_identifier_gaps', lambda: {'total': 2, 'missing_cns_or_cpf': 0, 'invalid_cns_or_cpf': 0})
     monkeypatch.setattr(esus_export_service, 'list_professionals_missing_required_data', lambda limit=80: [])
     monkeypatch.setattr(esus_export_service, 'list_procedures_missing_sigtap', lambda limit=80: [])
     monkeypatch.setattr(esus_export_service, 'list_esus_batches', lambda limit=12: [{'id': 1}])
@@ -552,3 +597,26 @@ def test_homologation_status_reports_blockers():
 
     assert status['ready'] is False
     assert status['blocking_count'] == len(status['items'])
+
+
+def test_homologation_status_blocks_invalid_identifier_formats():
+    status = build_homologation_status(
+        settings={
+            'environment': 'homologacao',
+            'base_url': 'https://esus.local',
+            'pec_version': '5.4.36',
+            'ledi_version': '7.4.1',
+            'credential_status': 'received',
+            'cnes': '123',
+            'ine': '000',
+        },
+        readiness={'missing_sigtap': 0, 'incomplete': 0},
+        sigtap_summary={'latest': {'total': 1}},
+        patient_gaps={'missing_cns_or_cpf': 0, 'invalid_cns_or_cpf': 2},
+        missing_professionals=[],
+    )
+
+    labels = {item['label']: item for item in status['items']}
+    assert labels['CNES configurado']['ok'] is False
+    assert labels['INE/equipe configurado']['ok'] is False
+    assert labels['Pacientes com CNS/CPF válido']['ok'] is False

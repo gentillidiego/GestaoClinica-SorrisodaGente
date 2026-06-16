@@ -63,6 +63,14 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="assinatura_base64" id="assinatura_base64_patient">
 
+            <div id="patient-sign-identity"
+                style="display: none; margin-bottom: 1rem; padding: 0.85rem 1rem; border-radius: var(--radius-md); background: hsl(var(--primary-soft)); color: hsl(var(--text-main));">
+                <strong id="patient-sign-name" style="display: block;"></strong>
+                <span style="font-size: 0.82rem; color: hsl(var(--text-muted));">
+                    CPF: <span id="patient-sign-cpf"></span>
+                </span>
+            </div>
+
             <div
                 style="background: #f8f9fa; border: 2px dashed hsl(var(--border)); border-radius: var(--radius-md); margin-bottom: 1rem; position: relative;">
                 <canvas id="signature-pad-patient" style="width: 100%; height: 200px; cursor: crosshair;"></canvas>
@@ -72,6 +80,47 @@
                 <button type="button" id="clear-signature-patient" class="btn btn-outline"
                     style="padding: 0.3rem 0.8rem; font-size: 0.8rem;">Limpar Quadro</button>
                 <span style="font-size: 0.75rem; color: hsl(var(--text-muted));">Toque/Mouse para assinar</span>
+            </div>
+
+            <div id="patient-proxy-signature-section" style="display: none; margin-bottom: 1.5rem; border: 1px solid hsl(var(--border)); border-radius: var(--radius-md); padding: 1rem; background: #f8fafc;">
+                <label style="display: flex; gap: 0.65rem; align-items: flex-start; font-weight: 800; color: hsl(var(--text-main)); cursor: pointer;">
+                    <input type="checkbox" name="patient_not_literate" id="patient_not_literate_modal" value="1"
+                        style="margin-top: 0.2rem; width: 18px; height: 18px;">
+                    <span>Paciente não alfabetizado</span>
+                </label>
+                <p style="margin: 0.45rem 0 0; color: hsl(var(--text-muted)); font-size: 0.82rem;">
+                    O CD responsável registra assinatura a rogo, declarando que leu e explicou o procedimento ao paciente.
+                </p>
+                <div id="patient-proxy-fields" style="display: none; margin-top: 1rem; border-top: 1px solid hsl(var(--border)); padding-top: 1rem;">
+                    <div style="display: grid; grid-template-columns: 1fr; gap: 0.85rem;">
+                        <div>
+                            <label class="form-label" style="font-size: 0.8rem;">Usuário do CD responsável</label>
+                            <input type="text" name="rogo_prof_username" class="form-control patient-proxy-required"
+                                autocomplete="username">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 0.8rem;">Senha do CD responsável</label>
+                            <input type="password" name="rogo_prof_password" class="form-control patient-proxy-required"
+                                autocomplete="current-password">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 0.8rem;">Testemunha 1 - nome</label>
+                            <input type="text" name="rogo_witness1_name" class="form-control patient-proxy-required">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 0.8rem;">Testemunha 1 - CPF/RG</label>
+                            <input type="text" name="rogo_witness1_document" class="form-control patient-proxy-required">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 0.8rem;">Testemunha 2 - nome</label>
+                            <input type="text" name="rogo_witness2_name" class="form-control patient-proxy-required">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 0.8rem;">Testemunha 2 - CPF/RG</label>
+                            <input type="text" name="rogo_witness2_document" class="form-control patient-proxy-required">
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div style="display: flex; gap: 1rem;">
@@ -198,11 +247,22 @@
                 <input type="text" name="descricao" id="edit_proc_desc" class="form-control" required>
             </div>
             <div style="margin-bottom: 1.5rem;">
+                <label class="form-label">Especialidade</label>
+                <select name="especialidade_sigtap" id="edit_proc_specialty" class="form-control treatment-specialty-select" data-target="#edit_proc_sigtap_code">
+                    <option value="">Selecionar especialidade</option>
+                    {% for group in sigtap_specialty_groups or [] %}
+                    <option value="{{ group.value }}">{{ group.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="margin-bottom: 1.5rem;">
                 <label class="form-label">Código SUS/SIGTAP</label>
-                <select name="sigtap_code" id="edit_proc_sigtap_code" class="form-control">
+                <select name="sigtap_code" id="edit_proc_sigtap_code" class="form-control treatment-sigtap-select">
                     <option value="">Selecionar código</option>
-                    {% for item in sigtap_procedures or [] %}
-                    <option value="{{ item.code }}">{{ item.code }} - {{ item.name }}</option>
+                    {% for group in sigtap_specialty_groups or [] %}
+                    {% for item in group.procedures %}
+                    <option value="{{ item.code }}" data-specialty="{{ group.value }}" data-name="{{ item.name }}">{{ item.code }} - {{ item.name }}</option>
+                    {% endfor %}
                     {% endfor %}
                 </select>
             </div>

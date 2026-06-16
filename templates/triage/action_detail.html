@@ -66,6 +66,7 @@
                         <th style="padding:1rem; color:hsl(var(--text-muted));">ESPECIALIDADE</th>
                         <th style="padding:1rem; color:hsl(var(--text-muted));">STATUS</th>
                         <th style="padding:1rem; color:hsl(var(--text-muted));">PACIENTE</th>
+                        <th style="padding:1rem; color:hsl(var(--text-muted));">DESTINO</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -75,6 +76,14 @@
                         <td style="padding:1rem;">{{ ticket.especialidade_nome }}</td>
                         <td style="padding:1rem;"><span class="badge badge-primary">{{ ticket.status }}</span></td>
                         <td style="padding:1rem; color:hsl(var(--text-muted));">{{ ticket.patient_nome or '—' }}</td>
+                        <td style="padding:1rem; color:hsl(var(--text-muted));">
+                            {% if ticket.execution_unit_label %}
+                            <strong style="display:block; color:hsl(var(--text-main));">{{ ticket.execution_unit_label }}</strong>
+                            <span style="font-size:0.78rem;">{{ ticket.scheduled_at.strftime('%d/%m/%Y %H:%M') if ticket.scheduled_at else '' }}{% if ticket.appointment_status %} · {{ ticket.appointment_status }}{% endif %}</span>
+                            {% else %}
+                            Aguardando agendamento
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

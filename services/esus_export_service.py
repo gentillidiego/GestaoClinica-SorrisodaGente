@@ -26,6 +26,22 @@ def current_month_value(today=None):
     return today.strftime('%Y-%m')
 
 
+def only_digits(value):
+    return ''.join(ch for ch in str(value or '') if ch.isdigit())
+
+
+def has_digits_length(value, length):
+    return len(only_digits(value)) == length
+
+
+def has_valid_patient_identifier(row):
+    return has_digits_length(row.get('cns'), 15) or has_digits_length(row.get('cpf'), 11)
+
+
+def has_valid_uf(value):
+    return len(str(value or '').strip()) == 2 and str(value or '').strip().isalpha()
+
+
 def list_completed_procedures_for_esus(month_value=None):
     start, end = month_period(month_value)
     return query(
@@ -107,29 +123,49 @@ def get_patient_identifier_gaps():
                COUNT(*) FILTER (
                    WHERE COALESCE(NULLIF(TRIM(cns), ''), '') = ''
                       OR COALESCE(NULLIF(TRIM(cpf), ''), '') = ''
-               ) as missing_cns_or_cpf
+               ) as missing_cns_or_cpf,
+               COUNT(*) FILTER (
+                   WHERE (
+                       COALESCE(NULLIF(TRIM(cns), ''), '') <> ''
+                       OR COALESCE(NULLIF(TRIM(cpf), ''), '') <> ''
+                   )
+                   AND NOT (
+                       length(regexp_replace(COALESCE(cns, ''), '\\D', '', 'g')) = 15
+                       OR length(regexp_replace(COALESCE(cpf, ''), '\\D', '', 'g')) = 11
+                   )
+               ) as invalid_cns_or_cpf
         FROM patients
         """,
         one=True,
     )
-    return row or {'total': 0, 'missing_cns_or_cpf': 0}
+    return row or {'total': 0, 'missing_cns_or_cpf': 0, 'invalid_cns_or_cpf': 0}
 
 
 def _missing_professional_fields(row):
     missing = []
     if not row.get('cns'):
         missing.append('CNS profissional')
+    elif not has_digits_length(row.get('cns'), 15):
+        missing.append('CNS profissional inválido')
     if not row.get('cbo'):
         missing.append('CBO')
+    elif not has_digits_length(row.get('cbo'), 6):
+        missing.append('CBO inválido')
     if not row.get('cnes'):
         missing.append('CNES')
+    elif not has_digits_length(row.get('cnes'), 7):
+        missing.append('CNES inválido')
     if not row.get('ine'):
         missing.append('INE/equipe')
+    elif not has_digits_length(row.get('ine'), 10):
+        missing.append('INE/equipe inválido')
     if role_requires_dental_license(row.get('role')):
         if not row.get('cro'):
             missing.append('CRO')
         if not row.get('cro_uf'):
             missing.append('CRO-UF')
+        elif not has_valid_uf(row.get('cro_uf')):
+            missing.append('CRO-UF inválido')
     return missing
 
 
@@ -249,18 +285,35 @@ def classify_esus_missing_fields(row, settings=None):
         missing.append('competência SIGTAP')
     if not (row.get('cns') or row.get('cpf')):
         missing.append('CNS/CPF')
+    elif not has_valid_patient_identifier(row):
+        missing.append('CNS/CPF inválido')
     if not row.get('professor_id'):
         missing.append('profissional')
     if not row.get('professional_cns'):
         missing.append('CNS profissional')
+    elif not has_digits_length(row.get('professional_cns'), 15):
+        missing.append('CNS profissional inválido')
     if not row.get('professional_cbo'):
         missing.append('CBO')
+    elif not has_digits_length(row.get('professional_cbo'), 6):
+        missing.append('CBO inválido')
     if not row.get('cro'):
         missing.append('CRO')
-    if not (row.get('professional_cnes') or settings.get('cnes')):
+    if row.get('cro') and not row.get('cro_uf'):
+        missing.append('CRO-UF')
+    elif row.get('cro_uf') and not has_valid_uf(row.get('cro_uf')):
+        missing.append('CRO-UF inválido')
+
+    cnes_value = row.get('professional_cnes') or settings.get('cnes')
+    ine_value = row.get('professional_ine') or settings.get('ine')
+    if not cnes_value:
         missing.append('CNES')
-    if not (row.get('professional_ine') or settings.get('ine')):
+    elif not has_digits_length(cnes_value, 7):
+        missing.append('CNES inválido')
+    if not ine_value:
         missing.append('INE/equipe')
+    elif not has_digits_length(ine_value, 10):
+        missing.append('INE/equipe inválido')
     return missing
 
 
@@ -800,6 +853,8 @@ def get_esus_homologation_report(month_value=None, batch_id=None):
 
 
 def build_homologation_status(settings, readiness, sigtap_summary, patient_gaps, missing_professionals):
+    patient_missing = patient_gaps.get('missing_cns_or_cpf', 0)
+    patient_invalid = patient_gaps.get('invalid_cns_or_cpf', 0)
     items = [
         {
             'label': 'Ambiente definido',
@@ -828,12 +883,12 @@ def build_homologation_status(settings, readiness, sigtap_summary, patient_gaps,
         },
         {
             'label': 'CNES configurado',
-            'ok': bool(settings.get('cnes')),
+            'ok': has_digits_length(settings.get('cnes'), 7),
             'detail': settings.get('cnes') or 'pendente',
         },
         {
             'label': 'INE/equipe configurado',
-            'ok': bool(settings.get('ine')),
+            'ok': has_digits_length(settings.get('ine'), 10),
             'detail': settings.get('ine') or 'pendente',
         },
         {
@@ -842,9 +897,9 @@ def build_homologation_status(settings, readiness, sigtap_summary, patient_gaps,
             'detail': f"{sigtap_summary['latest']['total']} procedimento(s)",
         },
         {
-            'label': 'Pacientes com CNS e CPF',
-            'ok': patient_gaps['missing_cns_or_cpf'] == 0,
-            'detail': f"{patient_gaps['missing_cns_or_cpf']} pendente(s)",
+            'label': 'Pacientes com CNS/CPF válido',
+            'ok': patient_missing == 0 and patient_invalid == 0,
+            'detail': f"{patient_missing} pendente(s), {patient_invalid} inválido(s)",
         },
         {
             'label': 'Profissionais com CNS/CBO/CNES/INE',

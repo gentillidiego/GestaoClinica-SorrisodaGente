@@ -63,6 +63,53 @@
         </div>
 
         <div style="display: grid; gap: 2rem; margin-bottom: 3rem;">
+            <div style="border: 1px solid hsl(var(--border)); border-radius: var(--radius-md); padding: 1rem 1.25rem; background: #f8fafc;">
+                <label style="display: flex; gap: 0.7rem; align-items: flex-start; font-weight: 800; color: hsl(var(--text-main)); cursor: pointer;">
+                    <input type="checkbox" name="patient_not_literate" id="patient_not_literate" value="1"
+                        style="margin-top: 0.2rem; width: 18px; height: 18px;">
+                    <span>Paciente não alfabetizado</span>
+                </label>
+                <p style="margin: 0.5rem 0 0; color: hsl(var(--text-muted)); font-size: 0.88rem;">
+                    Quando marcada, o CD responsável registra assinatura a rogo com login e senha,
+                    declarando que leu e explicou o termo ao paciente.
+                </p>
+
+                <div id="a-rogo-fields" style="display: none; margin-top: 1rem; border-top: 1px solid hsl(var(--border)); padding-top: 1rem;">
+                    <p style="margin: 0 0 1rem; font-size: 0.9rem; color: hsl(var(--text-main)); font-weight: 700;">
+                        Declaração registrada: li em voz alta, expliquei o termo em linguagem acessível,
+                        esclareci dúvidas e o paciente manifestou consentimento livre e informado.
+                    </p>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+                        <div>
+                            <label class="form-label">Usuário do CD responsável</label>
+                            <input type="text" name="rogo_prof_username" class="form-control a-rogo-required"
+                                autocomplete="username">
+                        </div>
+                        <div>
+                            <label class="form-label">Senha do CD responsável</label>
+                            <input type="password" name="rogo_prof_password" class="form-control a-rogo-required"
+                                autocomplete="current-password">
+                        </div>
+                        <div>
+                            <label class="form-label">Testemunha 1 - nome</label>
+                            <input type="text" name="rogo_witness1_name" class="form-control a-rogo-required">
+                        </div>
+                        <div>
+                            <label class="form-label">Testemunha 1 - CPF/RG</label>
+                            <input type="text" name="rogo_witness1_document" class="form-control a-rogo-required">
+                        </div>
+                        <div>
+                            <label class="form-label">Testemunha 2 - nome</label>
+                            <input type="text" name="rogo_witness2_name" class="form-control a-rogo-required">
+                        </div>
+                        <div>
+                            <label class="form-label">Testemunha 2 - CPF/RG</label>
+                            <input type="text" name="rogo_witness2_document" class="form-control a-rogo-required">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="signature-section">
                 <label
                     style="display: block; font-weight: 700; color: hsl(var(--primary)); margin-bottom: 1rem; text-transform: uppercase; font-size: 0.85rem;">Assinatura
@@ -112,6 +159,9 @@
         const clearButton = document.getElementById('clear-signature');
         const form = document.getElementById('tcle-form');
         const hiddenInput = document.getElementById('assinatura_base64');
+        const patientNotLiterate = document.getElementById('patient_not_literate');
+        const aRogoFields = document.getElementById('a-rogo-fields');
+        const aRogoRequiredFields = document.querySelectorAll('.a-rogo-required');
 
         // Preencher data
         const date = new Date();
@@ -125,7 +175,30 @@
             signaturePad.clear();
         });
 
+        function syncARogoFields() {
+            const enabled = patientNotLiterate.checked;
+            aRogoFields.style.display = enabled ? 'block' : 'none';
+            aRogoRequiredFields.forEach((field) => {
+                field.required = enabled;
+                if (!enabled) {
+                    field.value = '';
+                }
+            });
+        }
+
+        patientNotLiterate.addEventListener('change', function () {
+            syncARogoFields();
+            if (patientNotLiterate.checked) {
+                signaturePad.clear();
+                hiddenInput.value = '';
+            }
+        });
+
         form.addEventListener('submit', function (e) {
+            if (patientNotLiterate.checked) {
+                hiddenInput.value = '';
+                return;
+            }
             if (signaturePad.isEmpty()) {
                 alert('A assinatura do paciente é obrigatória para prosseguir.');
                 e.preventDefault();
@@ -146,6 +219,7 @@
 
         window.onresize = resizeCanvas;
         resizeCanvas();
+        syncARogoFields();
     });
 </script>
 {% endblock %}

@@ -2,6 +2,12 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_required, current_user
 from database import execute, query, execute_transaction
 from werkzeug.security import check_password_hash
+from constants import can_sign_clinical_document
+from services.signature_evidence_service import (
+    SIGNATURE_MODE_CANVAS,
+    build_generic_signature_payload,
+    register_signature_event,
+)
 
 prosthesis_bp = Blueprint('prosthesis', __name__, url_prefix='/prosthesis')
 
@@ -23,6 +29,27 @@ ETAPAS_TOTAL = [
     "5ª Sessão – Instalação",
     "6ª Sessão – Retorno/Ajustes"
 ]
+
+
+def _record_prosthesis_signature(document_type, document_id, patient, document_data, assinatura):
+    payload = build_generic_signature_payload(
+        document_type,
+        patient,
+        SIGNATURE_MODE_CANVAS,
+        document_data=document_data,
+        signature_capture=assinatura,
+        signer=current_user,
+    )
+    return register_signature_event(
+        document_type=document_type,
+        document_id=document_id,
+        patient=patient,
+        signature_mode=SIGNATURE_MODE_CANVAS,
+        payload=payload,
+        signed_by_user=current_user,
+        auth_method='patient_canvas_session',
+        metadata=document_data,
+    )
 
 @prosthesis_bp.route('/<int:patient_id>/create', methods=['POST'])
 @login_required
@@ -90,7 +117,57 @@ def sign_patient(etapa_id):
         return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
         
     try:
-        execute('UPDATE prosthesis_etapas SET assinatura_paciente_base64 = %s WHERE id = %s', (assinatura, etapa_id))
+        etapa = query(
+            """
+            SELECT pe.*, pr.patient_id, p.nome, p.cpf, p.rg
+            FROM prosthesis_etapas pe
+            JOIN prosthesis pr ON pr.id = pe.prosthesis_id
+            JOIN patients p ON p.id = pr.patient_id
+            WHERE pe.id = %s
+            """,
+            (etapa_id,),
+            one=True,
+        )
+        if not etapa:
+            flash('Etapa de prótese não encontrada.', 'danger')
+            return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
+        patient = {'id': etapa['patient_id'], 'nome': etapa['nome'], 'cpf': etapa['cpf'], 'rg': etapa['rg']}
+        evidence = _record_prosthesis_signature(
+            'prosthesis_stage_patient_signature',
+            etapa_id,
+            patient,
+            {
+                'prosthesis_id': etapa['prosthesis_id'],
+                'etapa_id': etapa_id,
+                'numero_etapa': etapa['numero_etapa'],
+                'nome_etapa': etapa['nome_etapa'],
+                'servico_solicitado': etapa['servico_solicitado'],
+            },
+            assinatura,
+        )
+        execute(
+            """
+            UPDATE prosthesis_etapas
+            SET assinatura_paciente_base64 = %s,
+                assinatura_modo = %s,
+                assinatura_event_id = %s,
+                assinatura_document_hash = %s,
+                assinatura_auth_method = %s,
+                assinatura_source_ip = %s,
+                assinatura_user_agent = %s
+            WHERE id = %s
+            """,
+            (
+                assinatura,
+                SIGNATURE_MODE_CANVAS,
+                evidence['event_id'],
+                evidence['document_hash'],
+                'patient_canvas_session',
+                evidence['source_ip'],
+                evidence['user_agent'],
+                etapa_id,
+            ),
+        )
         flash('Assinatura do paciente salva.', 'success')
     except Exception as e:
         flash(f'Erro ao assinar: {str(e)}', 'danger')
@@ -104,9 +181,8 @@ def sign_professor(etapa_id):
     username = request.form.get('prof_username')
     password = request.form.get('prof_password')
     
-    from constants import Role
     prof = query("SELECT id, password, role FROM users WHERE username = %s", (username,), one=True)
-    if not prof or not check_password_hash(prof['password'], password) or prof['role'] not in [Role.DENTISTA, Role.ADMIN]:
+    if not prof or not check_password_hash(prof['password'], password) or not can_sign_clinical_document(prof['role']):
         flash('Credenciais inválidas ou usuário sem permissão para validar etapa.', 'danger')
         return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
         
@@ -124,12 +200,61 @@ def add_payment(prosthesis_id):
     patient_id = request.form.get('patient_id')
     valor = request.form.get('valor')
     assinatura = request.form.get('assinatura_base64')
+
+    if not assinatura:
+        flash('Assinatura do paciente é obrigatória para registrar pagamento.', 'danger')
+        return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
     
     try:
-        execute('''
+        payment_id = execute('''
             INSERT INTO prosthesis_pagamentos (prosthesis_id, valor, responsavel_id, assinatura_paciente_base64)
             VALUES (%s, %s, %s, %s)
+            RETURNING id
         ''', (prosthesis_id, valor, current_user.id, assinatura))
+        prosthesis = query(
+            """
+            SELECT pr.*, p.nome, p.cpf, p.rg
+            FROM prosthesis pr
+            JOIN patients p ON p.id = pr.patient_id
+            WHERE pr.id = %s
+            """,
+            (prosthesis_id,),
+            one=True,
+        )
+        if prosthesis:
+            patient = {'id': prosthesis['patient_id'], 'nome': prosthesis['nome'], 'cpf': prosthesis['cpf'], 'rg': prosthesis['rg']}
+            evidence = _record_prosthesis_signature(
+                'prosthesis_payment_receipt',
+                payment_id,
+                patient,
+                {
+                    'prosthesis_id': prosthesis_id,
+                    'payment_id': payment_id,
+                    'valor': valor,
+                },
+                assinatura,
+            )
+            execute(
+                """
+                UPDATE prosthesis_pagamentos
+                SET assinatura_modo = %s,
+                    assinatura_event_id = %s,
+                    assinatura_document_hash = %s,
+                    assinatura_auth_method = %s,
+                    assinatura_source_ip = %s,
+                    assinatura_user_agent = %s
+                WHERE id = %s
+                """,
+                (
+                    SIGNATURE_MODE_CANVAS,
+                    evidence['event_id'],
+                    evidence['document_hash'],
+                    'patient_canvas_session',
+                    evidence['source_ip'],
+                    evidence['user_agent'],
+                    payment_id,
+                ),
+            )
         flash('Pagamento registrado com sucesso.', 'success')
     except Exception as e:
         flash(f'Erro ao registrar pagamento: {str(e)}', 'danger')

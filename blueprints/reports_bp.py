@@ -2,6 +2,7 @@ import os
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from database import query
+from constants import CLINICAL_EXECUTOR_ROLES, Role
 from services.institutional_report_service import (
     get_institutional_report,
     get_report_profile,
@@ -25,7 +26,12 @@ def require_reports_access():
 
 @reports_bp.route('/', methods=['GET', 'POST'])
 def index():
-    dentistas = query("SELECT id, full_name, role FROM users WHERE role IN ('dentista', 'admin')")
+    report_user_roles = tuple(sorted(CLINICAL_EXECUTOR_ROLES | {Role.ADMIN}))
+    placeholders = ', '.join(['%s'] * len(report_user_roles))
+    dentistas = query(
+        f"SELECT id, full_name, role FROM users WHERE role IN ({placeholders})",
+        report_user_roles,
+    )
     
     # Valores padrão
     data_inicio = request.form.get('data_inicio') or ''

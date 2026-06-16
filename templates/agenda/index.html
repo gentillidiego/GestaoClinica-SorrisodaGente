@@ -9,7 +9,13 @@
   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:2rem; flex-wrap:wrap; gap:1rem;">
     <div>
       <h1 class="page-title">📅 Agenda</h1>
-      <p class="page-subtitle">Gerencie as consultas da clínica.</p>
+      <p class="page-subtitle">
+        {% if agenda_scope == 'own' %}
+        Gerencie suas próprias consultas.
+        {% else %}
+        Gerencie as consultas da clínica.
+        {% endif %}
+      </p>
     </div>
     {% if can('agenda:write') %}
     <button class="btn btn-primary" id="btn-nova-consulta" style="gap:0.5rem;">
@@ -25,16 +31,17 @@
 
       <!-- Navegação de semana -->
       <div style="display:flex; align-items:center; gap:0.5rem; flex-shrink:0;">
-        <a href="{{ url_for('agenda.agenda_index', semana=prev_week, dentista_id=dentista_id_filter, status=status_filter) }}"
+        <a href="{{ url_for('agenda.agenda_index', semana=prev_week, dentista_id=dentista_id_filter, status=status_filter, execution_unit=execution_unit_filter) }}"
            class="btn btn-outline" style="padding:0.5rem 0.9rem; min-height:40px;">‹</a>
         <div style="font-weight:700; font-size:0.95rem; color:hsl(var(--text-main)); white-space:nowrap; min-width:190px; text-align:center;">
           {{ week_start.strftime('%d/%m') }} – {{ week_end.strftime('%d/%m/%Y') }}
         </div>
-        <a href="{{ url_for('agenda.agenda_index', semana=next_week, dentista_id=dentista_id_filter, status=status_filter) }}"
+        <a href="{{ url_for('agenda.agenda_index', semana=next_week, dentista_id=dentista_id_filter, status=status_filter, execution_unit=execution_unit_filter) }}"
            class="btn btn-outline" style="padding:0.5rem 0.9rem; min-height:40px;">›</a>
         <input type="hidden" name="semana" value="{{ week_start.isoformat() }}">
       </div>
 
+      {% if agenda_scope == 'full' %}
       <!-- Filtro Dentista -->
       <div style="display:flex; flex-direction:column; gap:0.3rem; min-width:180px;">
         <label class="form-label" style="margin:0; font-size:0.8rem;">Dentista</label>
@@ -48,6 +55,13 @@
           {% endfor %}
         </select>
       </div>
+      {% else %}
+      <div style="display:flex; flex-direction:column; gap:0.3rem; min-width:180px;">
+        <label class="form-label" style="margin:0; font-size:0.8rem;">Profissional</label>
+        <input class="form-control" value="{{ current_user.full_name or current_user.username }}" disabled
+               style="height:40px; padding:0 0.75rem; background:hsl(var(--bg-main));">
+      </div>
+      {% endif %}
 
       <!-- Filtro Status -->
       <div style="display:flex; flex-direction:column; gap:0.3rem; min-width:150px;">
@@ -60,6 +74,18 @@
           <option value="Realizado"  {% if status_filter=='Realizado'  %}selected{% endif %}>⚫ Realizado</option>
           <option value="Cancelado"  {% if status_filter=='Cancelado'  %}selected{% endif %}>🔴 Cancelado</option>
           <option value="Faltou"     {% if status_filter=='Faltou'     %}selected{% endif %}>🟠 Faltou</option>
+        </select>
+      </div>
+
+      <!-- Filtro Unidade -->
+      <div style="display:flex; flex-direction:column; gap:0.3rem; min-width:170px;">
+        <label class="form-label" style="margin:0; font-size:0.8rem;">Unidade</label>
+        <select name="execution_unit" class="form-control" style="height:40px; padding:0 0.75rem;"
+                onchange="document.getElementById('filter-form').submit()">
+          <option value="">Todas</option>
+          {% for unit_value, unit_label in execution_units %}
+          <option value="{{ unit_value }}" {% if execution_unit_filter == unit_value %}selected{% endif %}>{{ unit_label }}</option>
+          {% endfor %}
         </select>
       </div>
 
@@ -95,6 +121,7 @@
               <span class="consulta-hora">{{ c.data_consulta.strftime('%H:%M') }}</span>
               <span class="consulta-paciente">{{ c.patient_nome }}</span>
               <span class="consulta-dentista">{{ c.dentista_fullname or c.dentista_username }}</span>
+              <span class="consulta-dentista">{{ execution_unit_labels.get(c.execution_unit, 'Unidade Principal') }}</span>
               <span class="badge-status badge-{{ c.status|lower }}">{{ c.status }}</span>
 
               {% if can('agenda:write') %}
@@ -131,6 +158,7 @@
             <th>Horário</th>
             <th>Paciente</th>
             <th>Dentista</th>
+            <th>Unidade</th>
             <th>Duração</th>
             <th>Status</th>
             {% if can('agenda:write') %}
@@ -149,6 +177,7 @@
               </a>
             </td>
             <td>{{ c.dentista_fullname or c.dentista_username }}</td>
+            <td>{{ execution_unit_labels.get(c.execution_unit, 'Unidade Principal') }}</td>
             <td>{{ c.duracao_minutos }} min</td>
             <td><span class="badge-status badge-{{ c.status|lower }}">{{ c.status }}</span></td>
             {% if can('agenda:write') %}
@@ -219,12 +248,17 @@
 
       <div class="form-group" style="margin-bottom:1.25rem;">
         <label class="form-label">Dentista *</label>
+        {% if agenda_scope == 'own' %}
+        <input type="hidden" name="dentista_id" value="{{ current_user.id }}">
+        <input class="form-control" value="{{ current_user.full_name or current_user.username }}" disabled>
+        {% else %}
         <select name="dentista_id" class="form-control" required>
           <option value="">Selecione o dentista...</option>
           {% for d in dentistas %}
           <option value="{{ d.id }}">{{ d.full_name or d.username }}</option>
           {% endfor %}
         </select>
+        {% endif %}
       </div>
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.25rem;">
@@ -242,6 +276,15 @@
             <option value="120">2 horas</option>
           </select>
         </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:1.25rem;">
+        <label class="form-label">Unidade de execução</label>
+        <select name="execution_unit" class="form-control">
+          {% for unit_value, unit_label in execution_units %}
+          <option value="{{ unit_value }}">{{ unit_label }}</option>
+          {% endfor %}
+        </select>
       </div>
 
       <div class="form-group" style="margin-bottom:1.5rem;">

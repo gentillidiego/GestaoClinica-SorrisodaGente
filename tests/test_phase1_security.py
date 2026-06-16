@@ -11,13 +11,20 @@ from constants import (
     role_has_permission,
 )
 from utils import User
+from services.sensitive_file_service import safe_file_in_directory, sensitive_file_response
+import pytest
 
 
-def test_role_choices_exclude_legacy_atendimento():
+def test_role_choices_expose_simplified_active_profiles_only():
     choices = dict(get_role_choices())
 
+    assert len(choices) == 9
     assert Role.ATENDIMENTO_LEGACY not in choices
+    assert Role.DENTISTA not in choices
+    assert Role.TRIAGEM not in choices
     assert choices[Role.ADMIN] == 'Administrador'
+    assert choices[Role.COORDENACAO] == 'Coordenação'
+    assert choices[Role.CLINICOS] == 'Clínicos'
     assert choices[Role.AUDITORIA] == 'Auditoria'
 
 
@@ -27,11 +34,14 @@ def test_role_permissions_cover_admin_and_limit_auditoria():
 
     assert role_has_permission(Role.AUDITORIA, 'audit:view')
     assert not role_has_permission(Role.AUDITORIA, 'users:write')
+    assert not role_has_permission(Role.RECEPCAO, 'users:view')
+    assert role_has_permission(Role.ATENDENTE, 'triage:write')
+    assert role_has_permission(Role.DENTISTA, 'patients:write')
     assert not role_has_permission('perfil_inexistente', 'dashboard:view')
 
 
 def test_role_label_falls_back_to_original_value():
-    assert get_role_label(Role.ESTOMATOLOGIA) == 'Estomatologia'
+    assert get_role_label(Role.ESTOMATOLOGIA) == 'Clínicos'
     assert get_role_label('perfil_customizado') == 'perfil_customizado'
     assert get_role_label(None) == 'Usuário'
 
@@ -112,6 +122,10 @@ def test_list_audit_logs_builds_filtered_query(monkeypatch):
             'action': 'login',
             'patient_id': '34',
             'status': 'failed',
+            'ip_address': '203.0.113',
+            'created_from': '2026-06-01',
+            'created_to': '2026-06-08',
+            'severity': 'alta',
         },
         limit=25,
     )
@@ -122,5 +136,50 @@ def test_list_audit_logs_builds_filtered_query(monkeypatch):
     assert 'action ILIKE %s' in captured['sql']
     assert 'patient_id = %s' in captured['sql']
     assert 'status = %s' in captured['sql']
-    assert captured['params'] == ('7', 'auth', '%login%', '34', 'failed', 25)
+    assert 'ip_address ILIKE %s' in captured['sql']
+    assert 'created_at >= %s' in captured['sql']
+    assert 'created_at <= %s' in captured['sql']
+    assert 'AS severity' in captured['sql']
+    assert "ILIKE '%%download%%'" in captured['sql']
+    assert captured['params'] == (
+        '7',
+        'auth',
+        '%login%',
+        '34',
+        'failed',
+        '%203.0.113%',
+        '2026-06-01 00:00:00',
+        '2026-06-08 23:59:59',
+        'alta',
+        25,
+    )
     assert captured['one'] is False
+
+
+def test_safe_file_in_directory_blocks_path_traversal(tmp_path):
+    app = Flask(__name__)
+    report = tmp_path / 'relatorio.pdf'
+    report.write_text('conteudo', encoding='utf-8')
+
+    with app.test_request_context('/documents/download/relatorio.pdf'):
+        assert safe_file_in_directory(str(tmp_path), 'relatorio.pdf') == str(report)
+
+        with pytest.raises(Exception):
+            safe_file_in_directory(str(tmp_path), '../relatorio.pdf')
+
+        with pytest.raises(Exception):
+            safe_file_in_directory(str(tmp_path), 'inexistente.pdf')
+
+
+def test_sensitive_file_response_disables_cache(tmp_path):
+    app = Flask(__name__)
+    report = tmp_path / 'relatorio.pdf'
+    report.write_bytes(b'%PDF-1.4')
+
+    with app.test_request_context('/documents/download/relatorio.pdf'):
+        response = sensitive_file_response(str(report), mimetype='application/pdf')
+
+    assert response.headers['Cache-Control'] == 'no-store, no-cache, must-revalidate, private, max-age=0'
+    assert response.headers['Pragma'] == 'no-cache'
+    assert response.headers['Expires'] == '0'
+    assert response.headers['X-Content-Type-Options'] == 'nosniff'

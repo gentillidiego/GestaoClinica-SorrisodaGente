@@ -1,20 +1,30 @@
 
     <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2.5rem;">
-            <h3
-                style="font-family: var(--font-heading); font-size: 1.4rem; font-weight: 700; color: hsl(var(--primary));">
-                Exames Complementares</h3>
-            <a href="{{ url_for('exams.check_anamnesis', patient_id=patient.id) }}" class="btn btn-primary"
-                style="padding: 0.8rem 1.5rem; font-weight: 700;">Novo Exame ➕</a>
-        </div>
+	        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2.5rem;">
+	            <h3
+	                style="font-family: var(--font-heading); font-size: 1.4rem; font-weight: 700; color: hsl(var(--primary));">
+	                Exames Complementares</h3>
+	            <a href="{{ url_for('exams.check_anamnesis', patient_id=patient.id) }}" class="btn btn-primary"
+	                style="padding: 0.8rem 1.5rem; font-weight: 700;">Novo Exame ➕</a>
+	        </div>
 
-        <div data-paginate="true" data-per-page="6" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2rem;">
-            {% if exams %}
-            {% for exam in exams %}
-            <div class="card"
-                style="padding: 1.8rem; border: 1.5px solid hsl(var(--border) / 0.8); display: flex; flex-direction: column; transition: all 0.2s; background: white;"
-                onmouseover="this.style.borderColor='hsl(var(--primary)/0.4)'; this.style.boxShadow='var(--shadow-md)';"
-                onmouseout="this.style.borderColor='hsl(var(--border)/0.8)'; this.style.boxShadow='var(--shadow-sm)';">
+	        {% if clinical_alerts and clinical_alerts.pending_exams.total %}
+	        <div style="margin-bottom:1.5rem; padding:1rem 1.2rem; border-left:5px solid hsl(var(--warning)); background:#fffbeb; border-radius:var(--radius-md);">
+	            <strong style="display:block; color:hsl(var(--text-main)); margin-bottom:0.35rem;">Exames aguardando validação clínica</strong>
+	            <span style="display:block; color:hsl(var(--text-muted)); font-size:0.9rem;">
+	                {{ clinical_alerts.pending_exams.total }} exame(s) ainda sem dentista/professor responsável ou data de validação.
+	            </span>
+	        </div>
+	        {% endif %}
+
+	        <div data-paginate="true" data-per-page="6" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2rem;">
+	            {% if exams %}
+	            {% for exam in exams %}
+	            {% set exam_pending = not exam.professor_id or not exam.data_validacao %}
+	            <div class="card"
+	                style="padding: 1.8rem; border: 1.5px solid {{ 'hsl(var(--warning))' if exam_pending else 'hsl(var(--border) / 0.8)' }}; display: flex; flex-direction: column; transition: all 0.2s; background: white;"
+	                onmouseover="this.style.borderColor='hsl(var(--primary)/0.4)'; this.style.boxShadow='var(--shadow-md)';"
+	                onmouseout="this.style.borderColor='{{ 'hsl(var(--warning))' if exam_pending else 'hsl(var(--border)/0.8)' }}'; this.style.boxShadow='var(--shadow-sm)';">
                 <!-- Header do Card -->
                 <div
                     style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; gap: 1rem;">
@@ -59,27 +69,28 @@
                     Visualizar Exame
                 </a>
 
-                <!-- Validação do Exame -->
-                <div style="margin-top: 1rem;">
-                    {% if exam.professor_id %}
-                    <span
-                        style="display: block; width: 100%; text-align: center; color: hsl(var(--success)); font-weight: 700; font-size: 0.85rem; padding: 0.5rem; background: hsl(var(--success)/0.1); border-radius: var(--radius-sm);">
-                        ✅ Validado por 
+	                <!-- Validação do Exame -->
+	                <div style="margin-top: 1rem;">
+	                    {% if exam.professor_id and exam.data_validacao %}
+	                    <span
+	                        style="display: block; width: 100%; text-align: center; color: hsl(var(--success)); font-weight: 700; font-size: 0.85rem; padding: 0.5rem; background: hsl(var(--success)/0.1); border-radius: var(--radius-sm);">
+	                        ✅ Validado por
                         {% if exam.professor_role == 'admin' %}Administrador
+                        {% elif exam.professor_role == 'clinicos' %}Clínicos
                         {% elif exam.professor_role == 'dentista' %}Cir.-Dentista
                         {% elif exam.professor_role == 'tsb' %}TSB / ASB
                         {% else %}Profissional{% endif %}
                         {{ exam.professor_full_name or exam.professor_nome }}
                     </span>
                     {% else %}
-                    <button
-                        onclick="openSignModal('{{ url_for('patients.validate_exam', id=patient.id, exam_id=exam.id) }}')"
-                        class="btn btn-outline"
-                        style="width: 100%; justify-content: center; color: hsl(var(--warning)); border-color: hsl(var(--warning)); font-weight: 700; padding: 0.5rem; font-size: 0.85rem;">
-                        🔑 Validar
-                    </button>
-                    {% endif %}
-                </div>
+	                    <button
+	                        onclick="openSignModal('{{ url_for('patients.validate_exam', id=patient.id, exam_id=exam.id) }}')"
+	                        class="btn btn-outline"
+	                        style="width: 100%; justify-content: center; color: hsl(var(--warning)); border-color: hsl(var(--warning)); font-weight: 700; padding: 0.5rem; font-size: 0.85rem;">
+	                        🔑 {{ 'Concluir validação' if exam.professor_id else 'Validar' }}
+	                    </button>
+	                    {% endif %}
+	                </div>
             </div>
             {% endfor %}
             {% else %}

@@ -35,9 +35,37 @@
                     value="{{ user.username }}" required>
             </div>
 
+            <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:1rem; margin-bottom:1.5rem;">
+                <div>
+                    <label for="email" class="form-label">E-mail</label>
+                    <input type="email" name="email" id="email" class="form-control" value="{{ user.email or '' }}" placeholder="email@dominio.com">
+                </div>
+                <div>
+                    <label for="celular" class="form-label">Celular</label>
+                    <input type="text" name="celular" id="celular" class="form-control" value="{{ user.celular or '' }}" placeholder="(82) 99999-9999">
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:1rem; margin-bottom:1.5rem;">
+                <div>
+                    <label for="data_nascimento" class="form-label">Data de Nascimento</label>
+                    <input type="date" name="data_nascimento" id="data_nascimento" class="form-control" value="{{ user.data_nascimento or '' }}">
+                </div>
+                <div>
+                    <label for="is_first_access" class="form-label">Fluxo de Acesso</label>
+                    <select name="is_first_access" id="is_first_access" class="form-control" onchange="toggleAccessMode()">
+                        <option value="1" {% if user.is_first_access %}selected{% endif %}>Primeiro acesso pendente</option>
+                        <option value="0" {% if not user.is_first_access %}selected{% endif %}>Senha definida agora</option>
+                    </select>
+                </div>
+            </div>
+
             <div style="margin-bottom: 1.5rem;">
                 <label for="password" class="form-label">Nova Senha (deixe em branco para não alterar)</label>
                 <input type="password" name="password" id="password" class="form-control" placeholder="••••••••">
+                <div id="password_help" style="margin-top:0.5rem; color:hsl(var(--text-muted)); font-size:0.82rem;">
+                    Se o usuario estiver em primeiro acesso, a senha pode continuar em branco.
+                </div>
             </div>
 
             <div style="margin-bottom: 2.5rem;">
@@ -58,7 +86,7 @@
             </div>
 
             <div id="professional_container"
-                style="{% if user.role in ['triagem', 'clinica_geral', 'dentista', 'endodontia', 'cirurgia', 'implantes', 'estomatologia', 'radiologia', 'laboratorio', 'mutirao_movel', 'tsb'] %}display: grid;{% else %}display: none;{% endif %} grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                style="{% if user.role in ['clinicos', 'cme', 'radiologia'] %}display: grid;{% else %}display: none;{% endif %} grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
                 <div>
                     <label for="cns" class="form-label">CNS do Profissional</label>
                     <input type="text" name="cns" id="cns" class="form-control professional-required" placeholder="Cartão Nacional de Saúde"
@@ -71,18 +99,18 @@
                 </div>
                 <div>
                     <label for="cnes" class="form-label">CNES</label>
-                    <input type="text" name="cnes" id="cnes" class="form-control professional-required" placeholder="CNES da unidade"
+                    <input type="text" name="cnes" id="cnes" class="form-control" placeholder="Carga manual posterior"
                         value="{{ user.cnes or '' }}">
                 </div>
                 <div>
                     <label for="ine" class="form-label">INE / Equipe</label>
-                    <input type="text" name="ine" id="ine" class="form-control professional-required" placeholder="INE da equipe"
+                    <input type="text" name="ine" id="ine" class="form-control" placeholder="Carga manual posterior"
                         value="{{ user.ine or '' }}">
                 </div>
             </div>
 
             <div id="cro_container"
-                style="{% if user.role in ['dentista', 'clinica_geral', 'endodontia', 'cirurgia', 'implantes', 'estomatologia'] %}display: grid;{% else %}display: none;{% endif %} grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 2.5rem;">
+                style="{% if user.role == 'clinicos' %}display: grid;{% else %}display: none;{% endif %} grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 2.5rem;">
                 <div>
                     <label for="cro" class="form-label">Número CRO</label>
                     <input type="text" name="cro" id="cro" class="form-control cro-required" placeholder="Ex: 12345"
@@ -108,8 +136,8 @@
 </div>
 
 <script>
-    const professionalRoles = ['triagem', 'clinica_geral', 'dentista', 'endodontia', 'cirurgia', 'implantes', 'estomatologia', 'radiologia', 'laboratorio', 'mutirao_movel', 'tsb'];
-    const dentalRoles = ['dentista', 'clinica_geral', 'endodontia', 'cirurgia', 'implantes', 'estomatologia'];
+    const professionalRoles = ['clinicos', 'cme', 'radiologia'];
+    const dentalRoles = ['clinicos'];
 
     function setRequired(selector, required) {
         document.querySelectorAll(selector).forEach((field) => {
@@ -139,6 +167,13 @@
         }
     }
 
+    function toggleAccessMode() {
+        const firstAccess = document.getElementById('is_first_access').value === '1';
+        const birthdateField = document.getElementById('data_nascimento');
+        birthdateField.required = firstAccess;
+    }
+
     toggleProfessionalFields();
+    toggleAccessMode();
 </script>
 {% endblock %}

@@ -4,15 +4,82 @@
 
 {% block content %}
 <div class="animate-fade">
-  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:2rem;">
-    <div>
-      <h1 class="page-title">Central de Comando</h1>
-      <p class="page-subtitle">Operação clínica diária, alertas críticos, fila e produção.</p>
-    </div>
-    <a href="{{ url_for('agenda.agenda_index') }}" class="btn btn-outline" style="height:40px;">Agenda</a>
-  </div>
+	  {% set command_query = request.query_string.decode() %}
+	  {% set summary_url = url_for('main.command_center_daily_summary') ~ ('?' ~ command_query if command_query else '') %}
+	  {% set summary_csv_url = url_for('main.export_command_center_daily_summary_csv') ~ ('?' ~ command_query if command_query else '') %}
+	  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:2rem;">
+	    <div>
+	      <h1 class="page-title">Central de Comando</h1>
+	      <p class="page-subtitle">Operação clínica diária, alertas críticos, fila e produção.</p>
+	    </div>
+	    <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+	      <a href="{{ summary_url }}" target="_blank" rel="noopener" class="btn btn-primary" style="height:40px;">Resumo Diário</a>
+	      <a href="{{ summary_csv_url }}" class="btn btn-outline" style="height:40px;">Exportar CSV</a>
+	      {% if can('agenda:view') %}
+	      <a href="{{ url_for('agenda.agenda_index') }}" class="btn btn-outline" style="height:40px;">Agenda</a>
+	      {% endif %}
+	    </div>
+	  </div>
 
-  <div class="stat-grid" style="margin-bottom:1.5rem;">
+	  <form class="command-filter-bar" method="get" action="{{ url_for('main.command_center') }}">
+	    <label>
+	      Município
+	      <select name="municipio_id" class="form-control">
+	        <option value="">Todos</option>
+	        {% for municipio in data.filter_options.municipalities %}
+	        <option value="{{ municipio.id }}" {{ 'selected' if data.filters.municipio_id == municipio.id else '' }}>{{ municipio.nome }}</option>
+	        {% endfor %}
+	      </select>
+	    </label>
+	    <label>
+	      Especialidade
+	      <select name="especialidade_id" class="form-control">
+	        <option value="">Todas</option>
+	        {% for specialty in data.filter_options.specialties %}
+	        <option value="{{ specialty.id }}" {{ 'selected' if data.filters.especialidade_id == specialty.id else '' }}>{{ specialty.nome }}</option>
+	        {% endfor %}
+	      </select>
+	    </label>
+	    <label>
+	      Profissional
+	      {% if current_user.is_dentista %}
+	      <input type="hidden" name="professional_id" value="{{ current_user.id }}">
+	      <input class="form-control" value="{{ current_user.full_name or current_user.username }}" disabled>
+	      {% else %}
+	      <select name="professional_id" class="form-control">
+	        <option value="">Todos</option>
+	        {% for professional in data.filter_options.professionals %}
+	        <option value="{{ professional.id }}" {{ 'selected' if data.filters.professional_id == professional.id else '' }}>{{ professional.name }}</option>
+	        {% endfor %}
+	      </select>
+	      {% endif %}
+	    </label>
+	    <label>
+	      Unidade
+	      <select name="execution_unit" class="form-control">
+	        <option value="">Todas</option>
+	        {% for unit in data.filter_options.execution_units %}
+	        <option value="{{ unit.id }}" {{ 'selected' if data.filters.execution_unit == unit.id else '' }}>{{ unit.nome }}</option>
+	        {% endfor %}
+	      </select>
+	    </label>
+	    <label>
+	      Início
+	      <input type="date" name="start_date" class="form-control" value="{{ data.filters.start_date_value }}">
+	    </label>
+	    <label>
+	      Fim
+	      <input type="date" name="end_date" class="form-control" value="{{ data.filters.end_date_value }}">
+	    </label>
+	    <div class="filter-actions">
+	      <button type="submit" class="btn btn-primary">Filtrar</button>
+	      {% if data.filters.active %}
+	      <a href="{{ url_for('main.command_center') }}" class="btn btn-outline">Limpar</a>
+	      {% endif %}
+	    </div>
+	  </form>
+
+	  <div class="stat-grid" style="margin-bottom:1.5rem;">
     <div class="stat-card" style="border-bottom:4px solid #2563eb;">
       <div class="stat-icon" style="background:#dbeafe;">📅</div>
       <div class="stat-info">
@@ -30,26 +97,76 @@
     <div class="stat-card" style="border-bottom:4px solid #7c3aed;">
       <div class="stat-icon" style="background:#ede9fe;">🦷</div>
       <div class="stat-info">
-        <span class="stat-value" style="color:#7c3aed;">{{ data.production.today }}</span>
-        <span class="stat-label">Produção Hoje</span>
-      </div>
-    </div>
-    <div class="stat-card" style="border-bottom:4px solid #f97316;">
-      <div class="stat-icon" style="background:#ffedd5;">🟠</div>
-      <div class="stat-info">
-        <span class="stat-value" style="color:#ea580c;">{{ data.agenda.no_show }}</span>
-        <span class="stat-label">Faltas</span>
-      </div>
-    </div>
-  </div>
+	        <span class="stat-value" style="color:#7c3aed;">{{ data.production.today }}</span>
+	        <span class="stat-label">{{ 'Produção Filtrada' if data.filters.active else 'Produção Hoje' }}</span>
+	      </div>
+	    </div>
+	    <div class="stat-card" style="border-bottom:4px solid #f97316;">
+	      <div class="stat-icon" style="background:#ffedd5;">🟠</div>
+	      <div class="stat-info">
+	        <span class="stat-value" style="color:#ea580c;">{{ data.agenda.no_show }}</span>
+	        <span class="stat-label">Faltas</span>
+	      </div>
+	    </div>
+	    <div class="stat-card" style="border-bottom:4px solid #0f766e;">
+	      <div class="stat-icon" style="background:#ccfbf1;">EX</div>
+	      <div class="stat-info">
+	        <span class="stat-value" style="color:#0f766e;">{{ data.clinical_pending.pending_exams.total }}</span>
+	        <span class="stat-label">Exames Pendentes</span>
+	      </div>
+	    </div>
+	    <div class="stat-card" style="border-bottom:4px solid #b45309;">
+	      <div class="stat-icon" style="background:#fef3c7;">AS</div>
+	      <div class="stat-info">
+	        <span class="stat-value" style="color:#b45309;">{{ data.clinical_pending.unsigned_documents.total }}</span>
+	        <span class="stat-label">Docs Sem Assinatura</span>
+	      </div>
+	    </div>
+	    <div class="stat-card" style="border-bottom:4px solid #0ea5e9;">
+	      <div class="stat-icon" style="background:#e0f2fe;">EN</div>
+	      <div class="stat-info">
+	        <span class="stat-value" style="color:#0369a1;">{{ data.clinical_pending.overdue_endodontia_returns.total }}</span>
+	        <span class="stat-label">Retornos Endo</span>
+	      </div>
+	    </div>
+	    <div class="stat-card" style="border-bottom:4px solid #f97316;">
+	      <div class="stat-icon" style="background:#ffedd5;">RE</div>
+	      <div class="stat-info">
+	        <span class="stat-value" style="color:#ea580c;">{{ data.clinical_pending.unrestored_endodontia.total }}</span>
+	        <span class="stat-label">Restauração Endo</span>
+	      </div>
+	    </div>
+	  </div>
+
+	  <section class="card" style="margin:0 0 1.5rem;">
+	    <div style="display:flex; justify-content:space-between; gap:1rem; align-items:center; margin-bottom:1rem; flex-wrap:wrap;">
+	      <h2 class="section-header" style="margin:0;">Metas Operacionais Automáticas</h2>
+	      <span style="font-size:0.8rem; color:hsl(var(--text-muted));">produção, presença, conclusão e fila</span>
+	    </div>
+	    <div class="goal-grid">
+	      {% for goal in data.operational_goals %}
+	      <div class="goal-row goal-{{ goal.status }}">
+	        <div class="goal-head">
+	          <strong>{{ goal.label }}</strong>
+	          <span>{{ goal.status_label }}</span>
+	        </div>
+	        <div class="goal-value">{{ goal.value_label }} <small>{{ goal.unit }}</small></div>
+	        <div class="goal-progress" aria-label="Progresso da meta {{ goal.label }}">
+	          <div style="width:{{ goal.progress }}%;"></div>
+	        </div>
+	        <small>{{ goal.detail }}</small>
+	      </div>
+	      {% endfor %}
+	    </div>
+	  </section>
 
   <div style="display:grid; grid-template-columns:minmax(0,1.3fr) minmax(320px,0.7fr); gap:1.5rem; align-items:start;">
     <div style="display:flex; flex-direction:column; gap:1.5rem;">
-      <section class="card" style="margin:0;">
-        <div style="display:flex; justify-content:space-between; gap:1rem; align-items:center; margin-bottom:1rem;">
-          <h2 class="section-header" style="margin:0;">Fila Inteligente de Urgência</h2>
-          <span style="font-size:0.8rem; color:hsl(var(--text-muted));">{{ data.priority_queue|length }} caso(s)</span>
-        </div>
+	      <section class="card" style="margin:0;">
+	        <div style="display:flex; justify-content:space-between; gap:1rem; align-items:center; margin-bottom:1rem;">
+	          <h2 class="section-header" style="margin:0;">Fila Inteligente de Urgência</h2>
+	          <span style="font-size:0.8rem; color:hsl(var(--text-muted));">{{ data.priority_queue|length }} caso(s) exibido(s)</span>
+	        </div>
 
         {% if data.priority_queue %}
         <div style="overflow-x:auto;">
@@ -59,6 +176,7 @@
                 <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Paciente</th>
                 <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Risco</th>
                 <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Pontuação</th>
+                <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Especialidade</th>
                 <th style="padding:0.75rem; color:hsl(var(--text-muted)); font-size:0.78rem;">Motivos</th>
               </tr>
             </thead>
@@ -78,7 +196,27 @@
                   </span>
                 </td>
                 <td style="padding:0.85rem; font-weight:800;">{{ patient.score }}</td>
-                <td style="padding:0.85rem; color:hsl(var(--text-muted)); font-size:0.85rem;">{{ patient.reasons|join(', ') }}</td>
+                <td style="padding:0.85rem; color:hsl(var(--text-muted)); font-size:0.82rem;">
+                  <strong style="display:block; color:hsl(var(--text-main));">{{ patient.especialidade_nome or 'Sem especialidade' }}</strong>
+                  {% if patient.waiting_days is not none %}
+                    <span>{{ patient.waiting_days }} dia(s) em espera</span>
+                  {% elif patient.triagem_codigo %}
+                    <span>{{ patient.triagem_codigo }}</span>
+                  {% else %}
+                    <span>Sem triagem vinculada</span>
+                  {% endif %}
+                </td>
+                <td style="padding:0.85rem; color:hsl(var(--text-muted)); font-size:0.85rem;">
+                  {% if patient.reason_details %}
+                    <div class="reason-list">
+                      {% for reason in patient.reason_details %}
+                        <span class="reason-chip" title="{{ reason.detail }}">{{ reason.label }} <strong>+{{ reason.points }}</strong></span>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    {{ patient.reasons|join(', ') }}
+                  {% endif %}
+                </td>
               </tr>
               {% endfor %}
             </tbody>
@@ -89,9 +227,138 @@
         {% endif %}
       </section>
 
-      <section class="card" style="margin:0;">
-        <h2 class="section-header">Pacientes do Dia</h2>
-        {% if data.patients_today %}
+	      <section class="card" style="margin:0;">
+	        <div style="display:flex; justify-content:space-between; gap:1rem; align-items:center; margin-bottom:1rem; flex-wrap:wrap;">
+	          <h2 class="section-header" style="margin:0;">Gargalos por Especialidade</h2>
+	          <span style="font-size:0.8rem; color:hsl(var(--text-muted));">fila prioritária ativa</span>
+	        </div>
+        {% if data.specialty_bottlenecks %}
+        <div class="bottleneck-grid">
+          {% for item in data.specialty_bottlenecks %}
+          <div class="bottleneck-row">
+            <div>
+              <strong>{{ item.especialidade }}</strong>
+              <span>{{ item.total }} caso(s), {{ item.critical }} crítico(s), {{ item.high }} alto(s)</span>
+            </div>
+            <div>
+              <strong>{{ item.max_waiting_days }}d</strong>
+              <span>maior espera{% if item.oldest_patient %}: {{ item.oldest_patient }}{% endif %}</span>
+            </div>
+            <div>
+              <strong>{{ item.municipality_count }}</strong>
+              <span>município(s)</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+	        <div style="padding:1.5rem; text-align:center; color:hsl(var(--text-muted));">Sem gargalo prioritário por especialidade.</div>
+	        {% endif %}
+	      </section>
+
+	      <section class="card" style="margin:0;">
+	        <div style="display:flex; justify-content:space-between; gap:1rem; align-items:center; margin-bottom:1rem; flex-wrap:wrap;">
+	          <h2 class="section-header" style="margin:0;">Métricas Operacionais de Fila</h2>
+	          <span style="font-size:0.8rem; color:hsl(var(--text-muted));">
+	            {{ data.queue_metrics.period_start.strftime('%d/%m/%Y') }} a {{ data.queue_metrics.period_end.strftime('%d/%m/%Y') }}
+	          </span>
+	        </div>
+
+	        <div class="ops-metric-grid">
+	          <div class="ops-metric">
+	            <span>Espera média concluída</span>
+	            <strong>{{ data.queue_metrics.wait_time.current_avg_days }}d</strong>
+	            <small>anterior: {{ data.queue_metrics.wait_time.previous_avg_days }}d</small>
+	          </div>
+	          <div class="ops-metric">
+	            <span>Tendência da espera</span>
+	            <strong class="{{ 'positive' if data.queue_metrics.wait_time.reduction_days > 0 else 'negative' if data.queue_metrics.wait_time.reduction_days < 0 else '' }}">
+	              {{ data.queue_metrics.wait_time.reduction_days }}d
+	            </strong>
+	            <small>{{ data.queue_metrics.wait_time.trend_label }}</small>
+	          </div>
+	          <div class="ops-metric">
+	            <span>Fila ativa 30d+</span>
+	            <strong>{{ data.queue_metrics.wait_time.over_30_days }}</strong>
+	            <small>{{ data.queue_metrics.wait_time.over_60_days }} com 60d+ · {{ data.queue_metrics.wait_time.over_90_days }} com 90d+</small>
+	          </div>
+	        </div>
+
+	        <div class="ops-split">
+	          <div>
+	            <h3 class="mini-heading">Gargalos de Agenda</h3>
+	            {% for row in data.queue_metrics.agenda_bottlenecks['items'][:4] %}
+	            <div class="ops-row">
+	              <div>
+	                <strong>{{ row.professional_name }}</strong>
+	                <span>{{ row.open_count }} em aberto · {{ row.no_show }} falta(s)</span>
+	              </div>
+	              <div>
+	                <strong>{{ row.completion_rate }}%</strong>
+	                <span>conclusão</span>
+	              </div>
+	            </div>
+	            {% else %}
+	            <div style="padding:1rem 0; color:hsl(var(--text-muted));">Sem gargalo de agenda no período.</div>
+	            {% endfor %}
+	          </div>
+
+	          <div>
+	            <h3 class="mini-heading">Pacientes Sem Retorno</h3>
+	            {% for patient in data.queue_metrics.without_return['items'][:4] %}
+	            <a class="ops-row ops-link" href="{{ url_for('patients.view_patient', id=patient.patient_id) }}">
+	              <div>
+	                <strong>{{ patient.patient_name }}</strong>
+	                <span>{{ patient.especialidade }} · {{ patient.municipio }}</span>
+	              </div>
+	              <div>
+	                <strong>{{ patient.waiting_days }}d</strong>
+	                <span>sem retorno</span>
+	              </div>
+	            </a>
+	            {% else %}
+	            <div style="padding:1rem 0; color:hsl(var(--text-muted));">Sem paciente acima de 30 dias sem retorno.</div>
+	            {% endfor %}
+	          </div>
+	        </div>
+	      </section>
+
+	      <section class="card" style="margin:0;">
+	        <div style="display:flex; justify-content:space-between; gap:1rem; align-items:center; margin-bottom:1rem; flex-wrap:wrap;">
+	          <h2 class="section-header" style="margin:0;">Previsão Operacional de Demanda</h2>
+          <span style="font-size:0.8rem; color:hsl(var(--text-muted));">janela de {{ data.demand_forecast.window_days }} dias</span>
+        </div>
+        {% if data.demand_forecast.specialties %}
+        <div class="forecast-grid">
+          <div>
+            <h3 class="mini-heading">Especialidades</h3>
+            {% for row in data.demand_forecast.specialties[:5] %}
+            <div class="forecast-row">
+              <span>{{ row.especialidade }}</span>
+              <strong>{{ row.projected_next_30 }}</strong>
+              <small>{{ row.trend_label }}</small>
+            </div>
+            {% endfor %}
+          </div>
+          <div>
+            <h3 class="mini-heading">Territórios</h3>
+            {% for row in data.demand_forecast.municipalities[:5] %}
+            <div class="forecast-row">
+              <span>{{ row.municipio }}</span>
+              <strong>{{ row.projected_next_30 }}</strong>
+              <small>{{ row.trend_label }}</small>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% else %}
+        <div style="padding:1.5rem; text-align:center; color:hsl(var(--text-muted));">Sem dados recentes suficientes para previsão.</div>
+        {% endif %}
+      </section>
+
+	      <section class="card" style="margin:0;">
+	        <h2 class="section-header">{{ 'Agenda Filtrada' if data.filters.active else 'Pacientes do Dia' }}</h2>
+	        {% if data.patients_today %}
         <div style="display:flex; flex-direction:column; gap:0.6rem;">
           {% for item in data.patients_today %}
           <div style="display:grid; grid-template-columns:72px minmax(0,1fr) 120px; gap:0.75rem; align-items:center; padding:0.8rem 1rem; border:1px solid hsl(var(--border)); border-radius:var(--radius-md);">
@@ -103,17 +370,19 @@
             <span class="badge-status badge-{{ item.status|lower }}">{{ item.status }}</span>
           </div>
           {% endfor %}
-        </div>
-        {% else %}
-        <div style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">Nenhum paciente agendado para hoje.</div>
-        {% endif %}
-      </section>
+	        </div>
+	        {% else %}
+	        <div style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">
+	          {{ 'Nenhum paciente encontrado para o recorte selecionado.' if data.filters.active else 'Nenhum paciente agendado para hoje.' }}
+	        </div>
+	        {% endif %}
+	      </section>
     </div>
 
     <aside style="display:flex; flex-direction:column; gap:1.5rem;">
-      <section class="card" style="margin:0;">
-        <h2 class="section-header">Alertas Operacionais</h2>
-        {% if data.alerts %}
+	      <section class="card" style="margin:0;">
+	        <h2 class="section-header">Alertas Operacionais</h2>
+	        {% if data.alerts %}
         <div style="display:flex; flex-direction:column; gap:0.75rem;">
           {% for alert in data.alerts %}
           <div class="command-alert command-alert-{{ alert.severity }}">
@@ -125,11 +394,57 @@
         </div>
         {% else %}
         <div style="padding:1.5rem; text-align:center; color:hsl(var(--text-muted));">Nenhum alerta ativo.</div>
-        {% endif %}
-      </section>
+	        {% endif %}
+	      </section>
 
-      <section class="card" style="margin:0;">
-        <h2 class="section-header">Agenda</h2>
+	      <section class="card" style="margin:0;">
+	        <h2 class="section-header">Pendências Clínicas</h2>
+	        {% if data.clinical_pending.total %}
+	        <div style="display:flex; flex-direction:column; gap:0.9rem;">
+	          {% for exam in data.clinical_pending.pending_exams['items'][:4] %}
+	          <a class="pending-row" href="{{ url_for('patients.view_patient', id=exam.patient_id) }}#tab-exames">
+	            <span>Exame {{ exam.tipo }}</span>
+	            <strong>{{ exam.patient_name }}</strong>
+	            <small>Aguardando validação</small>
+	          </a>
+		          {% endfor %}
+		          {% for doc in data.clinical_pending.unsigned_documents['items'][:4] %}
+		          {% set target_tab = doc.module_tab or 'tab-atendimento' %}
+		          <a class="pending-row" href="{{ url_for('patients.view_patient', id=doc.patient_id) }}#{{ target_tab }}">
+		            <span>{{ doc.document_label }}</span>
+		            <strong>{{ doc.patient_name }}</strong>
+	            <small>Pendente: {{ doc.missing_signatures or 'assinatura' }}</small>
+	          </a>
+	          {% endfor %}
+	          {% for item in data.clinical_pending.overdue_endodontia_returns['items'][:4] %}
+	          <a class="pending-row" href="{{ url_for('patients.view_patient', id=item.patient_id) }}#tab-endodontia">
+	            <span>Endodontia dente {{ item.elemento_dentario }}</span>
+	            <strong>{{ item.patient_name }}</strong>
+	            <small>Retorno vencido em {{ item.proxima_sessao_prevista.strftime('%d/%m/%Y') if item.proxima_sessao_prevista else 'data não informada' }}</small>
+	          </a>
+	          {% endfor %}
+	          {% for item in data.clinical_pending.unrestored_endodontia['items'][:4] %}
+	          <a class="pending-row" href="{{ url_for('patients.view_patient', id=item.patient_id) }}#tab-endodontia">
+	            <span>Endodontia dente {{ item.elemento_dentario }}</span>
+	            <strong>{{ item.patient_name }}</strong>
+	            <small>Obturado aguardando restauração definitiva</small>
+	          </a>
+	          {% endfor %}
+	          {% for item in data.clinical_pending.overdue_endodontia_proservations['items'][:4] %}
+	          <a class="pending-row" href="{{ url_for('patients.view_patient', id=item.patient_id) }}#tab-endodontia">
+	            <span>Proservação dente {{ item.elemento_dentario }}</span>
+	            <strong>{{ item.patient_name }}</strong>
+	            <small>Vencida em {{ item.data_prevista.strftime('%d/%m/%Y') if item.data_prevista else 'data não informada' }}</small>
+	          </a>
+	          {% endfor %}
+	        </div>
+	        {% else %}
+	        <div style="padding:1.5rem; text-align:center; color:hsl(var(--text-muted));">Sem pendências clínicas ativas.</div>
+	        {% endif %}
+	      </section>
+
+	      <section class="card" style="margin:0;">
+	        <h2 class="section-header">Agenda</h2>
         <div class="mini-grid">
           <span>Pendentes <strong>{{ data.agenda.pending }}</strong></span>
           <span>Confirmadas <strong>{{ data.agenda.confirmed }}</strong></span>
@@ -160,6 +475,123 @@
 </div>
 
 <style>
+.command-filter-bar {
+  display:grid;
+  grid-template-columns:repeat(6, minmax(130px, 1fr)) auto;
+  gap:0.75rem;
+  align-items:end;
+  padding:1rem;
+  margin-bottom:1.5rem;
+  border:1px solid hsl(var(--border));
+  border-radius:var(--radius-md);
+  background:#fff;
+}
+.command-filter-bar label {
+  display:flex;
+  flex-direction:column;
+  gap:0.35rem;
+  color:hsl(var(--text-muted));
+  font-size:0.76rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:0;
+}
+.command-filter-bar .form-control {
+  min-height:40px;
+  font-size:0.86rem;
+  text-transform:none;
+  font-weight:600;
+}
+.filter-actions {
+  display:flex;
+  gap:0.5rem;
+  align-items:center;
+}
+.goal-grid {
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:0.8rem;
+}
+.goal-row {
+  display:flex;
+  flex-direction:column;
+  gap:0.55rem;
+  padding:0.9rem 1rem;
+  border:1px solid hsl(var(--border));
+  border-left:5px solid #64748b;
+  border-radius:var(--radius-md);
+  background:#fff;
+}
+.goal-head {
+  display:flex;
+  justify-content:space-between;
+  gap:0.75rem;
+  align-items:flex-start;
+}
+.goal-head strong {
+  color:hsl(var(--text-main));
+  font-size:0.9rem;
+}
+.goal-head span {
+  flex-shrink:0;
+  padding:0.22rem 0.45rem;
+  border-radius:999px;
+  background:#f1f5f9;
+  color:#334155;
+  font-size:0.66rem;
+  font-weight:800;
+  text-transform:uppercase;
+}
+.goal-value {
+  color:hsl(var(--primary));
+  font-size:1.25rem;
+  font-weight:900;
+  line-height:1.1;
+}
+.goal-value small {
+  color:hsl(var(--text-muted));
+  font-size:0.72rem;
+  font-weight:700;
+}
+.goal-progress {
+  height:7px;
+  overflow:hidden;
+  border-radius:999px;
+  background:#e2e8f0;
+}
+.goal-progress div {
+  height:100%;
+  border-radius:inherit;
+  background:#2563eb;
+}
+.goal-row > small {
+  color:hsl(var(--text-muted));
+  font-size:0.76rem;
+}
+.goal-achieved {
+  border-left-color:#16a34a;
+}
+.goal-achieved .goal-head span,
+.goal-achieved .goal-progress div {
+  background:#16a34a;
+  color:#fff;
+}
+.goal-attention {
+  border-left-color:#f59e0b;
+}
+.goal-attention .goal-head span,
+.goal-attention .goal-progress div {
+  background:#f59e0b;
+  color:#111827;
+}
+.goal-critical {
+  border-left-color:#dc2626;
+}
+.goal-critical .goal-head span,
+.goal-critical .goal-progress div {
+  background:#dc2626;
+  color:#fff;
+}
 .risk-badge {
   display:inline-flex;
   padding:0.35rem 0.65rem;
@@ -171,6 +603,160 @@
 .risk-high { background:#ffedd5; color:#9a3412; }
 .risk-medium { background:#fef3c7; color:#92400e; }
 .risk-routine { background:#e0f2fe; color:#075985; }
+.reason-list {
+  display:flex;
+  flex-wrap:wrap;
+  gap:0.35rem;
+}
+.reason-chip {
+  display:inline-flex;
+  align-items:center;
+  gap:0.25rem;
+  padding:0.3rem 0.5rem;
+  border-radius:999px;
+  background:#f1f5f9;
+  color:hsl(var(--text-main));
+  font-size:0.74rem;
+  font-weight:700;
+}
+.reason-chip strong { color:hsl(var(--primary)); }
+.bottleneck-grid {
+  display:flex;
+  flex-direction:column;
+  gap:0.65rem;
+}
+.bottleneck-row {
+  display:grid;
+  grid-template-columns:minmax(0,1.4fr) 130px 100px;
+  gap:0.75rem;
+  align-items:center;
+  padding:0.85rem 1rem;
+  border:1px solid hsl(var(--border));
+  border-radius:var(--radius-md);
+  background:#fff;
+}
+.bottleneck-row strong,
+.bottleneck-row span {
+  display:block;
+}
+.bottleneck-row span {
+  color:hsl(var(--text-muted));
+  font-size:0.78rem;
+}
+.forecast-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:1rem;
+}
+.mini-heading {
+  margin:0 0 0.75rem;
+  font-size:0.82rem;
+  color:hsl(var(--text-muted));
+  text-transform:uppercase;
+  letter-spacing:0;
+}
+.forecast-row {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 52px 64px;
+  gap:0.5rem;
+  align-items:center;
+  padding:0.65rem 0;
+  border-bottom:1px solid hsl(var(--border));
+}
+.forecast-row span {
+  min-width:0;
+  color:hsl(var(--text-main));
+  font-weight:700;
+}
+.forecast-row strong {
+  text-align:right;
+  color:hsl(var(--primary));
+}
+.forecast-row small {
+  color:hsl(var(--text-muted));
+  text-align:right;
+}
+.ops-metric-grid {
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:0.8rem;
+  margin-bottom:1.25rem;
+}
+.ops-metric {
+  display:flex;
+  flex-direction:column;
+  gap:0.25rem;
+  padding:0.9rem 1rem;
+  border:1px solid hsl(var(--border));
+  border-radius:var(--radius-md);
+  background:#fff;
+}
+.ops-metric span,
+.ops-metric small,
+.ops-row span {
+  color:hsl(var(--text-muted));
+  font-size:0.78rem;
+}
+.ops-metric strong {
+  color:hsl(var(--primary));
+  font-size:1.5rem;
+  line-height:1.1;
+}
+.ops-metric strong.positive { color:#15803d; }
+.ops-metric strong.negative { color:#b91c1c; }
+.ops-split {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:1rem;
+}
+.ops-row {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 92px;
+  gap:0.75rem;
+  align-items:center;
+  padding:0.75rem 0;
+  border-bottom:1px solid hsl(var(--border));
+}
+.ops-row:last-child { border-bottom:none; }
+.ops-row strong,
+.ops-row span {
+  display:block;
+}
+.ops-row strong {
+  color:hsl(var(--text-main));
+  font-size:0.9rem;
+}
+.ops-row div:last-child {
+  text-align:right;
+}
+.ops-link {
+  text-decoration:none;
+}
+.pending-row {
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  gap:0.2rem;
+  padding:0.8rem 0.9rem;
+  border:1px solid hsl(var(--border));
+  border-radius:var(--radius-md);
+  background:#fff;
+  text-decoration:none;
+}
+.pending-row span {
+  color:hsl(var(--text-muted));
+  font-size:0.74rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:0;
+}
+.pending-row strong {
+  color:hsl(var(--text-main));
+  font-size:0.9rem;
+}
+.pending-row small {
+  color:hsl(var(--warning));
+  font-weight:700;
+}
 .command-alert {
   display:flex;
   flex-direction:column;
@@ -209,6 +795,16 @@
 .rank-row strong { color:hsl(var(--primary)); }
 @media (max-width: 980px) {
   div[style*="grid-template-columns:minmax(0,1.3fr)"] { grid-template-columns:1fr !important; }
+  .command-filter-bar {
+    grid-template-columns:1fr;
+  }
+  .bottleneck-row,
+  .forecast-grid,
+  .ops-metric-grid,
+  .ops-split,
+  .goal-grid {
+    grid-template-columns:1fr;
+  }
 }
 </style>
 {% endblock %}

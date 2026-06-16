@@ -1,10 +1,11 @@
 import json
 from database import query
-from constants import Role
-from services.sigtap_service import build_sigtap_options
+from constants import CLINICAL_EXECUTOR_ROLES
+from services.sigtap_service import build_sigtap_options, build_sigtap_specialty_groups
 from services.traceability_service import TraceabilityService
 from services.visual_media_service import get_patient_visual_media_summary
 from services.inventory_service import get_patient_inventory_context
+from services.command_center_service import get_patient_clinical_alert_summary
 
 class PatientService:
     @staticmethod
@@ -32,7 +33,8 @@ class PatientService:
         return {
             'patient': patient,
             'tcle_signed': tcle_signed,
-            'triage': triage
+            'triage': triage,
+            'clinical_alerts': get_patient_clinical_alert_summary(patient_id),
         }
 
     @staticmethod
@@ -80,6 +82,7 @@ class PatientService:
             'plans': plans,
             'treatments': treatments,
             'sigtap_procedures': build_sigtap_options(),
+            'sigtap_specialty_groups': build_sigtap_specialty_groups(),
         }
 
     @staticmethod
@@ -140,10 +143,14 @@ class PatientService:
     @staticmethod
     def get_patient_endodontia(patient_id):
         return query("""
-            SELECT e.*, u.username as aluno_nome 
+            SELECT e.*,
+                   COALESCE(u.full_name, u.username) as profissional_nome,
+                   u.username as profissional_username
             FROM endodontia e
             LEFT JOIN users u ON e.aluno_id = u.id
             WHERE e.patient_id = %s
+              AND COALESCE(e.status, 'Ativo') != 'Cancelado'
+              AND e.cancelado_em IS NULL
             ORDER BY e.criado_em DESC
         """, (patient_id,))
 
@@ -183,7 +190,12 @@ class PatientService:
         d_data = PatientService.get_patient_documents(patient_id)
         p_data = PatientService.get_patient_prosthesis(patient_id)
         endodontia_elements = PatientService.get_patient_endodontia(patient_id)
-        students = query("SELECT id, username, full_name FROM users WHERE role IN (%s, %s) ORDER BY full_name ASC", (Role.TSB, Role.DENTISTA))
+        roles = tuple(sorted(CLINICAL_EXECUTOR_ROLES))
+        placeholders = ', '.join(['%s'] * len(roles))
+        students = query(
+            f"SELECT id, username, full_name FROM users WHERE role IN ({placeholders}) ORDER BY full_name ASC",
+            roles,
+        )
 
         return {
             **basic,

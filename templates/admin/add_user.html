@@ -35,10 +35,38 @@
                     required>
             </div>
 
+            <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:1rem; margin-bottom:1.5rem;">
+                <div>
+                    <label for="email" class="form-label">E-mail</label>
+                    <input type="email" name="email" id="email" class="form-control" placeholder="email@dominio.com">
+                </div>
+                <div>
+                    <label for="celular" class="form-label">Celular</label>
+                    <input type="text" name="celular" id="celular" class="form-control" placeholder="(82) 99999-9999">
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:1rem; margin-bottom:1.5rem;">
+                <div>
+                    <label for="data_nascimento" class="form-label">Data de Nascimento</label>
+                    <input type="date" name="data_nascimento" id="data_nascimento" class="form-control">
+                </div>
+                <div>
+                    <label for="is_first_access" class="form-label">Fluxo de Acesso</label>
+                    <select name="is_first_access" id="is_first_access" class="form-control" onchange="toggleAccessMode()">
+                        <option value="1" selected>Primeiro acesso pendente</option>
+                        <option value="0">Senha definida agora</option>
+                    </select>
+                </div>
+            </div>
+
             <div style="margin-bottom: 1.5rem;">
                 <label for="password" class="form-label">Senha Inicial</label>
                 <input type="password" name="password" id="password" class="form-control" placeholder="••••••••"
-                    required>
+                    >
+                <div id="password_help" style="margin-top:0.5rem; color:hsl(var(--text-muted)); font-size:0.82rem;">
+                    Deixe em branco quando o usuario for concluir o primeiro acesso com login e data de nascimento.
+                </div>
             </div>
 
             <div style="margin-bottom: 2.5rem;">
@@ -70,11 +98,11 @@
                 </div>
                 <div>
                     <label for="cnes" class="form-label">CNES</label>
-                    <input type="text" name="cnes" id="cnes" class="form-control professional-required" placeholder="CNES da unidade">
+                    <input type="text" name="cnes" id="cnes" class="form-control" placeholder="Carga manual posterior">
                 </div>
                 <div>
                     <label for="ine" class="form-label">INE / Equipe</label>
-                    <input type="text" name="ine" id="ine" class="form-control professional-required" placeholder="INE da equipe">
+                    <input type="text" name="ine" id="ine" class="form-control" placeholder="Carga manual posterior">
                 </div>
             </div>
 
@@ -102,8 +130,8 @@
 </div>
 
 <script>
-    const professionalRoles = ['triagem', 'clinica_geral', 'dentista', 'endodontia', 'cirurgia', 'implantes', 'estomatologia', 'radiologia', 'laboratorio', 'mutirao_movel', 'tsb'];
-    const dentalRoles = ['dentista', 'clinica_geral', 'endodontia', 'cirurgia', 'implantes', 'estomatologia'];
+    const professionalRoles = ['clinicos', 'cme', 'radiologia'];
+    const dentalRoles = ['clinicos'];
 
     function setRequired(selector, required) {
         document.querySelectorAll(selector).forEach((field) => {
@@ -133,6 +161,15 @@
         }
     }
 
+    function toggleAccessMode() {
+        const firstAccess = document.getElementById('is_first_access').value === '1';
+        const passwordField = document.getElementById('password');
+        const birthdateField = document.getElementById('data_nascimento');
+        passwordField.required = !firstAccess;
+        birthdateField.required = firstAccess;
+    }
+
     toggleProfessionalFields();
+    toggleAccessMode();
 </script>
 {% endblock %}

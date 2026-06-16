@@ -76,6 +76,7 @@
   </div>
 
   <!-- ═══ LINHA 2: AGENDA ════════════════════════════════════════════════ -->
+  {% if can('agenda:view') %}
   <p class="dash-section-label" style="margin-top:1.75rem;">AGENDA</p>
   <div class="stat-grid" style="margin-bottom:2.5rem;">
 
@@ -130,6 +131,7 @@
     </div>
   </div>
   {% endif %}
+  {% endif %}
 
   <!-- ═══ GRADE PRINCIPAL ════════════════════════════════════════════════ -->
   <div class="dashboard-actions-grid">
@@ -138,6 +140,7 @@
     <div style="display:flex; flex-direction:column; gap:1.5rem;">
 
       <!-- Consultas de Hoje -->
+      {% if can('agenda:view') %}
       <div class="card" style="margin-bottom:0;">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
           <h2 class="section-header" style="margin:0;">🗓️ Consultas de Hoje</h2>
@@ -183,6 +186,7 @@
         </div>
         {% endif %}
       </div>
+      {% endif %}
 
       <!-- Alertas Operacionais -->
       <div class="card" style="margin-bottom:0;">
@@ -205,7 +209,7 @@
           </div>
           {% endif %}
 
-          {% if stats.agenda_canceladas > 0 %}
+          {% if can('agenda:view') and stats.agenda_canceladas > 0 %}
           <div class="alert-row" style="background:#fff7ed; border-left:4px solid #f97316;">
             <span style="font-size:1.2rem;">❌</span>
             <span>{{ stats.agenda_canceladas }} consulta(s) cancelada(s) no histórico</span>
@@ -213,7 +217,7 @@
           </div>
           {% endif %}
 
-          {% if stats.pending_signatures == 0 and stats.pending_treatments == 0 and stats.agenda_canceladas == 0 and stats.red_alert_patients_count == 0 %}
+          {% if stats.pending_signatures == 0 and stats.pending_treatments == 0 and (not can('agenda:view') or stats.agenda_canceladas == 0) and stats.red_alert_patients_count == 0 %}
           <div style="text-align:center; padding:1.5rem; color:hsl(var(--text-muted)); font-size:0.9rem;">
             ✅ Nenhum alerta no momento. Tudo em dia!
           </div>
@@ -229,9 +233,11 @@
           <a href="{{ url_for('patients.register') }}" class="btn btn-primary" style="justify-content:center; padding:0.9rem; font-size:0.875rem;">
             ➕ Novo Paciente
           </a>
+          {% if can('agenda:view') %}
           <a href="{{ url_for('agenda.agenda_index') }}" class="btn btn-outline" style="justify-content:center; padding:0.9rem; font-size:0.875rem; background:white;">
             📅 Agenda
           </a>
+          {% endif %}
           <a href="{{ url_for('patients.list_patients') }}" class="btn btn-outline" style="justify-content:center; padding:0.9rem; font-size:0.875rem; background:white;">
             🔍 Prontuários
           </a>
@@ -291,6 +297,7 @@
       </div>
 
       <!-- Mini calendário / contexto da semana -->
+      {% if can('agenda:view') %}
       <div class="card" style="margin-bottom:0; background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%); border:none; color:white;">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.25rem;">
           <h2 style="font-family:var(--font-heading); font-size:1rem; font-weight:700; color:white; margin:0;">
@@ -332,6 +339,7 @@
         {% endif %}
 
       </div>
+      {% endif %}
 
     </div><!-- /coluna direita -->
 

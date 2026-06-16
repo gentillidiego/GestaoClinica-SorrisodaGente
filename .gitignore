@@ -38,6 +38,10 @@ cookies.txt
 *.sql
 *.dump
 
+# Segredos locais de e-mail/DKIM
+deploy/mail/dkim/*
+!deploy/mail/dkim/.gitkeep
+
 # Diretórios restaurados (artefato de ferramentas de backup)
 *.restored1/
 __pycache__.restored1/

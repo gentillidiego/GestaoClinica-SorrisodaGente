@@ -3,11 +3,26 @@ import json
 import math
 from collections import Counter
 
+from constants import CLINICAL_EXECUTOR_ROLES, PROFESSIONAL_DATA_REQUIRED_ROLES
 from database import query
 
 
 AGE_GROUPS = ('0-12', '13-17', '18-39', '40-59', '60+', 'Não informado')
 DEFAULT_TREATMENT_STATUSES = ('Pendente', 'Planejado', 'Em andamento', 'Concluído', 'Cancelado')
+
+ALAGOAS_GEO_BOUNDS = {
+    'min_lat': -10.4060000,
+    'max_lat': -8.8395100,
+    'min_lon': -37.9988000,
+    'max_lon': -35.2267000,
+}
+
+ALAGOAS_MAP_VIEWBOX = {
+    'x_min': 1.56,
+    'x_max': 98.24,
+    'y_min': 5.56,
+    'y_max': 93.71,
+}
 
 
 def _parse_date(value, fallback):
@@ -328,17 +343,17 @@ def get_available_specialties():
 
 
 def get_available_professionals():
+    roles = tuple(sorted(CLINICAL_EXECUTOR_ROLES | PROFESSIONAL_DATA_REQUIRED_ROLES))
+    placeholders = ', '.join(['%s'] * len(roles))
     return query(
-        """
+        f"""
         SELECT id, COALESCE(NULLIF(TRIM(full_name), ''), username) as nome, role
         FROM users
         WHERE active = TRUE
-          AND role IN (
-              'clinica_geral', 'dentista', 'endodontia', 'cirurgia', 'implantes',
-              'estomatologia', 'radiologia', 'laboratorio', 'mutirao_movel', 'tsb'
-          )
+          AND role IN ({placeholders})
         ORDER BY nome ASC
-        """
+        """,
+        roles,
     ) or []
 
 
@@ -738,6 +753,10 @@ def _feature_size(score):
     return min(34, max(14, 12 + math.sqrt(max(score, 0))))
 
 
+def _clamp(value, minimum, maximum):
+    return min(max(value, minimum), maximum)
+
+
 def _project_features(features):
     coordinates = [
         (feature['latitude'], feature['longitude'])
@@ -747,23 +766,29 @@ def _project_features(features):
     if not coordinates:
         return features, None
 
-    min_lat = min(lat for lat, _ in coordinates)
-    max_lat = max(lat for lat, _ in coordinates)
-    min_lon = min(lon for _, lon in coordinates)
-    max_lon = max(lon for _, lon in coordinates)
+    min_lat = ALAGOAS_GEO_BOUNDS['min_lat']
+    max_lat = ALAGOAS_GEO_BOUNDS['max_lat']
+    min_lon = ALAGOAS_GEO_BOUNDS['min_lon']
+    max_lon = ALAGOAS_GEO_BOUNDS['max_lon']
     lat_span = max(max_lat - min_lat, 0.01)
     lon_span = max(max_lon - min_lon, 0.01)
+    x_span = ALAGOAS_MAP_VIEWBOX['x_max'] - ALAGOAS_MAP_VIEWBOX['x_min']
+    y_span = ALAGOAS_MAP_VIEWBOX['y_max'] - ALAGOAS_MAP_VIEWBOX['y_min']
 
     for feature in features:
         if not feature.get('map_ready'):
             continue
-        feature['x'] = round(7 + ((feature['longitude'] - min_lon) / lon_span) * 86, 2)
-        feature['y'] = round(7 + ((max_lat - feature['latitude']) / lat_span) * 86, 2)
+        x = ALAGOAS_MAP_VIEWBOX['x_min'] + ((feature['longitude'] - min_lon) / lon_span) * x_span
+        y = ALAGOAS_MAP_VIEWBOX['y_min'] + ((max_lat - feature['latitude']) / lat_span) * y_span
+        feature['x'] = round(_clamp(x, ALAGOAS_MAP_VIEWBOX['x_min'], ALAGOAS_MAP_VIEWBOX['x_max']), 2)
+        feature['y'] = round(_clamp(y, ALAGOAS_MAP_VIEWBOX['y_min'], ALAGOAS_MAP_VIEWBOX['y_max']), 2)
     return features, {
         'min_lat': min_lat,
         'max_lat': max_lat,
         'min_lon': min_lon,
         'max_lon': max_lon,
+        'projection': 'alagoas_static_map',
+        'viewbox': ALAGOAS_MAP_VIEWBOX,
     }
 
 
@@ -824,13 +849,17 @@ def get_municipality_indicators(start, end, filters=None, today=None, limit=120)
     rows = query(
         f"""
         WITH municipality_patients AS (
-            SELECT DISTINCT p.id as patient_id, m.id as municipio_id,
-                   m.nome as municipio, m.codigo as municipio_codigo
-            FROM triagem_senhas s
-            JOIN patients p ON p.id = s.patient_id
-            JOIN municipios m ON m.id = s.municipio_id
-            WHERE s.patient_id IS NOT NULL
-              AND COALESCE(s.vinculada_em, s.entregue_em, s.criado_em)::date BETWEEN %s AND %s
+            SELECT DISTINCT p.id as patient_id,
+                   COALESCE(m_triagem.id, m_atendido.id) as municipio_id,
+                   COALESCE(m_triagem.nome, m_atendido.nome) as municipio,
+                   COALESCE(m_triagem.codigo, m_atendido.codigo) as municipio_codigo
+            FROM patients p
+            LEFT JOIN triagem_senhas s ON s.patient_id = p.id
+            LEFT JOIN municipios m_triagem ON m_triagem.id = s.municipio_id
+            LEFT JOIN municipios m_atendido
+              ON m_atendido.nome = NULLIF(TRIM(split_part(p.atendido_em, ' - ', 2)), '')
+            WHERE COALESCE(s.vinculada_em, s.entregue_em, s.criado_em, p.criado_em)::date BETWEEN %s AND %s
+              AND COALESCE(m_triagem.id, m_atendido.id) IS NOT NULL
             {patient_clause}
         ),
         prosthetic_need AS (
@@ -1021,14 +1050,19 @@ def get_tooth_loss_by_municipality(start, end, filters=None, today=None):
     patient_clause, patient_params = _patient_filter_clause('p', filters, today=today)
     rows = query(
         f"""
-        SELECT DISTINCT p.id as patient_id, m.id as municipio_id, eo.dentes_data
+        SELECT DISTINCT p.id as patient_id,
+               COALESCE(m_triagem.id, m_atendido.id) as municipio_id,
+               eo.dentes_data
         FROM exam_odontograma eo
         JOIN exams ex ON ex.id = eo.exam_id
         LEFT JOIN anamnesis a ON a.id = ex.anamnesis_id
         JOIN patients p ON p.id = COALESCE(ex.patient_id, a.patient_id)
-        JOIN triagem_senhas s ON s.patient_id = p.id
-        JOIN municipios m ON m.id = s.municipio_id
+        LEFT JOIN triagem_senhas s ON s.patient_id = p.id
+        LEFT JOIN municipios m_triagem ON m_triagem.id = s.municipio_id
+        LEFT JOIN municipios m_atendido
+          ON m_atendido.nome = NULLIF(TRIM(split_part(p.atendido_em, ' - ', 2)), '')
         WHERE ex.data_criacao::date BETWEEN %s AND %s
+          AND COALESCE(m_triagem.id, m_atendido.id) IS NOT NULL
         {patient_clause}
         """,
         (start.isoformat(), end.isoformat(), *patient_params),
@@ -1062,16 +1096,18 @@ def _neighborhood_municipality_lookup(start, end, filters=None, today=None):
     rows = query(
         f"""
         SELECT {bairro_expr} as bairro,
-               m.id as municipio_id,
-               m.nome as municipio,
+               COALESCE(m_triagem.id, m_atendido.id) as municipio_id,
+               COALESCE(m_triagem.nome, m_atendido.nome) as municipio,
                COUNT(DISTINCT p.id) as total
         FROM patients p
         LEFT JOIN triagem_senhas s ON s.patient_id = p.id
-        LEFT JOIN municipios m ON m.id = s.municipio_id
+        LEFT JOIN municipios m_triagem ON m_triagem.id = s.municipio_id
+        LEFT JOIN municipios m_atendido
+          ON m_atendido.nome = NULLIF(TRIM(split_part(p.atendido_em, ' - ', 2)), '')
         WHERE p.criado_em::date BETWEEN %s AND %s
-          AND m.id IS NOT NULL
+          AND COALESCE(m_triagem.id, m_atendido.id) IS NOT NULL
         {patient_clause}
-        GROUP BY bairro, m.id, m.nome
+        GROUP BY bairro, COALESCE(m_triagem.id, m_atendido.id), COALESCE(m_triagem.nome, m_atendido.nome)
         ORDER BY total DESC
         """,
         (start.isoformat(), end.isoformat(), *patient_params),

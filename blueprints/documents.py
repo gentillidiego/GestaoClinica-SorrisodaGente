@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, make_response, send_file
+from flask import Blueprint, render_template, request, redirect, url_for, flash, make_response
 from flask_login import login_required, current_user
 from database import execute, query
 import os
@@ -8,8 +8,45 @@ from celery.result import AsyncResult
 from celery_app import celery
 from services.institutional_report_service import role_can_access_report_type
 from services.bi_report_service import BI_REPORT_TYPE
+from services.security_service import audit_log
+from services.sensitive_file_service import safe_file_in_directory, sensitive_file_response
 
 documents_bp = Blueprint('documents', __name__, url_prefix='/documents')
+
+
+@documents_bp.route('/signatures/<int:event_id>')
+@login_required
+def signature_receipt(event_id):
+    event = query(
+        """
+        SELECT se.*, p.nome as patient_display_name, p.cpf as patient_display_cpf,
+               u.full_name as signer_full_name, u.cro as signer_cro, u.cro_uf as signer_cro_uf
+        FROM signature_events se
+        LEFT JOIN patients p ON p.id = se.patient_id
+        LEFT JOIN users u ON u.id = se.signed_by
+        WHERE se.id = %s
+        """,
+        (event_id,),
+        one=True,
+    )
+    if not event:
+        flash('Comprovante de assinatura não encontrado.', 'danger')
+        return redirect(url_for('main.dashboard'))
+
+    audit_log(
+        action='signature_receipt_viewed',
+        module='documents',
+        entity_type='signature_event',
+        entity_id=event_id,
+        patient_id=event['patient_id'],
+        details={
+            'document_type': event['document_type'],
+            'document_id': event['document_id'],
+            'signature_mode': event['signature_mode'],
+            'document_hash': event['document_hash'],
+        },
+    )
+    return render_template('documents/signature_receipt.html', event=event)
 
 @documents_bp.route('/<int:patient_id>/receituario/add', methods=['POST'])
 @login_required
@@ -196,7 +233,17 @@ def pdf_status(task_id, filename):
 @login_required
 def download_pdf(filename):
     pdf_dir = os.path.join(os.getcwd(), 'pdf_temp')
-    path = os.path.join(pdf_dir, filename)
+    try:
+        path = safe_file_in_directory(pdf_dir, filename)
+    except Exception:
+        audit_log(
+            action='pdf_download_blocked',
+            module='documents',
+            status='denied',
+            details={'filename': filename, 'reason': 'invalid_or_missing_file'},
+        )
+        flash('Arquivo PDF não foi encontrado', 'danger')
+        return redirect(url_for('main.dashboard'))
 
     if filename.startswith('relatorio_'):
         report = query(
@@ -221,8 +268,11 @@ def download_pdf(filename):
             flash('Seu perfil não pode acessar este relatório.', 'danger')
             return redirect(url_for('reports.institutional'))
     
-    if not os.path.exists(path):
-        flash('Arquivo PDF não foi encontrado', 'danger')
-        return redirect(url_for('main.dashboard'))
-        
-    return send_file(path, as_attachment=False, mimetype='application/pdf')
+    audit_log(
+        action='pdf_downloaded',
+        module='documents',
+        entity_type='generated_pdf',
+        entity_id=filename,
+        details={'filename': filename},
+    )
+    return sensitive_file_response(path, as_attachment=False, mimetype='application/pdf')

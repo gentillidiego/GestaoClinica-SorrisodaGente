@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}Pre-cadastro enviado - Sorriso da Gente{% endblock %}
+
+{% block content %}
+<style>
+    .registration-submitted-page {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 28px 18px;
+        background:
+            linear-gradient(180deg, rgba(13, 71, 161, 0.08), rgba(255, 255, 255, 0) 360px),
+            hsl(var(--bg-main));
+    }
+
+    .registration-submitted-card {
+        width: min(720px, 100%);
+        background: white;
+        border: 1px solid hsl(var(--border));
+        border-radius: 8px;
+        box-shadow: var(--shadow-md);
+        padding: 42px;
+        text-align: center;
+    }
+
+    .registration-submitted-logo {
+        height: 72px;
+        width: auto;
+        margin-bottom: 24px;
+    }
+
+    .registration-submitted-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 38px;
+        padding: 0 14px;
+        border-radius: 999px;
+        background: #dcfce7;
+        color: #166534;
+        font-weight: 800;
+        font-size: 0.85rem;
+        margin-bottom: 18px;
+    }
+
+    .registration-submitted-title {
+        font-family: var(--font-heading);
+        font-size: 2rem;
+        font-weight: 800;
+        color: hsl(var(--primary));
+        line-height: 1.15;
+        margin: 0;
+    }
+
+    .registration-submitted-text {
+        color: hsl(var(--text-muted));
+        font-size: 1.05rem;
+        line-height: 1.7;
+        margin: 18px auto 0;
+        max-width: 560px;
+    }
+
+    .registration-submitted-protocol {
+        display: inline-flex;
+        margin-top: 24px;
+        padding: 14px 18px;
+        border: 1px solid hsl(var(--border));
+        border-radius: 8px;
+        background: hsl(var(--bg-main));
+        color: hsl(var(--text-main));
+        font-family: var(--font-heading);
+        font-weight: 800;
+    }
+
+    .registration-submitted-actions {
+        margin-top: 30px;
+        display: flex;
+        justify-content: center;
+    }
+
+    @media (max-width: 620px) {
+        .registration-submitted-card {
+            padding: 28px 18px;
+        }
+
+        .registration-submitted-title {
+            font-size: 1.55rem;
+        }
+    }
+</style>
+
+<div class="registration-submitted-page">
+    <section class="registration-submitted-card" aria-labelledby="registration-submitted-title">
+        <img class="registration-submitted-logo" src="{{ url_for('static', filename='logo_sorriso_horizontal.png') }}" alt="Sorriso da Gente">
+        <div class="registration-submitted-badge">Pre-cadastro recebido</div>
+        <h1 id="registration-submitted-title" class="registration-submitted-title">Seu pre-cadastro foi enviado.</h1>
+        <p class="registration-submitted-text">
+            Aguarde a liberacao do seu cadastro pela administracao. Assim que sua solicitacao for analisada,
+            enviaremos uma resposta para o e-mail informado{% if email %}: <strong>{{ email }}</strong>{% endif %}.
+        </p>
+        <div class="registration-submitted-protocol">Protocolo #{{ protocolo }}</div>
+        <div class="registration-submitted-actions">
+            <a class="btn btn-primary" href="{{ url_for('auth.login') }}" style="min-width: 220px;">Ir para o login</a>
+        </div>
+    </section>
+</div>
+{% endblock %}

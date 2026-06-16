@@ -74,6 +74,7 @@ class TraceabilityService:
         events.extend(TraceabilityService._document_events(patient_id))
         events.extend(TraceabilityService._estomatologia_events(patient_id))
         events.extend(TraceabilityService._material_events(patient_id))
+        events.extend(TraceabilityService._signature_events(patient_id))
         events.extend(TraceabilityService._audit_events(patient_id))
 
         return _sort_events(events)
@@ -288,23 +289,35 @@ class TraceabilityService:
     def _endodontia_events(patient_id):
         rows = query("""
             SELECT e.id, e.criado_em, e.elemento_dentario, e.diagnostico, e.status,
-                   u.full_name, u.username
+                   e.cancelado_em, e.motivo_cancelamento,
+                   u.full_name, u.username,
+                   uc.full_name as cancelado_por_nome, uc.username as cancelado_por_username
             FROM endodontia e
             LEFT JOIN users u ON e.aluno_id = u.id
+            LEFT JOIN users uc ON e.cancelado_por = uc.id
             WHERE e.patient_id = %s
         """, (patient_id,))
 
-        return [
-            _event(
+        events = []
+        for row in rows or []:
+            events.append(_event(
                 row['criado_em'],
                 'Endodontia',
                 f"Endodontia do elemento {row['elemento_dentario']}",
                 row['diagnostico'] or f"Ficha endodôntica #{row['id']} registrada.",
                 actor=row['full_name'] or row['username'],
                 status=row['status'],
-            )
-            for row in rows or []
-        ]
+            ))
+            if row.get('cancelado_em'):
+                events.append(_event(
+                    row['cancelado_em'],
+                    'Endodontia',
+                    f"Acompanhamento endodôntico cancelado - elemento {row['elemento_dentario']}",
+                    row['motivo_cancelamento'] or 'Cancelamento lógico registrado com rastreabilidade.',
+                    actor=row['cancelado_por_nome'] or row['cancelado_por_username'],
+                    status='Cancelado',
+                ))
+        return events
 
     @staticmethod
     def _document_events(patient_id):
@@ -434,3 +447,63 @@ class TraceabilityService:
             )
             for row in rows or []
         ]
+
+    @staticmethod
+    def _signature_events(patient_id):
+        rows = query("""
+            SELECT id, created_at, document_type, document_id, signature_mode,
+                   document_hash, signer_username, signer_role, auth_method,
+                   witnesses, declaration_text
+            FROM signature_events
+            WHERE patient_id = %s
+            ORDER BY created_at DESC
+            LIMIT 80
+        """, (patient_id,))
+
+        labels = {
+            'patient_tcle': 'TCLE',
+            'atendimento_patient_confirmation': 'Confirmação do atendimento',
+            'anamnesis': 'Anamnese',
+            'prosthesis_stage_patient_signature': 'Prótese - etapa',
+            'prosthesis_payment_receipt': 'Prótese - pagamento',
+            'endodontia_followup_patient_signature': 'Endodontia - evolução',
+        }
+
+        events = []
+        for row in rows or []:
+            label = labels.get(row['document_type'], row['document_type'])
+            witnesses = row.get('witnesses') or []
+            if row['signature_mode'] == 'a_rogo':
+                witness_names = ', '.join(
+                    [w.get('name') for w in witnesses if isinstance(w, dict) and w.get('name')]
+                )
+                description = (
+                    f"{label}: paciente não alfabetizado; documento lido e explicado; "
+                    "consentimento manifestado oralmente; assinatura a rogo registrada"
+                )
+                if witness_names:
+                    description = f"{description}; testemunhas: {witness_names}."
+                else:
+                    description = f"{description}."
+                status = 'Assinatura a rogo'
+            else:
+                description = f"{label}: assinatura eletrônica registrada com hash SHA-256."
+                status = 'Assinatura registrada'
+
+            events.append(_event(
+                row['created_at'],
+                'Assinaturas',
+                label,
+                description,
+                actor=row['signer_username'],
+                status=status,
+                metadata={
+                    'signature_event_id': row['id'],
+                    'document_hash': row['document_hash'],
+                    'signature_mode': row['signature_mode'],
+                    'auth_method': row['auth_method'],
+                    'document_id': row['document_id'],
+                    'role': row['signer_role'],
+                },
+            ))
+        return events

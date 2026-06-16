@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Gestão Clínica{% endblock %}</title>
     <!-- CSS Moderno e Variáveis -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.4">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link
@@ -38,89 +38,106 @@
     {% if current_user.is_authenticated %}
 
     <aside class="sidebar" id="sidebar">
-        <div class="sidebar-header" style="justify-content: center; padding: 1.5rem;">
+        <div class="sidebar-header">
             <a href="{{ url_for('main.dashboard') }}" class="logo">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="Sorriso da Gente" style="height: 100px; width: auto; max-width: 100%;">
+                <img src="{{ url_for('static', filename='logo_sorriso_horizontal.png') }}" alt="Sorriso da Gente" class="sidebar-logo-image">
             </a>
         </div>
         <nav class="sidebar-nav">
-            <!-- Item Principal Ativo -->
+            <div class="nav-divider">PRINCIPAL</div>
             <a href="{{ url_for('main.dashboard') }}"
                 class="nav-item {% if request.endpoint == 'main.dashboard' %}active{% endif %}">
-                <span class="nav-icon">🏠</span> Início
+                <span class="nav-icon">🏠</span><span class="nav-label">Início</span>
             </a>
             {% if can('command_center:view') %}
             <a href="{{ url_for('main.command_center') }}"
                 class="nav-item {% if request.endpoint == 'main.command_center' %}active{% endif %}">
-                <span class="nav-icon">📡</span> Central de Comando
+                <span class="nav-icon">📡</span><span class="nav-label">Central de Comando</span>
             </a>
             {% endif %}
 
-            <div class="nav-divider">MÓDULOS</div>
-            {% if can('triage:view') %}
-            <a href="{{ url_for('triage.list_actions') }}"
-                class="nav-item {% if 'triage' in request.endpoint %}active{% endif %}">
-                <span class="nav-icon">🎫</span> Triagem
-            </a>
-            {% endif %}
-            {% if can('patients:view') %}
-            <a href="{{ url_for('patients.list_patients') }}"
-                class="nav-item {% if 'patients' in request.endpoint or 'anamnesis' in request.endpoint or 'exams' in request.endpoint %}active{% endif %}">
-                <span class="nav-icon">👥</span> Gestão de Pacientes
-            </a>
-            {% endif %}
-            {% if can('agenda:view') %}
-            <a href="{{ url_for('agenda.agenda_index') }}"
-                class="nav-item {% if 'agenda' in request.endpoint %}active{% endif %}">
-                <span class="nav-icon">📅</span> Agenda
-            </a>
-            {% endif %}
-            {% if can('epidemiologia:view') %}
-            <a href="{{ url_for('main.epidemiologia_dashboard') }}"
-                class="nav-item {% if request.endpoint == 'main.epidemiologia_dashboard' %}active{% endif %}">
-                <span class="nav-icon">🗺️</span> Epidemiologia
-            </a>
-            {% endif %}
-            {% if can('bi:view') %}
-            <a href="{{ url_for('main.bi_dashboard') }}"
-                class="nav-item {% if request.endpoint == 'main.bi_dashboard' %}active{% endif %}">
-                <span class="nav-icon">📊</span> BI Executivo
-            </a>
+            {% if can('triage:view') or can('agenda:view') or can('patients:view') or can('inventory:view') %}
+            <div class="nav-divider">OPERAÇÃO CLÍNICA</div>
+                {% if can('triage:view') %}
+                <a href="{{ url_for('triage.list_actions') }}"
+                    class="nav-item {% if request.endpoint and 'triage' in request.endpoint %}active{% endif %}">
+                    <span class="nav-icon">🎫</span><span class="nav-label">Triagem</span>
+                </a>
+                {% endif %}
+                {% if can('agenda:view') %}
+                <a href="{{ url_for('agenda.agenda_index') }}"
+                    class="nav-item {% if request.endpoint and 'agenda' in request.endpoint %}active{% endif %}">
+                    <span class="nav-icon">📅</span><span class="nav-label">Agenda</span>
+                </a>
+                {% endif %}
+                {% if can('patients:view') %}
+                <a href="{{ url_for('patients.list_patients') }}"
+                    class="nav-item {% if request.endpoint and ('patients' in request.endpoint or 'anamnesis' in request.endpoint or 'exams' in request.endpoint) %}active{% endif %}">
+                    <span class="nav-icon">👥</span><span class="nav-label">Pacientes / Prontuários</span>
+                </a>
+                {% endif %}
+                {% if can('inventory:view') %}
+                <a href="{{ url_for('admin.inventory') }}" class="nav-item {% if request.endpoint and request.endpoint.startswith('admin.inventory') %}active{% endif %}">
+                    <span class="nav-icon">📦</span><span class="nav-label">Materiais e Estoque</span>
+                </a>
+                {% endif %}
             {% endif %}
 
-            {% if can('users:view') or can('audit:view') or can('integrations:view') or can('financeiro:view') or can('inventory:view') %}
+            {% if can('epidemiologia:view') or can('bi:view') or can('reports:view') %}
+            <div class="nav-divider">GESTÃO E INDICADORES</div>
+                {% if can('epidemiologia:view') %}
+                <a href="{{ url_for('main.epidemiologia_dashboard') }}"
+                    class="nav-item {% if request.endpoint == 'main.epidemiologia_dashboard' %}active{% endif %}">
+                    <span class="nav-icon">🗺️</span><span class="nav-label">Epidemiologia</span>
+                </a>
+                {% endif %}
+                {% if can('bi:view') %}
+                <a href="{{ url_for('main.bi_dashboard') }}"
+                    class="nav-item {% if request.endpoint == 'main.bi_dashboard' %}active{% endif %}">
+                    <span class="nav-icon">📊</span><span class="nav-label">BI Executivo</span>
+                </a>
+                {% endif %}
+                {% if can('reports:view') %}
+                <a href="{{ url_for('reports.index') }}" class="nav-item {% if request.endpoint and 'reports' in request.endpoint %}active{% endif %}">
+                    <span class="nav-icon">📋</span><span class="nav-label">Relatórios Gerenciais</span>
+                </a>
+                {% endif %}
+            {% endif %}
+
+            {% if can('integrations:view') or can('financeiro:view') %}
+            <div class="nav-divider">FINANCEIRO E SUS</div>
+                {% if can('integrations:view') %}
+                <a href="{{ url_for('admin.esus_integration') }}" class="nav-item {% if request.endpoint and request.endpoint.startswith('admin.esus') %}active{% endif %}">
+                    <span class="nav-icon">🔗</span><span class="nav-label">SIGTAP/e-SUS</span>
+                </a>
+                {% endif %}
+                {% if can('financeiro:view') %}
+                <a href="{{ url_for('admin.cost_references') }}" class="nav-item {% if request.endpoint and request.endpoint.startswith('admin.cost_reference') %}active{% endif %}">
+                    <span class="nav-icon">R$</span><span class="nav-label">Custos SIGTAP</span>
+                </a>
+                {% endif %}
+            {% endif %}
+
+            {% if can('users:view') or can('audit:view') or can('users:write') %}
             <div class="nav-divider">ADMINISTRAÇÃO</div>
-            {% endif %}
-            {% if can('users:view') %}
-            <a href="{{ url_for('admin.list_users') }}" class="nav-item">
-                <span class="nav-icon">⚙️</span> Usuários
-            </a>
-            {% endif %}
-            {% if can('audit:view') %}
-            <a href="{{ url_for('admin.audit_logs') }}" class="nav-item {% if request.endpoint == 'admin.audit_logs' %}active{% endif %}">
-                <span class="nav-icon">🛡️</span> Auditoria
-            </a>
-            {% endif %}
-            {% if can('integrations:view') %}
-            <a href="{{ url_for('admin.esus_integration') }}" class="nav-item {% if request.endpoint and request.endpoint.startswith('admin.esus') %}active{% endif %}">
-                <span class="nav-icon">🔗</span> SIGTAP/e-SUS
-            </a>
-            {% endif %}
-            {% if can('financeiro:view') %}
-            <a href="{{ url_for('admin.cost_references') }}" class="nav-item {% if request.endpoint and request.endpoint.startswith('admin.cost_reference') %}active{% endif %}">
-                <span class="nav-icon">R$</span> Custos SIGTAP
-            </a>
-            {% endif %}
-            {% if can('inventory:view') %}
-            <a href="{{ url_for('admin.inventory') }}" class="nav-item {% if request.endpoint and request.endpoint.startswith('admin.inventory') %}active{% endif %}">
-                <span class="nav-icon">📦</span> Estoque
-            </a>
-            {% endif %}
-            
-            {% if can('reports:view') %}
-            <a href="{{ url_for('reports.index') }}" class="nav-item {% if 'reports' in request.endpoint %}active{% endif %}">
-                <span class="nav-icon">📊</span> Relatórios Gerenciais
-            </a>
+                {% if can('users:view') %}
+                <a href="{{ url_for('admin.list_users') }}" class="nav-item {% if request.endpoint in ['admin.list_users', 'admin.add_user', 'admin.edit_user'] %}active{% endif %}">
+                    <span class="nav-icon">⚙️</span><span class="nav-label">Usuários</span>
+                </a>
+                <a href="{{ url_for('admin.professional_registrations') }}" class="nav-item {% if request.endpoint == 'admin.professional_registrations' %}active{% endif %}">
+                    <span class="nav-icon">📝</span><span class="nav-label">Pré-cadastros</span>
+                </a>
+                {% endif %}
+                {% if can('users:write') %}
+                <a href="{{ url_for('admin.execution_units') }}" class="nav-item {% if request.endpoint in ['admin.execution_units', 'admin.edit_execution_unit'] %}active{% endif %}">
+                    <span class="nav-icon">🏥</span><span class="nav-label">Unidades</span>
+                </a>
+                {% endif %}
+                {% if can('audit:view') %}
+                <a href="{{ url_for('admin.audit_logs') }}" class="nav-item {% if request.endpoint == 'admin.audit_logs' %}active{% endif %}">
+                    <span class="nav-icon">🛡️</span><span class="nav-label">Auditoria</span>
+                </a>
+                {% endif %}
             {% endif %}
         </nav>
 
@@ -150,7 +167,7 @@
                 <span></span>
             </button>
             <a href="{{ url_for('main.dashboard') }}" class="mobile-logo">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="Sorriso da Gente" style="height: 50px; width: auto;">
+                <img src="{{ url_for('static', filename='logo_sorriso_horizontal.png') }}" alt="Sorriso da Gente" style="height: 50px; width: auto;">
             </a>
             <div class="search-bar">
                 <!-- Espaço para busca global se necessário -->
