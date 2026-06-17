@@ -2008,6 +2008,7 @@ Próxima continuidade recomendada:
 - 17/06/2026: Congelado o escopo de Endodontia, Prótese, Portal do Paciente e evoluções de BI até o Go/No-Go de produção. O BI existente permanece disponível para validação gerencial e relatórios já implementados, sem novas visões, indicadores, redesign ou ampliações antes da produção assistida.
 - 17/06/2026: Ajustado fluxo operacional para `Novo Paciente -> Triagem -> Pacientes / Prontuários -> Agenda`; o cadastro não solicita senha, a Triagem gera senha vinculando paciente já cadastrado e um paciente pode ter múltiplas senhas/demandas.
 - 17/06/2026: Publicada a branch `main` e a tag `homologacao-2026-06-17` no GitHub usando o remoto SSH `git@github.com-gentillidiego:gentillidiego/GestaoClinica-SorrisodaGente.git`.
+- 17/06/2026: Base ativa preparada para produção vazia, preservando usuários e limpando pacientes, triagem, agenda, atendimentos, exames, assinaturas, relatórios, inventário, pré-cadastros, auditoria e arquivos clínicos dos volumes `uploads_oral`, `pdf_temp_oral` e `logs_oral`.
 
 ## Última Validação Técnica Registrada
 
@@ -2025,6 +2026,9 @@ Resultado mais recente em 17/06/2026:
 - `docker compose ps`: containers principais em execução; PostgreSQL e Redis saudáveis.
 - `/health`: `status=healthy`, `database=ok`.
 - PostgreSQL: `triagem_senhas.patient_id` sem restrição `UNIQUE`, permitindo múltiplas senhas/demandas por paciente.
+- Backup pré-limpeza preservado: `gestao_saude_oral_20260617_112957.dump`, com restore validado e `Pacientes restaurados: 101`.
+- Backup baseline da base vazia: `gestao_saude_oral_20260617_113209.dump`, com restore validado e `Pacientes restaurados: 0`.
+- Contagem após limpeza: `patients=0`, `triagem_senhas=0`, `triagem_acoes=0`, `consultas=0`, `atendimentos=0`, `exams=0`, `anamnesis=0`, `audit_logs=0`, `professional_registration_requests=0`, `inventory_items=0`, `procedure_cost_references=0`, `territorial_locations=0`, `users=4`.
 
 Validações anteriores mantidas como referência histórica:
 
