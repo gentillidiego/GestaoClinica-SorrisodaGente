@@ -656,7 +656,7 @@ def get_command_center_data(filters=None):
     _append_patient_scope_filters(neighborhood_conditions, neighborhood_params, filters, patient_alias='p')
     neighborhoods = query(
         f"""
-        SELECT COALESCE(NULLIF(TRIM(atendido_em), ''), 'Não informado') as bairro,
+        SELECT COALESCE(NULLIF(TRIM(endereco_bairro), ''), NULLIF(TRIM(atendido_em), ''), 'Não informado') as bairro,
                COUNT(*) as total
         FROM patients p
         {_where_clause(neighborhood_conditions)}
@@ -1266,7 +1266,7 @@ def get_demand_forecast_snapshot(today=None, days=90, limit=8, filters=None):
     rows = query(
         f"""
         SELECT esp.nome as especialidade,
-               COALESCE(NULLIF(TRIM(p.atendido_em), ''), 'Não informado') as bairro,
+               COALESCE(NULLIF(TRIM(p.endereco_bairro), ''), NULLIF(TRIM(p.atendido_em), ''), 'Não informado') as bairro,
                m.nome as municipio,
                ta.id as triagem_acao_id,
                ta.local as triagem_local,

@@ -1,4 +1,9 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app
+import json
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote
+from urllib.request import urlopen
+
+from flask import Blueprint, render_template, redirect, url_for, request, flash, current_app, jsonify
 from flask_login import login_required, current_user
 from werkzeug.security import check_password_hash
 from database import execute, query, execute_transaction
@@ -24,6 +29,66 @@ from datetime import datetime
 
 patients_bp = Blueprint('patients', __name__, url_prefix='/patients')
 
+BRAZIL_STATES = [
+    ('AL', 'Alagoas'),
+    ('AC', 'Acre'),
+    ('AP', 'Amapá'),
+    ('AM', 'Amazonas'),
+    ('BA', 'Bahia'),
+    ('CE', 'Ceará'),
+    ('DF', 'Distrito Federal'),
+    ('ES', 'Espírito Santo'),
+    ('GO', 'Goiás'),
+    ('MA', 'Maranhão'),
+    ('MT', 'Mato Grosso'),
+    ('MS', 'Mato Grosso do Sul'),
+    ('MG', 'Minas Gerais'),
+    ('PA', 'Pará'),
+    ('PB', 'Paraíba'),
+    ('PR', 'Paraná'),
+    ('PE', 'Pernambuco'),
+    ('PI', 'Piauí'),
+    ('RJ', 'Rio de Janeiro'),
+    ('RN', 'Rio Grande do Norte'),
+    ('RS', 'Rio Grande do Sul'),
+    ('RO', 'Rondônia'),
+    ('RR', 'Roraima'),
+    ('SC', 'Santa Catarina'),
+    ('SP', 'São Paulo'),
+    ('SE', 'Sergipe'),
+    ('TO', 'Tocantins'),
+]
+
+PATIENT_FIELDS = [
+    'cns',
+    'nome',
+    'rg',
+    'cpf',
+    'profissao',
+    'endereco_residencial',
+    'cep_residencial',
+    'endereco_logradouro',
+    'endereco_numero',
+    'endereco_bairro',
+    'endereco_cidade',
+    'endereco_estado',
+    'endereco_ibge_codigo',
+    'endereco_comercial',
+    'cd_anterior',
+    'endereco_comercial_adicional',
+    'email',
+    'genero',
+    'data_nascimento',
+    'nacionalidade',
+    'celular',
+    'estado_civil',
+    'atendido_em',
+    'nome_responsavel',
+    'rg_responsavel',
+    'telefone_expedidor_responsavel',
+    'email_responsavel',
+]
+
 
 def _normalize_triage_code(value):
     return (value or '').strip().upper()
@@ -33,6 +98,115 @@ def _strip_form_data(data):
     return {
         key: value.strip() if isinstance(value, str) else value
         for key, value in data.items()
+    }
+
+
+def _only_digits(value):
+    return ''.join(ch for ch in (value or '') if ch.isdigit())
+
+
+def _normalize_uf(value):
+    return (value or '').strip().upper()[:2]
+
+
+def _format_cep(value):
+    digits = _only_digits(value)
+    if len(digits) == 8:
+        return f"{digits[:5]}-{digits[5:]}"
+    return (value or '').strip()
+
+
+def _compose_residential_address(data):
+    street = data.get('endereco_logradouro') or ''
+    number = data.get('endereco_numero') or ''
+    neighborhood = data.get('endereco_bairro') or ''
+    city = data.get('endereco_cidade') or ''
+    state = _normalize_uf(data.get('endereco_estado'))
+    cep = _format_cep(data.get('cep_residencial'))
+
+    address_parts = []
+    if street and number:
+        address_parts.append(f"{street}, {number}")
+    elif street:
+        address_parts.append(street)
+    elif number:
+        address_parts.append(f"Nº {number}")
+
+    for value in (neighborhood, city):
+        if value:
+            address_parts.append(value)
+    if state and city:
+        address_parts[-1] = f"{city} - {state}"
+    elif state:
+        address_parts.append(state)
+    if cep:
+        address_parts.append(f"CEP {cep}")
+
+    return ', '.join(address_parts)
+
+
+def _build_patient_form_data():
+    data = _strip_form_data({field: request.form.get(field) for field in PATIENT_FIELDS})
+    data['cep_residencial'] = _format_cep(data.get('cep_residencial'))
+    data['endereco_estado'] = _normalize_uf(data.get('endereco_estado'))
+    data['endereco_residencial'] = (
+        _compose_residential_address(data)
+        or data.get('endereco_residencial')
+    )
+    return data
+
+
+def _patient_field_values(data):
+    return [data.get(field) for field in PATIENT_FIELDS]
+
+
+def _fetch_json_url(url, timeout=4):
+    with urlopen(url, timeout=timeout) as response:
+        charset = response.headers.get_content_charset() or 'utf-8'
+        return json.loads(response.read().decode(charset))
+
+
+def _local_alagoas_cities():
+    rows = query("SELECT nome FROM municipios WHERE ativo = 1 ORDER BY nome")
+    return [{'nome': row['nome'], 'ibge_codigo': ''} for row in rows]
+
+
+def _remote_ibge_cities(uf):
+    url = f"https://servicodados.ibge.gov.br/api/v1/localidades/estados/{quote(uf)}/municipios"
+    cities = _fetch_json_url(url, timeout=5)
+    return [
+        {'nome': item.get('nome'), 'ibge_codigo': str(item.get('id') or '')}
+        for item in sorted(cities, key=lambda row: row.get('nome') or '')
+        if item.get('nome')
+    ]
+
+
+def _cities_for_state(uf):
+    uf = _normalize_uf(uf)
+    if uf == 'AL':
+        return _local_alagoas_cities()
+    if not uf:
+        return []
+    try:
+        return _remote_ibge_cities(uf)
+    except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        current_app.logger.warning('Falha ao carregar municípios do IBGE para UF %s', uf)
+        return []
+
+
+def _template_address_context(patient=None):
+    patient = patient or {}
+    selected_uf = _normalize_uf(patient.get('endereco_estado')) or 'AL'
+    selected_city = patient.get('endereco_cidade') or ''
+    initial_cities = (
+        _local_alagoas_cities()
+        if selected_uf == 'AL'
+        else ([{'nome': selected_city, 'ibge_codigo': patient.get('endereco_ibge_codigo') or ''}] if selected_city else [])
+    )
+    return {
+        'address_states': [{'uf': uf, 'nome': nome} for uf, nome in BRAZIL_STATES],
+        'address_cities': initial_cities,
+        'selected_address_uf': selected_uf,
     }
 
 
@@ -56,51 +230,107 @@ def register():
         return redirect(url_for('patients.list_patients'))
 
     if request.method == 'POST':
-        # Coleta de dados do formulário
-        data = _strip_form_data({
-            'cns': request.form.get('cns'),
-            'nome': request.form.get('nome'),
-            'rg': request.form.get('rg'),
-            'cpf': request.form.get('cpf'),
-            'profissao': request.form.get('profissao'),
-            'endereco_residencial': request.form.get('endereco_residencial'),
-            'endereco_comercial': request.form.get('endereco_comercial'),
-            'cd_anterior': request.form.get('cd_anterior'),
-            'endereco_comercial_adicional': request.form.get('endereco_comercial_adicional'),
-            'email': request.form.get('email'),
-            'genero': request.form.get('genero'),
-            'data_nascimento': request.form.get('data_nascimento'),
-            'nacionalidade': request.form.get('nacionalidade'),
-            'celular': request.form.get('celular'),
-            'estado_civil': request.form.get('estado_civil'),
-            'atendido_em': request.form.get('atendido_em'),
-            'nome_responsavel': request.form.get('nome_responsavel'),
-            'rg_responsavel': request.form.get('rg_responsavel'),
-            'telefone_expedidor_responsavel': request.form.get('telefone_expedidor_responsavel'),
-            'email_responsavel': request.form.get('email_responsavel')
-        })
+        data = _build_patient_form_data()
         validation_error = _validate_patient_required_data(data)
         if validation_error:
             flash(validation_error, 'danger')
-            return render_template('patients/register.html')
+            return render_template('patients/register.html', patient=data, **_template_address_context(data))
         
         try:
             patient_id = execute('''
                 INSERT INTO patients (
-                    cns, nome, rg, cpf, profissao, endereco_residencial, endereco_comercial,
-                    cd_anterior, endereco_comercial_adicional, email, genero, data_nascimento,
-                    nacionalidade, celular, estado_civil, atendido_em, nome_responsavel,
-                    rg_responsavel, telefone_expedidor_responsavel, email_responsavel
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    cns, nome, rg, cpf, profissao, endereco_residencial,
+                    cep_residencial, endereco_logradouro, endereco_numero,
+                    endereco_bairro, endereco_cidade, endereco_estado, endereco_ibge_codigo,
+                    endereco_comercial, cd_anterior, endereco_comercial_adicional,
+                    email, genero, data_nascimento, nacionalidade, celular, estado_civil,
+                    atendido_em, nome_responsavel, rg_responsavel,
+                    telefone_expedidor_responsavel, email_responsavel
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            ''', list(data.values()))
+            ''', _patient_field_values(data))
             flash('Paciente cadastrado com sucesso. Agora a triagem pode associar uma ou mais senhas a este paciente.', 'success')
 
             return redirect(url_for('patients.view_patient', id=patient_id))
         except Exception as e:
             flash(f'Erro ao cadastrar paciente: {str(e)}', 'danger')
+            return render_template('patients/register.html', patient=data, **_template_address_context(data))
             
-    return render_template('patients/register.html')
+    return render_template('patients/register.html', patient={}, **_template_address_context())
+
+
+@patients_bp.route('/address/states')
+@login_required
+def address_states():
+    return jsonify([{'uf': uf, 'nome': nome} for uf, nome in BRAZIL_STATES])
+
+
+@patients_bp.route('/address/cities')
+@login_required
+def address_cities():
+    return jsonify(_cities_for_state(request.args.get('uf')))
+
+
+@patients_bp.route('/address/neighborhoods')
+@login_required
+def address_neighborhoods():
+    uf = _normalize_uf(request.args.get('uf'))
+    city = (request.args.get('city') or '').strip()
+    if not city:
+        return jsonify([])
+
+    rows = query(
+        """
+        SELECT DISTINCT bairro
+        FROM (
+            SELECT NULLIF(TRIM(endereco_bairro), '') AS bairro
+            FROM patients
+            WHERE (%s = '' OR endereco_estado = %s)
+              AND endereco_cidade ILIKE %s
+            UNION
+            SELECT NULLIF(TRIM(tl.neighborhood), '') AS bairro
+            FROM territorial_locations tl
+            LEFT JOIN municipios m ON m.id = tl.municipio_id
+            WHERE tl.scope = 'bairro'
+              AND tl.active = TRUE
+              AND (%s = '' OR %s = 'AL')
+              AND m.nome ILIKE %s
+        ) bairros
+        WHERE bairro IS NOT NULL
+        ORDER BY bairro ASC
+        LIMIT 200
+        """,
+        (uf, uf, city, uf, uf, city),
+    )
+    return jsonify([row['bairro'] for row in rows])
+
+
+@patients_bp.route('/address/cep/<cep>')
+@login_required
+def address_cep(cep):
+    digits = _only_digits(cep)
+    if len(digits) != 8:
+        return jsonify({'error': 'CEP inválido.'}), 400
+
+    try:
+        payload = _fetch_json_url(f"https://viacep.com.br/ws/{digits}/json/", timeout=4)
+    except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError):
+        current_app.logger.warning('Falha ao consultar CEP %s', digits)
+        return jsonify({'error': 'Serviço de CEP indisponível.'}), 502
+
+    if payload.get('erro'):
+        return jsonify({'error': 'CEP não encontrado.'}), 404
+
+    return jsonify({
+        'cep': _format_cep(payload.get('cep') or digits),
+        'logradouro': payload.get('logradouro') or '',
+        'bairro': payload.get('bairro') or '',
+        'cidade': payload.get('localidade') or '',
+        'estado': _normalize_uf(payload.get('uf')),
+        'ibge_codigo': str(payload.get('ibge') or ''),
+    })
+
+
 @patients_bp.route('/list')
 @login_required
 def list_patients():
@@ -182,53 +412,35 @@ def edit_patient(id):
         user_data = query("SELECT password FROM users WHERE id = %s", (current_user.id,), one=True)
         if not check_password_hash(user_data['password'], password):
             flash('Senha de confirmação incorreta.', 'danger')
-            return render_template('patients/edit.html', patient=patient)
+            return render_template('patients/edit.html', patient=patient, **_template_address_context(patient))
             
-        data = _strip_form_data({
-            'cns': request.form.get('cns'),
-            'nome': request.form.get('nome'),
-            'rg': request.form.get('rg'),
-            'cpf': request.form.get('cpf'),
-            'profissao': request.form.get('profissao'),
-            'endereco_residencial': request.form.get('endereco_residencial'),
-            'endereco_comercial': request.form.get('endereco_comercial'),
-            'cd_anterior': request.form.get('cd_anterior'),
-            'endereco_comercial_adicional': request.form.get('endereco_comercial_adicional'),
-            'email': request.form.get('email'),
-            'genero': request.form.get('genero'),
-            'data_nascimento': request.form.get('data_nascimento'),
-            'nacionalidade': request.form.get('nacionalidade'),
-            'celular': request.form.get('celular'),
-            'estado_civil': request.form.get('estado_civil'),
-            'atendido_em': request.form.get('atendido_em'),
-            'nome_responsavel': request.form.get('nome_responsavel'),
-            'rg_responsavel': request.form.get('rg_responsavel'),
-            'telefone_expedidor_responsavel': request.form.get('telefone_expedidor_responsavel'),
-            'email_responsavel': request.form.get('email_responsavel'),
-            'id': id
-        })
+        data = _build_patient_form_data()
+        data['id'] = id
         validation_error = _validate_patient_required_data(data)
         if validation_error:
             flash(validation_error, 'danger')
             patient = dict(patient)
             patient.update(data)
-            return render_template('patients/edit.html', patient=patient)
+            return render_template('patients/edit.html', patient=patient, **_template_address_context(patient))
         
         try:
             execute('''
                 UPDATE patients SET 
-                    cns=%s, nome=%s, rg=%s, cpf=%s, profissao=%s, endereco_residencial=%s, endereco_comercial=%s,
-                    cd_anterior=%s, endereco_comercial_adicional=%s, email=%s, genero=%s, data_nascimento=%s,
-                    nacionalidade=%s, celular=%s, estado_civil=%s, atendido_em=%s, nome_responsavel=%s,
-                    rg_responsavel=%s, telefone_expedidor_responsavel=%s, email_responsavel=%s
+                    cns=%s, nome=%s, rg=%s, cpf=%s, profissao=%s, endereco_residencial=%s,
+                    cep_residencial=%s, endereco_logradouro=%s, endereco_numero=%s,
+                    endereco_bairro=%s, endereco_cidade=%s, endereco_estado=%s, endereco_ibge_codigo=%s,
+                    endereco_comercial=%s, cd_anterior=%s, endereco_comercial_adicional=%s,
+                    email=%s, genero=%s, data_nascimento=%s, nacionalidade=%s, celular=%s,
+                    estado_civil=%s, atendido_em=%s, nome_responsavel=%s, rg_responsavel=%s,
+                    telefone_expedidor_responsavel=%s, email_responsavel=%s
                 WHERE id=%s
-            ''', list(data.values()))
+            ''', _patient_field_values(data) + [id])
             flash('Dados do paciente atualizados!', 'success')
             return redirect(url_for('patients.list_patients'))
         except Exception as e:
             flash(f'Erro ao atualizar: {str(e)}', 'danger')
             
-    return render_template('patients/edit.html', patient=patient)
+    return render_template('patients/edit.html', patient=patient, **_template_address_context(patient))
 
 from services.patient_service import PatientService
 from services.sigtap_service import (

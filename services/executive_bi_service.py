@@ -132,7 +132,7 @@ def get_summary(start, end):
     social = query(
         """
         SELECT COUNT(DISTINCT p.id) as reached_patients,
-               COUNT(DISTINCT COALESCE(NULLIF(TRIM(p.atendido_em), ''), 'Não informado')) as neighborhoods,
+               COUNT(DISTINCT COALESCE(NULLIF(TRIM(p.endereco_bairro), ''), NULLIF(TRIM(p.atendido_em), ''), 'Não informado')) as neighborhoods,
                COUNT(DISTINCT ts.municipio_id) as municipalities
         FROM patients p
         LEFT JOIN consultas c
@@ -352,7 +352,7 @@ def get_professional_ranking(start, end, limit=10):
 def get_neighborhood_ranking(start, end, limit=10):
     rows = query(
         """
-        SELECT COALESCE(NULLIF(TRIM(p.atendido_em), ''), 'Não informado') as bairro,
+        SELECT COALESCE(NULLIF(TRIM(p.endereco_bairro), ''), NULLIF(TRIM(p.atendido_em), ''), 'Não informado') as bairro,
                COUNT(DISTINCT p.id) FILTER (
                    WHERE c.id IS NOT NULL OR tp.id IS NOT NULL OR e.id IS NOT NULL
                ) as reached_patients,

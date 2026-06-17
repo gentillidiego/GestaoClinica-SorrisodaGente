@@ -1,0 +1,78 @@
+{% set address_uf = patient.get('endereco_estado') or selected_address_uf or 'AL' %}
+{% set address_city = patient.get('endereco_cidade') or '' %}
+
+<div class="form-section-title" style="margin-top: 2rem;">Endereço Residencial</div>
+<div
+    data-address-widget
+    data-states-url="{{ url_for('patients.address_states') }}"
+    data-cities-url="{{ url_for('patients.address_cities') }}"
+    data-neighborhoods-url="{{ url_for('patients.address_neighborhoods') }}"
+    data-cep-url-template="{{ url_for('patients.address_cep', cep='__CEP__') }}"
+>
+    <input type="hidden" name="endereco_residencial" id="endereco_residencial"
+        value="{{ patient.get('endereco_residencial') or '' }}">
+    <input type="hidden" name="endereco_ibge_codigo" id="endereco_ibge_codigo"
+        value="{{ patient.get('endereco_ibge_codigo') or '' }}">
+
+    <div class="form-group-inline">
+        <label for="cep_residencial" class="form-label">CEP:</label>
+        <div style="flex: 1;">
+            <input type="text" name="cep_residencial" id="cep_residencial" class="form-control"
+                inputmode="numeric" autocomplete="postal-code" maxlength="9" placeholder="00000-000"
+                value="{{ patient.get('cep_residencial') or '' }}">
+            <div id="cep_status" style="margin-top:0.35rem; font-size:0.78rem; color:hsl(var(--text-muted));"></div>
+        </div>
+    </div>
+
+    <div class="form-group-inline">
+        <label for="endereco_estado" class="form-label">Estado:</label>
+        <select name="endereco_estado" id="endereco_estado" class="form-control">
+            {% for state in address_states %}
+            <option value="{{ state.uf }}" {% if state.uf == address_uf %}selected{% endif %}>
+                {{ state.uf }} - {{ state.nome }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="form-group-inline">
+        <label for="endereco_cidade" class="form-label">Cidade:</label>
+        <select name="endereco_cidade" id="endereco_cidade" class="form-control"
+            data-current-city="{{ address_city }}">
+            <option value="">Selecione a cidade</option>
+            {% for city in address_cities %}
+            <option value="{{ city.nome }}" data-ibge="{{ city.ibge_codigo }}"
+                {% if city.nome == address_city %}selected{% endif %}>
+                {{ city.nome }}
+            </option>
+            {% endfor %}
+            {% if address_city and address_city not in address_cities|map(attribute='nome')|list %}
+            <option value="{{ address_city }}" selected>{{ address_city }}</option>
+            {% endif %}
+        </select>
+    </div>
+
+    <div class="form-group-inline">
+        <label for="endereco_bairro" class="form-label">Bairro:</label>
+        <input type="text" name="endereco_bairro" id="endereco_bairro" class="form-control"
+            list="endereco_bairro_options" autocomplete="address-level3"
+            value="{{ patient.get('endereco_bairro') or '' }}">
+        <datalist id="endereco_bairro_options"></datalist>
+    </div>
+
+    <div class="form-group-inline">
+        <label for="endereco_logradouro" class="form-label">Rua:</label>
+        <input type="text" name="endereco_logradouro" id="endereco_logradouro" class="form-control"
+            autocomplete="address-line1" value="{{ patient.get('endereco_logradouro') or '' }}">
+    </div>
+
+    <div class="form-group-inline">
+        <label for="endereco_numero" class="form-label">Número:</label>
+        <input type="text" name="endereco_numero" id="endereco_numero" class="form-control"
+            autocomplete="address-line2" value="{{ patient.get('endereco_numero') or '' }}">
+    </div>
+
+    <div id="endereco_preview"
+        style="margin: -0.25rem 0 1.25rem; font-size:0.8rem; color:hsl(var(--text-muted));">
+    </div>
+</div>

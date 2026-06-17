@@ -49,11 +49,7 @@
                         value="{{ patient.profissao or '' }}">
                 </div>
 
-                <div class="form-group-inline">
-                    <label for="endereco_residencial" class="form-label">End. Residencial:</label>
-                    <input type="text" name="endereco_residencial" id="endereco_residencial" class="form-control"
-                        value="{{ patient.endereco_residencial or '' }}">
-                </div>
+                {% include "patients/includes/_address_fields.html" %}
 
                 <div class="form-group-inline">
                     <label for="endereco_comercial" class="form-label">End. Comercial:</label>
@@ -171,4 +167,5 @@
         </div>
     </form>
 </div>
+<script src="{{ url_for('static', filename='js/patient_address.js') }}"></script>
 {% endblock %}

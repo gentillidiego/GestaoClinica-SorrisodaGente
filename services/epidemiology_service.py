@@ -72,7 +72,18 @@ def _selected(value):
 
 
 def _neighborhood_expression(alias='p'):
-    return f"COALESCE(NULLIF(TRIM(split_part({alias}.atendido_em, ' - ', 1)), ''), 'Não informado')"
+    return (
+        f"COALESCE(NULLIF(TRIM({alias}.endereco_bairro), ''), "
+        f"NULLIF(TRIM(split_part({alias}.atendido_em, ' - ', 1)), ''), "
+        "'Não informado')"
+    )
+
+
+def _municipality_expression(alias='p'):
+    return (
+        f"COALESCE(NULLIF(TRIM({alias}.endereco_cidade), ''), "
+        f"NULLIF(TRIM(split_part({alias}.atendido_em, ' - ', 2)), ''))"
+    )
 
 
 def _shift_year(value, years):
@@ -185,10 +196,11 @@ def _patient_filter_clause(alias='p', filters=None, today=None, prefix='AND'):
                     WHERE s_m.patient_id = {alias}.id
                       AND m_m.nome = %s
                 )
+                OR {alias}.endereco_cidade = %s
                 OR {alias}.atendido_em ILIKE %s
             )"""
         )
-        params.extend([filters['municipality'], f"% - {filters['municipality']}"])
+        params.extend([filters['municipality'], filters['municipality'], f"% - {filters['municipality']}"])
 
     if filters['specialty']:
         clauses.append(
@@ -320,6 +332,9 @@ def get_available_municipalities():
             SELECT nome
             FROM municipios
             WHERE ativo = 1
+            UNION
+            SELECT NULLIF(TRIM(endereco_cidade), '') as nome
+            FROM patients
             UNION
             SELECT NULLIF(TRIM(split_part(atendido_em, ' - ', 2)), '') as nome
             FROM patients
@@ -857,7 +872,7 @@ def get_municipality_indicators(start, end, filters=None, today=None, limit=120)
             LEFT JOIN triagem_senhas s ON s.patient_id = p.id
             LEFT JOIN municipios m_triagem ON m_triagem.id = s.municipio_id
             LEFT JOIN municipios m_atendido
-              ON m_atendido.nome = NULLIF(TRIM(split_part(p.atendido_em, ' - ', 2)), '')
+              ON m_atendido.nome = {_municipality_expression('p')}
             WHERE COALESCE(s.vinculada_em, s.entregue_em, s.criado_em, p.criado_em)::date BETWEEN %s AND %s
               AND COALESCE(m_triagem.id, m_atendido.id) IS NOT NULL
             {patient_clause}
@@ -1060,7 +1075,7 @@ def get_tooth_loss_by_municipality(start, end, filters=None, today=None):
         LEFT JOIN triagem_senhas s ON s.patient_id = p.id
         LEFT JOIN municipios m_triagem ON m_triagem.id = s.municipio_id
         LEFT JOIN municipios m_atendido
-          ON m_atendido.nome = NULLIF(TRIM(split_part(p.atendido_em, ' - ', 2)), '')
+          ON m_atendido.nome = {_municipality_expression('p')}
         WHERE ex.data_criacao::date BETWEEN %s AND %s
           AND COALESCE(m_triagem.id, m_atendido.id) IS NOT NULL
         {patient_clause}
@@ -1103,7 +1118,7 @@ def _neighborhood_municipality_lookup(start, end, filters=None, today=None):
         LEFT JOIN triagem_senhas s ON s.patient_id = p.id
         LEFT JOIN municipios m_triagem ON m_triagem.id = s.municipio_id
         LEFT JOIN municipios m_atendido
-          ON m_atendido.nome = NULLIF(TRIM(split_part(p.atendido_em, ' - ', 2)), '')
+          ON m_atendido.nome = {_municipality_expression('p')}
         WHERE p.criado_em::date BETWEEN %s AND %s
           AND COALESCE(m_triagem.id, m_atendido.id) IS NOT NULL
         {patient_clause}

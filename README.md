@@ -23,7 +23,7 @@ Leitura operacional atual:
 - Módulo de Endodontia ampliado até a Etapa E10 em nível MVP clínico-operacional, mas **não é prioridade de evolução neste momento**.
 - Endodontia e Prótese permanecem temporariamente ocultas da navegação do prontuário por decisão operacional; os módulos não foram removidos.
 - Decisão de 17/06/2026: escopo congelado para Endodontia, Prótese, Portal do Paciente e evoluções de BI até o Go/No-Go de produção. O BI existente pode ser validado e usado como apoio gerencial, mas não deve receber novas visões, indicadores, redesign ou ampliações antes da produção assistida.
-- Última validação registrada em 17/06/2026: `.venv/bin/pytest -q` com `196 passed`; base ativa vazia com 2 usuários preservados; backup/restore baseline validado.
+- Última validação registrada em 17/06/2026: `.venv/bin/pytest -q` com `199 passed`; base ativa vazia com 2 usuários preservados; backup/restore baseline validado.
 - Status de produção: **não liberar produção plena ainda**. A aplicação está funcional e validada em Docker, mas ainda exige fechamento dos bloqueadores P0 de infraestrutura, LGPD, backup/restore, homologação operacional e aceite formal listados em `Plano de Prontidão para Produção`.
 
 Prioridade atual de trabalho:
@@ -308,6 +308,8 @@ VOLTE E VERIFIQUE:
 1. Cadastro do paciente:
    - A entrada operacional começa em `Operação Clínica > Novo Paciente`.
    - A equipe cadastra o paciente na ficha já existente.
+   - O endereço residencial é estruturado para consolidação territorial: primeiro CEP; se encontrado, preenche rua, cidade, bairro e UF, restando informar o número.
+   - Se o CEP não for encontrado, a equipe preenche por sequência assistida: estado, cidade, bairro, rua e número. Alagoas aparece primeiro na lista de estados.
    - O cadastro não pede senha de triagem.
 
 2. Triagem de campo:
@@ -569,6 +571,7 @@ Inclui:
 - Demanda reprimida.
 - Áreas críticas.
 - Mapa com coordenadas municipais e drill-down territorial.
+- Consolidação territorial preferindo bairro/cidade estruturados do cadastro do paciente, com fallback para campos legados quando necessário.
 
 VOLTE E VERIFIQUE:
 
@@ -2019,6 +2022,7 @@ Próxima continuidade recomendada:
 - 17/06/2026: Base ativa preparada para produção vazia, preservando usuários e limpando pacientes, triagem, agenda, atendimentos, exames, assinaturas, relatórios, inventário, pré-cadastros, auditoria e arquivos clínicos dos volumes `uploads_oral`, `pdf_temp_oral` e `logs_oral`.
 - 17/06/2026: Reforçada regra administrativa de ciclo de vida de usuários: exclusão apenas para usuário sem histórico; usuários com qualquer acesso, auditoria ou vínculo operacional/clínico devem ser inativados. O usuário `demo.dentista` foi removido da base ativa após validação de ausência de vínculos.
 - 17/06/2026: O usuário `Erika` também foi removido da base ativa após validação de ausência de login, primeiro acesso, recuperação de senha, auditoria e vínculos operacionais.
+- 17/06/2026: Cadastro de paciente passou a registrar endereço residencial estruturado com CEP, rua, número, bairro, cidade, UF e código IBGE; CEP encontrado preenche os campos automaticamente e relatórios/epidemiologia passam a preferir bairro/cidade estruturados.
 
 ## Última Validação Técnica Registrada
 
@@ -2027,20 +2031,24 @@ Resultado mais recente em 17/06/2026:
 - Release candidata de homologação: `homologacao-2026-06-17`.
 - Commit da versão candidata: `d39dfce406b5c669dbb8d0e78c4dd3c009d46dff`.
 - Tag de estabilização administrativa e base vazia: `homologacao-2026-06-17-acessos`.
+- Tag de estabilização do cadastro/endereço: `homologacao-2026-06-17-endereco`.
 - Escopo congelado: Endodontia, Prótese, Portal do Paciente e evoluções de BI seguem fora da versão de homologação.
 - Fluxo homologável atual: `Novo Paciente -> Triagem -> Pacientes / Prontuários -> Agenda`.
-- `.venv/bin/pytest -q`: `196 passed`.
+- `.venv/bin/pytest -q`: `199 passed`.
+- Testes focados de endereço do paciente: `tests/test_patient_address_flow.py`: `3 passed`.
 - Testes focados de ciclo de vida de usuários: `tests/test_admin_user_lifecycle.py`: `4 passed`.
 - Testes focados de fluxo Triagem/Paciente, rastreabilidade e segurança: `tests/test_triage_patient_link_flow.py`, `tests/test_phase2_traceability.py` e `tests/test_phase1_security.py`: `15 passed`.
-- `.venv/bin/python -m py_compile database.py blueprints/patients.py blueprints/triage.py services/patient_service.py`: sem erros.
+- `.venv/bin/python -m py_compile database.py blueprints/patients.py services/epidemiology_service.py services/executive_bi_service.py services/command_center_service.py`: sem erros.
 - `git diff --check`: sem erros.
 - `docker compose up -d --build`: executado com rebuild da aplicação web, worker Celery, beat e mail.
 - `docker compose ps`: containers principais em execução; PostgreSQL e Redis saudáveis.
 - `/health`: `status=healthy`, `database=ok`.
 - PostgreSQL: `triagem_senhas.patient_id` sem restrição `UNIQUE`, permitindo múltiplas senhas/demandas por paciente.
+- PostgreSQL: campos estruturados de endereço residencial criados em `patients` (`cep_residencial`, `endereco_logradouro`, `endereco_numero`, `endereco_bairro`, `endereco_cidade`, `endereco_estado`, `endereco_ibge_codigo`).
+- Endpoint `/patients/address/cities?uf=AL`: `200`, retornando 102 municípios locais.
 - Backup pré-limpeza preservado: `gestao_saude_oral_20260617_112957.dump`, com restore validado e `Pacientes restaurados: 101`.
-- Backup baseline final da base vazia: `gestao_saude_oral_20260617_114807.dump`, com restore validado, `Tabelas públicas restauradas: 51` e `Pacientes restaurados: 0`.
-- Backup final dos uploads vazios: `uploads_20260617_114807.tar.gz`.
+- Backup baseline final da base vazia pós-migração de endereço: `gestao_saude_oral_20260617_121234.dump`, com restore validado, `Tabelas públicas restauradas: 51` e `Pacientes restaurados: 0`.
+- Backup final dos uploads vazios: `uploads_20260617_121234.tar.gz`.
 - Contagem após limpeza final: `patients=0`, `triagem_senhas=0`, `triagem_acoes=0`, `consultas=0`, `atendimentos=0`, `exams=0`, `anamnesis=0`, `audit_logs=0`, `professional_registration_requests=0`, `inventory_items=0`, `procedure_cost_references=0`, `territorial_locations=0`, `users=2`.
 - Usuários preservados na base ativa vazia: `Diego` e `Cibely.adm`.
 

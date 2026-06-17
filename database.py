@@ -252,7 +252,14 @@ MIGRATIONS = {
     'patients': [
         ('is_demo', 'BOOLEAN DEFAULT FALSE'),
         ('demo_profile', 'TEXT'),
-        ('demo_seed_run_id', 'INTEGER')
+        ('demo_seed_run_id', 'INTEGER'),
+        ('cep_residencial', 'TEXT'),
+        ('endereco_logradouro', 'TEXT'),
+        ('endereco_numero', 'TEXT'),
+        ('endereco_bairro', 'TEXT'),
+        ('endereco_cidade', 'TEXT'),
+        ('endereco_estado', 'TEXT'),
+        ('endereco_ibge_codigo', 'TEXT')
     ],
     'triagem_acoes': [
         ('execution_unit', "TEXT DEFAULT 'unidade_principal'")
@@ -617,6 +624,13 @@ def _init_db_locked():
             cpf TEXT,
             profissao TEXT,
             endereco_residencial TEXT,
+            cep_residencial TEXT,
+            endereco_logradouro TEXT,
+            endereco_numero TEXT,
+            endereco_bairro TEXT,
+            endereco_cidade TEXT,
+            endereco_estado TEXT,
+            endereco_ibge_codigo TEXT,
             endereco_comercial TEXT,
             cd_anterior TEXT,
             endereco_comercial_adicional TEXT,
@@ -1688,6 +1702,10 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_patients_cns ON patients(cns)",
         "CREATE INDEX IF NOT EXISTS idx_patients_is_demo ON patients(is_demo)",
         "CREATE INDEX IF NOT EXISTS idx_patients_demo_seed_run ON patients(demo_seed_run_id)",
+        "CREATE INDEX IF NOT EXISTS idx_patients_endereco_estado ON patients(endereco_estado)",
+        "CREATE INDEX IF NOT EXISTS idx_patients_endereco_cidade ON patients(endereco_cidade)",
+        "CREATE INDEX IF NOT EXISTS idx_patients_endereco_bairro ON patients(endereco_bairro)",
+        "CREATE INDEX IF NOT EXISTS idx_patients_endereco_ibge ON patients(endereco_ibge_codigo)",
         "CREATE INDEX IF NOT EXISTS idx_anamnesis_patient_id ON anamnesis(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_anamnesis_signature_event ON anamnesis(assinatura_event_id)",
         "CREATE INDEX IF NOT EXISTS idx_exams_patient_id ON exams(patient_id)",

@@ -616,12 +616,14 @@ def create_demo_patient(index, run_id, created_by=None):
         """
         INSERT INTO patients (
             cns, nome, rg, cpf, profissao, endereco_residencial, endereco_comercial,
+            cep_residencial, endereco_logradouro, endereco_numero, endereco_bairro,
+            endereco_cidade, endereco_estado, endereco_ibge_codigo,
             cd_anterior, endereco_comercial_adicional, email, genero, data_nascimento,
             nacionalidade, celular, estado_civil, atendido_em, nome_responsavel,
             rg_responsavel, telefone_expedidor_responsavel, email_responsavel,
             is_demo, demo_profile, demo_seed_run_id, criado_em
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
         RETURNING id
         """,
         (
@@ -631,6 +633,13 @@ def create_demo_patient(index, run_id, created_by=None):
             generate_valid_cpf(index),
             OCCUPATIONS[index % len(OCCUPATIONS)],
             f"Rua Demo {index}, {100 + index}, {neighborhood}, {municipality['nome']} - AL",
+            '',
+            '57000-000',
+            f"Rua Demo {index}",
+            str(100 + index),
+            neighborhood,
+            municipality['nome'],
+            'AL',
             '',
             '',
             '',

@@ -60,6 +60,9 @@ O coração da operação clínica. Centraliza alertas e prioridades.
 ### 4.3. Pacientes e Prontuário
 O Prontuário é dividido em abas, carregadas sob demanda:
 *   **Cadastro:** CPF e CNS são obrigatórios para envio ao e-SUS. O cadastro não solicita senha de triagem; a associação de senha ocorre depois no módulo de Triagem.
+    *   **Endereço residencial estruturado:** A equipe informa primeiro o CEP. Quando o CEP é localizado, o sistema preenche rua, cidade, bairro e UF; a equipe completa o número.
+    *   Se o CEP não for localizado, o preenchimento segue por estado, cidade, bairro, rua e número. Alagoas aparece primeiro na lista de estados.
+    *   Bairro, cidade, UF, CEP e código IBGE ficam gravados em campos próprios para apoiar epidemiologia, BI e relatórios.
 *   **Anamnese:** Histórico médico e odontológico.
 *   **Exames / Visual (Biblioteca):** Consolida radiografias, fotos clínicas, imagens de estomatologia e imagens endodônticas. Exige legenda, data clínica e grupo comparativo quando houver acompanhamento visual.
 *   **Plano de Tratamento / Odontograma:** A aba `Plano de Tratamento` registra dente, especialidade, código SUS/SIGTAP e procedimento previsto. O código SUS/SIGTAP é filtrado conforme a especialidade escolhida, cobrindo Atenção Primária/Clínico Geral, Endodontia, Periodontia, Cirurgia Bucomaxilofacial, Prótese Dentária, Alta Complexidade/Hospitalar e Diagnóstico/Estomatologia/Radiologia. Dentes extraídos geram dados de perda dentária para o Mapa Epidemiológico.
@@ -95,6 +98,7 @@ Nesta etapa, o BI está em modo de validação do que já existe. Não entram no
 *   **Mapa Epidemiológico (`/epidemiologia`):**
     *   Filtros: período, bairro, município, sexo, idade, etc.
     *   Indicadores: Perda Dentária, Suspeitas Oncológicas, Câncer Confirmado, Faltas, Demanda Reprimida.
+    *   A consolidação por bairro/cidade usa primeiro os campos estruturados do endereço do paciente e mantém fallback para dados legados.
     *   Mapa Georreferenciado: Usa coordenadas municipais. Áreas críticas (Crítico, Atenção, Monitorar) indicam necessidades de mutirão.
 *   **BI Executivo (`/bi`):**
     *   Cards executivos de produção, fila e impacto social.
