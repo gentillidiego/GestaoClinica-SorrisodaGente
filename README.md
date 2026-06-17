@@ -1967,18 +1967,30 @@ Próxima continuidade recomendada:
 
 ## Última Validação Técnica Registrada
 
-Resultado mais recente em 16/06/2026:
+Resultado mais recente em 17/06/2026:
 
-- `.venv/bin/pytest -q`: `190 passed`.
+- Release candidata de homologação: `homologacao-2026-06-17`.
+- Commit da versão candidata: `d39dfce406b5c669dbb8d0e78c4dd3c009d46dff`.
+- Escopo congelado: Endodontia, Prótese, Portal do Paciente e evoluções de BI seguem fora da versão de homologação.
+- Fluxo homologável atual: `Novo Paciente -> Triagem -> Pacientes / Prontuários -> Agenda`.
+- `.venv/bin/pytest -q`: `192 passed`.
+- Testes focados de fluxo Triagem/Paciente, rastreabilidade e segurança: `tests/test_triage_patient_link_flow.py`, `tests/test_phase2_traceability.py` e `tests/test_phase1_security.py`: `15 passed`.
+- `.venv/bin/python -m py_compile database.py blueprints/patients.py blueprints/triage.py services/patient_service.py`: sem erros.
+- `git diff --check`: sem erros.
+- `docker compose up -d --build`: executado com rebuild da aplicação web, worker Celery, beat e mail.
+- `docker compose ps`: containers principais em execução; PostgreSQL e Redis saudáveis.
+- `/health`: `status=healthy`, `database=ok`.
+- PostgreSQL: `triagem_senhas.patient_id` sem restrição `UNIQUE`, permitindo múltiplas senhas/demandas por paciente.
+
+Validações anteriores mantidas como referência histórica:
+
+- `.venv/bin/pytest -q`: `190 passed` em 16/06/2026.
 - Testes focados de autenticação/pré-cadastro: `.venv/bin/pytest -q tests/test_auth_flow_service.py`: `11 passed`.
 - `python3 -m compileall blueprints/professional_registration.py blueprints/admin.py services/professional_registration_service.py`: sem erros.
 - `docker compose up -d --build gestaoclinica`: executado com rebuild da aplicação web.
 - `docker compose ps`: containers principais em execução; PostgreSQL e Redis saudáveis.
 - `/health`: `status=healthy`, `database=ok`.
 - Template administrativo de pré-cadastros carregado no container sem erro.
-
-Validações anteriores mantidas como referência histórica:
-
 - `.venv/bin/pytest -q`: `179 passed` em 16/06/2026 após pacote probatório.
 - Testes focados de assinatura probatória, linha do tempo e segurança: `tests/test_signature_evidence_service.py`, `tests/test_phase2_traceability.py` e `tests/test_phase1_security.py`: `17 passed`.
 - `git diff --check`: sem erros em validação anterior da rodada.
