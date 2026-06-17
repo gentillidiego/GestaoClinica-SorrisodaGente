@@ -23,6 +23,23 @@ fail() {
     exit 1
 }
 
+explain_google_cloud_tos_required() {
+    cat >&2 <<'EOF'
+
+[google-drive-setup] A conta Google autenticada ainda não aceitou os Termos de Serviço do Google Cloud.
+
+Isso não pode ser aceito por script porque é uma autorização legal da conta.
+
+Como resolver:
+  1. Abra no navegador: https://console.cloud.google.com/
+  2. Entre com a mesma conta Google usada no login da VPS.
+  3. Aceite os Termos de Serviço do Google Cloud quando a tela aparecer.
+  4. Volte à VPS e rode novamente:
+       scripts/setup_google_drive_automation.sh
+
+EOF
+}
+
 sudo_cmd() {
     if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
         "$@"
@@ -125,8 +142,16 @@ if [[ ! -f "$KEY_HOST_PATH" ]]; then
     if gcloud projects describe "$PROJECT_ID" >/dev/null 2>&1; then
         log "Projeto Google Cloud já existe: $PROJECT_ID."
     else
+        project_create_output=''
         log "Criando projeto Google Cloud: $PROJECT_ID."
-        gcloud projects create "$PROJECT_ID" --name="$PROJECT_NAME"
+        if ! project_create_output="$(gcloud projects create "$PROJECT_ID" --name="$PROJECT_NAME" 2>&1)"; then
+            printf '%s\n' "$project_create_output" >&2
+            if printf '%s\n' "$project_create_output" | grep -qi 'accept Terms of Service'; then
+                explain_google_cloud_tos_required
+            fi
+            fail "Não foi possível criar o projeto Google Cloud."
+        fi
+        printf '%s\n' "$project_create_output"
     fi
 
     gcloud config set project "$PROJECT_ID" >/dev/null

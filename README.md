@@ -265,6 +265,12 @@ scripts/setup_google_drive_automation.sh
 
 3. A única intervenção humana inevitável é autorizar o login Google no fluxo oficial do `gcloud`, caso a VPS ainda não esteja autenticada. Senha de Google nunca deve ser colocada no sistema.
 
+Se aparecer `Callers must accept Terms of Service`, a conta Google autenticada ainda não aceitou os Termos de Serviço do Google Cloud. Abra `https://console.cloud.google.com/` no navegador, entre com a mesma conta, aceite os termos exibidos pelo Google e rode novamente:
+
+```bash
+scripts/setup_google_drive_automation.sh
+```
+
 Configurações opcionais do script:
 
 ```bash
