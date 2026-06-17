@@ -23,7 +23,7 @@ Leitura operacional atual:
 - Módulo de Endodontia ampliado até a Etapa E10 em nível MVP clínico-operacional, mas **não é prioridade de evolução neste momento**.
 - Endodontia e Prótese permanecem temporariamente ocultas da navegação do prontuário por decisão operacional; os módulos não foram removidos.
 - Decisão de 17/06/2026: escopo congelado para Endodontia, Prótese, Portal do Paciente e evoluções de BI até o Go/No-Go de produção. O BI existente pode ser validado e usado como apoio gerencial, mas não deve receber novas visões, indicadores, redesign ou ampliações antes da produção assistida.
-- Última validação registrada em 17/06/2026: `.venv/bin/pytest -q` com `199 passed`; base ativa vazia com 2 usuários preservados; backup/restore baseline validado.
+- Última validação registrada em 17/06/2026: `.venv/bin/pytest -q` com `202 passed`; base ativa vazia com 2 usuários preservados; backup/restore baseline validado; Etapa 1 do Google Drive preparada para teste com Service Account.
 - Status de produção: **não liberar produção plena ainda**. A aplicação está funcional e validada em Docker, mas ainda exige fechamento dos bloqueadores P0 de infraestrutura, LGPD, backup/restore, homologação operacional e aceite formal listados em `Plano de Prontidão para Produção`.
 
 Prioridade atual de trabalho:
@@ -85,6 +85,10 @@ Volumes nomeados:
 - `backups_oral`: backups operacionais.
 - `redis_data_oral`: Redis.
 - `deploy/mail/dkim`: chave DKIM privada local montada no container de e-mail. Diretório ignorado pelo Git, exceto `.gitkeep`.
+
+Bind mounts sensíveis:
+
+- `./secrets:/run/secrets/sorriso:ro`: JSON da Service Account do Google Drive. O diretório `secrets/` é ignorado pelo Git.
 
 ## Comandos Operacionais
 
@@ -206,6 +210,9 @@ Copiar `.env.example` para `.env` e preencher:
 | `ADMIN_PASSWORD` | Senha do admin inicial |
 | `BACKUP_DIR` | Diretório de backups |
 | `BACKUP_RETENTION_DAYS` | Retenção local |
+| `GDRIVE_KEY_PATH` | Caminho absoluto do JSON da Service Account do Google Drive |
+| `GDRIVE_ROOT_FOLDER_ID` | ID opcional da pasta raiz `Prontuários` compartilhada com a Service Account |
+| `GDRIVE_PATIENTS_FOLDER_NAME` | Nome da pasta raiz quando `GDRIVE_ROOT_FOLDER_ID` não estiver definido |
 | `REPORTS_SCHEDULER_ENABLED` | Liga/desliga rotina automática de relatórios |
 | `REPORTS_SCHEDULE_DAY` | Dia de geração mensal |
 | `REPORTS_SCHEDULE_HOUR` | Hora de geração |
@@ -223,6 +230,50 @@ Copiar `.env.example` para `.env` e preencher:
 | `MAIL_FROM` | Remetente transacional, ex.: `nao-responda@sorrisodagentealagoas.com` |
 
 VOLTE E VERIFIQUE: conferir `.env.example` sempre que adicionar nova variável.
+
+## Google Drive
+
+Estado atual da integração:
+
+- Etapa 1 implementada: conexão com Google Drive API v3 via Service Account, criação/consulta da pasta raiz de prontuários e criação/consulta da pasta do paciente.
+- O caminho do JSON da Service Account deve ser configurado em `GDRIVE_KEY_PATH`.
+- O sistema salva o ID da pasta do paciente em `patients.gdrive_folder_id`.
+- O nome da pasta do paciente segue o formato `[CPF] - [Nome do Paciente]`.
+- O upload de exames para o Drive ainda não deve ser ativado antes de testar a Etapa 1.
+- Backup offsite no Drive ainda não está automatizado; será a etapa seguinte após validação da credencial.
+
+Procedimento seguro:
+
+1. Criar uma Service Account no Google Cloud com Drive API habilitada.
+2. Baixar o JSON da Service Account para `./secrets/sorriso-google-drive-service-account.json` na VPS. A pasta `secrets/` é ignorada pelo Git e montada como somente leitura nos containers Python.
+3. No Google Drive da conta institucional, criar a pasta `Prontuários`.
+4. Compartilhar essa pasta com o e-mail `client_email` da Service Account.
+5. Configurar no `.env`:
+
+```bash
+GDRIVE_KEY_PATH=/run/secrets/sorriso/sorriso-google-drive-service-account.json
+GDRIVE_ROOT_FOLDER_ID=id_da_pasta_prontuarios
+GDRIVE_PATIENTS_FOLDER_NAME=Prontuários
+```
+
+Testar conexão e pasta raiz:
+
+```bash
+docker compose exec -T gestaoclinica python scripts/check_google_drive.py
+```
+
+Testar criação/vínculo da pasta de um paciente:
+
+```bash
+docker compose exec -T gestaoclinica python scripts/check_google_drive.py --patient-id ID_DO_PACIENTE
+```
+
+VOLTE E VERIFIQUE:
+
+- Nunca registrar senha de conta Google no sistema, `.env`, README, logs ou Git.
+- A senha de conta Google não é usada pela Service Account.
+- O JSON da Service Account deve ficar fora do repositório e com permissão restrita.
+- Se `GDRIVE_ROOT_FOLDER_ID` não for definido, a pasta será criada no Drive da própria Service Account, não necessariamente no Drive da conta institucional.
 
 ## Perfis de Acesso
 
@@ -2023,6 +2074,7 @@ Próxima continuidade recomendada:
 - 17/06/2026: Reforçada regra administrativa de ciclo de vida de usuários: exclusão apenas para usuário sem histórico; usuários com qualquer acesso, auditoria ou vínculo operacional/clínico devem ser inativados. O usuário `demo.dentista` foi removido da base ativa após validação de ausência de vínculos.
 - 17/06/2026: O usuário `Erika` também foi removido da base ativa após validação de ausência de login, primeiro acesso, recuperação de senha, auditoria e vínculos operacionais.
 - 17/06/2026: Cadastro de paciente passou a registrar endereço residencial estruturado com CEP, rua, número, bairro, cidade, UF e código IBGE; CEP encontrado preenche os campos automaticamente e relatórios/epidemiologia passam a preferir bairro/cidade estruturados.
+- 17/06/2026: Preparada a Etapa 1 da integração com Google Drive via Service Account: conexão com Drive API v3, pasta raiz de prontuários, pasta do paciente no formato `[CPF] - [Nome]`, persistência em `patients.gdrive_folder_id` e script de teste `scripts/check_google_drive.py`. Upload de exames e backup offsite permanecem aguardando validação da credencial real.
 
 ## Última Validação Técnica Registrada
 
@@ -2034,21 +2086,26 @@ Resultado mais recente em 17/06/2026:
 - Tag de estabilização do cadastro/endereço: `homologacao-2026-06-17-endereco`.
 - Escopo congelado: Endodontia, Prótese, Portal do Paciente e evoluções de BI seguem fora da versão de homologação.
 - Fluxo homologável atual: `Novo Paciente -> Triagem -> Pacientes / Prontuários -> Agenda`.
-- `.venv/bin/pytest -q`: `199 passed`.
+- `.venv/bin/pytest -q`: `202 passed`.
+- Testes focados Google Drive: `tests/test_google_drive_service.py`: `3 passed`.
 - Testes focados de endereço do paciente: `tests/test_patient_address_flow.py`: `3 passed`.
 - Testes focados de ciclo de vida de usuários: `tests/test_admin_user_lifecycle.py`: `4 passed`.
 - Testes focados de fluxo Triagem/Paciente, rastreabilidade e segurança: `tests/test_triage_patient_link_flow.py`, `tests/test_phase2_traceability.py` e `tests/test_phase1_security.py`: `15 passed`.
 - `.venv/bin/python -m py_compile database.py blueprints/patients.py services/epidemiology_service.py services/executive_bi_service.py services/command_center_service.py`: sem erros.
 - `git diff --check`: sem erros.
 - `docker compose up -d --build`: executado com rebuild da aplicação web, worker Celery, beat e mail.
+- `docker compose up -d`: executado após inclusão do bind mount `./secrets:/run/secrets/sorriso:ro`.
 - `docker compose ps`: containers principais em execução; PostgreSQL e Redis saudáveis.
 - `/health`: `status=healthy`, `database=ok`.
+- Docker: mount `/run/secrets/sorriso` disponível no container `gestaoclinica`.
 - PostgreSQL: `triagem_senhas.patient_id` sem restrição `UNIQUE`, permitindo múltiplas senhas/demandas por paciente.
 - PostgreSQL: campos estruturados de endereço residencial criados em `patients` (`cep_residencial`, `endereco_logradouro`, `endereco_numero`, `endereco_bairro`, `endereco_cidade`, `endereco_estado`, `endereco_ibge_codigo`).
+- PostgreSQL: campo `patients.gdrive_folder_id` criado para persistir a pasta do paciente no Google Drive.
 - Endpoint `/patients/address/cities?uf=AL`: `200`, retornando 102 municípios locais.
 - Backup pré-limpeza preservado: `gestao_saude_oral_20260617_112957.dump`, com restore validado e `Pacientes restaurados: 101`.
 - Backup baseline final da base vazia pós-migração de endereço: `gestao_saude_oral_20260617_121234.dump`, com restore validado, `Tabelas públicas restauradas: 51` e `Pacientes restaurados: 0`.
-- Backup final dos uploads vazios: `uploads_20260617_121234.tar.gz`.
+- Backup baseline pós-Etapa 1 do Google Drive: `gestao_saude_oral_20260617_154545.dump`, com restore validado, `Tabelas públicas restauradas: 51` e `Pacientes restaurados: 0`.
+- Backup final dos uploads vazios: `uploads_20260617_154545.tar.gz`.
 - Contagem após limpeza final: `patients=0`, `triagem_senhas=0`, `triagem_acoes=0`, `consultas=0`, `atendimentos=0`, `exams=0`, `anamnesis=0`, `audit_logs=0`, `professional_registration_requests=0`, `inventory_items=0`, `procedure_cost_references=0`, `territorial_locations=0`, `users=2`.
 - Usuários preservados na base ativa vazia: `Diego` e `Cibely.adm`.
 

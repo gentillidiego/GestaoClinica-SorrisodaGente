@@ -41,6 +41,10 @@ cookies.txt
 # Segredos locais de e-mail/DKIM
 deploy/mail/dkim/*
 !deploy/mail/dkim/.gitkeep
+*service-account*.json
+*google-drive*.json
+gdrive-key*.json
+secrets/
 
 # Diretórios restaurados (artefato de ferramentas de backup)
 *.restored1/
