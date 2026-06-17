@@ -27,12 +27,45 @@ class FakeFiles:
         })
 
 
+class FakePermissions:
+    def __init__(self):
+        self.created = []
+        self.updated = []
+        self.list_payloads = []
+
+    def list(self, **kwargs):
+        self.list_payloads.append(kwargs)
+        return FakeRequest({'permissions': []})
+
+    def create(self, body=None, **kwargs):
+        self.created.append({'body': body, 'kwargs': kwargs})
+        return FakeRequest({
+            'id': 'permission-1',
+            'type': body['type'],
+            'role': body['role'],
+            'emailAddress': body['emailAddress'],
+        })
+
+    def update(self, body=None, **kwargs):
+        self.updated.append({'body': body, 'kwargs': kwargs})
+        return FakeRequest({
+            'id': kwargs['permissionId'],
+            'type': 'user',
+            'role': body['role'],
+            'emailAddress': 'sorrisodagentealagoas@gmail.com',
+        })
+
+
 class FakeDrive:
     def __init__(self):
         self._files = FakeFiles()
+        self._permissions = FakePermissions()
 
     def files(self):
         return self._files
+
+    def permissions(self):
+        return self._permissions
 
 
 def test_build_patient_folder_name_uses_cpf_and_sanitized_name():
@@ -94,3 +127,20 @@ def test_ensure_patient_drive_folder_reuses_stored_id(monkeypatch):
         'stored': True,
     }
     assert fake_drive._files.created == []
+
+
+def test_ensure_user_permission_creates_permission():
+    fake_drive = FakeDrive()
+
+    permission = drive_service.ensure_user_permission(
+        fake_drive,
+        'folder-1',
+        'SorrisodaGenteAlagoas@gmail.com',
+        role='writer',
+    )
+
+    assert permission['created'] is True
+    assert permission['role'] == 'writer'
+    assert permission['emailAddress'] == 'sorrisodagentealagoas@gmail.com'
+    assert fake_drive._permissions.created[0]['kwargs']['fileId'] == 'folder-1'
+    assert fake_drive._permissions.created[0]['kwargs']['sendNotificationEmail'] is False

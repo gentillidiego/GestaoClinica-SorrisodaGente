@@ -23,7 +23,7 @@ Leitura operacional atual:
 - Módulo de Endodontia ampliado até a Etapa E10 em nível MVP clínico-operacional, mas **não é prioridade de evolução neste momento**.
 - Endodontia e Prótese permanecem temporariamente ocultas da navegação do prontuário por decisão operacional; os módulos não foram removidos.
 - Decisão de 17/06/2026: escopo congelado para Endodontia, Prótese, Portal do Paciente e evoluções de BI até o Go/No-Go de produção. O BI existente pode ser validado e usado como apoio gerencial, mas não deve receber novas visões, indicadores, redesign ou ampliações antes da produção assistida.
-- Última validação registrada em 17/06/2026: `.venv/bin/pytest -q` com `202 passed`; base ativa vazia com 2 usuários preservados; backup/restore baseline validado; Etapa 1 do Google Drive preparada para teste com Service Account.
+- Última validação registrada em 17/06/2026: `.venv/bin/pytest -q` com `203 passed`; base ativa vazia com 2 usuários preservados; backup/restore baseline validado; Etapa 1 do Google Drive preparada para teste com Service Account.
 - Status de produção: **não liberar produção plena ainda**. A aplicação está funcional e validada em Docker, mas ainda exige fechamento dos bloqueadores P0 de infraestrutura, LGPD, backup/restore, homologação operacional e aceite formal listados em `Plano de Prontidão para Produção`.
 
 Prioridade atual de trabalho:
@@ -239,30 +239,43 @@ Estado atual da integração:
 - O caminho do JSON da Service Account deve ser configurado em `GDRIVE_KEY_PATH`.
 - O sistema salva o ID da pasta do paciente em `patients.gdrive_folder_id`.
 - O nome da pasta do paciente segue o formato `[CPF] - [Nome do Paciente]`.
+- O setup automatizado fica em `scripts/setup_google_drive_automation.sh` e cria/usa a Service Account, chave JSON, pasta raiz, compartilhamento e variáveis de ambiente.
 - O upload de exames para o Drive ainda não deve ser ativado antes de testar a Etapa 1.
 - Backup offsite no Drive ainda não está automatizado; será a etapa seguinte após validação da credencial.
 
-Procedimento seguro:
+Procedimento automatizado:
 
-1. Criar uma Service Account no Google Cloud com Drive API habilitada.
-2. Baixar o JSON da Service Account para `./secrets/sorriso-google-drive-service-account.json` na VPS. A pasta `secrets/` é ignorada pelo Git e montada como somente leitura nos containers Python.
-3. No Google Drive da conta institucional, criar a pasta `Prontuários`.
-4. Compartilhar essa pasta com o e-mail `client_email` da Service Account.
-5. Configurar no `.env`:
+1. Rodar na VPS, a partir da raiz do projeto:
 
 ```bash
-GDRIVE_KEY_PATH=/run/secrets/sorriso/sorriso-google-drive-service-account.json
-GDRIVE_ROOT_FOLDER_ID=id_da_pasta_prontuarios
-GDRIVE_PATIENTS_FOLDER_NAME=Prontuários
+scripts/setup_google_drive_automation.sh
 ```
 
-Testar conexão e pasta raiz:
+2. O script faz automaticamente:
+   - instala Google Cloud CLI em Debian/Ubuntu se estiver ausente;
+   - abre o login oficial do Google Cloud quando ainda não houver conta autenticada;
+   - cria ou reaproveita o projeto `sorriso-da-gente-drive-prod`;
+   - habilita Google Drive API;
+   - cria ou reaproveita a Service Account `sorriso-drive`;
+   - gera `secrets/sorriso-google-drive-service-account.json`;
+   - grava `GDRIVE_KEY_PATH`, `GDRIVE_PATIENTS_FOLDER_NAME` e `GDRIVE_ROOT_FOLDER_ID` no `.env`;
+   - cria ou encontra a pasta `Prontuários`;
+   - compartilha a pasta com `sorrisodagentealagoas@gmail.com`;
+   - sobe/recarrega o Docker e roda o teste de conexão.
+
+3. A única intervenção humana inevitável é autorizar o login Google no fluxo oficial do `gcloud`, caso a VPS ainda não esteja autenticada. Senha de Google nunca deve ser colocada no sistema.
+
+Configurações opcionais do script:
 
 ```bash
-docker compose exec -T gestaoclinica python scripts/check_google_drive.py
+GDRIVE_GCP_PROJECT_ID=sorriso-da-gente-drive-prod \
+GDRIVE_SERVICE_ACCOUNT_NAME=sorriso-drive \
+GDRIVE_SHARE_EMAIL=sorrisodagentealagoas@gmail.com \
+GDRIVE_PATIENTS_FOLDER_NAME=Prontuários \
+scripts/setup_google_drive_automation.sh
 ```
 
-Testar criação/vínculo da pasta de um paciente:
+Teste de criação/vínculo da pasta de um paciente, após cadastrar um paciente teste:
 
 ```bash
 docker compose exec -T gestaoclinica python scripts/check_google_drive.py --patient-id ID_DO_PACIENTE
@@ -2075,6 +2088,7 @@ Próxima continuidade recomendada:
 - 17/06/2026: O usuário `Erika` também foi removido da base ativa após validação de ausência de login, primeiro acesso, recuperação de senha, auditoria e vínculos operacionais.
 - 17/06/2026: Cadastro de paciente passou a registrar endereço residencial estruturado com CEP, rua, número, bairro, cidade, UF e código IBGE; CEP encontrado preenche os campos automaticamente e relatórios/epidemiologia passam a preferir bairro/cidade estruturados.
 - 17/06/2026: Preparada a Etapa 1 da integração com Google Drive via Service Account: conexão com Drive API v3, pasta raiz de prontuários, pasta do paciente no formato `[CPF] - [Nome]`, persistência em `patients.gdrive_folder_id` e script de teste `scripts/check_google_drive.py`. Upload de exames e backup offsite permanecem aguardando validação da credencial real.
+- 17/06/2026: Automatizado o provisionamento do Google Drive com `scripts/setup_google_drive_automation.sh`, incluindo Google Cloud CLI, projeto/API, Service Account, chave JSON fora do Git, pasta raiz, compartilhamento com a conta institucional, atualização do `.env`, reload Docker e teste de conexão.
 
 ## Última Validação Técnica Registrada
 
@@ -2086,12 +2100,14 @@ Resultado mais recente em 17/06/2026:
 - Tag de estabilização do cadastro/endereço: `homologacao-2026-06-17-endereco`.
 - Escopo congelado: Endodontia, Prótese, Portal do Paciente e evoluções de BI seguem fora da versão de homologação.
 - Fluxo homologável atual: `Novo Paciente -> Triagem -> Pacientes / Prontuários -> Agenda`.
-- `.venv/bin/pytest -q`: `202 passed`.
-- Testes focados Google Drive: `tests/test_google_drive_service.py`: `3 passed`.
+- `.venv/bin/pytest -q`: `203 passed`.
+- Testes focados Google Drive: `tests/test_google_drive_service.py`: `4 passed`.
 - Testes focados de endereço do paciente: `tests/test_patient_address_flow.py`: `3 passed`.
 - Testes focados de ciclo de vida de usuários: `tests/test_admin_user_lifecycle.py`: `4 passed`.
 - Testes focados de fluxo Triagem/Paciente, rastreabilidade e segurança: `tests/test_triage_patient_link_flow.py`, `tests/test_phase2_traceability.py` e `tests/test_phase1_security.py`: `15 passed`.
 - `.venv/bin/python -m py_compile database.py blueprints/patients.py services/epidemiology_service.py services/executive_bi_service.py services/command_center_service.py`: sem erros.
+- `.venv/bin/python -m py_compile services/google_drive_service.py scripts/provision_google_drive.py scripts/check_google_drive.py`: sem erros.
+- `bash -n scripts/setup_google_drive_automation.sh`: sem erros.
 - `git diff --check`: sem erros.
 - `docker compose up -d --build`: executado com rebuild da aplicação web, worker Celery, beat e mail.
 - `docker compose up -d`: executado após inclusão do bind mount `./secrets:/run/secrets/sorriso:ro`.

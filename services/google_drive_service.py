@@ -131,6 +131,49 @@ def ensure_folder(service, name, parent_id=None):
     return create_folder(service, name, parent_id=parent_id)
 
 
+def ensure_user_permission(service, file_id, email, role='writer'):
+    email = str(email or '').strip().lower()
+    if not email:
+        raise GoogleDriveOperationError('E-mail para compartilhamento do Google Drive não informado.')
+
+    try:
+        response = service.permissions().list(
+            fileId=file_id,
+            fields='permissions(id, type, role, emailAddress)',
+            supportsAllDrives=True,
+        ).execute()
+    except HttpError as exc:
+        raise GoogleDriveOperationError(f'Falha ao consultar permissões no Google Drive: {exc}') from exc
+
+    for permission in response.get('permissions', []):
+        if permission.get('type') == 'user' and str(permission.get('emailAddress', '')).lower() == email:
+            if permission.get('role') == role:
+                return {**permission, 'created': False, 'updated': False}
+            try:
+                updated = service.permissions().update(
+                    fileId=file_id,
+                    permissionId=permission['id'],
+                    body={'role': role},
+                    fields='id, type, role, emailAddress',
+                    supportsAllDrives=True,
+                ).execute()
+                return {**updated, 'created': False, 'updated': True}
+            except HttpError as exc:
+                raise GoogleDriveOperationError(f'Falha ao atualizar permissão no Google Drive: {exc}') from exc
+
+    try:
+        created = service.permissions().create(
+            fileId=file_id,
+            body={'type': 'user', 'role': role, 'emailAddress': email},
+            fields='id, type, role, emailAddress',
+            sendNotificationEmail=False,
+            supportsAllDrives=True,
+        ).execute()
+        return {**created, 'created': True, 'updated': False}
+    except HttpError as exc:
+        raise GoogleDriveOperationError(f'Falha ao compartilhar pasta no Google Drive: {exc}') from exc
+
+
 def get_patients_root_folder(service=None):
     service = service or get_drive_service()
     configured_folder_id = os.getenv('GDRIVE_ROOT_FOLDER_ID', '').strip()
