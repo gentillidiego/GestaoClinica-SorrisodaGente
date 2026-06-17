@@ -112,7 +112,10 @@ Nesta etapa, o BI está em modo de validação do que já existe. Não entram no
     *   Lotes passam por *Validação Interna* e *Pré-envio Simulado* antes de exportar o JSON real para a Prefeitura.
 
 ### 4.8. Administração
-*   **Usuários:** Cadastro, edição de perfil e ativação/inativação de acesso.
+*   **Usuários:** Cadastro, edição de perfil e gestão do ciclo de vida do acesso.
+    *   O botão **Excluir** só deve aparecer e funcionar para usuário sem login, primeiro acesso, recuperação de senha, auditoria ou qualquer vínculo operacional/clínico.
+    *   Quando o usuário já tiver acessado ou tiver qualquer histórico vinculado, o caminho correto é **Inativar acesso**, preservando rastreabilidade.
+    *   O sistema bloqueia a exclusão no backend mesmo que alguém tente chamar a rota diretamente.
 *   **Pré-cadastros (`/admin/professional-registrations`):** Tela de análise das solicitações recebidas pela página pública `/cadastro/`. Cada solicitação aparece em cartão próprio. A administração pode aprovar, criando automaticamente um usuário em primeiro acesso, ou recusar com observação obrigatória no backend. A aprovação envia e-mail de liberação com orientação de primeiro acesso; a recusa envia e-mail com as observações administrativas.
 *   **Página pública de cadastro (`/cadastro/`):** Link enviado diretamente pela equipe ao profissional. Não fica exposto na tela de login. Após envio, o profissional vê confirmação com protocolo e aguarda análise administrativa.
 *   **Primeiro acesso e senha:** Profissional aprovado entra em `/primeiro-acesso` usando login e data de nascimento, define senha definitiva e confirma o e-mail de recuperação. A tela de login oferece recuperação de senha por e-mail.

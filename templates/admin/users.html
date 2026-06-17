@@ -96,21 +96,39 @@
                                 style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: #cbd5e1; color: #475569; margin-right: 0.5rem; text-decoration: none;">
                                 ✏️ Editar
                             </a>
-                            {% endif %}
 
-                            {% if user.id != current_user.id and can('users:write') %}
+                            {% if user.id == current_user.id %}
+                            <span style="font-size: 0.75rem; color: hsl(var(--text-muted)); font-style: italic;">Você
+                                (Logado)</span>
+                            {% elif user.can_delete %}
                             <form action="{{ url_for('admin.delete_user', user_id=user.id) }}" method="POST"
                                 style="display: inline;"
-                                onsubmit="return confirm('⚠️ Tem certeza que deseja excluir permanentemente este usuário?')">
+                                onsubmit="return confirm('⚠️ Este usuário não possui histórico vinculado. Deseja excluir permanentemente?')">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-outline"
                                     style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: #fee2e2; color: #991b1b;">
                                     🗑️ Excluir
                                 </button>
                             </form>
+                            {% elif user.active %}
+                            <form action="{{ url_for('admin.deactivate_user', user_id=user.id) }}" method="POST"
+                                style="display: inline;"
+                                onsubmit="return confirm('Inativar o acesso deste usuário? O histórico será preservado.')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-outline"
+                                    title="{{ user.system_link_reasons|join(', ') }}"
+                                    style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: #fed7aa; color: #9a3412;">
+                                    ⛔ Inativar acesso
+                                </button>
+                            </form>
                             {% else %}
-                            <span style="font-size: 0.75rem; color: hsl(var(--text-muted)); font-style: italic;">Você
-                                (Logado)</span>
+                            <span title="{{ user.system_link_reasons|join(', ') }}"
+                                style="font-size: 0.75rem; color: hsl(var(--text-muted)); font-style: italic;">
+                                Acesso inativo
+                            </span>
+                            {% endif %}
+                            {% else %}
+                            <span style="font-size: 0.75rem; color: hsl(var(--text-muted)); font-style: italic;">Somente leitura</span>
                             {% endif %}
                         </td>
                     </tr>

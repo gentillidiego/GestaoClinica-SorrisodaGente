@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import secrets
 
 from flask import Blueprint, Response, render_template, redirect, url_for, request, flash
@@ -56,6 +57,138 @@ from services.sensitive_file_service import SENSITIVE_CACHE_HEADERS
 from tasks.pdf_tasks import generate_pdf_task
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+_IDENTIFIER_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
+
+_USER_ACCESS_FIELDS = (
+    ('last_login_at', 'login/acesso ao sistema'),
+    ('first_access_completed_at', 'primeiro acesso concluído'),
+    ('email_confirmed_at', 'e-mail confirmado'),
+    ('password_changed_at', 'senha alterada'),
+    ('password_reset_used_at', 'recuperação de senha concluída'),
+    ('password_reset_token_hash', 'recuperação de senha solicitada'),
+)
+
+_USER_REFERENCE_LABELS = {
+    'anamnesis': 'anamnese',
+    'atestados': 'atestados',
+    'atendimentos': 'atendimentos',
+    'audit_logs': 'auditoria',
+    'consultas': 'agenda',
+    'demo_seed_runs': 'cargas demo',
+    'digital_signatures': 'assinaturas digitais',
+    'endodontia': 'endodontia',
+    'endodontia_followup': 'endodontia',
+    'endodontia_imagens': 'imagens de endodontia',
+    'endodontia_orcamento_items': 'orçamentos de endodontia',
+    'estomatologia': 'estomatologia',
+    'estomatologia_fotos': 'fotos de estomatologia',
+    'esus_export_attempts': 'e-SUS',
+    'esus_export_batches': 'e-SUS',
+    'exam_imagem_arquivos': 'arquivos de exame',
+    'exams': 'exames',
+    'generated_reports': 'relatórios',
+    'inventory_adjustments': 'estoque',
+    'inventory_items': 'estoque',
+    'inventory_lots': 'estoque',
+    'inventory_usage': 'estoque',
+    'patient_tcle': 'TCLE',
+    'professional_registration_requests': 'pré-cadastros',
+    'prosthesis': 'prótese',
+    'prosthesis_etapas': 'prótese',
+    'prosthesis_pagamentos': 'pagamentos de prótese',
+    'receituarios': 'receituários',
+    'signature_events': 'eventos de assinatura',
+    'tratamento_procedimentos': 'procedimentos',
+    'triagem_acoes': 'triagem',
+}
+
+
+def _quote_identifier(identifier):
+    if not _IDENTIFIER_PATTERN.match(identifier or ''):
+        raise ValueError('Identificador SQL inválido.')
+    return f'"{identifier}"'
+
+
+def _get_user_reference_rules():
+    return query(
+        """
+        SELECT kcu.table_schema, kcu.table_name, kcu.column_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+         AND tc.table_schema = kcu.table_schema
+        JOIN information_schema.constraint_column_usage ccu
+          ON ccu.constraint_name = tc.constraint_name
+         AND ccu.table_schema = tc.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND ccu.table_name = 'users'
+          AND ccu.column_name = 'id'
+          AND kcu.table_schema NOT IN ('pg_catalog', 'information_schema')
+        ORDER BY kcu.table_schema, kcu.table_name, kcu.column_name
+        """
+    )
+
+
+def _reference_label(table_name):
+    return _USER_REFERENCE_LABELS.get(table_name, table_name.replace('_', ' '))
+
+
+def _get_user_link_summary(user_id, user=None):
+    user = user or query(
+        """
+        SELECT id, last_login_at, first_access_completed_at, email_confirmed_at,
+               password_changed_at, password_reset_used_at, password_reset_token_hash
+        FROM users
+        WHERE id = %s
+        """,
+        (user_id,),
+        one=True,
+    )
+    if not user:
+        return {'has_links': False, 'link_count': 0, 'reasons': []}
+
+    reasons = []
+    link_count = 0
+
+    for field, label in _USER_ACCESS_FIELDS:
+        if user.get(field):
+            reasons.append(label)
+            link_count += 1
+
+    for rule in _get_user_reference_rules():
+        schema = _quote_identifier(rule['table_schema'])
+        table = _quote_identifier(rule['table_name'])
+        column = _quote_identifier(rule['column_name'])
+        row = query(
+            f"SELECT COUNT(*) AS total FROM {schema}.{table} WHERE {column} = %s",
+            (user_id,),
+            one=True,
+        )
+        total = int((row or {}).get('total') or 0)
+        if total:
+            reasons.append(f"{_reference_label(rule['table_name'])}: {total}")
+            link_count += total
+
+    return {
+        'has_links': link_count > 0,
+        'link_count': link_count,
+        'reasons': reasons,
+    }
+
+
+def _annotate_user_lifecycle_options(users):
+    annotated = []
+    for user in users:
+        user_data = dict(user)
+        summary = _get_user_link_summary(user_data['id'], user_data)
+        user_data['has_system_links'] = summary['has_links']
+        user_data['system_link_count'] = summary['link_count']
+        user_data['system_link_reasons'] = summary['reasons']
+        user_data['can_delete'] = not summary['has_links']
+        user_data.pop('password_reset_token_hash', None)
+        annotated.append(user_data)
+    return annotated
 
 def admin_required(f):
     @wraps(f)
@@ -196,12 +329,14 @@ def _audit_cost_reference_change(action, change, status='success', extra=None):
 @admin_or_atendente_required
 def list_users():
     users = query("""
-        SELECT id, username, role, full_name, email, data_nascimento, is_first_access, active, last_login_at, last_login_ip,
+        SELECT id, username, role, full_name, email, data_nascimento, is_first_access, active,
+               last_login_at, last_login_ip, first_access_completed_at, email_confirmed_at,
+               password_changed_at, password_reset_used_at, password_reset_token_hash,
                cns, cbo, cnes, ine, cro, cro_uf
         FROM users
         ORDER BY role, username
     """)
-    return render_template('admin/users.html', users=users)
+    return render_template('admin/users.html', users=_annotate_user_lifecycle_options(users))
 
 @admin_bp.route('/users/add', methods=['GET', 'POST'])
 @login_required
@@ -285,17 +420,82 @@ def add_user():
 def delete_user(user_id):
     if user_id == current_user.id:
         flash('Você não pode excluir a si mesmo.', 'danger')
-    else:
-        user = query("SELECT id, username, role FROM users WHERE id = %s", (user_id,), one=True)
-        execute("DELETE FROM users WHERE id = %s", (user_id,))
+        return redirect(url_for('admin.list_users'))
+
+    user = query(
+        """
+        SELECT id, username, role, active, last_login_at, first_access_completed_at,
+               email_confirmed_at, password_changed_at, password_reset_used_at,
+               password_reset_token_hash
+        FROM users
+        WHERE id = %s
+        """,
+        (user_id,),
+        one=True,
+    )
+    if not user:
+        flash('Usuário não encontrado.', 'danger')
+        return redirect(url_for('admin.list_users'))
+
+    summary = _get_user_link_summary(user_id, user)
+    if summary['has_links']:
         audit_log(
-            action='user_deleted',
+            action='user_delete_blocked',
             module='admin',
             entity_type='user',
             entity_id=user_id,
-            details={'username': user['username'], 'role': user['role']} if user else None
+            status='denied',
+            details={
+                'username': user['username'],
+                'role': user['role'],
+                'reasons': summary['reasons'],
+            },
         )
-        flash('Usuário excluído com sucesso.', 'success')
+        flash('Este usuário já possui acesso ou histórico vinculado. Use Inativar acesso.', 'warning')
+        return redirect(url_for('admin.list_users'))
+
+    execute("DELETE FROM users WHERE id = %s", (user_id,))
+    audit_log(
+        action='user_deleted',
+        module='admin',
+        entity_type='user',
+        entity_id=user_id,
+        details={'username': user['username'], 'role': user['role']}
+    )
+    flash('Usuário excluído com sucesso.', 'success')
+    return redirect(url_for('admin.list_users'))
+
+
+@admin_bp.route('/users/deactivate/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def deactivate_user(user_id):
+    if user_id == current_user.id:
+        flash('Você não pode inativar o próprio acesso.', 'danger')
+        return redirect(url_for('admin.list_users'))
+
+    user = query(
+        "SELECT id, username, role, active FROM users WHERE id = %s",
+        (user_id,),
+        one=True,
+    )
+    if not user:
+        flash('Usuário não encontrado.', 'danger')
+        return redirect(url_for('admin.list_users'))
+
+    if not user['active']:
+        flash('Este usuário já está inativo.', 'info')
+        return redirect(url_for('admin.list_users'))
+
+    execute("UPDATE users SET active = FALSE WHERE id = %s", (user_id,))
+    audit_log(
+        action='user_deactivated',
+        module='admin',
+        entity_type='user',
+        entity_id=user_id,
+        details={'username': user['username'], 'role': user['role']},
+    )
+    flash('Acesso do usuário inativado com sucesso.', 'success')
     return redirect(url_for('admin.list_users'))
 
 @admin_bp.route('/users/edit/<int:user_id>', methods=['GET', 'POST'])

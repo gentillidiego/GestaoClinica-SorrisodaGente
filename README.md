@@ -18,11 +18,12 @@ Leitura operacional atual:
 - Pacote probatório de assinatura padronizado para TCLE, confirmação do atendimento, Anamnese, Prótese, Pagamentos e Endodontia, com eventos em `signature_events`, registros em `digital_signatures`, link de comprovante e exibição na Linha do Tempo.
 - Pré-cadastro profissional público implementado em `/cadastro/`, com página de confirmação dedicada, aprovação/recusa administrativa, criação de usuário em primeiro acesso e notificação por e-mail ao profissional.
 - Fluxo de primeiro acesso e recuperação de senha implementado: profissional aprovado entra com login + data de nascimento, define senha definitiva, confirma e-mail e pode redefinir senha por link temporário.
+- Ciclo de vida de usuários ajustado para produção: exclusão só é permitida quando o usuário não possui login, primeiro acesso, recuperação de senha, auditoria ou qualquer vínculo operacional/clínico; usuários com histórico devem ter o acesso inativado.
 - E-mail transacional configurado com serviço Docker `gestaosaudeoral-mail`, Postfix send-only, OpenDKIM, SPF, DKIM, DMARC e PTR/rDNS solicitado/registrado via API da Hostinger.
 - Módulo de Endodontia ampliado até a Etapa E10 em nível MVP clínico-operacional, mas **não é prioridade de evolução neste momento**.
 - Endodontia e Prótese permanecem temporariamente ocultas da navegação do prontuário por decisão operacional; os módulos não foram removidos.
 - Decisão de 17/06/2026: escopo congelado para Endodontia, Prótese, Portal do Paciente e evoluções de BI até o Go/No-Go de produção. O BI existente pode ser validado e usado como apoio gerencial, mas não deve receber novas visões, indicadores, redesign ou ampliações antes da produção assistida.
-- Última validação registrada em 16/06/2026: `.venv/bin/pytest -q` com `190 passed`; Docker em execução; `/health` saudável com `database=ok`.
+- Última validação registrada em 17/06/2026: `.venv/bin/pytest -q` com `196 passed`; base ativa vazia com 3 usuários preservados; backup/restore baseline validado.
 - Status de produção: **não liberar produção plena ainda**. A aplicação está funcional e validada em Docker, mas ainda exige fechamento dos bloqueadores P0 de infraestrutura, LGPD, backup/restore, homologação operacional e aceite formal listados em `Plano de Prontidão para Produção`.
 
 Prioridade atual de trabalho:
@@ -280,6 +281,13 @@ Estado de UX/UI:
 - A tela pública de cadastro foi reorganizada com formulário maior, painel lateral de orientação, botão de login e confirmação dedicada pós-envio.
 - A tela administrativa de pré-cadastros foi convertida de tabela para cards por solicitação, com ações separadas para aprovar e recusar, evitando conflito de foco/click em formulários dentro de tabela.
 - O botão de pré-cadastro foi removido da tela de login padrão; o link deve ser enviado diretamente pela equipe.
+- Na tela administrativa de usuários, `Excluir` fica restrito a usuários sem histórico. Quando houver acesso, auditoria ou vínculo operacional/clínico, a ação correta é `Inativar acesso`.
+
+Regra de exclusão/inativação de usuários:
+
+1. Usuário sem login, primeiro acesso, recuperação de senha, auditoria ou vínculos em tabelas operacionais pode ser excluído.
+2. Usuário com qualquer histórico vinculado não deve ser excluído; deve ser inativado para preservar rastreabilidade.
+3. O backend bloqueia a exclusão quando encontra vínculo, mesmo que a tela seja contornada.
 
 E-mail transacional:
 
@@ -1055,7 +1063,7 @@ Produção plena só deve ser liberada quando todos os itens abaixo estiverem ma
 - [ ] Chave API Hostinger rotacionada após configuração.
 - [ ] Senha sudo compartilhada durante suporte avaliada/trocada.
 - [ ] Chave DKIM privada protegida e com backup seguro fora do Git.
-- [ ] Usuários reais cadastrados e usuários demo/teste desativados.
+- [ ] Usuários reais cadastrados e usuários demo/teste removidos quando sem histórico ou inativados quando tiverem vínculo.
 - [ ] Dados fictícios removidos ou isolados.
 - [ ] Backup diário automatizado.
 - [ ] Restore testado com sucesso.
@@ -2009,6 +2017,7 @@ Próxima continuidade recomendada:
 - 17/06/2026: Ajustado fluxo operacional para `Novo Paciente -> Triagem -> Pacientes / Prontuários -> Agenda`; o cadastro não solicita senha, a Triagem gera senha vinculando paciente já cadastrado e um paciente pode ter múltiplas senhas/demandas.
 - 17/06/2026: Publicada a branch `main` e a tag `homologacao-2026-06-17` no GitHub usando o remoto SSH `git@github.com-gentillidiego:gentillidiego/GestaoClinica-SorrisodaGente.git`.
 - 17/06/2026: Base ativa preparada para produção vazia, preservando usuários e limpando pacientes, triagem, agenda, atendimentos, exames, assinaturas, relatórios, inventário, pré-cadastros, auditoria e arquivos clínicos dos volumes `uploads_oral`, `pdf_temp_oral` e `logs_oral`.
+- 17/06/2026: Reforçada regra administrativa de ciclo de vida de usuários: exclusão apenas para usuário sem histórico; usuários com qualquer acesso, auditoria ou vínculo operacional/clínico devem ser inativados. O usuário `demo.dentista` foi removido da base ativa após validação de ausência de vínculos.
 
 ## Última Validação Técnica Registrada
 
@@ -2016,9 +2025,11 @@ Resultado mais recente em 17/06/2026:
 
 - Release candidata de homologação: `homologacao-2026-06-17`.
 - Commit da versão candidata: `d39dfce406b5c669dbb8d0e78c4dd3c009d46dff`.
+- Tag de estabilização administrativa e base vazia: `homologacao-2026-06-17-acessos`.
 - Escopo congelado: Endodontia, Prótese, Portal do Paciente e evoluções de BI seguem fora da versão de homologação.
 - Fluxo homologável atual: `Novo Paciente -> Triagem -> Pacientes / Prontuários -> Agenda`.
-- `.venv/bin/pytest -q`: `192 passed`.
+- `.venv/bin/pytest -q`: `196 passed`.
+- Testes focados de ciclo de vida de usuários: `tests/test_admin_user_lifecycle.py`: `4 passed`.
 - Testes focados de fluxo Triagem/Paciente, rastreabilidade e segurança: `tests/test_triage_patient_link_flow.py`, `tests/test_phase2_traceability.py` e `tests/test_phase1_security.py`: `15 passed`.
 - `.venv/bin/python -m py_compile database.py blueprints/patients.py blueprints/triage.py services/patient_service.py`: sem erros.
 - `git diff --check`: sem erros.
@@ -2027,8 +2038,10 @@ Resultado mais recente em 17/06/2026:
 - `/health`: `status=healthy`, `database=ok`.
 - PostgreSQL: `triagem_senhas.patient_id` sem restrição `UNIQUE`, permitindo múltiplas senhas/demandas por paciente.
 - Backup pré-limpeza preservado: `gestao_saude_oral_20260617_112957.dump`, com restore validado e `Pacientes restaurados: 101`.
-- Backup baseline da base vazia: `gestao_saude_oral_20260617_113209.dump`, com restore validado e `Pacientes restaurados: 0`.
-- Contagem após limpeza: `patients=0`, `triagem_senhas=0`, `triagem_acoes=0`, `consultas=0`, `atendimentos=0`, `exams=0`, `anamnesis=0`, `audit_logs=0`, `professional_registration_requests=0`, `inventory_items=0`, `procedure_cost_references=0`, `territorial_locations=0`, `users=4`.
+- Backup baseline final da base vazia: `gestao_saude_oral_20260617_114313.dump`, com restore validado, `Tabelas públicas restauradas: 51` e `Pacientes restaurados: 0`.
+- Backup final dos uploads vazios: `uploads_20260617_114313.tar.gz`.
+- Contagem após limpeza final: `patients=0`, `triagem_senhas=0`, `triagem_acoes=0`, `consultas=0`, `atendimentos=0`, `exams=0`, `anamnesis=0`, `audit_logs=0`, `professional_registration_requests=0`, `inventory_items=0`, `procedure_cost_references=0`, `territorial_locations=0`, `users=3`.
+- Usuários preservados na base ativa vazia: `Diego`, `Erika` e `Cibely.adm`.
 
 Validações anteriores mantidas como referência histórica:
 
