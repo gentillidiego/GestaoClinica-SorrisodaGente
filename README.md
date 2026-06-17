@@ -148,6 +148,49 @@ docker compose exec -T gestaoclinica python scripts/upsert_territorial_location.
   --source manual
 ```
 
+## Acesso Git/GitHub
+
+O repositório remoto oficial deve usar o alias SSH local `github.com-gentillidiego`, que aponta para a chave específica do GitHub:
+
+```bash
+git remote set-url origin git@github.com-gentillidiego:gentillidiego/GestaoClinica-SorrisodaGente.git
+```
+
+Configuração esperada em `~/.ssh/config`:
+
+```sshconfig
+Host github.com-gentillidiego
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_ed25519_github_gentillidiego
+```
+
+Testar autenticação SSH:
+
+```bash
+ssh -T git@github.com-gentillidiego
+```
+
+Resultado esperado:
+
+```text
+Hi gentillidiego! You've successfully authenticated, but GitHub does not provide shell access.
+```
+
+Publicar a branch e a tag de homologação:
+
+```bash
+git push origin main
+git push origin homologacao-2026-06-17
+```
+
+VOLTE E VERIFIQUE:
+
+- Não commitar chave privada SSH.
+- A chave privada esperada é `~/.ssh/id_ed25519_github_gentillidiego`.
+- A chave pública fica em `~/.ssh/id_ed25519_github_gentillidiego.pub` e pode ser cadastrada no GitHub quando necessário.
+- Se o remoto voltar para `git@github.com:...`, o push pode falhar com `Permission denied (publickey)`.
+
 ## Variáveis de Ambiente
 
 Copiar `.env.example` para `.env` e preencher:
@@ -1964,6 +2007,7 @@ Próxima continuidade recomendada:
 - 16/06/2026: Melhorada UX/UI do cadastro público e da tela administrativa de pré-cadastros; a análise administrativa passou de tabela para cards por solicitação, com ações separadas para aprovar ou recusar.
 - 17/06/2026: Congelado o escopo de Endodontia, Prótese, Portal do Paciente e evoluções de BI até o Go/No-Go de produção. O BI existente permanece disponível para validação gerencial e relatórios já implementados, sem novas visões, indicadores, redesign ou ampliações antes da produção assistida.
 - 17/06/2026: Ajustado fluxo operacional para `Novo Paciente -> Triagem -> Pacientes / Prontuários -> Agenda`; o cadastro não solicita senha, a Triagem gera senha vinculando paciente já cadastrado e um paciente pode ter múltiplas senhas/demandas.
+- 17/06/2026: Publicada a branch `main` e a tag `homologacao-2026-06-17` no GitHub usando o remoto SSH `git@github.com-gentillidiego:gentillidiego/GestaoClinica-SorrisodaGente.git`.
 
 ## Última Validação Técnica Registrada
 
