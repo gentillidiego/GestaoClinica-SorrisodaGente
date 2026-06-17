@@ -74,7 +74,13 @@
                         </td>
                         <td style="padding:1rem;">{{ ticket.especialidade_nome }}</td>
                         <td style="padding:1rem;"><span class="badge badge-primary">{{ ticket.status }}</span></td>
-                        <td style="padding:1rem; color:hsl(var(--text-muted));">{{ ticket.patient_nome or '—' }}</td>
+                        <td style="padding:1rem; color:hsl(var(--text-muted));">
+                            {% if ticket.patient_id %}
+                            <a href="{{ url_for('patients.view_patient', id=ticket.patient_id) }}" style="color:hsl(var(--primary)); font-weight:800; text-decoration:none;">{{ ticket.patient_nome }}</a>
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
                         <td style="padding:1rem; color:hsl(var(--text-muted));">
                             {% if ticket.execution_unit_label %}
                             <strong style="display:block; color:hsl(var(--text-main));">{{ ticket.execution_unit_label }}</strong>

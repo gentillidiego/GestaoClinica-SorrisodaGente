@@ -16,7 +16,7 @@ class PatientService:
         
         tcle = query("SELECT data_assinatura FROM patient_tcle WHERE patient_id = %s ORDER BY id DESC LIMIT 1", (patient_id,), one=True)
         tcle_signed = True if tcle else False
-        triage = query("""
+        triages = query("""
             SELECT s.codigo, s.status, s.vinculada_em,
                    e.nome as especialidade_nome, e.codigo as especialidade_codigo,
                    m.nome as municipio_nome, m.codigo as municipio_codigo,
@@ -27,13 +27,14 @@ class PatientService:
             JOIN triagem_acoes a ON s.triagem_acao_id = a.id
             WHERE s.patient_id = %s
             ORDER BY s.vinculada_em DESC, s.id DESC
-            LIMIT 1
-        """, (patient_id,), one=True)
+        """, (patient_id,))
+        triage = triages[0] if triages else None
         
         return {
             'patient': patient,
             'tcle_signed': tcle_signed,
             'triage': triage,
+            'triages': triages,
             'clinical_alerts': get_patient_clinical_alert_summary(patient_id),
         }
 

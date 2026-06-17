@@ -22,9 +22,33 @@
     </div>
 
     <div class="card" style="margin-bottom:2rem;">
-        <h2 style="font-family:var(--font-heading); font-size:1.25rem; color:hsl(var(--primary)); margin-bottom:1rem;">Gerar senha</h2>
-        <form method="POST" action="{{ url_for('triage.generate_tickets', action_id=action.id) }}" style="display:grid; grid-template-columns:1fr auto; gap:1rem; align-items:end;">
+        <h2 style="font-family:var(--font-heading); font-size:1.25rem; color:hsl(var(--primary)); margin-bottom:0.5rem;">Gerar senha vinculada</h2>
+        <p style="color:hsl(var(--text-muted)); font-size:0.9rem; margin-bottom:1.25rem;">Selecione um paciente já cadastrado e a especialidade da demanda. A senha será criada já vinculada ao prontuário.</p>
+
+        <form method="GET" action="{{ url_for('triage.view_action', action_id=action.id) }}" style="display:grid; grid-template-columns:1fr auto; gap:1rem; align-items:end; margin-bottom:1rem;">
+            <div>
+                <label class="form-label">Buscar paciente cadastrado</label>
+                <input type="text" name="paciente" class="form-control" value="{{ patient_q }}" placeholder="Nome, CPF ou CNS">
+            </div>
+            <button type="submit" class="btn btn-outline" style="height:48px; background:white;">Buscar</button>
+        </form>
+
+        <form method="POST" action="{{ url_for('triage.generate_tickets', action_id=action.id) }}" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem; align-items:end;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div>
+                <label class="form-label">Paciente</label>
+                <select name="patient_id" class="form-control" required>
+                    <option value="">{% if patient_q %}Selecione entre os resultados...{% else %}Selecione um dos últimos cadastrados...{% endif %}</option>
+                    {% for patient in patient_options %}
+                    <option value="{{ patient.id }}">
+                        #{{ patient.id }} · {{ patient.nome }}{% if patient.cpf %} · CPF {{ patient.cpf }}{% elif patient.cns %} · CNS {{ patient.cns }}{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% if not patient_options %}
+                <div style="color:hsl(var(--danger)); font-size:0.8rem; margin-top:0.4rem;">Nenhum paciente encontrado. Cadastre o paciente antes da triagem.</div>
+                {% endif %}
+            </div>
             <div>
                 <label class="form-label">Especialidade</label>
                 <select name="especialidade_id" class="form-control" required>
@@ -34,7 +58,7 @@
                     {% endfor %}
                 </select>
             </div>
-            <button type="submit" class="btn btn-primary" style="height:48px;">Gerar</button>
+            <button type="submit" class="btn btn-primary" style="height:48px; white-space:nowrap;">Gerar e Vincular</button>
         </form>
     </div>
 
@@ -75,7 +99,13 @@
                         <td style="padding:1rem; font-weight:900; color:hsl(var(--primary));">{{ ticket.codigo }}</td>
                         <td style="padding:1rem;">{{ ticket.especialidade_nome }}</td>
                         <td style="padding:1rem;"><span class="badge badge-primary">{{ ticket.status }}</span></td>
-                        <td style="padding:1rem; color:hsl(var(--text-muted));">{{ ticket.patient_nome or '—' }}</td>
+                        <td style="padding:1rem; color:hsl(var(--text-muted));">
+                            {% if ticket.patient_id %}
+                            <a href="{{ url_for('patients.view_patient', id=ticket.patient_id) }}" style="color:hsl(var(--primary)); font-weight:800; text-decoration:none;">{{ ticket.patient_nome }}</a>
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
                         <td style="padding:1rem; color:hsl(var(--text-muted));">
                             {% if ticket.execution_unit_label %}
                             <strong style="display:block; color:hsl(var(--text-main));">{{ ticket.execution_unit_label }}</strong>
@@ -100,7 +130,10 @@
     <div class="card" style="width:min(760px, 100%); text-align:center; padding:3rem; background:#FFC124; color:#111827; border:4px solid #111827; box-shadow:0 28px 90px rgba(15,23,42,0.45);">
         <div style="font-size:0.82rem; font-weight:900; letter-spacing:0.12em; text-transform:uppercase; color:#111827; margin-bottom:0.9rem;">Senha gerada</div>
         <div id="generatedTicketCode" style="font-family:var(--font-heading); font-size:clamp(2.5rem, 7vw, 5rem); font-weight:900; color:#111827; letter-spacing:0; line-height:1; margin-bottom:1.25rem; white-space:nowrap; overflow:hidden; text-overflow:clip;">{{ generated_ticket }}</div>
-        <p style="color:#111827; font-size:1rem; font-weight:700; margin-bottom:2rem;">Anote esta senha para entregar ao paciente. Ela já está salva na listagem desta ação.</p>
+        <p style="color:#111827; font-size:1rem; font-weight:700; margin-bottom:2rem;">
+            {% if generated_patient %}Vinculada a {{ generated_patient.nome }}.{% endif %}
+            Ela já está salva na listagem desta ação e no prontuário do paciente.
+        </p>
         <div style="display:flex; justify-content:center; gap:0.75rem; flex-wrap:wrap;">
             <button type="button" class="btn btn-outline" style="background:white; border-color:#111827; color:#111827;" onclick="navigator.clipboard && navigator.clipboard.writeText('{{ generated_ticket }}')">Copiar</button>
             <button type="button" class="btn btn-primary" style="background:#111827; border-color:#111827;" onclick="document.getElementById('generatedTicketModal').remove()">Entendi</button>

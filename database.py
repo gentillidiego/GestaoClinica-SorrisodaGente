@@ -113,6 +113,28 @@ def _ensure_columns_exist(table_name, columns):
             execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def}")
 
 
+def _allow_multiple_triage_tickets_per_patient():
+    """Remove a unicidade legada que limitava uma senha por paciente."""
+    execute("ALTER TABLE triagem_senhas DROP CONSTRAINT IF EXISTS triagem_senhas_patient_id_key")
+    unique_indexes = query(
+        """
+        SELECT i.relname AS index_name
+        FROM pg_class t
+        JOIN pg_index ix ON ix.indrelid = t.oid
+        JOIN pg_class i ON i.oid = ix.indexrelid
+        JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+        WHERE t.relname = %s
+          AND ix.indisunique = TRUE
+          AND ix.indisprimary = FALSE
+          AND a.attname = %s
+          AND ix.indkey::text = a.attnum::text
+        """,
+        ('triagem_senhas', 'patient_id'),
+    )
+    for row in unique_indexes:
+        execute(f'DROP INDEX IF EXISTS "{row["index_name"]}"')
+
+
 def _migrate_legacy_user_roles():
     from constants import get_legacy_role_migrations
 
@@ -727,7 +749,7 @@ def _init_db_locked():
             numero INTEGER NOT NULL,
             codigo TEXT UNIQUE NOT NULL,
             status TEXT DEFAULT 'Disponível',
-            patient_id INTEGER UNIQUE,
+            patient_id INTEGER,
             entregue_em TIMESTAMP,
             vinculada_em TIMESTAMP,
             criado_em TIMESTAMP DEFAULT NOW(),
@@ -1616,6 +1638,7 @@ def _init_db_locked():
     for table, cols in MIGRATIONS.items():
         _ensure_columns_exist(table, cols)
 
+    _allow_multiple_triage_tickets_per_patient()
     _migrate_legacy_user_roles()
 
     # Normaliza valores legados gravados sem acento para o padrão exibido na UI.

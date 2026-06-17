@@ -56,24 +56,30 @@
             </a>
             {% endif %}
 
-            {% if can('triage:view') or can('agenda:view') or can('patients:view') or can('inventory:view') %}
+            {% if can('patients:write') or can('triage:view') or can('agenda:view') or can('patients:view') or can('inventory:view') %}
             <div class="nav-divider">OPERAÇÃO CLÍNICA</div>
+                {% if can('patients:write') %}
+                <a href="{{ url_for('patients.register') }}"
+                    class="nav-item {% if request.endpoint == 'patients.register' %}active{% endif %}">
+                    <span class="nav-icon">➕</span><span class="nav-label">Novo Paciente</span>
+                </a>
+                {% endif %}
                 {% if can('triage:view') %}
                 <a href="{{ url_for('triage.list_actions') }}"
                     class="nav-item {% if request.endpoint and 'triage' in request.endpoint %}active{% endif %}">
                     <span class="nav-icon">🎫</span><span class="nav-label">Triagem</span>
                 </a>
                 {% endif %}
+                {% if can('patients:view') %}
+                <a href="{{ url_for('patients.list_patients') }}"
+                    class="nav-item {% if request.endpoint and request.endpoint != 'patients.register' and ('patients' in request.endpoint or 'anamnesis' in request.endpoint or 'exams' in request.endpoint) %}active{% endif %}">
+                    <span class="nav-icon">👥</span><span class="nav-label">Pacientes / Prontuários</span>
+                </a>
+                {% endif %}
                 {% if can('agenda:view') %}
                 <a href="{{ url_for('agenda.agenda_index') }}"
                     class="nav-item {% if request.endpoint and 'agenda' in request.endpoint %}active{% endif %}">
                     <span class="nav-icon">📅</span><span class="nav-label">Agenda</span>
-                </a>
-                {% endif %}
-                {% if can('patients:view') %}
-                <a href="{{ url_for('patients.list_patients') }}"
-                    class="nav-item {% if request.endpoint and ('patients' in request.endpoint or 'anamnesis' in request.endpoint or 'exams' in request.endpoint) %}active{% endif %}">
-                    <span class="nav-icon">👥</span><span class="nav-label">Pacientes / Prontuários</span>
                 </a>
                 {% endif %}
                 {% if can('inventory:view') %}

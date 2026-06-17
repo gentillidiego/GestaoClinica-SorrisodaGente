@@ -89,6 +89,9 @@
                             <div style="font-weight: 900; color: hsl(var(--primary));">{{ patient.senha_triagem }}</div>
                             <div style="font-size: 0.78rem; color: hsl(var(--text-muted));">
                                 {{ patient.especialidade_nome }} · {{ patient.municipio_codigo }}
+                                {% if patient.triage_count and patient.triage_count > 1 %}
+                                <span style="font-weight:800; color:hsl(var(--primary));"> · {{ patient.triage_count }} senhas</span>
+                                {% endif %}
                             </div>
                             {% else %}
                             <span style="color: hsl(var(--text-muted));">Sem triagem</span>

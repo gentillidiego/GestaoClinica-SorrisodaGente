@@ -3,6 +3,8 @@
 ## 1. Introdução
 Esta documentação consolida as regras de negócio, fluxos operacionais e permissões do sistema "Gestão Saúde Oral - Programa Sorriso da Gente". O objetivo é servir como base unificada para a criação de apostilas, tutoriais e treinamentos para os diferentes perfis de usuários.
 
+Decisão operacional registrada em 17/06/2026: o escopo de Endodontia, Prótese, Portal do Paciente e evoluções de BI está congelado até o Go/No-Go de produção. O treinamento deve cobrir apenas os fluxos ativos e homologáveis da versão atual. O BI existente pode ser usado para validação gerencial e relatórios já implementados, sem promessa de novas visões, indicadores, redesign ou ampliações antes da produção assistida.
+
 ---
 
 ## 2. Perfis de Acesso e Permissões
@@ -22,8 +24,8 @@ O sistema opera com 9 perfis unificados. Cada perfil enxerga apenas os módulos 
 
 ## 3. Navegação e Menus
 O sistema organiza o menu lateral em blocos lógicos:
-*   **Principal:** Central de Comando, Pacientes, Triagem.
-*   **Operação Clínica:** Agenda, Prontuários (busca).
+*   **Principal:** Início e Central de Comando.
+*   **Operação Clínica:** Novo Paciente, Triagem, Pacientes / Prontuários e Agenda.
 *   **Gestão e Indicadores:** Mapa Epidemiológico, BI Executivo, Relatórios.
 *   **Financeiro e SUS:** Custos SIGTAP, Integração SIGTAP/e-SUS.
 *   **Administração:** Usuários, Pré-cadastros, Unidades, Estoque, Auditoria.
@@ -50,13 +52,14 @@ O coração da operação clínica. Centraliza alertas e prioridades.
 
 ### 4.2. Módulo de Triagem
 *   **Ações de Triagem:** A equipe cria ações (ex: mutirões) por município, data e local.
-*   **Senhas:** Para cada paciente, gera-se uma senha no formato `MUN-ESP-000` (ex: `ARA-P-001` - Arapiraca/Prótese).
+*   **Senhas:** Depois que o paciente já está cadastrado, a equipe seleciona o paciente e a especialidade para gerar uma senha no formato `MUN-ESP-000` (ex: `ARA-P-001` - Arapiraca/Prótese).
+*   **Múltiplas demandas:** Um mesmo paciente pode ter mais de uma senha quando houver mais de uma demanda ou especialidade. O prontuário exibe todos os encaminhamentos vinculados.
 *   **Destino Operacional:** A triagem não escolhe unidade de execução durante o trabalho de campo. A senha representa a demanda eleita no município; depois, no agendamento, a população selecionada é direcionada para uma unidade de execução determinada pela operação.
-*   **Vinculação:** No cadastro do paciente, a senha é preenchida (opcional), destacando a especialidade encaminhada no cabeçalho do prontuário. Sem vínculo, o tempo de fila não pontua.
+*   **Vinculação:** A senha é vinculada dentro da Triagem, não no cadastro do paciente. O cadastro é o primeiro passo; a triagem vem depois para registrar a demanda.
 
 ### 4.3. Pacientes e Prontuário
 O Prontuário é dividido em abas, carregadas sob demanda:
-*   **Cadastro:** CPF e CNS são obrigatórios para envio ao e-SUS.
+*   **Cadastro:** CPF e CNS são obrigatórios para envio ao e-SUS. O cadastro não solicita senha de triagem; a associação de senha ocorre depois no módulo de Triagem.
 *   **Anamnese:** Histórico médico e odontológico.
 *   **Exames / Visual (Biblioteca):** Consolida radiografias, fotos clínicas, imagens de estomatologia e imagens endodônticas. Exige legenda, data clínica e grupo comparativo quando houver acompanhamento visual.
 *   **Plano de Tratamento / Odontograma:** A aba `Plano de Tratamento` registra dente, especialidade, código SUS/SIGTAP e procedimento previsto. O código SUS/SIGTAP é filtrado conforme a especialidade escolhida, cobrindo Atenção Primária/Clínico Geral, Endodontia, Periodontia, Cirurgia Bucomaxilofacial, Prótese Dentária, Alta Complexidade/Hospitalar e Diagnóstico/Estomatologia/Radiologia. Dentes extraídos geram dados de perda dentária para o Mapa Epidemiológico.
@@ -87,6 +90,8 @@ O Prontuário é dividido em abas, carregadas sob demanda:
 *   Consumo calcula o valor estimado do atendimento (Qtd x Custo do Lote).
 
 ### 4.6. Inteligência e BI
+Nesta etapa, o BI está em modo de validação do que já existe. Não entram novos painéis, indicadores, filtros, visões executivas ou redesign antes do Go/No-Go de produção.
+
 *   **Mapa Epidemiológico (`/epidemiologia`):**
     *   Filtros: período, bairro, município, sexo, idade, etc.
     *   Indicadores: Perda Dentária, Suspeitas Oncológicas, Câncer Confirmado, Faltas, Demanda Reprimida.

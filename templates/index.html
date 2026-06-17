@@ -16,11 +16,13 @@
       <a href="{{ url_for('agenda.agenda_index') }}" class="btn btn-outline" style="height:40px; font-size:0.85rem;">
         📅 Ver Agenda
       </a>
+      {% endif %}
       {% if can('command_center:view') %}
       <a href="{{ url_for('main.command_center') }}" class="btn btn-outline" style="height:40px; font-size:0.85rem;">
         📡 Central
       </a>
       {% endif %}
+      {% if can('patients:write') %}
       <a href="{{ url_for('patients.register') }}" class="btn btn-primary" style="height:40px; font-size:0.85rem;">
         ➕ Novo Paciente
       </a>
@@ -230,9 +232,11 @@
       <div class="card" style="margin-bottom:0;">
         <h2 class="section-header">⚡ Ações Rápidas</h2>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+          {% if can('patients:write') %}
           <a href="{{ url_for('patients.register') }}" class="btn btn-primary" style="justify-content:center; padding:0.9rem; font-size:0.875rem;">
             ➕ Novo Paciente
           </a>
+          {% endif %}
           {% if can('agenda:view') %}
           <a href="{{ url_for('agenda.agenda_index') }}" class="btn btn-outline" style="justify-content:center; padding:0.9rem; font-size:0.875rem; background:white;">
             📅 Agenda

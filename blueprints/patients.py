@@ -51,29 +51,11 @@ def _validate_patient_required_data(data):
 @patients_bp.route('/register', methods=['GET', 'POST'])
 @login_required
 def register():
-    senha_triagem = _normalize_triage_code(request.args.get('senha'))
+    if not current_user.can('patients:write'):
+        flash('Acesso negado para cadastrar pacientes.', 'danger')
+        return redirect(url_for('patients.list_patients'))
+
     if request.method == 'POST':
-        senha_triagem = _normalize_triage_code(request.form.get('senha_triagem'))
-        triage_ticket = None
-        if senha_triagem:
-            triage_ticket = query('''
-                SELECT s.*, e.nome as especialidade_nome, m.nome as municipio_nome
-                FROM triagem_senhas s
-                JOIN especialidades e ON s.especialidade_id = e.id
-                JOIN municipios m ON s.municipio_id = m.id
-                WHERE s.codigo = %s
-            ''', (senha_triagem,), one=True)
-
-            if not triage_ticket:
-                flash('Senha de triagem não encontrada. Verifique o código informado.', 'danger')
-                return render_template('patients/register.html', senha_triagem=senha_triagem)
-            if triage_ticket['patient_id']:
-                flash('Esta senha de triagem já está vinculada a outro paciente.', 'danger')
-                return render_template('patients/register.html', senha_triagem=senha_triagem)
-            if triage_ticket['status'] == 'Cancelada':
-                flash('Esta senha de triagem está cancelada e não pode iniciar atendimento.', 'danger')
-                return render_template('patients/register.html', senha_triagem=senha_triagem)
-
         # Coleta de dados do formulário
         data = _strip_form_data({
             'cns': request.form.get('cns'),
@@ -100,59 +82,25 @@ def register():
         validation_error = _validate_patient_required_data(data)
         if validation_error:
             flash(validation_error, 'danger')
-            return render_template('patients/register.html', senha_triagem=senha_triagem)
+            return render_template('patients/register.html')
         
         try:
-            if triage_ticket:
-                patient_id = execute('''
-                    WITH available_ticket AS (
-                        SELECT id
-                        FROM triagem_senhas
-                        WHERE id = %s AND patient_id IS NULL AND status != 'Cancelada'
-                        FOR UPDATE
-                    ),
-                    new_patient AS (
-                        INSERT INTO patients (
-                            cns, nome, rg, cpf, profissao, endereco_residencial, endereco_comercial,
-                            cd_anterior, endereco_comercial_adicional, email, genero, data_nascimento,
-                            nacionalidade, celular, estado_civil, atendido_em, nome_responsavel,
-                            rg_responsavel, telefone_expedidor_responsavel, email_responsavel
-                        )
-                        SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                        WHERE EXISTS (SELECT 1 FROM available_ticket)
-                        RETURNING id
-                    )
-                    UPDATE triagem_senhas
-                    SET status = 'Vinculada',
-                        patient_id = (SELECT id FROM new_patient),
-                        vinculada_em = CURRENT_TIMESTAMP
-                    WHERE id = (SELECT id FROM available_ticket)
-                    RETURNING patient_id as id
-                ''', (triage_ticket['id'], *list(data.values())))
-                if not patient_id:
-                    flash('A senha foi vinculada por outro atendimento. Atualize e tente novamente.', 'danger')
-                    return render_template('patients/register.html', senha_triagem=senha_triagem)
-                flash('Paciente cadastrado com sucesso!', 'success')
-            else:
-                patient_id = execute('''
-                    INSERT INTO patients (
-                        cns, nome, rg, cpf, profissao, endereco_residencial, endereco_comercial,
-                        cd_anterior, endereco_comercial_adicional, email, genero, data_nascimento,
-                        nacionalidade, celular, estado_civil, atendido_em, nome_responsavel,
-                        rg_responsavel, telefone_expedidor_responsavel, email_responsavel
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING id
-                ''', list(data.values()))
-                flash(
-                    'ATENÇÃO: paciente salvo sem senha de triagem. Portanto, a senha e a especialidade de encaminhamento não constarão no prontuário.',
-                    'warning'
-                )
+            patient_id = execute('''
+                INSERT INTO patients (
+                    cns, nome, rg, cpf, profissao, endereco_residencial, endereco_comercial,
+                    cd_anterior, endereco_comercial_adicional, email, genero, data_nascimento,
+                    nacionalidade, celular, estado_civil, atendido_em, nome_responsavel,
+                    rg_responsavel, telefone_expedidor_responsavel, email_responsavel
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            ''', list(data.values()))
+            flash('Paciente cadastrado com sucesso. Agora a triagem pode associar uma ou mais senhas a este paciente.', 'success')
 
             return redirect(url_for('patients.view_patient', id=patient_id))
         except Exception as e:
             flash(f'Erro ao cadastrar paciente: {str(e)}', 'danger')
             
-    return render_template('patients/register.html', senha_triagem=senha_triagem)
+    return render_template('patients/register.html')
 @patients_bp.route('/list')
 @login_required
 def list_patients():
@@ -164,15 +112,21 @@ def list_patients():
     if q:
         search_term = f'%{q}%'
         where_clause = """
-            WHERE p.nome ILIKE %s OR p.cpf ILIKE %s OR p.cns ILIKE %s
-               OR p.celular ILIKE %s OR ts.codigo ILIKE %s
-               OR e.nome ILIKE %s OR m.nome ILIKE %s
+            WHERE p.nome ILIKE %s OR p.cpf ILIKE %s OR p.cns ILIKE %s OR p.celular ILIKE %s
+               OR EXISTS (
+                    SELECT 1
+                    FROM triagem_senhas ts
+                    JOIN especialidades e ON ts.especialidade_id = e.id
+                    JOIN municipios m ON ts.municipio_id = m.id
+                    WHERE ts.patient_id = p.id
+                      AND (ts.codigo ILIKE %s OR e.nome ILIKE %s OR m.nome ILIKE %s)
+               )
         """
         params = (search_term, search_term, search_term, search_term, search_term, search_term, search_term)
         
         try:
             date_term = datetime.strptime(q, "%d/%m/%Y").strftime("%Y-%m-%d")
-            where_clause += " OR data_nascimento = %s"
+            where_clause += " OR p.data_nascimento = %s"
             params = params + (date_term,)
         except ValueError:
             pass
@@ -181,13 +135,24 @@ def list_patients():
         params = ()
         
     patients = query(f"""
-        SELECT p.id, p.nome, p.cpf, ts.codigo as senha_triagem,
-               e.nome as especialidade_nome, m.codigo as municipio_codigo,
+        SELECT p.id, p.nome, p.cpf,
+               triage.senha_triagem,
+               triage.especialidade_nome,
+               triage.municipio_codigo,
+               COALESCE(triage.triage_count, 0) as triage_count,
                COALESCE((SELECT suspeita_neoplasia FROM estomatologia WHERE patient_id = p.id ORDER BY id DESC LIMIT 1), FALSE) as suspeita_neoplasia
         FROM patients p
-        LEFT JOIN triagem_senhas ts ON ts.patient_id = p.id
-        LEFT JOIN especialidades e ON ts.especialidade_id = e.id
-        LEFT JOIN municipios m ON ts.municipio_id = m.id
+        LEFT JOIN LATERAL (
+            SELECT
+                STRING_AGG(s.codigo, ', ' ORDER BY COALESCE(s.vinculada_em, s.criado_em) DESC, s.id DESC) as senha_triagem,
+                STRING_AGG(e.nome, ', ' ORDER BY COALESCE(s.vinculada_em, s.criado_em) DESC, s.id DESC) as especialidade_nome,
+                STRING_AGG(m.codigo, ', ' ORDER BY COALESCE(s.vinculada_em, s.criado_em) DESC, s.id DESC) as municipio_codigo,
+                COUNT(*) as triage_count
+            FROM triagem_senhas s
+            JOIN especialidades e ON s.especialidade_id = e.id
+            JOIN municipios m ON s.municipio_id = m.id
+            WHERE s.patient_id = p.id
+        ) triage ON TRUE
         {where_clause}
         ORDER BY p.id DESC
         LIMIT %s OFFSET %s
@@ -196,9 +161,6 @@ def list_patients():
     total_count = query(f"""
         SELECT COUNT(*) as count
         FROM patients p
-        LEFT JOIN triagem_senhas ts ON ts.patient_id = p.id
-        LEFT JOIN especialidades e ON ts.especialidade_id = e.id
-        LEFT JOIN municipios m ON ts.municipio_id = m.id
         {where_clause}
     """, params, one=True)['count']
     total_pages = math.ceil(total_count / per_page)
@@ -1413,12 +1375,19 @@ def delete_estomatologia_photo(id, photo_id):
 def red_alert_list():
     patients = query('''
         SELECT p.id, p.nome, p.cpf, e.localizacao_lesao, e.tamanho_lesao,
-               e.tempo_evolucao, e.data_registro, ts.codigo as senha_triagem,
-               m.nome as municipio_nome
+               e.tempo_evolucao, e.data_registro,
+               triage.senha_triagem,
+               triage.municipio_nome
         FROM patients p
         JOIN estomatologia e ON e.patient_id = p.id
-        LEFT JOIN triagem_senhas ts ON ts.patient_id = p.id
-        LEFT JOIN municipios m ON ts.municipio_id = m.id
+        LEFT JOIN LATERAL (
+            SELECT
+                STRING_AGG(s.codigo, ', ' ORDER BY COALESCE(s.vinculada_em, s.criado_em) DESC, s.id DESC) as senha_triagem,
+                STRING_AGG(m.nome, ', ' ORDER BY COALESCE(s.vinculada_em, s.criado_em) DESC, s.id DESC) as municipio_nome
+            FROM triagem_senhas s
+            JOIN municipios m ON s.municipio_id = m.id
+            WHERE s.patient_id = p.id
+        ) triage ON TRUE
         WHERE e.suspeita_neoplasia = TRUE
         ORDER BY e.data_registro DESC
     ''')

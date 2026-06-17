@@ -1,6 +1,6 @@
 # Gestão Saúde Oral - Programa Sorriso da Gente
 
-README 2.5 - análise de prontidão para produção atualizada em 16/06/2026.
+README 2.6 - análise de prontidão para produção atualizada em 17/06/2026.
 
 Plataforma de gestão clínica, operacional e institucional de saúde bucal para o programa Sorriso da Gente. O sistema reúne triagem municipal, agenda, prontuário odontológico, estomatologia, exames, estoque, Central de Comando, BI, epidemiologia, relatórios e preparação SIGTAP/e-SUS APS.
 
@@ -21,6 +21,7 @@ Leitura operacional atual:
 - E-mail transacional configurado com serviço Docker `gestaosaudeoral-mail`, Postfix send-only, OpenDKIM, SPF, DKIM, DMARC e PTR/rDNS solicitado/registrado via API da Hostinger.
 - Módulo de Endodontia ampliado até a Etapa E10 em nível MVP clínico-operacional, mas **não é prioridade de evolução neste momento**.
 - Endodontia e Prótese permanecem temporariamente ocultas da navegação do prontuário por decisão operacional; os módulos não foram removidos.
+- Decisão de 17/06/2026: escopo congelado para Endodontia, Prótese, Portal do Paciente e evoluções de BI até o Go/No-Go de produção. O BI existente pode ser validado e usado como apoio gerencial, mas não deve receber novas visões, indicadores, redesign ou ampliações antes da produção assistida.
 - Última validação registrada em 16/06/2026: `.venv/bin/pytest -q` com `190 passed`; Docker em execução; `/health` saudável com `database=ok`.
 - Status de produção: **não liberar produção plena ainda**. A aplicação está funcional e validada em Docker, mas ainda exige fechamento dos bloqueadores P0 de infraestrutura, LGPD, backup/restore, homologação operacional e aceite formal listados em `Plano de Prontidão para Produção`.
 
@@ -29,13 +30,16 @@ Prioridade atual de trabalho:
 1. Atender as modificações solicitadas pelo Diego antes de iniciar novo passo a passo de evolução.
 2. Manter o sistema funcional em Docker, com testes verdes e `/health` saudável após cada mudança relevante.
 3. Preservar as regras operacionais já consolidadas: triagem não define unidade; agenda define unidade; Central respeita o recorte da agenda.
-4. Não iniciar melhorias novas de Endodontia, Prótese ou UX da Central de Comando sem solicitação explícita.
+4. Não iniciar melhorias novas de Endodontia, Prótese, Portal do Paciente, BI ou UX da Central de Comando antes do Go/No-Go de produção.
 5. Antes de produção plena, executar o plano P0 de produção e registrar evidências no Git.
 
 Fora do foco imediato:
 
 - Refinamentos do módulo de Endodontia.
 - Melhorias de UX da Endodontia.
+- Refinamentos ou reativação operacional de Prótese.
+- Portal do Paciente.
+- Novos painéis, indicadores, visões, redesign ou ampliações do BI.
 - Melhorias de UX da Central de Comando.
 - Visualizador DICOM avançado.
 - Integrações externas reais de e-SUS/WhatsApp/SMS sem credenciais, endpoint e homologação.
@@ -250,26 +254,32 @@ VOLTE E VERIFIQUE:
 
 ## Fluxo Operacional Principal
 
-1. Triagem de campo:
+1. Cadastro do paciente:
+   - A entrada operacional começa em `Operação Clínica > Novo Paciente`.
+   - A equipe cadastra o paciente na ficha já existente.
+   - O cadastro não pede senha de triagem.
+
+2. Triagem de campo:
    - A equipe cria uma ação por município, data, local e observações.
-   - A equipe gera senhas por especialidade no formato `MUN-ESP-000`.
+   - Ao gerar senha, a equipe seleciona um paciente já cadastrado e a especialidade da demanda.
+   - A senha é criada no formato `MUN-ESP-000` e já fica vinculada ao paciente.
+   - Um mesmo paciente pode ter mais de uma senha quando houver mais de uma demanda/especialidade.
    - A senha representa a demanda eleita no município.
    - A triagem não define unidade de execução.
 
-2. Cadastro do paciente:
-   - A senha pode ser vinculada ao paciente.
-   - O prontuário passa a exibir origem/especialidade.
-   - Sem senha, o cadastro é permitido, mas o sistema avisa que não haverá vínculo de triagem/especialidade.
+3. Pacientes / Prontuários:
+   - O prontuário exibe todos os encaminhamentos/senhas de triagem vinculados ao paciente.
+   - A lista de pacientes agrega as senhas sem duplicar o paciente.
 
-3. Agendamento:
+4. Agendamento:
    - A unidade de execução é determinada na Agenda.
    - A população eleita pela triagem é direcionada para a unidade definida pela operação.
    - Listas de senhas exibem o destino quando já existe consulta agendada.
 
-4. Atendimento clínico:
+5. Atendimento clínico:
    - Prontuário, anamnese, exames, plano de tratamento, odontograma, estomatologia, prótese, endodontia, materiais e assinaturas.
 
-5. Gestão:
+6. Gestão:
    - Central de Comando monitora fila, alertas, pendências, metas, agenda, gargalos e resumo diário.
    - Epidemiologia, BI e relatórios consolidam dados para gestão pública e operação.
 
@@ -293,7 +303,8 @@ Rotas principais:
 Estado:
 
 - Cria ações municipais de campo.
-- Gera uma senha por especialidade.
+- Gera senha por paciente já cadastrado e especialidade.
+- Permite mais de uma senha por paciente quando houver múltiplas demandas.
 - Lista senhas e mostra destino quando existe consulta agendada.
 - Não define unidade de execução.
 
@@ -731,7 +742,8 @@ Conclusão executiva:
 Ordem recomendada:
 
 1. Congelar escopo funcional.
-   - Não abrir novas frentes de Endodontia, Prótese, UX da Central, WhatsApp, portal do paciente ou integrações externas antes do Go/No-Go.
+   - Não abrir novas frentes de Endodontia, Prótese, Portal do Paciente, BI, UX da Central, WhatsApp ou integrações externas antes do Go/No-Go.
+   - Usar o BI atual apenas para validação, leitura gerencial e relatórios já existentes; novas métricas, telas ou mudanças visuais ficam para pós-produção assistida.
    - Aceitar apenas correções bloqueantes, ajustes de texto, permissões e estabilidade.
 
 2. Publicar e organizar Git.
@@ -765,7 +777,7 @@ Ordem recomendada:
    - Executar roteiro com Recepção, Clínico e Coordenação.
    - Validar assinatura comum e assinatura a rogo.
    - Validar pré-cadastro, aprovação, primeiro acesso e recuperação de senha.
-   - Validar agenda por perfil, Central, BI e relatório.
+   - Validar agenda por perfil, Central, BI já existente e relatório.
 
 8. Treinar usuários.
    - Entregar manuais mínimos por perfil.
@@ -961,7 +973,9 @@ Ordem recomendada:
    - Obter endpoint, credenciais, CNES, INE/equipe e regras de homologação.
    - Manter como draft/simulado até transmissão real validada.
 
-4. BI, Epidemiologia e território.
+4. BI existente, Epidemiologia e território.
+   - Não criar novas visões, indicadores, filtros, cards ou redesign de BI antes do Go/No-Go.
+   - Usar o BI atual apenas para validar os indicadores já disponíveis e confirmar quais dados serão apresentados como estimativa.
    - Cadastrar coordenadas reais de unidades, bairros e locais de triagem quando o mapa for usado para decisão.
    - Validar com gestão quais indicadores serão oficiais.
    - Definir periodicidade de relatórios institucionais.
@@ -975,6 +989,7 @@ Ordem recomendada:
 ### P2 - Melhorias Pós-Entrada
 
 - Portal do paciente e TCLE versionado com revogação.
+- Evoluções do BI, novos indicadores, novas visões executivas e redesign.
 - Notificações reais por WhatsApp/SMS e ampliação de e-mails transacionais para outros fluxos.
 - Visualizador DICOM avançado com medição/anotações.
 - Inventário físico periódico e relatórios avançados de perdas/reposição.
@@ -1043,7 +1058,8 @@ Executar antes do Go/No-Go:
 
 3. Recepção:
    - criar paciente;
-   - vincular senha de triagem quando houver;
+   - gerar e vincular senha na Triagem selecionando paciente já cadastrado e especialidade;
+   - validar múltiplas senhas no mesmo paciente quando houver mais de uma demanda;
    - agendar com unidade definida;
    - confirmar/faltar/cancelar consulta.
 
@@ -1544,19 +1560,20 @@ Objetivo:
 O que fazer:
 
 - Testar fluxo completo:
-  1. Criar ação de triagem.
-  2. Gerar senha.
-  3. Cadastrar paciente com senha.
-  4. Agendar consulta e definir unidade.
-  5. Realizar atendimento.
-  6. Registrar evolução.
-  7. Assinar documentos necessários.
-  8. Lançar procedimento SIGTAP.
-  9. Registrar exame ou imagem, se houver.
-  10. Registrar material, se houver.
-  11. Conferir Central de Comando.
-  12. Conferir BI/Epidemiologia.
-  13. Gerar resumo diário.
+  1. Cadastrar paciente em `Novo Paciente`.
+  2. Criar ação de triagem.
+  3. Gerar senha selecionando o paciente já cadastrado e a especialidade.
+  4. Gerar segunda senha para o mesmo paciente, se houver múltipla demanda, e confirmar exibição agregada no prontuário.
+  5. Agendar consulta e definir unidade.
+  6. Realizar atendimento.
+  7. Registrar evolução.
+  8. Assinar documentos necessários.
+  9. Lançar procedimento SIGTAP.
+  10. Registrar exame ou imagem, se houver.
+  11. Registrar material, se houver.
+  12. Conferir Central de Comando.
+  13. Conferir BI/Epidemiologia.
+  14. Gerar resumo diário.
 
 Como fazer:
 
@@ -1821,7 +1838,7 @@ Prioridade atual - modificações solicitadas:
 - Receber e implementar as modificações pontuais solicitadas pelo Diego.
 - Validar cada mudança com teste automatizado ou checagem operacional compatível com o risco.
 - Atualizar README e manuais quando a mudança alterar fluxo, tela, permissão, relatório, métrica ou rotina de uso.
-- Manter Endodontia, Prótese e UX avançada da Central fora do foco, salvo pedido explícito.
+- Manter Endodontia, Prótese, Portal do Paciente, evoluções de BI e UX avançada da Central fora do foco até o Go/No-Go de produção.
 
 Prioridade 0 - antes de produção plena:
 
@@ -1853,6 +1870,8 @@ Prioridade 2 - refinamentos avançados:
 - Refinamentos do módulo de Endodontia.
 - Melhorias de UX da Endodontia.
 - Melhorias de UX da Central de Comando.
+- Portal do Paciente.
+- Evoluções de BI, novos indicadores e novas visões executivas.
 
 ## Checklist de Aceite Final
 
@@ -1909,7 +1928,7 @@ Checkpoint de sessão em 16/06/2026:
 - O README foi atualizado para refletir o fluxo de pré-cadastro público, aprovação/recusa por e-mail, primeiro acesso, recuperação de senha e infraestrutura Postfix/OpenDKIM.
 - Modificações desta rodada implementadas: assinatura a rogo, pacote probatório ampliado, pré-cadastro profissional, primeiro acesso, recuperação de senha, e-mail transacional e reorganização UX/UI das telas de cadastro/pré-cadastros.
 - Endodontia E0-E10 permanece implementada como MVP clínico-operacional, mas está fora da prioridade atual.
-- Melhorias de UX da Endodontia e da Central de Comando ficam estacionadas até solicitação explícita.
+- Melhorias de UX da Endodontia, Prótese, Portal do Paciente, evoluções de BI e Central de Comando ficam estacionadas até depois do Go/No-Go de produção.
 - Antes de produção plena, continuam obrigatórios os bloqueadores P0: infraestrutura segura, segredos, LGPD/arquivos sensíveis, backup/restore, limpeza de dados demo, homologação ponta a ponta, treinamento e QA final.
 
 Próxima continuidade recomendada:
@@ -1943,6 +1962,8 @@ Próxima continuidade recomendada:
 - 16/06/2026: Implementados primeiro acesso com login + data de nascimento, definição de senha definitiva, confirmação de e-mail e recuperação de senha com token temporário por e-mail.
 - 16/06/2026: Configurado e-mail transacional com Docker `gestaosaudeoral-mail`, Postfix send-only, OpenDKIM, SPF, DKIM, DMARC e PTR/rDNS na Hostinger; documentação adicionada em `docs/auth_primeiro_acesso_postfix_2026-06-16.md` e `docs/email_producao_sorrisodagente_2026-06-16.md`.
 - 16/06/2026: Melhorada UX/UI do cadastro público e da tela administrativa de pré-cadastros; a análise administrativa passou de tabela para cards por solicitação, com ações separadas para aprovar ou recusar.
+- 17/06/2026: Congelado o escopo de Endodontia, Prótese, Portal do Paciente e evoluções de BI até o Go/No-Go de produção. O BI existente permanece disponível para validação gerencial e relatórios já implementados, sem novas visões, indicadores, redesign ou ampliações antes da produção assistida.
+- 17/06/2026: Ajustado fluxo operacional para `Novo Paciente -> Triagem -> Pacientes / Prontuários -> Agenda`; o cadastro não solicita senha, a Triagem gera senha vinculando paciente já cadastrado e um paciente pode ter múltiplas senhas/demandas.
 
 ## Última Validação Técnica Registrada
 

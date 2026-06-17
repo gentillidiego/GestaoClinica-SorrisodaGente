@@ -95,6 +95,24 @@ def view_action(action_id):
         flash('Ação de triagem não encontrada.', 'danger')
         return redirect(url_for('triage.list_actions'))
 
+    patient_q = (request.args.get('paciente') or '').strip()
+    if patient_q:
+        patient_search = f"%{patient_q}%"
+        patient_options = query('''
+            SELECT id, nome, cpf, cns, data_nascimento
+            FROM patients
+            WHERE nome ILIKE %s OR cpf ILIKE %s OR cns ILIKE %s
+            ORDER BY nome ASC
+            LIMIT 80
+        ''', (patient_search, patient_search, patient_search))
+    else:
+        patient_options = query('''
+            SELECT id, nome, cpf, cns, data_nascimento
+            FROM patients
+            ORDER BY id DESC
+            LIMIT 120
+        ''')
+
     especialidades = query("SELECT id, nome, codigo FROM especialidades WHERE ativo = 1 ORDER BY nome")
     summary = query('''
         SELECT e.id, e.nome, e.codigo,
@@ -139,9 +157,16 @@ def view_action(action_id):
         'triage/action_detail.html',
         action=action,
         especialidades=especialidades,
+        patient_options=patient_options,
+        patient_q=patient_q,
         summary=summary,
         tickets=tickets,
         generated_ticket=_normalize_code(request.args.get('senha_gerada')),
+        generated_patient=query(
+            "SELECT id, nome FROM patients WHERE id = %s",
+            (request.args.get('paciente_id', type=int),),
+            one=True,
+        ) if request.args.get('paciente_id', type=int) else None,
     )
 
 
@@ -158,6 +183,16 @@ def generate_tickets(action_id):
         return redirect(url_for('triage.list_actions'))
 
     especialidade_id = request.form.get('especialidade_id', type=int)
+    patient_id = request.form.get('patient_id', type=int)
+    if not patient_id:
+        flash('Selecione o paciente já cadastrado para vincular a senha.', 'danger')
+        return redirect(url_for('triage.view_action', action_id=action_id))
+
+    patient = query("SELECT id, nome FROM patients WHERE id = %s", (patient_id,), one=True)
+    if not patient:
+        flash('Paciente não encontrado. Cadastre o paciente antes de gerar a senha.', 'danger')
+        return redirect(url_for('triage.view_action', action_id=action_id))
+
     if not especialidade_id:
         flash('Informe a especialidade para gerar a senha.', 'danger')
         return redirect(url_for('triage.view_action', action_id=action_id))
@@ -178,11 +213,17 @@ def generate_tickets(action_id):
     try:
         execute('''
             INSERT INTO triagem_senhas (
-                triagem_acao_id, municipio_id, especialidade_id, numero, codigo
-            ) VALUES (%s, %s, %s, %s, %s)
-        ''', (action_id, action['municipio_id'], especialidade_id, numero, codigo))
-        flash(f'Senha {codigo} gerada com sucesso.', 'success')
-        return redirect(url_for('triage.view_action', action_id=action_id, senha_gerada=codigo))
+                triagem_acao_id, municipio_id, especialidade_id, numero, codigo,
+                status, patient_id, vinculada_em
+            ) VALUES (%s, %s, %s, %s, %s, 'Vinculada', %s, CURRENT_TIMESTAMP)
+        ''', (action_id, action['municipio_id'], especialidade_id, numero, codigo, patient_id))
+        flash(f'Senha {codigo} gerada e vinculada a {patient["nome"]}.', 'success')
+        return redirect(url_for(
+            'triage.view_action',
+            action_id=action_id,
+            senha_gerada=codigo,
+            paciente_id=patient_id,
+        ))
     except Exception as e:
         flash(f'Erro ao gerar senhas: {str(e)}', 'danger')
 
