@@ -23,7 +23,7 @@ Leitura operacional atual:
 - Módulo de Endodontia ampliado até a Etapa E10 em nível MVP clínico-operacional, mas **não é prioridade de evolução neste momento**.
 - Endodontia e Prótese permanecem temporariamente ocultas da navegação do prontuário por decisão operacional; os módulos não foram removidos.
 - Decisão de 17/06/2026: escopo congelado para Endodontia, Prótese, Portal do Paciente e evoluções de BI até o Go/No-Go de produção. O BI existente pode ser validado e usado como apoio gerencial, mas não deve receber novas visões, indicadores, redesign ou ampliações antes da produção assistida.
-- Última validação registrada em 17/06/2026: `.venv/bin/pytest -q` com `196 passed`; base ativa vazia com 3 usuários preservados; backup/restore baseline validado.
+- Última validação registrada em 17/06/2026: `.venv/bin/pytest -q` com `196 passed`; base ativa vazia com 2 usuários preservados; backup/restore baseline validado.
 - Status de produção: **não liberar produção plena ainda**. A aplicação está funcional e validada em Docker, mas ainda exige fechamento dos bloqueadores P0 de infraestrutura, LGPD, backup/restore, homologação operacional e aceite formal listados em `Plano de Prontidão para Produção`.
 
 Prioridade atual de trabalho:
@@ -2018,6 +2018,7 @@ Próxima continuidade recomendada:
 - 17/06/2026: Publicada a branch `main` e a tag `homologacao-2026-06-17` no GitHub usando o remoto SSH `git@github.com-gentillidiego:gentillidiego/GestaoClinica-SorrisodaGente.git`.
 - 17/06/2026: Base ativa preparada para produção vazia, preservando usuários e limpando pacientes, triagem, agenda, atendimentos, exames, assinaturas, relatórios, inventário, pré-cadastros, auditoria e arquivos clínicos dos volumes `uploads_oral`, `pdf_temp_oral` e `logs_oral`.
 - 17/06/2026: Reforçada regra administrativa de ciclo de vida de usuários: exclusão apenas para usuário sem histórico; usuários com qualquer acesso, auditoria ou vínculo operacional/clínico devem ser inativados. O usuário `demo.dentista` foi removido da base ativa após validação de ausência de vínculos.
+- 17/06/2026: O usuário `Erika` também foi removido da base ativa após validação de ausência de login, primeiro acesso, recuperação de senha, auditoria e vínculos operacionais.
 
 ## Última Validação Técnica Registrada
 
@@ -2038,10 +2039,10 @@ Resultado mais recente em 17/06/2026:
 - `/health`: `status=healthy`, `database=ok`.
 - PostgreSQL: `triagem_senhas.patient_id` sem restrição `UNIQUE`, permitindo múltiplas senhas/demandas por paciente.
 - Backup pré-limpeza preservado: `gestao_saude_oral_20260617_112957.dump`, com restore validado e `Pacientes restaurados: 101`.
-- Backup baseline final da base vazia: `gestao_saude_oral_20260617_114313.dump`, com restore validado, `Tabelas públicas restauradas: 51` e `Pacientes restaurados: 0`.
-- Backup final dos uploads vazios: `uploads_20260617_114313.tar.gz`.
-- Contagem após limpeza final: `patients=0`, `triagem_senhas=0`, `triagem_acoes=0`, `consultas=0`, `atendimentos=0`, `exams=0`, `anamnesis=0`, `audit_logs=0`, `professional_registration_requests=0`, `inventory_items=0`, `procedure_cost_references=0`, `territorial_locations=0`, `users=3`.
-- Usuários preservados na base ativa vazia: `Diego`, `Erika` e `Cibely.adm`.
+- Backup baseline final da base vazia: `gestao_saude_oral_20260617_114807.dump`, com restore validado, `Tabelas públicas restauradas: 51` e `Pacientes restaurados: 0`.
+- Backup final dos uploads vazios: `uploads_20260617_114807.tar.gz`.
+- Contagem após limpeza final: `patients=0`, `triagem_senhas=0`, `triagem_acoes=0`, `consultas=0`, `atendimentos=0`, `exams=0`, `anamnesis=0`, `audit_logs=0`, `professional_registration_requests=0`, `inventory_items=0`, `procedure_cost_references=0`, `territorial_locations=0`, `users=2`.
+- Usuários preservados na base ativa vazia: `Diego` e `Cibely.adm`.
 
 Validações anteriores mantidas como referência histórica:
 
