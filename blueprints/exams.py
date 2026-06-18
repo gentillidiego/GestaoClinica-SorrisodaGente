@@ -8,6 +8,10 @@ from constants import can_sign_clinical_document
 from services.security_service import audit_log, permission_required
 from services.sensitive_file_service import sensitive_file_response
 from services.visual_media_service import build_exam_image_metadata
+from services.google_drive_service import get_drive_service, ensure_patient_drive_folder, upload_file_in_memory, download_file_in_memory
+import io
+from flask import Response
+import mimetypes
 
 exams_bp = Blueprint('exams', __name__, url_prefix='/exams')
 
@@ -353,17 +357,23 @@ def upload_imagem(exam_id):
             return jsonify({'error': 'Formato inválido. Use JPG, PNG ou WEBP.'}), 400
         prepared_files.append((file, original_filename, ext))
 
-    upload_dir = 'uploads/exames'
-    os.makedirs(upload_dir, exist_ok=True)
+    service = get_drive_service()
+    folder_info = ensure_patient_drive_folder(exam['patient_id'], service)
+    folder_id = folder_info['id']
     
     saved_files = []
     
     for file, original_filename, ext in prepared_files:
         if file:
-            new_filename = f"{uuid.uuid4().hex}{ext}"
-            file_path = os.path.join(upload_dir, new_filename)
-            
-            file.save(file_path)
+            # Upload para o GDrive em memória
+            drive_file = upload_file_in_memory(
+                service=service,
+                file_stream=file.stream,
+                filename=original_filename,
+                mime_type=file.mimetype,
+                parent_id=folder_id
+            )
+            gdrive_file_id = f"gdrive://{drive_file['id']}"
             
             # Save to database
             arquivo_id = execute(
@@ -380,7 +390,7 @@ def upload_imagem(exam_id):
                     exam_id,
                     exam['patient_id'],
                     original_filename,
-                    file_path,
+                    gdrive_file_id,
                     metadata['visual_category'],
                     metadata['caption'],
                     metadata['clinical_context'],
@@ -433,7 +443,7 @@ def serve_imagem(arquivo_id):
         (arquivo_id,),
         one=True,
     )
-    if not arquivo or not os.path.exists(arquivo['file_path']):
+    if not arquivo:
         return "Arquivo não encontrado", 404
 
     audit_log(
@@ -444,7 +454,20 @@ def serve_imagem(arquivo_id):
         patient_id=arquivo['patient_id'],
         details={'filename': arquivo.get('filename'), 'caption': arquivo.get('caption')},
     )
-    return sensitive_file_response(arquivo['file_path'])
+
+    if str(arquivo['file_path']).startswith('gdrive://'):
+        gdrive_id = str(arquivo['file_path']).replace('gdrive://', '')
+        service = get_drive_service()
+        try:
+            file_bytes = download_file_in_memory(service, gdrive_id)
+            mime_type, _ = mimetypes.guess_type(arquivo['filename'])
+            return Response(file_bytes, mimetype=mime_type or 'application/octet-stream')
+        except Exception as e:
+            return f"Erro ao baixar arquivo do Drive: {str(e)}", 500
+    else:
+        if not os.path.exists(arquivo['file_path']):
+            return "Arquivo local não encontrado", 404
+        return sensitive_file_response(arquivo['file_path'])
 
 @exams_bp.route('/delete/<int:exam_id>', methods=['POST'])
 @login_required

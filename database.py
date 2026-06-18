@@ -1070,24 +1070,30 @@ def _init_db_locked():
         )
     ''')
 
+    # esus_integration_settings: versão simplificada (modelo arquivo XML — sem campos de API REST)
     execute('''
         CREATE TABLE IF NOT EXISTS esus_integration_settings (
             id SERIAL PRIMARY KEY,
-            environment TEXT DEFAULT 'aguardando_prefeitura',
-            base_url TEXT,
-            pec_version TEXT,
-            ledi_version TEXT,
             cnes TEXT,
             ine TEXT,
-            installation_id TEXT,
-            client_id TEXT,
-            credential_status TEXT DEFAULT 'pending',
+            email_destino_remessa TEXT,
+            remessa_ativa BOOLEAN DEFAULT FALSE,
             notes TEXT,
-            active BOOLEAN DEFAULT FALSE,
             updated_at TIMESTAMP DEFAULT NOW()
         )
     ''')
 
+    # Migração: adicionar colunas novas se a tabela já existia com estrutura antiga (idempotente)
+    execute('''
+        ALTER TABLE esus_integration_settings
+        ADD COLUMN IF NOT EXISTS email_destino_remessa TEXT
+    ''')
+    execute('''
+        ALTER TABLE esus_integration_settings
+        ADD COLUMN IF NOT EXISTS remessa_ativa BOOLEAN DEFAULT FALSE
+    ''')
+
+    # Mantém tabelas legadas sem exclusão — preserva histórico
     execute('''
         CREATE TABLE IF NOT EXISTS esus_export_batches (
             id SERIAL PRIMARY KEY,
@@ -1129,6 +1135,27 @@ def _init_db_locked():
             details JSONB,
             FOREIGN KEY (batch_id) REFERENCES esus_export_batches(id) ON DELETE CASCADE,
             FOREIGN KEY (attempted_by) REFERENCES users(id) ON DELETE SET NULL
+        )
+    ''')
+
+    # Nova tabela: registro de remessas XML quinzenais para a Secretaria
+    execute('''
+        CREATE TABLE IF NOT EXISTS esus_remessas (
+            id SERIAL PRIMARY KEY,
+            periodo_inicio DATE NOT NULL,
+            periodo_fim DATE NOT NULL,
+            periodo_label VARCHAR(20),
+            xml_path TEXT,
+            xml_hash VARCHAR(64),
+            records_total INTEGER DEFAULT 0,
+            records_ready INTEGER DEFAULT 0,
+            records_skipped INTEGER DEFAULT 0,
+            status VARCHAR(30) DEFAULT 'gerado',
+            email_destino TEXT,
+            enviado_em TIMESTAMPTZ,
+            erro_mensagem TEXT,
+            generated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
         )
     ''')
 

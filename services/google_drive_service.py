@@ -10,10 +10,15 @@ try:
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
     from googleapiclient.errors import HttpError
+    from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 except ImportError:  # pragma: no cover - exercised only when dependency is absent
     service_account = None
     build = None
+    MediaIoBaseUpload = None
+    MediaIoBaseDownload = None
     HttpError = Exception
+    
+import io
 
 
 DRIVE_FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder'
@@ -232,3 +237,64 @@ def ensure_patient_drive_folder(patient_id, service=None):
         'stored': False,
         'root_folder_id': root_folder['id'],
     }
+
+
+def upload_file_in_memory(service, file_stream, filename, mime_type, parent_id):
+    """
+    Faz o upload de um arquivo para o Google Drive diretamente da memória.
+    """
+    media = MediaIoBaseUpload(file_stream, mimetype=mime_type, resumable=True)
+    metadata = {
+        'name': filename,
+        'parents': [parent_id]
+    }
+    
+    try:
+        file = service.files().create(
+            body=metadata,
+            media_body=media,
+            fields='id, name, webViewLink, webContentLink',
+            supportsAllDrives=True
+        ).execute()
+        return file
+    except HttpError as exc:
+        raise GoogleDriveOperationError(f'Falha ao fazer upload do arquivo para o Google Drive: {exc}') from exc
+
+
+def download_file_in_memory(service, file_id):
+    """
+    Faz o download de um arquivo do Google Drive para a memória usando cache local.
+    Retorna os bytes do arquivo.
+    """
+    import os
+    import time
+    
+    cache_dir = os.path.join('uploads', 'cache', 'gdrive')
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_path = os.path.join(cache_dir, file_id)
+
+    # Verifica se existe no cache local
+    if os.path.exists(cache_path):
+        # Atualiza o timestamp de acesso para o TTL estender a vida útil do arquivo
+        os.utime(cache_path, None)
+        with open(cache_path, 'rb') as f:
+            return f.read()
+
+    # Se não tiver no cache, busca no Drive
+    request = service.files().get_media(fileId=file_id)
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    try:
+        while done is False:
+            status, done = downloader.next_chunk()
+        file_bytes = fh.getvalue()
+        
+        # Salva no cache para acessos futuros
+        with open(cache_path, 'wb') as f:
+            f.write(file_bytes)
+            
+        return file_bytes
+    except HttpError as exc:
+        raise GoogleDriveOperationError(f'Falha ao fazer download do arquivo do Google Drive: {exc}') from exc
+

@@ -1,13 +1,28 @@
+"""
+Serviço de exportação e-SUS APS
+Modelo: geração de arquivo XML quinzenal (Ficha de Atendimento Odontológico)
+Entrega: download manual + e-mail para o TI da Secretaria de Saúde
+
+Regra de corte:
+  - Dia 15 do mês: exporta dias 1 a 14 do mês corrente
+  - Dia 5 do mês seguinte: exporta dias 15 ao último do mês anterior
+"""
 import datetime as dt
 import hashlib
 import json
+import os
 
-from constants import PROFESSIONAL_DATA_REQUIRED_ROLES, role_requires_dental_license
 from database import execute, query
+from services.esus_xml_service import build_xml_ficha_odontologica, validate_xml_against_xsd, xml_sha256
 from services.sigtap_service import get_sigtap_procedure, get_sigtap_summary
 
 
+# ─────────────────────────────────────────
+# Utilitários de período e validação
+# ─────────────────────────────────────────
+
 def month_period(month_value=None, today=None):
+    """Retorna (data_inicio, data_fim) para um mês no formato 'YYYY-MM'."""
     if month_value:
         start = dt.datetime.strptime(month_value, '%Y-%m').date().replace(day=1)
     else:
@@ -42,78 +57,238 @@ def has_valid_uf(value):
     return len(str(value or '').strip()) == 2 and str(value or '').strip().isalpha()
 
 
-def list_completed_procedures_for_esus(month_value=None):
-    start, end = month_period(month_value)
+def build_quinzenal_periods(today=None):
+    """
+    Determina os períodos quinzenais de remessa com base na data atual.
+
+    Retorna lista de dicts com:
+      - periodo_inicio, periodo_fim (date)
+      - periodo_label (str, ex: '2026-06 P1')
+      - is_due_today (bool): True se hoje é o dia de envio deste período
+    """
+    today = today or dt.date.today()
+    p1_day = int(os.getenv('ESUS_REMESSA_DIA_P1', '15'))
+    p2_day = int(os.getenv('ESUS_REMESSA_DIA_P2', '5'))
+
+    periods = []
+
+    # Período 1: dias 1-14 do mês corrente (due: dia p1_day do mesmo mês)
+    mes_corrente = today.replace(day=1)
+    p1_inicio = mes_corrente
+    p1_fim = mes_corrente.replace(day=14)
+    p1_due = mes_corrente.replace(day=p1_day)
+    periods.append({
+        'periodo_inicio': p1_inicio,
+        'periodo_fim': p1_fim,
+        'periodo_label': f"{mes_corrente.strftime('%Y-%m')} P1",
+        'is_due_today': today == p1_due,
+    })
+
+    # Período 2: dias 15-fim do mês anterior (due: dia p2_day do mês corrente)
+    if mes_corrente.month == 1:
+        mes_anterior = mes_corrente.replace(year=mes_corrente.year - 1, month=12)
+    else:
+        mes_anterior = mes_corrente.replace(month=mes_corrente.month - 1)
+
+    if mes_anterior.month == 12:
+        ultimo_dia_ant = mes_anterior.replace(day=31)
+    else:
+        ultimo_dia_ant = mes_corrente - dt.timedelta(days=1)
+
+    p2_inicio = mes_anterior.replace(day=15)
+    p2_fim = ultimo_dia_ant
+    p2_due = mes_corrente.replace(day=p2_day)
+    periods.append({
+        'periodo_inicio': p2_inicio,
+        'periodo_fim': p2_fim,
+        'periodo_label': f"{mes_anterior.strftime('%Y-%m')} P2",
+        'is_due_today': today == p2_due,
+    })
+
+    return periods
+
+
+# ─────────────────────────────────────────
+# Configurações e-SUS (simplificadas)
+# ─────────────────────────────────────────
+
+def get_esus_settings():
+    settings = query(
+        """
+        SELECT *
+        FROM esus_integration_settings
+        ORDER BY updated_at DESC, id DESC
+        LIMIT 1
+        """,
+        one=True,
+    )
+    if settings:
+        return dict(settings)
+
+    # Fallback para variáveis de ambiente (útil em primeiro acesso)
+    return {
+        'cnes': os.getenv('ESUS_CNES', ''),
+        'ine': os.getenv('ESUS_INE', ''),
+        'email_destino_remessa': os.getenv('ESUS_EMAIL_DESTINO', ''),
+        'remessa_ativa': os.getenv('ESUS_REMESSA_ATIVA', 'false').lower() in {'1', 'true', 'yes', 'sim'},
+        'notes': '',
+    }
+
+
+def update_esus_settings(data):
+    existing = query(
+        "SELECT id FROM esus_integration_settings ORDER BY updated_at DESC, id DESC LIMIT 1",
+        one=True,
+    )
+    params = (
+        data.get('cnes') or None,
+        data.get('ine') or None,
+        data.get('email_destino_remessa') or None,
+        bool(data.get('remessa_ativa')),
+        data.get('notes') or None,
+    )
+
+    if existing:
+        execute(
+            """
+            UPDATE esus_integration_settings
+            SET cnes = %s,
+                ine = %s,
+                email_destino_remessa = %s,
+                remessa_ativa = %s,
+                notes = %s,
+                updated_at = NOW()
+            WHERE id = %s
+            """,
+            (*params, existing['id'])
+        )
+        return existing['id']
+
+    return execute(
+        """
+        INSERT INTO esus_integration_settings (cnes, ine, email_destino_remessa, remessa_ativa, notes)
+        VALUES (%s, %s, %s, %s, %s)
+        RETURNING id
+        """,
+        params
+    )
+
+
+def is_settings_complete(settings=None):
+    """Retorna True se CNES e INE estão configurados (pré-requisito para envio)."""
+    s = settings or get_esus_settings()
+    return (
+        has_digits_length(s.get('cnes'), 7)
+        and has_digits_length(s.get('ine'), 10)
+    )
+
+
+# ─────────────────────────────────────────
+# Consultas de produção
+# ─────────────────────────────────────────
+
+def list_atendimentos_para_remessa(data_inicio, data_fim):
+    """
+    Lista atendimentos concluídos com SIGTAP e identificação de paciente válidos,
+    dentro do período informado. Cada linha representa um procedimento (pode haver
+    múltiplos por atendimento).
+    """
     return query(
         """
-        SELECT tp.id,
-               tp.patient_id,
-               tp.dente,
-               tp.descricao,
-               tp.sigtap_code,
-               tp.sigtap_competence,
-               tp.sigtap_name,
-               tp.criado_em,
-               tp.professor_id,
-               p.cns,
-               p.cpf,
-               p.nome as patient_name,
-               u.cns as professional_cns,
-               u.cbo as professional_cbo,
-               u.cnes as professional_cnes,
-               u.ine as professional_ine,
-               u.cro,
-               u.cro_uf,
-               u.full_name as professional_name
+        SELECT
+            tp.id,
+            tp.patient_id,
+            tp.dente,
+            tp.descricao,
+            tp.sigtap_code,
+            tp.sigtap_competence,
+            tp.sigtap_name,
+            tp.criado_em,
+            tp.professor_id,
+            p.cns,
+            p.cpf,
+            p.nome           AS patient_name,
+            p.data_nascimento,
+            p.sexo,
+            p.necessidade_especial,
+            u.cns            AS professional_cns,
+            u.cbo            AS professional_cbo,
+            u.cnes           AS professional_cnes,
+            u.ine            AS professional_ine,
+            u.cro,
+            u.cro_uf,
+            u.full_name      AS professional_name,
+            an.gestante
         FROM tratamento_procedimentos tp
         JOIN patients p ON p.id = tp.patient_id
         LEFT JOIN users u ON u.id = tp.professor_id
+        LEFT JOIN anamnesis an ON an.patient_id = p.id
+            AND an.id = (
+                SELECT MAX(a2.id) FROM anamnesis a2 WHERE a2.patient_id = p.id
+            )
         WHERE tp.status = 'Concluído'
+          AND tp.sigtap_code IS NOT NULL
           AND tp.criado_em::date BETWEEN %s AND %s
         ORDER BY tp.criado_em ASC, tp.id ASC
         """,
-        (start, end),
+        (data_inicio, data_fim),
     )
 
 
-def list_esus_batches(limit=20):
-    return query(
-        """
-        SELECT b.*, u.username, u.full_name,
-               validator.username as validator_username,
-               validator.full_name as validator_full_name
-        FROM esus_export_batches b
-        LEFT JOIN users u ON u.id = b.generated_by
-        LEFT JOIN users validator ON validator.id = b.validated_by
-        ORDER BY b.generated_at DESC
+def list_completed_procedures_for_esus(month_value=None):
+    """Compatibilidade: lista procedimentos do mês completo (usado pelo dashboard)."""
+    start, end = month_period(month_value)
+    return list_atendimentos_para_remessa(start, end)
+
+
+# ─────────────────────────────────────────
+# Qualidade / prontidão (preservado)
+# ─────────────────────────────────────────
+
+def _missing_professional_fields(row):
+    from constants import role_requires_dental_license
+    missing = []
+    if not row.get('cns'):
+        missing.append('CNS profissional')
+    elif not has_digits_length(row.get('cns'), 15):
+        missing.append('CNS profissional inválido')
+    if not row.get('cbo'):
+        missing.append('CBO')
+    elif not has_digits_length(row.get('cbo'), 6):
+        missing.append('CBO inválido')
+    if not row.get('cro'):
+        missing.append('CRO')
+    if row.get('cro') and not row.get('cro_uf'):
+        missing.append('CRO-UF')
+    elif row.get('cro_uf') and not has_valid_uf(row.get('cro_uf')):
+        missing.append('CRO-UF inválido')
+    return missing
+
+
+def list_professionals_missing_required_data(limit=80):
+    from constants import PROFESSIONAL_DATA_REQUIRED_ROLES
+    roles = tuple(PROFESSIONAL_DATA_REQUIRED_ROLES)
+    placeholders = ', '.join(['%s'] * len(roles))
+    rows = query(
+        f"""
+        SELECT id, username, full_name, role, cns, cbo, cnes, ine, cro, cro_uf
+        FROM users
+        WHERE role IN ({placeholders})
+          AND active = TRUE
+        ORDER BY role, full_name, username
         LIMIT %s
         """,
-        (limit,)
+        (*roles, limit),
     )
 
-
-def get_latest_esus_batch(month_value=None):
-    where_sql = ''
-    params = []
-    if month_value:
-        where_sql = 'WHERE b.reference_month = %s'
-        params.append(month_value)
-
-    return query(
-        f"""
-        SELECT b.*, u.username, u.full_name,
-               validator.username as validator_username,
-               validator.full_name as validator_full_name
-        FROM esus_export_batches b
-        LEFT JOIN users u ON u.id = b.generated_by
-        LEFT JOIN users validator ON validator.id = b.validated_by
-        {where_sql}
-        ORDER BY b.generated_at DESC, b.id DESC
-        LIMIT 1
-        """,
-        tuple(params),
-        one=True,
-    )
+    missing_rows = []
+    for row in rows:
+        missing = _missing_professional_fields(row)
+        if missing:
+            row = dict(row)
+            row['missing_fields'] = missing
+            missing_rows.append(row)
+    return missing_rows
 
 
 def get_patient_identifier_gaps():
@@ -139,141 +314,6 @@ def get_patient_identifier_gaps():
         one=True,
     )
     return row or {'total': 0, 'missing_cns_or_cpf': 0, 'invalid_cns_or_cpf': 0}
-
-
-def _missing_professional_fields(row):
-    missing = []
-    if not row.get('cns'):
-        missing.append('CNS profissional')
-    elif not has_digits_length(row.get('cns'), 15):
-        missing.append('CNS profissional inválido')
-    if not row.get('cbo'):
-        missing.append('CBO')
-    elif not has_digits_length(row.get('cbo'), 6):
-        missing.append('CBO inválido')
-    if not row.get('cnes'):
-        missing.append('CNES')
-    elif not has_digits_length(row.get('cnes'), 7):
-        missing.append('CNES inválido')
-    if not row.get('ine'):
-        missing.append('INE/equipe')
-    elif not has_digits_length(row.get('ine'), 10):
-        missing.append('INE/equipe inválido')
-    if role_requires_dental_license(row.get('role')):
-        if not row.get('cro'):
-            missing.append('CRO')
-        if not row.get('cro_uf'):
-            missing.append('CRO-UF')
-        elif not has_valid_uf(row.get('cro_uf')):
-            missing.append('CRO-UF inválido')
-    return missing
-
-
-def list_professionals_missing_required_data(limit=80):
-    roles = tuple(PROFESSIONAL_DATA_REQUIRED_ROLES)
-    placeholders = ', '.join(['%s'] * len(roles))
-    rows = query(
-        f"""
-        SELECT id, username, full_name, role, cns, cbo, cnes, ine, cro, cro_uf
-        FROM users
-        WHERE role IN ({placeholders})
-          AND active = TRUE
-        ORDER BY role, full_name, username
-        LIMIT %s
-        """,
-        (*roles, limit),
-    )
-
-    missing_rows = []
-    for row in rows:
-        missing = _missing_professional_fields(row)
-        if missing:
-            row = dict(row)
-            row['missing_fields'] = missing
-            missing_rows.append(row)
-    return missing_rows
-
-
-def get_esus_settings():
-    settings = query(
-        """
-        SELECT *
-        FROM esus_integration_settings
-        ORDER BY updated_at DESC, id DESC
-        LIMIT 1
-        """,
-        one=True,
-    )
-    if settings:
-        return settings
-
-    return {
-        'environment': 'aguardando_prefeitura',
-        'base_url': '',
-        'pec_version': '',
-        'ledi_version': '',
-        'cnes': '',
-        'ine': '',
-        'installation_id': '',
-        'client_id': '',
-        'credential_status': 'pending',
-        'notes': '',
-        'active': False,
-    }
-
-
-def update_esus_settings(data):
-    existing = query(
-        "SELECT id FROM esus_integration_settings ORDER BY updated_at DESC, id DESC LIMIT 1",
-        one=True,
-    )
-    params = (
-        data.get('environment') or 'aguardando_prefeitura',
-        data.get('base_url') or None,
-        data.get('pec_version') or None,
-        data.get('ledi_version') or None,
-        data.get('cnes') or None,
-        data.get('ine') or None,
-        data.get('installation_id') or None,
-        data.get('client_id') or None,
-        data.get('credential_status') or 'pending',
-        data.get('notes') or None,
-        bool(data.get('active')),
-    )
-
-    if existing:
-        execute(
-            """
-            UPDATE esus_integration_settings
-            SET environment = %s,
-                base_url = %s,
-                pec_version = %s,
-                ledi_version = %s,
-                cnes = %s,
-                ine = %s,
-                installation_id = %s,
-                client_id = %s,
-                credential_status = %s,
-                notes = %s,
-                active = %s,
-                updated_at = NOW()
-            WHERE id = %s
-            """,
-            (*params, existing['id'])
-        )
-        return existing['id']
-
-    return execute(
-        """
-        INSERT INTO esus_integration_settings (
-            environment, base_url, pec_version, ledi_version, cnes, ine,
-            installation_id, client_id, credential_status, notes, active
-        )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        RETURNING id
-        """,
-        params
-    )
 
 
 def classify_esus_missing_fields(row, settings=None):
@@ -303,22 +343,17 @@ def classify_esus_missing_fields(row, settings=None):
         missing.append('CRO-UF')
     elif row.get('cro_uf') and not has_valid_uf(row.get('cro_uf')):
         missing.append('CRO-UF inválido')
-
-    cnes_value = row.get('professional_cnes') or settings.get('cnes')
-    ine_value = row.get('professional_ine') or settings.get('ine')
-    if not cnes_value:
-        missing.append('CNES')
-    elif not has_digits_length(cnes_value, 7):
-        missing.append('CNES inválido')
-    if not ine_value:
-        missing.append('INE/equipe')
-    elif not has_digits_length(ine_value, 10):
-        missing.append('INE/equipe inválido')
     return missing
 
 
-def build_esus_readiness(month_value=None):
-    rows = list_completed_procedures_for_esus(month_value)
+def build_esus_readiness(month_value=None, data_inicio=None, data_fim=None):
+    if data_inicio and data_fim:
+        rows = list_atendimentos_para_remessa(data_inicio, data_fim)
+        ref = f"{data_inicio} a {data_fim}"
+    else:
+        rows = list_completed_procedures_for_esus(month_value)
+        ref = month_value or dt.date.today().strftime('%Y-%m')
+
     ready = []
     missing_sigtap = []
     incomplete = []
@@ -337,7 +372,7 @@ def build_esus_readiness(month_value=None):
             ready.append(row)
 
     return {
-        'reference_month': month_value or dt.date.today().strftime('%Y-%m'),
+        'reference_month': ref,
         'total': len(rows),
         'ready': len(ready),
         'missing_sigtap': len(missing_sigtap),
@@ -345,577 +380,6 @@ def build_esus_readiness(month_value=None):
         'ready_records': ready,
         'missing_sigtap_records': missing_sigtap,
         'incomplete_records': incomplete,
-    }
-
-
-def build_esus_payload(month_value=None):
-    readiness = build_esus_readiness(month_value)
-    records = []
-
-    for row in readiness['ready_records']:
-        records.append({
-            'local_procedure_id': row['id'],
-            'patient_id': row['patient_id'],
-            'patient_name': row.get('patient_name'),
-            'patient_cns': row.get('cns'),
-            'patient_cpf': row.get('cpf'),
-            'professional_id': row.get('professor_id'),
-            'professional_name': row.get('professional_name'),
-            'professional_cns': row.get('professional_cns'),
-            'professional_cbo': row.get('professional_cbo'),
-            'professional_cro': row.get('cro'),
-            'professional_cro_uf': row.get('cro_uf'),
-            'professional_cnes': row.get('professional_cnes'),
-            'professional_ine': row.get('professional_ine'),
-            'procedure': {
-                'sigtap_code': row['sigtap_code'],
-                'sigtap_competence': row['sigtap_competence'],
-                'sigtap_name': row['sigtap_name'],
-                'description': row['descricao'],
-                'tooth': row.get('dente'),
-                'performed_at': row['criado_em'].isoformat() if row.get('criado_em') else None,
-            },
-        })
-
-    payload = {
-        'reference_month': readiness['reference_month'],
-        'system': 'GestaoSaudeOral',
-        'status': 'draft_waiting_city_esus_credentials',
-        'records': records,
-        'summary': {
-            'total': readiness['total'],
-            'ready': readiness['ready'],
-            'missing_sigtap': readiness['missing_sigtap'],
-            'incomplete': readiness['incomplete'],
-        },
-    }
-    payload_json = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
-    return payload, hashlib.sha256(payload_json.encode('utf-8')).hexdigest()
-
-
-def _as_payload(payload_json):
-    if not payload_json:
-        return None
-    if isinstance(payload_json, str):
-        return json.loads(payload_json)
-    return payload_json
-
-
-def get_esus_batch(batch_id):
-    return query(
-        """
-        SELECT b.*, u.username, u.full_name,
-               validator.username as validator_username,
-               validator.full_name as validator_full_name
-        FROM esus_export_batches b
-        LEFT JOIN users u ON u.id = b.generated_by
-        LEFT JOIN users validator ON validator.id = b.validated_by
-        WHERE b.id = %s
-        """,
-        (batch_id,),
-        one=True,
-    )
-
-
-def list_esus_transmission_attempts(batch_id, limit=20):
-    return query(
-        """
-        SELECT a.*, u.username, u.full_name
-        FROM esus_transmission_attempts a
-        LEFT JOIN users u ON u.id = a.attempted_by
-        WHERE a.batch_id = %s
-        ORDER BY a.attempted_at DESC, a.id DESC
-        LIMIT %s
-        """,
-        (batch_id, limit),
-    )
-
-
-def get_esus_batch_detail(batch_id):
-    batch = get_esus_batch(batch_id)
-    if not batch:
-        return None
-
-    payload = _as_payload(batch.get('payload_json'))
-    legacy_payload = payload is None
-    if payload is None:
-        payload, _ = build_esus_payload(batch['reference_month'])
-
-    payload_json = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
-    computed_hash = hashlib.sha256(payload_json.encode('utf-8')).hexdigest()
-    readiness = build_esus_readiness(batch['reference_month'])
-    attempts = list_esus_transmission_attempts(batch_id)
-    transmission_readiness = build_batch_transmission_readiness(batch, payload, computed_hash)
-
-    return {
-        'batch': batch,
-        'payload': payload,
-        'records': payload.get('records', []),
-        'pending_records': readiness['missing_sigtap_records'] + readiness['incomplete_records'],
-        'attempts': attempts,
-        'transmission_readiness': transmission_readiness,
-        'computed_hash': computed_hash,
-        'hash_matches': not batch.get('payload_hash') or batch.get('payload_hash') == computed_hash,
-        'legacy_payload': legacy_payload,
-    }
-
-
-def _snapshot_payload_if_missing(batch):
-    payload = _as_payload(batch.get('payload_json'))
-    if payload is not None:
-        payload_hash = batch.get('payload_hash')
-        if not payload_hash:
-            payload_json = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
-            payload_hash = hashlib.sha256(payload_json.encode('utf-8')).hexdigest()
-        return payload, payload_hash
-
-    payload, payload_hash = build_esus_payload(batch['reference_month'])
-    summary = payload['summary']
-    execute(
-        """
-        UPDATE esus_export_batches
-        SET payload_json = %s::jsonb,
-            payload_hash = %s,
-            records_total = %s,
-            records_ready = %s,
-            records_missing_sigtap = %s,
-            records_incomplete = %s
-        WHERE id = %s
-        """,
-        (
-            json.dumps(payload, ensure_ascii=False, default=str),
-            payload_hash,
-            summary['total'],
-            summary['ready'],
-            summary['missing_sigtap'],
-            summary['incomplete'],
-            batch['id'],
-        )
-    )
-    return payload, payload_hash
-
-
-def register_esus_export_batch(month_value=None, generated_by=None):
-    payload, payload_hash = build_esus_payload(month_value)
-    summary = payload['summary']
-    batch_id = execute(
-        """
-        INSERT INTO esus_export_batches (
-            reference_month, status, payload_hash, payload_json, records_total,
-            records_ready, records_missing_sigtap, records_incomplete, generated_by
-        )
-        VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s)
-        RETURNING id
-        """,
-        (
-            payload['reference_month'],
-            'draft',
-            payload_hash,
-            json.dumps(payload, ensure_ascii=False, default=str),
-            summary['total'],
-            summary['ready'],
-            summary['missing_sigtap'],
-            summary['incomplete'],
-            generated_by,
-        )
-    )
-    return batch_id, payload
-
-
-def procedure_locked_by_validated_batch(procedure_id):
-    batches = query(
-        """
-        SELECT id, payload_json
-        FROM esus_export_batches
-        WHERE status = 'validated_internally'
-          AND payload_json IS NOT NULL
-        """
-    )
-    for batch in batches:
-        payload = _as_payload(batch.get('payload_json')) or {}
-        for record in payload.get('records', []):
-            if int(record.get('local_procedure_id') or 0) == int(procedure_id):
-                return batch['id']
-    return None
-
-
-def validate_esus_export_batch(batch_id, validated_by, notes=None):
-    batch = get_esus_batch(batch_id)
-    if not batch:
-        raise ValueError('Lote e-SUS não encontrado.')
-    if batch['status'] != 'draft':
-        raise ValueError('Apenas lotes em draft podem ser validados internamente.')
-
-    payload, payload_hash = _snapshot_payload_if_missing(batch)
-    summary = payload.get('summary', {})
-    execute(
-        """
-        UPDATE esus_export_batches
-        SET status = 'validated_internally',
-            payload_hash = %s,
-            records_total = %s,
-            records_ready = %s,
-            records_missing_sigtap = %s,
-            records_incomplete = %s,
-            validated_by = %s,
-            validated_at = NOW(),
-            validation_notes = %s
-        WHERE id = %s
-        """,
-        (
-            payload_hash,
-            summary.get('total', 0),
-            summary.get('ready', 0),
-            summary.get('missing_sigtap', 0),
-            summary.get('incomplete', 0),
-            validated_by,
-            notes or None,
-            batch_id,
-        )
-    )
-    return get_esus_batch(batch_id)
-
-
-def build_batch_transmission_readiness(batch, payload, computed_hash=None, settings=None):
-    settings = settings or get_esus_settings()
-    blockers = []
-    records = payload.get('records', []) if payload else []
-    computed_hash = computed_hash or hashlib.sha256(
-        json.dumps(payload or {}, ensure_ascii=False, sort_keys=True, default=str).encode('utf-8')
-    ).hexdigest()
-
-    if batch.get('status') not in {'validated_internally', 'ready_to_send'}:
-        blockers.append('lote ainda não validado internamente')
-    if batch.get('payload_hash') and batch.get('payload_hash') != computed_hash:
-        blockers.append('hash do payload divergente')
-    if not records:
-        blockers.append('payload sem registros prontos')
-    if settings.get('environment') not in {'homologacao', 'producao'}:
-        blockers.append('ambiente não definido para homologação/produção')
-    if not settings.get('base_url'):
-        blockers.append('URL PEC/e-SUS não informada')
-    if settings.get('credential_status') not in {'received', 'validated'}:
-        blockers.append('credenciais não recebidas/validadas')
-    if not settings.get('cnes'):
-        blockers.append('CNES não configurado')
-    if not settings.get('ine'):
-        blockers.append('INE/equipe não configurado')
-    if not settings.get('active'):
-        blockers.append('integração e-SUS inativa')
-
-    return {
-        'ready': not blockers,
-        'blockers': blockers,
-        'settings': settings,
-        'endpoint_url': settings.get('base_url') or '',
-        'records_count': len(records),
-        'payload_hash': batch.get('payload_hash') or computed_hash,
-    }
-
-
-def register_esus_transmission_attempt(batch_id, mode, status, endpoint_url=None, http_status=None,
-                                       request_hash=None, response_body=None, error_message=None,
-                                       attempted_by=None, details=None):
-    return execute(
-        """
-        INSERT INTO esus_transmission_attempts (
-            batch_id, mode, status, endpoint_url, http_status, request_hash,
-            response_body, error_message, attempted_by, details
-        )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
-        RETURNING id
-        """,
-        (
-            batch_id,
-            mode,
-            status,
-            endpoint_url,
-            http_status,
-            request_hash,
-            response_body,
-            error_message,
-            attempted_by,
-            json.dumps(details, ensure_ascii=False, default=str) if details is not None else None,
-        )
-    )
-
-
-def simulate_esus_transmission_preflight(batch_id, attempted_by=None):
-    detail = get_esus_batch_detail(batch_id)
-    if not detail:
-        raise ValueError('Lote e-SUS não encontrado.')
-
-    readiness = detail['transmission_readiness']
-    response = {
-        'simulated': True,
-        'ready_to_send': readiness['ready'],
-        'message': (
-            'Pré-envio simulado aprovado. Lote pronto para transmissão real quando o conector for homologado.'
-            if readiness['ready']
-            else 'Pré-envio simulado bloqueado por pendências de configuração ou payload.'
-        ),
-        'blockers': readiness['blockers'],
-        'records_count': readiness['records_count'],
-        'payload_hash': readiness['payload_hash'],
-        'endpoint_url': readiness['endpoint_url'],
-    }
-    status = 'success' if readiness['ready'] else 'blocked'
-    http_status = 200 if readiness['ready'] else 428
-    attempt_id = register_esus_transmission_attempt(
-        batch_id=batch_id,
-        mode='simulation',
-        status=status,
-        endpoint_url=readiness['endpoint_url'] or None,
-        http_status=http_status,
-        request_hash=readiness['payload_hash'],
-        response_body=json.dumps(response, ensure_ascii=False, default=str),
-        error_message='; '.join(readiness['blockers']) if readiness['blockers'] else None,
-        attempted_by=attempted_by,
-        details={
-            'batch_status': detail['batch']['status'],
-            'simulated': True,
-            'blockers': readiness['blockers'],
-        },
-    )
-
-    if readiness['ready']:
-        execute(
-            """
-            UPDATE esus_export_batches
-            SET status = 'ready_to_send',
-                endpoint_url = %s,
-                response_status = 'simulation_success',
-                response_body = %s
-            WHERE id = %s
-            """,
-            (readiness['endpoint_url'], json.dumps(response, ensure_ascii=False, default=str), batch_id)
-        )
-    else:
-        execute(
-            """
-            UPDATE esus_export_batches
-            SET response_status = 'simulation_blocked',
-                response_body = %s
-            WHERE id = %s
-            """,
-            (json.dumps(response, ensure_ascii=False, default=str), batch_id)
-        )
-
-    return {
-        'attempt_id': attempt_id,
-        'status': status,
-        'ready_to_send': readiness['ready'],
-        'response': response,
-    }
-
-
-def build_esus_meeting_checklist(settings, homologation, batch_detail=None):
-    transmission = batch_detail.get('transmission_readiness') if batch_detail else None
-    batch = batch_detail.get('batch') if batch_detail else None
-
-    items = [
-        {
-            'group': 'Dados da prefeitura',
-            'label': 'Ambiente de homologação definido',
-            'ok': settings.get('environment') in {'homologacao', 'producao'},
-            'detail': settings.get('environment') or 'pendente',
-        },
-        {
-            'group': 'Dados da prefeitura',
-            'label': 'Endpoint PEC/e-SUS informado',
-            'ok': bool(settings.get('base_url')),
-            'detail': settings.get('base_url') or 'pendente',
-        },
-        {
-            'group': 'Dados da prefeitura',
-            'label': 'Versão PEC confirmada',
-            'ok': bool(settings.get('pec_version')),
-            'detail': settings.get('pec_version') or 'pendente',
-        },
-        {
-            'group': 'Dados da prefeitura',
-            'label': 'Versão LEDI confirmada',
-            'ok': bool(settings.get('ledi_version')),
-            'detail': settings.get('ledi_version') or 'pendente',
-        },
-        {
-            'group': 'Dados da prefeitura',
-            'label': 'Credenciais recebidas/validadas',
-            'ok': settings.get('credential_status') in {'received', 'validated'},
-            'detail': settings.get('credential_status') or 'pending',
-        },
-        {
-            'group': 'Identificação da unidade/equipe',
-            'label': 'CNES configurado',
-            'ok': bool(settings.get('cnes')),
-            'detail': settings.get('cnes') or 'pendente',
-        },
-        {
-            'group': 'Identificação da unidade/equipe',
-            'label': 'INE/equipe configurado',
-            'ok': bool(settings.get('ine')),
-            'detail': settings.get('ine') or 'pendente',
-        },
-        {
-            'group': 'Qualidade da produção',
-            'label': 'Checklist de homologação sem bloqueios',
-            'ok': homologation.get('ready', False),
-            'detail': f"{homologation.get('blocking_count', 0)} bloqueio(s)",
-        },
-        {
-            'group': 'Qualidade da produção',
-            'label': 'Lote validado internamente',
-            'ok': bool(batch and batch.get('status') in {'validated_internally', 'ready_to_send', 'sent'}),
-            'detail': batch.get('status') if batch else 'sem lote',
-        },
-        {
-            'group': 'Qualidade da produção',
-            'label': 'Payload com hash SHA-256',
-            'ok': bool(batch and batch.get('payload_hash')),
-            'detail': (batch.get('payload_hash') or 'pendente') if batch else 'pendente',
-        },
-        {
-            'group': 'Pré-envio',
-            'label': 'Pré-envio simulado aprovado',
-            'ok': bool(batch and batch.get('status') in {'ready_to_send', 'sent'}),
-            'detail': batch.get('response_status') if batch else 'pendente',
-        },
-        {
-            'group': 'Pré-envio',
-            'label': 'Sem bloqueios para envio real',
-            'ok': bool(transmission and transmission.get('ready')),
-            'detail': f"{len(transmission.get('blockers', [])) if transmission else 0} bloqueio(s)",
-        },
-    ]
-
-    grouped = {}
-    for item in items:
-        grouped.setdefault(item['group'], []).append(item)
-
-    return {
-        'items': items,
-        'groups': grouped,
-        'pending': [item for item in items if not item['ok']],
-    }
-
-
-def get_esus_quick_manual_steps():
-    return [
-        'Preencher dados obrigatórios de pacientes: CNS e CPF.',
-        'Preencher dados obrigatórios dos profissionais: CNS, CBO, CNES, INE/equipe e CRO quando aplicável.',
-        'Carregar ou conferir catálogo SIGTAP da competência.',
-        'Vincular cada procedimento concluído ao código SIGTAP correto.',
-        'Gerar lote draft da competência no painel SIGTAP/e-SUS.',
-        'Abrir o detalhe do lote, conferir registros e baixar JSON para conferência técnica.',
-        'Validar internamente o lote após conferência clínica/administrativa.',
-        'Executar o pré-envio simulado e corrigir bloqueios apontados.',
-        'Aguardar endpoint, autenticação e homologação oficial da prefeitura para ativar envio real.',
-    ]
-
-
-def get_esus_homologation_report(month_value=None, batch_id=None):
-    month_value = month_value or current_month_value()
-    dashboard = get_esus_dashboard(month_value)
-
-    batch = get_esus_batch(batch_id) if batch_id else get_latest_esus_batch(month_value)
-    batch_detail = get_esus_batch_detail(batch['id']) if batch else None
-    checklist = build_esus_meeting_checklist(
-        dashboard['settings'],
-        dashboard['homologation'],
-        batch_detail=batch_detail,
-    )
-
-    pending_items = []
-    pending_items.extend(item['label'] for item in checklist['pending'])
-    if batch_detail:
-        pending_items.extend(batch_detail['transmission_readiness']['blockers'])
-    else:
-        pending_items.append('nenhum lote selecionado para homologação')
-
-    return {
-        'generated_at': dt.datetime.now(),
-        'month': month_value,
-        'settings': dashboard['settings'],
-        'homologation': dashboard['homologation'],
-        'readiness': dashboard['readiness'],
-        'sigtap_summary': get_sigtap_summary(),
-        'patient_gaps': dashboard['patient_gaps'],
-        'missing_professionals': dashboard['missing_professionals'],
-        'batch_detail': batch_detail,
-        'checklist': checklist,
-        'manual_steps': get_esus_quick_manual_steps(),
-        'pending_items': pending_items,
-        'status_label': 'Pronto para reunião técnica' if not pending_items else 'Com pendências para reunião técnica',
-        'external_dependency_note': (
-            'A transmissão real permanece aguardando endpoint, credenciais e regras oficiais de homologação da prefeitura.'
-        ),
-    }
-
-
-def build_homologation_status(settings, readiness, sigtap_summary, patient_gaps, missing_professionals):
-    patient_missing = patient_gaps.get('missing_cns_or_cpf', 0)
-    patient_invalid = patient_gaps.get('invalid_cns_or_cpf', 0)
-    items = [
-        {
-            'label': 'Ambiente definido',
-            'ok': settings.get('environment') in {'homologacao', 'producao'},
-            'detail': settings.get('environment') or 'aguardando prefeitura',
-        },
-        {
-            'label': 'URL PEC/e-SUS informada',
-            'ok': bool(settings.get('base_url')),
-            'detail': settings.get('base_url') or 'pendente',
-        },
-        {
-            'label': 'Versão PEC informada',
-            'ok': bool(settings.get('pec_version')),
-            'detail': settings.get('pec_version') or 'pendente',
-        },
-        {
-            'label': 'Versão LEDI informada',
-            'ok': bool(settings.get('ledi_version')),
-            'detail': settings.get('ledi_version') or 'pendente',
-        },
-        {
-            'label': 'Credenciais recebidas/validadas',
-            'ok': settings.get('credential_status') in {'received', 'validated'},
-            'detail': settings.get('credential_status') or 'pending',
-        },
-        {
-            'label': 'CNES configurado',
-            'ok': has_digits_length(settings.get('cnes'), 7),
-            'detail': settings.get('cnes') or 'pendente',
-        },
-        {
-            'label': 'INE/equipe configurado',
-            'ok': has_digits_length(settings.get('ine'), 10),
-            'detail': settings.get('ine') or 'pendente',
-        },
-        {
-            'label': 'Catálogo SIGTAP carregado',
-            'ok': bool(sigtap_summary['latest']['total']),
-            'detail': f"{sigtap_summary['latest']['total']} procedimento(s)",
-        },
-        {
-            'label': 'Pacientes com CNS/CPF válido',
-            'ok': patient_missing == 0 and patient_invalid == 0,
-            'detail': f"{patient_missing} pendente(s), {patient_invalid} inválido(s)",
-        },
-        {
-            'label': 'Profissionais com CNS/CBO/CNES/INE',
-            'ok': len(missing_professionals) == 0,
-            'detail': f"{len(missing_professionals)} pendente(s)",
-        },
-        {
-            'label': 'Produção da competência sem bloqueios',
-            'ok': readiness['missing_sigtap'] == 0 and readiness['incomplete'] == 0,
-            'detail': f"{readiness['missing_sigtap'] + readiness['incomplete']} bloqueio(s)",
-        },
-    ]
-    return {
-        'ready': all(item['ok'] for item in items),
-        'items': items,
-        'blocking_count': sum(1 for item in items if not item['ok']),
     }
 
 
@@ -935,10 +399,6 @@ def list_procedures_missing_sigtap(limit=80):
 
 
 def update_treatment_sigtap(procedure_id, sigtap_code, sigtap_competence=None):
-    locked_batch_id = procedure_locked_by_validated_batch(procedure_id)
-    if locked_batch_id:
-        raise ValueError(f'Procedimento bloqueado por lote e-SUS validado internamente #{locked_batch_id}. Gere um novo lote para nova conferência.')
-
     sigtap = get_sigtap_procedure(sigtap_code, sigtap_competence)
     if not sigtap:
         raise ValueError('Código SIGTAP não encontrado na competência carregada.')
@@ -960,6 +420,215 @@ def update_treatment_sigtap(procedure_id, sigtap_code, sigtap_competence=None):
     return sigtap
 
 
+def build_homologation_status(settings, readiness, sigtap_summary, patient_gaps, missing_professionals):
+    patient_missing = patient_gaps.get('missing_cns_or_cpf', 0)
+    patient_invalid = patient_gaps.get('invalid_cns_or_cpf', 0)
+    cnes_ok = has_digits_length(settings.get('cnes'), 7)
+    ine_ok = has_digits_length(settings.get('ine'), 10)
+    items = [
+        {
+            'label': 'CNES configurado',
+            'ok': cnes_ok,
+            'detail': settings.get('cnes') or '⚠️ Aguardando TI da Secretaria',
+        },
+        {
+            'label': 'INE/equipe configurado',
+            'ok': ine_ok,
+            'detail': settings.get('ine') or '⚠️ Aguardando TI da Secretaria',
+        },
+        {
+            'label': 'E-mail de destino configurado',
+            'ok': bool(settings.get('email_destino_remessa')),
+            'detail': settings.get('email_destino_remessa') or 'pendente',
+        },
+        {
+            'label': 'Catálogo SIGTAP carregado',
+            'ok': bool(sigtap_summary['latest']['total']),
+            'detail': f"{sigtap_summary['latest']['total']} procedimento(s)",
+        },
+        {
+            'label': 'Pacientes com CNS/CPF válido',
+            'ok': patient_missing == 0 and patient_invalid == 0,
+            'detail': f"{patient_missing} pendente(s), {patient_invalid} inválido(s)",
+        },
+        {
+            'label': 'Profissionais com CNS/CBO',
+            'ok': len(missing_professionals) == 0,
+            'detail': f"{len(missing_professionals)} pendente(s)",
+        },
+        {
+            'label': 'Produção sem bloqueios de SIGTAP',
+            'ok': readiness['missing_sigtap'] == 0 and readiness['incomplete'] == 0,
+            'detail': f"{readiness['missing_sigtap'] + readiness['incomplete']} bloqueio(s)",
+        },
+    ]
+    return {
+        'ready': all(item['ok'] for item in items),
+        'items': items,
+        'blocking_count': sum(1 for item in items if not item['ok']),
+        'cnes_ine_missing': not cnes_ok or not ine_ok,
+    }
+
+
+# ─────────────────────────────────────────
+# Gestão de remessas XML
+# ─────────────────────────────────────────
+
+def list_esus_remessas(limit=20):
+    return query(
+        """
+        SELECT r.*, u.username, u.full_name
+        FROM esus_remessas r
+        LEFT JOIN users u ON u.id = r.generated_by
+        ORDER BY r.created_at DESC
+        LIMIT %s
+        """,
+        (limit,),
+    )
+
+
+def get_esus_remessa(remessa_id):
+    return query(
+        """
+        SELECT r.*, u.username, u.full_name
+        FROM esus_remessas r
+        LEFT JOIN users u ON u.id = r.generated_by
+        WHERE r.id = %s
+        """,
+        (remessa_id,),
+        one=True,
+    )
+
+
+def gerar_remessa_xml(data_inicio, data_fim, periodo_label=None, generated_by=None):
+    """
+    Gera o arquivo XML da Ficha de Atendimento Odontológico para o período,
+    salva em pdf_temp/ e registra na tabela esus_remessas.
+
+    Retorna: dict com id, xml_path, records_ready, records_skipped, xml_hash, erros_xsd
+    """
+    settings = get_esus_settings()
+    cnes = settings.get('cnes') or ''
+    ine = settings.get('ine') or ''
+
+    # Busca atendimentos prontos
+    readiness = build_esus_readiness(data_inicio=data_inicio, data_fim=data_fim)
+    atendimentos_prontos = readiness['ready_records']
+    skipped = readiness['missing_sigtap'] + readiness['incomplete']
+
+    xml_bytes, uuid_ficha = build_xml_ficha_odontologica(atendimentos_prontos, cnes, ine)
+    hash_xml = xml_sha256(xml_bytes)
+
+    # Valida contra XSD
+    valido, erros_xsd = validate_xml_against_xsd(xml_bytes)
+
+    # Salva arquivo
+    pdf_dir = os.path.join(os.getcwd(), 'pdf_temp', 'esus')
+    os.makedirs(pdf_dir, exist_ok=True)
+    label_clean = (periodo_label or f"{data_inicio}_{data_fim}").replace(' ', '_')
+    filename = f"esus_odonto_{label_clean}_{uuid_ficha[:8]}.xml"
+    xml_path = os.path.join(pdf_dir, filename)
+    with open(xml_path, 'wb') as f:
+        f.write(xml_bytes)
+
+    # Registra remessa
+    remessa_id = execute(
+        """
+        INSERT INTO esus_remessas (
+            periodo_inicio, periodo_fim, periodo_label,
+            xml_path, xml_hash, records_total, records_ready, records_skipped,
+            status, generated_by
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'gerado', %s)
+        RETURNING id
+        """,
+        (
+            data_inicio, data_fim, periodo_label,
+            xml_path, hash_xml,
+            readiness['total'], len(atendimentos_prontos), skipped,
+            generated_by,
+        ),
+    )
+
+    return {
+        'remessa_id': remessa_id,
+        'xml_path': xml_path,
+        'filename': filename,
+        'xml_bytes': xml_bytes,
+        'xml_hash': hash_xml,
+        'uuid_ficha': uuid_ficha,
+        'records_ready': len(atendimentos_prontos),
+        'records_skipped': skipped,
+        'xsd_valid': valido,
+        'xsd_errors': erros_xsd,
+    }
+
+
+def marcar_remessa_enviada(remessa_id, email_destino):
+    """Atualiza o status da remessa após envio por e-mail."""
+    execute(
+        """
+        UPDATE esus_remessas
+        SET status = 'enviado_email',
+            email_destino = %s,
+            enviado_em = NOW()
+        WHERE id = %s
+        """,
+        (email_destino, remessa_id),
+    )
+
+
+def marcar_remessa_erro(remessa_id, mensagem_erro):
+    execute(
+        """
+        UPDATE esus_remessas
+        SET status = 'erro',
+            erro_mensagem = %s
+        WHERE id = %s
+        """,
+        (mensagem_erro, remessa_id),
+    )
+
+
+def enviar_remessa_por_email(remessa_id, xml_path, periodo_label, email_destino, filename=None):
+    """
+    Envia o arquivo XML da remessa por e-mail usando o Postfix já configurado.
+    Retorna True se enviou ou False com mensagem de erro.
+    """
+    from services.mail_service import send_mail
+
+    filename = filename or os.path.basename(xml_path)
+    subject = f'Remessa e-SUS APS — Ficha Odontológica — {periodo_label}'
+    body = (
+        f'Prezado(a),\n\n'
+        f'Segue em anexo a remessa eletrônica de atendimentos odontológicos '
+        f'referente ao período: {periodo_label}.\n\n'
+        f'Arquivo: {filename}\n\n'
+        f'Importar no concentrador e-SUS APS conforme procedimento habitual.\n\n'
+        f'Clínica Sorriso da Gente'
+    )
+
+    try:
+        with open(xml_path, 'rb') as f:
+            xml_content = f.read()
+        send_mail(
+            to=email_destino,
+            subject=subject,
+            body=body,
+            attachments=[(filename, xml_content, 'application/xml')],
+        )
+        marcar_remessa_enviada(remessa_id, email_destino)
+        return True, None
+    except Exception as exc:
+        msg = str(exc)
+        marcar_remessa_erro(remessa_id, msg)
+        return False, msg
+
+
+# ─────────────────────────────────────────
+# Dashboard principal
+# ─────────────────────────────────────────
+
 def get_esus_dashboard(month_value=None):
     month_value = month_value or current_month_value()
     settings = get_esus_settings()
@@ -967,19 +636,41 @@ def get_esus_dashboard(month_value=None):
     sigtap_summary = get_sigtap_summary()
     patient_gaps = get_patient_identifier_gaps()
     missing_professionals = list_professionals_missing_required_data(limit=80)
+    remessas = list_esus_remessas(limit=10)
+    periods = build_quinzenal_periods()
+
+    homologation = build_homologation_status(
+        settings, readiness, sigtap_summary, patient_gaps, missing_professionals
+    )
+
     return {
         'month': month_value,
         'readiness': readiness,
         'settings': settings,
         'patient_gaps': patient_gaps,
         'missing_professionals': missing_professionals,
-        'homologation': build_homologation_status(
-            settings,
-            readiness,
-            sigtap_summary,
-            patient_gaps,
-            missing_professionals,
-        ),
+        'homologation': homologation,
         'missing_sigtap': list_procedures_missing_sigtap(limit=80),
-        'batches': list_esus_batches(limit=12),
+        'remessas': remessas,
+        'periods': periods,
+        'settings_complete': is_settings_complete(settings),
+        'sigtap_summary': sigtap_summary,
     }
+
+
+# ─────────────────────────────────────────
+# Compatibilidade legada (não removidos para não quebrar imports)
+# ─────────────────────────────────────────
+
+def list_esus_batches(limit=20):
+    """Legado: lista lotes antigos (não mais gerados)."""
+    return query(
+        """
+        SELECT b.*, u.username, u.full_name
+        FROM esus_export_batches b
+        LEFT JOIN users u ON u.id = b.generated_by
+        ORDER BY b.generated_at DESC
+        LIMIT %s
+        """,
+        (limit,)
+    )

@@ -1,23 +1,27 @@
 {% extends "base.html" %}
 
-{% block title %}SIGTAP e e-SUS APS{% endblock %}
+{% block title %}SIGTAP / e-SUS APS — Remessas XML{% endblock %}
 
 {% block content %}
 <div class="animate-fade">
     <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; flex-wrap:wrap; margin-bottom:2rem;">
         <div>
             <h1 class="page-title">SIGTAP / e-SUS APS</h1>
-            <p class="page-subtitle">Preparação da produção odontológica para integração municipal.</p>
+            <p class="page-subtitle">Geração e envio de remessas XML para o concentrador da Secretaria de Saúde.</p>
         </div>
-        <a class="btn btn-outline" href="{{ url_for('admin.esus_homologation_report', month=dashboard.month) }}">Relatório de Homologação</a>
-        {% if can_write %}
-        <form method="POST" action="{{ url_for('admin.create_esus_batch') }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="month" value="{{ dashboard.month }}">
-            <button type="submit" class="btn btn-primary">Gerar Lote Draft</button>
-        </form>
-        {% endif %}
     </div>
+
+    {# ── Alerta: CNES/INE pendentes ───────────────────────────────────── #}
+    {% if not dashboard.settings_complete %}
+    <div class="alert alert-warning" style="display:flex; align-items:center; gap:1rem; padding:1rem 1.5rem; margin-bottom:1.5rem; border-radius:12px; background:#fef3c7; border-left:5px solid #f59e0b;">
+        <span style="font-size:1.4rem;">⚠️</span>
+        <div>
+            <strong>CNES e/ou INE não configurados.</strong>
+            O envio automático de remessas está bloqueado até que você informe o CNES e o INE fornecidos pelo TI da Secretaria (Rômulo).
+            Preencha os campos abaixo assim que receber os dados.
+        </div>
+    </div>
+    {% endif %}
 
     <form method="GET" class="card" style="padding:1rem; margin-bottom:1.5rem;">
         <div style="display:grid; grid-template-columns:minmax(180px, 260px) auto; gap:1rem; align-items:end;">
@@ -41,7 +45,7 @@
             <div class="stat-icon" style="background:#dcfce7;">OK</div>
             <div class="stat-info">
                 <span class="stat-value">{{ dashboard.readiness.ready }}</span>
-                <span class="stat-label">Prontos para lote</span>
+                <span class="stat-label">Prontos para remessa</span>
             </div>
         </div>
         <div class="stat-card" style="border-bottom:4px solid #f59e0b;">
@@ -61,118 +65,139 @@
     </div>
 
     <div style="display:grid; grid-template-columns:minmax(0, 1.1fr) minmax(320px, 0.9fr); gap:1.5rem; align-items:start;">
-        <section class="card" style="margin:0; padding:1.5rem;">
-            <h2 class="section-header">Configuração Prefeitura</h2>
-            <form method="POST" action="{{ url_for('admin.update_esus_integration_settings') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="month" value="{{ dashboard.month }}">
-                <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:1rem;">
-                    <div>
-                        <label class="form-label" for="environment">Ambiente</label>
-                        <select class="form-control" id="environment" name="environment" {% if not can_write %}disabled{% endif %}>
-                            {% for value, label in [('aguardando_prefeitura', 'Aguardando Prefeitura'), ('homologacao', 'Homologação'), ('producao', 'Produção')] %}
-                            <option value="{{ value }}" {% if dashboard.settings.environment == value %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
+        <div style="display:flex; flex-direction:column; gap:1.5rem;">
+
+            {# ── Configurações ─────────────────────────────────────────────── #}
+            <section class="card" style="margin:0; padding:1.5rem;">
+                <h2 class="section-header">Configuração — Remessa XML</h2>
+                <form method="POST" action="{{ url_for('admin.update_esus_integration_settings') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="month" value="{{ dashboard.month }}">
+                    <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:1rem;">
+                        <div>
+                            <label class="form-label" for="cnes">CNES <span style="color:#ef4444;">*</span></label>
+                            <input class="form-control" id="cnes" name="cnes"
+                                   value="{{ dashboard.settings.cnes or '' }}"
+                                   placeholder="⚠️ Aguardando TI Secretaria"
+                                   {% if not can_write %}disabled{% endif %}>
+                        </div>
+                        <div>
+                            <label class="form-label" for="ine">INE / Equipe <span style="color:#ef4444;">*</span></label>
+                            <input class="form-control" id="ine" name="ine"
+                                   value="{{ dashboard.settings.ine or '' }}"
+                                   placeholder="⚠️ Aguardando TI Secretaria"
+                                   {% if not can_write %}disabled{% endif %}>
+                        </div>
+                        <div style="grid-column:1/-1;">
+                            <label class="form-label" for="email_destino_remessa">E-mail do TI da Secretaria (destino das remessas)</label>
+                            <input class="form-control" type="email" id="email_destino_remessa" name="email_destino_remessa"
+                                   value="{{ dashboard.settings.email_destino_remessa or '' }}"
+                                   placeholder="ti@secretaria.gov.br"
+                                   {% if not can_write %}disabled{% endif %}>
+                        </div>
+                        <div>
+                            <label class="form-label" for="remessa_ativa">Envio automático</label>
+                            <select class="form-control" id="remessa_ativa" name="remessa_ativa" {% if not can_write %}disabled{% endif %}>
+                                <option value="0" {% if not dashboard.settings.remessa_ativa %}selected{% endif %}>Inativo</option>
+                                <option value="1" {% if dashboard.settings.remessa_ativa %}selected{% endif %}>Ativo (dia 15 e dia 5)</option>
+                            </select>
+                        </div>
                     </div>
-                    <div>
-                        <label class="form-label" for="credential_status">Credenciais</label>
-                        <select class="form-control" id="credential_status" name="credential_status" {% if not can_write %}disabled{% endif %}>
-                            {% for value, label in [('pending', 'Pendente'), ('received', 'Recebida'), ('validated', 'Validada'), ('blocked', 'Bloqueada')] %}
-                            <option value="{{ value }}" {% if dashboard.settings.credential_status == value %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
+                    <div style="margin-top:1rem;">
+                        <label class="form-label" for="notes">Observações</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="2" {% if not can_write %}disabled{% endif %}>{{ dashboard.settings.notes or '' }}</textarea>
                     </div>
-                    <div>
-                        <label class="form-label" for="base_url">URL PEC/e-SUS</label>
-                        <input class="form-control" id="base_url" name="base_url" value="{{ dashboard.settings.base_url or '' }}" {% if not can_write %}disabled{% endif %}>
+                    {% if can_write %}
+                    <button type="submit" class="btn btn-primary" style="margin-top:1rem;">Salvar Configuração</button>
+                    {% endif %}
+                </form>
+            </section>
+
+            {# ── Gerar Remessa Manual ───────────────────────────────────────── #}
+            {% if can_write %}
+            <section class="card" style="margin:0; padding:1.5rem;">
+                <h2 class="section-header">Gerar Remessa XML Manualmente</h2>
+                <form method="POST" action="{{ url_for('admin.gerar_esus_remessa') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem; align-items:end;">
+                        <div>
+                            <label class="form-label" for="data_inicio">Data Início</label>
+                            <input type="date" class="form-control" id="data_inicio" name="data_inicio" required>
+                        </div>
+                        <div>
+                            <label class="form-label" for="data_fim">Data Fim</label>
+                            <input type="date" class="form-control" id="data_fim" name="data_fim" required>
+                        </div>
+                        <div>
+                            <label class="form-label" for="periodo_label">Rótulo (opcional)</label>
+                            <input class="form-control" id="periodo_label" name="periodo_label" placeholder="ex: 2026-06 P1">
+                        </div>
                     </div>
-                    <div>
-                        <label class="form-label" for="installation_id">Instalação</label>
-                        <input class="form-control" id="installation_id" name="installation_id" value="{{ dashboard.settings.installation_id or '' }}" {% if not can_write %}disabled{% endif %}>
+                    <div style="margin-top:1rem; display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
+                        <button type="submit" class="btn btn-primary">Gerar XML</button>
+                        {% for period in dashboard.periods %}
+                        <button type="button" class="btn btn-outline" style="font-size:0.8rem;"
+                                onclick="document.getElementById('data_inicio').value='{{ period.periodo_inicio }}';
+                                         document.getElementById('data_fim').value='{{ period.periodo_fim }}';
+                                         document.getElementById('periodo_label').value='{{ period.periodo_label }}';">
+                            {{ period.periodo_label }}
+                            {% if period.is_due_today %}<span style="color:#16a34a; margin-left:4px;">• hoje</span>{% endif %}
+                        </button>
+                        {% endfor %}
                     </div>
-                    <div>
-                        <label class="form-label" for="pec_version">Versão PEC</label>
-                        <input class="form-control" id="pec_version" name="pec_version" value="{{ dashboard.settings.pec_version or '' }}" {% if not can_write %}disabled{% endif %}>
-                    </div>
-                    <div>
-                        <label class="form-label" for="ledi_version">Versão LEDI</label>
-                        <input class="form-control" id="ledi_version" name="ledi_version" value="{{ dashboard.settings.ledi_version or '' }}" {% if not can_write %}disabled{% endif %}>
-                    </div>
-                    <div>
-                        <label class="form-label" for="cnes">CNES</label>
-                        <input class="form-control" id="cnes" name="cnes" value="{{ dashboard.settings.cnes or '' }}" {% if not can_write %}disabled{% endif %}>
-                    </div>
-                    <div>
-                        <label class="form-label" for="ine">INE / Equipe</label>
-                        <input class="form-control" id="ine" name="ine" value="{{ dashboard.settings.ine or '' }}" {% if not can_write %}disabled{% endif %}>
-                    </div>
-                    <div>
-                        <label class="form-label" for="client_id">Client ID</label>
-                        <input class="form-control" id="client_id" name="client_id" value="{{ dashboard.settings.client_id or '' }}" {% if not can_write %}disabled{% endif %}>
-                    </div>
-                    <div>
-                        <label class="form-label" for="active">Status</label>
-                        <select class="form-control" id="active" name="active" {% if not can_write %}disabled{% endif %}>
-                            <option value="0" {% if not dashboard.settings.active %}selected{% endif %}>Inativo</option>
-                            <option value="1" {% if dashboard.settings.active %}selected{% endif %}>Ativo</option>
-                        </select>
-                    </div>
-                </div>
-                <div style="margin-top:1rem;">
-                    <label class="form-label" for="notes">Observações</label>
-                    <textarea class="form-control" id="notes" name="notes" rows="3" {% if not can_write %}disabled{% endif %}>{{ dashboard.settings.notes or '' }}</textarea>
-                </div>
-                {% if can_write %}
-                <button type="submit" class="btn btn-primary" style="margin-top:1rem;">Salvar Configuração</button>
-                {% endif %}
-            </form>
-        </section>
+                </form>
+            </section>
+            {% endif %}
+
+        </div>
 
         <aside style="display:flex; flex-direction:column; gap:1.5rem;">
+            {# ── Checklist Prontidão ───────────────────────────────────────── #}
             <section class="card" style="margin:0; padding:1.5rem; border-left:6px solid {% if dashboard.homologation.ready %}#16a34a{% else %}#f59e0b{% endif %};">
-                <h2 class="section-header">Homologação</h2>
+                <h2 class="section-header">Prontidão para Remessa</h2>
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:1rem;">
-                    <span style="font-weight:800; color:hsl(var(--text-main));">Pronto para homologação</span>
+                    <span style="font-weight:800; color:hsl(var(--text-main));">Status geral</span>
                     <strong style="padding:0.35rem 0.65rem; border-radius:20px; font-size:0.78rem; background:{% if dashboard.homologation.ready %}#dcfce7{% else %}#fef3c7{% endif %}; color:{% if dashboard.homologation.ready %}#166534{% else %}#92400e{% endif %};">
-                        {% if dashboard.homologation.ready %}SIM{% else %}NÃO{% endif %}
+                        {% if dashboard.homologation.ready %}PRONTO{% else %}PENDENTE{% endif %}
                     </strong>
                 </div>
                 {% for item in dashboard.homologation['items'] %}
                 <div class="rank-row">
-                    <span>{% if item.ok %}OK{% else %}Pendente{% endif %} · {{ item.label }}</span>
+                    <span>{% if item.ok %}✅{% else %}⚠️{% endif %} {{ item.label }}</span>
                     <strong>{{ item.detail }}</strong>
                 </div>
                 {% endfor %}
             </section>
 
+            {# ── Catálogo SIGTAP ───────────────────────────────────────────── #}
             <section class="card" style="margin:0; padding:1.5rem;">
                 <h2 class="section-header">Catálogo SIGTAP</h2>
-                <div class="rank-row"><span>Competência atual</span><strong>{{ sigtap_summary.latest.competence }}</strong></div>
-                <div class="rank-row"><span>Procedimentos ativos</span><strong>{{ sigtap_summary.latest.total }}</strong></div>
-                <div class="rank-row"><span>Pré-carga local</span><strong>{{ sigtap_summary.latest.seed_total }}</strong></div>
-                <div class="rank-row"><span>Importação oficial</span><strong>{{ sigtap_summary.latest.official_total }}</strong></div>
+                <div class="rank-row"><span>Competência atual</span><strong>{{ dashboard.sigtap_summary.latest.competence }}</strong></div>
+                <div class="rank-row"><span>Procedimentos ativos</span><strong>{{ dashboard.sigtap_summary.latest.total }}</strong></div>
+                <div class="rank-row"><span>Pré-carga local</span><strong>{{ dashboard.sigtap_summary.latest.seed_total }}</strong></div>
             </section>
 
+            {# ── Remessas Anteriores ───────────────────────────────────────── #}
             <section class="card" style="margin:0; padding:1.5rem;">
-                <h2 class="section-header">Lotes e-SUS</h2>
-                {% for batch in dashboard.batches %}
+                <h2 class="section-header">Remessas Geradas</h2>
+                {% for r in dashboard.remessas %}
                 <div class="rank-row">
                     <span>
-                        <a href="{{ url_for('admin.esus_batch_detail', batch_id=batch.id) }}" style="color:hsl(var(--primary)); font-weight:800; text-decoration:none;">
-                            #{{ batch.id }} · {{ batch.reference_month }}
+                        <a href="{{ url_for('admin.esus_remessa_detail', remessa_id=r.id) }}" style="color:hsl(var(--primary)); font-weight:800; text-decoration:none;">
+                            #{{ r.id }} · {{ r.periodo_label or 'sem rótulo' }}
                         </a>
-                        · {{ batch.status }}
+                        · <span style="font-size:0.8rem; color:{% if r.status == 'enviado_email' %}#16a34a{% elif r.status == 'erro' %}#ef4444{% else %}#2563eb{% endif %};">{{ r.status }}</span>
                     </span>
-                    <strong>{{ batch.records_ready }}/{{ batch.records_total }}</strong>
+                    <strong>{{ r.records_ready }}</strong>
                 </div>
                 {% else %}
-                <p style="color:hsl(var(--text-muted));">Nenhum lote gerado.</p>
+                <p style="color:hsl(var(--text-muted));">Nenhuma remessa gerada ainda.</p>
                 {% endfor %}
             </section>
         </aside>
     </div>
 
+    {# ── Procedimentos Sem SIGTAP ──────────────────────────────────────── #}
     <section class="card" style="margin-top:1.5rem; padding:1.5rem;">
         <h2 class="section-header">Procedimentos Sem SIGTAP</h2>
         <div style="overflow-x:auto;">
@@ -192,10 +217,7 @@
                             <a href="{{ url_for('patients.view_patient', id=item.patient_id) }}" style="color:hsl(var(--primary)); font-weight:700; text-decoration:none;">{{ item.patient_name }}</a><br>
                             <small style="color:hsl(var(--text-muted));">#{{ item.patient_id }} · {{ item.cns or item.cpf or 'sem CNS/CPF' }}</small>
                         </td>
-                        <td style="padding:0.75rem;">
-                            {{ item.descricao }}<br>
-                            <small style="color:hsl(var(--text-muted));">Dente: {{ item.dente or '-' }}</small>
-                        </td>
+                        <td style="padding:0.75rem;">{{ item.descricao }}<br><small style="color:hsl(var(--text-muted));">Dente: {{ item.dente or '-' }}</small></td>
                         <td style="padding:0.75rem;">{{ item.status }}</td>
                         <td style="padding:0.75rem; min-width:320px;">
                             {% if can_write %}
@@ -225,6 +247,7 @@
         </div>
     </section>
 
+    {# ── Profissionais com Dados Pendentes ────────────────────────────── #}
     <section class="card" style="margin-top:1.5rem; padding:1.5rem;">
         <h2 class="section-header">Profissionais com Dados Pendentes</h2>
         <div style="overflow-x:auto;">
@@ -234,18 +257,13 @@
                         <th style="padding:0.75rem;">Profissional</th>
                         <th style="padding:0.75rem;">Perfil</th>
                         <th style="padding:0.75rem;">Pendências</th>
-                        {% if can('users:write') %}
-                        <th style="padding:0.75rem;">Ação</th>
-                        {% endif %}
+                        {% if can('users:write') %}<th style="padding:0.75rem;">Ação</th>{% endif %}
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in dashboard.missing_professionals %}
                     <tr style="border-bottom:1px solid hsl(var(--border));">
-                        <td style="padding:0.75rem;">
-                            {{ item.full_name or item.username }}<br>
-                            <small style="color:hsl(var(--text-muted));">#{{ item.id }}</small>
-                        </td>
+                        <td style="padding:0.75rem;">{{ item.full_name or item.username }}<br><small style="color:hsl(var(--text-muted));">#{{ item.id }}</small></td>
                         <td style="padding:0.75rem;">{{ role_label(item.role) }}</td>
                         <td style="padding:0.75rem;">{{ item.missing_fields|join(', ') }}</td>
                         {% if can('users:write') %}
@@ -257,34 +275,6 @@
                     {% else %}
                     <tr>
                         <td colspan="{% if can('users:write') %}4{% else %}3{% endif %}" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">Nenhum profissional com dados obrigatórios pendentes.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <section class="card" style="margin-top:1.5rem; padding:1.5rem;">
-        <h2 class="section-header">Pendências de Envio</h2>
-        <div style="overflow-x:auto;">
-            <table style="width:100%; border-collapse:collapse;">
-                <thead>
-                    <tr style="text-align:left; border-bottom:1px solid hsl(var(--border));">
-                        <th style="padding:0.75rem;">Paciente</th>
-                        <th style="padding:0.75rem;">Procedimento</th>
-                        <th style="padding:0.75rem;">Pendências</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in dashboard.readiness.missing_sigtap_records + dashboard.readiness.incomplete_records %}
-                    <tr style="border-bottom:1px solid hsl(var(--border));">
-                        <td style="padding:0.75rem;">{{ item.patient_name }}<br><small style="color:hsl(var(--text-muted));">#{{ item.patient_id }}</small></td>
-                        <td style="padding:0.75rem;">{{ item.descricao }}<br><small style="color:hsl(var(--text-muted));">{{ item.sigtap_code or 'sem SIGTAP' }}</small></td>
-                        <td style="padding:0.75rem;">{{ item.missing_fields|join(', ') }}</td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="3" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">Nenhuma pendência na competência.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

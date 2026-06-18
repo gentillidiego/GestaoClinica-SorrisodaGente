@@ -9,7 +9,7 @@ celery = Celery(
     'gestaoclinica',
     backend=redis_url,
     broker=redis_url,
-    include=['tasks.pdf_tasks', 'tasks.report_tasks']
+    include=['tasks.pdf_tasks', 'tasks.report_tasks', 'tasks.gdrive_tasks', 'tasks.esus_tasks']
 )
 
 # Evita DeprecationWarning no Celery 6+ e falha silenciosa no boot
@@ -37,6 +37,21 @@ if _env_enabled('REPORTS_SCHEDULER_ENABLED'):
             },
         },
     }
+
+celery.conf.beat_schedule = celery.conf.beat_schedule or {}
+celery.conf.beat_schedule['cleanup-gdrive-cache-hourly'] = {
+    'task': 'tasks.gdrive_tasks.cleanup_gdrive_cache_task',
+    'schedule': crontab(minute='0'),  # Executa a cada hora cheia
+}
+
+# Remessa quinzenal e-SUS APS: executa todo dia às 06:00 e verifica se é dia de envio
+celery.conf.beat_schedule['esus-remessa-quinzenal'] = {
+    'task': 'tasks.esus_tasks.gerar_e_enviar_remessa_quinzenal',
+    'schedule': crontab(
+        hour=os.getenv('ESUS_REMESSA_HORA', '6'),
+        minute=os.getenv('ESUS_REMESSA_MINUTO', '0'),
+    ),
+}
 
 def make_celery(app):
     celery.conf.update(app.config)

@@ -1,6 +1,6 @@
 # Gestão Saúde Oral - Programa Sorriso da Gente
 
-README 2.6 - análise de prontidão para produção atualizada em 17/06/2026.
+README 2.7 - pivô e-SUS APS para modelo de arquivo XML quinzenal — atualizado em 18/06/2026.
 
 Plataforma de gestão clínica, operacional e institucional de saúde bucal para o programa Sorriso da Gente. O sistema reúne triagem municipal, agenda, prontuário odontológico, estomatologia, exames, estoque, Central de Comando, BI, epidemiologia, relatórios e preparação SIGTAP/e-SUS APS.
 
@@ -13,7 +13,7 @@ Leitura operacional atual:
 - Fase 0 concluída e validada: núcleo clínico de alta urgência, estomatologia, alerta vermelho e PDF de encaminhamento.
 - Fase 1 com base implementada: perfis, permissões, auditoria inicial, backup operacional, estrutura LGPD e hardening inicial de arquivos sensíveis. Ainda falta hardening de produção.
 - Fase 2 com primeira versão operacional concluída: triagem, agenda, Central de Comando, fila inteligente, alertas, rastreabilidade, estoque, unidades de execução e resumo diário.
-- Fase 3 iniciada e avançada: Epidemiologia, BI, relatórios institucionais, custos SIGTAP, PDF governamental e e-SUS draft. Ainda depende de homologações externas e integrações reais.
+- Fase 3 iniciada e avançada: Epidemiologia, BI, relatórios institucionais, custos SIGTAP, PDF governamental e integração e-SUS APS implementada via arquivo XML quinzenal (Ficha de Atendimento Odontológico, XSD oficial DATASUS). Pendente CNES/INE da Secretaria de Saúde para ativar envio automático.
 - Assinatura a rogo implementada para TCLE e confirmação do atendimento quando o paciente for não alfabetizado, com autenticação do CD, duas testemunhas, SHA-256, IP, user-agent, CPF do paciente e trilha de auditoria.
 - Pacote probatório de assinatura padronizado para TCLE, confirmação do atendimento, Anamnese, Prótese, Pagamentos e Endodontia, com eventos em `signature_events`, registros em `digital_signatures`, link de comprovante e exibição na Linha do Tempo.
 - Pré-cadastro profissional público implementado em `/cadastro/`, com página de confirmação dedicada, aprovação/recusa administrativa, criação de usuário em primeiro acesso e notificação por e-mail ao profissional.
@@ -43,7 +43,8 @@ Fora do foco imediato:
 - Novos painéis, indicadores, visões, redesign ou ampliações do BI.
 - Melhorias de UX da Central de Comando.
 - Visualizador DICOM avançado.
-- Integrações externas reais de e-SUS/WhatsApp/SMS sem credenciais, endpoint e homologação.
+- WhatsApp/SMS sem credenciais e homologação.
+- Evolução da integração e-SUS além do modelo de arquivo XML já implementado (ex: webservice direto com RNDS nacional — burocrático, não necessário enquanto a Secretaria aceitar XML).
 
 ## Regras Permanentes
 
@@ -60,7 +61,7 @@ VOLTE E VERIFIQUE:
 - A triagem não define unidade de execução. A unidade é determinada depois, no agendamento da consulta.
 - Estoque e materiais são opcionais nesta etapa e não podem bloquear evolução clínica, assinatura, e-SUS ou alta.
 - Economia gerada no BI é estimativa operacional até homologação formal pela gestão pública.
-- e-SUS APS está em draft, validação interna e pré-envio simulado. Transmissão real depende de endpoint, credenciais e homologação da prefeitura.
+- **e-SUS APS**: integração implementada via arquivo XML quinzenal (Ficha de Atendimento Odontológico). ⚠️ **BLOQUEANTE:** aguardando CNES (7 dígitos) e INE (10 dígitos) do TI da Secretaria de Saúde (Rômulo) para ativar o envio automático. Preencher em `Admin > SIGTAP / e-SUS APS > Configuração` ou nas variáveis `ESUS_CNES` e `ESUS_INE` do `.env`.
 - Backups Docker devem usar `scripts/docker_backup_postgres.sh`, que executa `pg_dump` via `postgres:16-alpine`, compatível com o PostgreSQL 16 do projeto.
 - AVISO RELEVANTE: os módulos `Endodontia` e `Prótese` estão temporariamente ocultos da navegação do prontuário do paciente. Sempre informar ao usuário que esses módulos estão ocultos por decisão operacional temporária, não removidos do sistema.
 - TCLE e confirmação de atendimento permitem assinatura a rogo apenas para paciente não alfabetizado, com login/senha do CD responsável e duas testemunhas. Não usar esse fluxo como substituto de conveniência para assinatura comum.
@@ -235,13 +236,15 @@ VOLTE E VERIFIQUE: conferir `.env.example` sempre que adicionar nova variável.
 
 Estado atual da integração:
 
-- Etapa 1 implementada: conexão com Google Drive API v3 via Service Account, criação/consulta da pasta raiz de prontuários e criação/consulta da pasta do paciente.
+- Etapa 2 implementada (Integração Total): o sistema utiliza a abordagem de propriedade total dos arquivos (Opção 2). Os exames, PDFs e fotos são salvos diretamente em uma pasta no Google Drive pertencente à conta pessoal/institucional do administrador, com o uso da permissão de Editor concedida à Service Account.
 - O caminho do JSON da Service Account deve ser configurado em `GDRIVE_KEY_PATH`.
+- O ID da pasta raiz no Drive pessoal deve ser colocado em `GDRIVE_ROOT_FOLDER_ID`.
 - O sistema salva o ID da pasta do paciente em `patients.gdrive_folder_id`.
 - O nome da pasta do paciente segue o formato `[CPF] - [Nome do Paciente]`.
-- O setup automatizado fica em `scripts/setup_google_drive_automation.sh` e cria/usa a Service Account, chave JSON, pasta raiz, compartilhamento e variáveis de ambiente.
-- O upload de exames para o Drive ainda não deve ser ativado antes de testar a Etapa 1.
-- Backup offsite no Drive ainda não está automatizado; será a etapa seguinte após validação da credencial.
+- A pasta do paciente é criada de forma assíncrona, via Celery, no exato momento do cadastro do paciente.
+- Upload de arquivos de Exames, Endodontia e Estomatologia ocorrem em memória (proxy) sendo repassados diretamente ao Drive.
+- Foi implementado um mecanismo de Cache Local Inteligente com TTL de 2 horas. Imagens baixadas ficam na pasta física da VPS (`uploads/cache/gdrive/`) e são apagadas pelo `Celery Beat` de hora em hora caso não tenham sido visualizadas recentemente, economizando uso de rede e memória RAM sem comprometer a cota de disco da VPS.
+- Backup offsite do banco de dados no Drive ainda não está automatizado; será a etapa seguinte.
 
 Procedimento automatizado:
 
@@ -807,9 +810,10 @@ Pronto:
 - Relatórios institucionais/SSA/SMS.
 - Automação mensal com Celery Beat.
 - Prontidão SIGTAP/DataSUS.
-- e-SUS APS draft.
-- Pré-envio simulado.
-- Relatório de homologação e-SUS.
+- Geração de arquivo XML no formato oficial da Ficha de Atendimento Odontológico (e-SUS APS/DATASUS).
+- Validação dos XMLs contra os XSDs oficiais do Ministério da Saúde (scripts/xsd/).
+- Download do XML no painel administrativo para entrega manual.
+- Envio automático por e-mail para o TI da Secretaria de Saúde.
 - Validação interna de formato para CNS/CPF, CNS profissional, CBO, CNES, INE/equipe e CRO-UF.
 - Dados demonstrativos completos.
 - Pré-cadastro profissional público, primeiro acesso e recuperação de senha com e-mail transacional.

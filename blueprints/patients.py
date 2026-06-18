@@ -10,6 +10,11 @@ from database import execute, query, execute_transaction
 from constants import CLINICAL_EXECUTOR_ROLES, can_sign_clinical_document
 from services.security_service import audit_log, permission_required
 from services.sensitive_file_service import sensitive_file_response
+from services.google_drive_service import get_drive_service, ensure_patient_drive_folder, upload_file_in_memory, download_file_in_memory
+from tasks.gdrive_tasks import create_patient_gdrive_folder_task
+import io
+from flask import Response
+import mimetypes
 from services.signature_evidence_service import (
     A_ROGO_DECLARATION,
     SIGNATURE_MARKER_A_ROGO,
@@ -249,6 +254,17 @@ def register():
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', _patient_field_values(data))
+            
+            try:
+                create_patient_gdrive_folder_task.delay(patient_id)
+            except Exception as e:
+                audit_log(
+                    action='gdrive_task_enqueue_failed',
+                    module='patients',
+                    patient_id=patient_id,
+                    details={'error': str(e)}
+                )
+
             flash('Paciente cadastrado com sucesso. Agora a triagem pode associar uma ou mais senhas a este paciente.', 'success')
 
             return redirect(url_for('patients.view_patient', id=patient_id))
@@ -691,7 +707,7 @@ def serve_estomatologia_photo(id, photo_id):
         (photo_id, id),
         one=True,
     )
-    if not photo or not os.path.exists(photo['file_path']):
+    if not photo:
         return "Arquivo não encontrado", 404
 
     audit_log(
@@ -702,7 +718,20 @@ def serve_estomatologia_photo(id, photo_id):
         patient_id=id,
         details={'filename': photo.get('filename'), 'caption': photo.get('legenda')},
     )
-    return sensitive_file_response(photo['file_path'])
+    
+    if str(photo['file_path']).startswith('gdrive://'):
+        gdrive_id = str(photo['file_path']).replace('gdrive://', '')
+        service = get_drive_service()
+        try:
+            file_bytes = download_file_in_memory(service, gdrive_id)
+            mime_type, _ = mimetypes.guess_type(photo['filename'])
+            return Response(file_bytes, mimetype=mime_type or 'application/octet-stream')
+        except Exception as e:
+            return f"Erro ao baixar arquivo do Drive: {str(e)}", 500
+    else:
+        if not os.path.exists(photo['file_path']):
+            return "Arquivo local não encontrado", 404
+        return sensitive_file_response(photo['file_path'])
 
 
 @patients_bp.route('/<int:id>/visual/exam-image/<int:arquivo_id>/metadata', methods=['POST'])
@@ -1488,13 +1517,19 @@ def upload_estomatologia_photo(id):
             flash('Por favor, salve a Ficha de Estomatologia antes de enviar fotos da lesão.', 'warning')
             return redirect(url_for('patients.view_patient', id=id) + '#tab-estomatologia')
 
-        upload_dir = os.path.join('uploads', 'estomatologia')
-        os.makedirs(upload_dir, exist_ok=True)
-
-        filename = f"{uuid.uuid4().hex}{ext}"
-        filepath = os.path.join(upload_dir, filename)
-
-        file.save(filepath)
+        # Upload para GDrive
+        service = get_drive_service()
+        folder_info = ensure_patient_drive_folder(id, service)
+        folder_id = folder_info['id']
+        
+        drive_file = upload_file_in_memory(
+            service=service,
+            file_stream=file.stream,
+            filename=original_filename or f"foto_lesao{ext}",
+            mime_type=file.mimetype,
+            parent_id=folder_id
+        )
+        filepath = f"gdrive://{drive_file['id']}"
 
         # Salva registro no banco
         photo_id = execute('''
@@ -1507,7 +1542,7 @@ def upload_estomatologia_photo(id):
             RETURNING id
         ''', (
             est['id'],
-            original_filename or filename,
+            original_filename or f"foto_lesao{ext}",
             filepath,
             metadata['legenda'],
             metadata['visual_category'],

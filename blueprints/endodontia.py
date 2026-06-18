@@ -26,6 +26,10 @@ from services.endodontia_service import (
 )
 from services.security_service import audit_log, permission_required
 from services.sensitive_file_service import sensitive_file_response
+from services.google_drive_service import get_drive_service, ensure_patient_drive_folder, upload_file_in_memory, download_file_in_memory
+import io
+from flask import Response
+import mimetypes
 from services.signature_evidence_service import (
     SIGNATURE_MODE_CANVAS,
     build_generic_signature_payload,
@@ -304,17 +308,26 @@ def upload_image(endo_id):
             flash('Sessão selecionada não pertence a este acompanhamento.', 'danger')
             return redirect(url_for('endodontia.followup', endo_id=endo_id))
 
-    upload_dir = os.path.join('uploads', 'endodontia')
-    os.makedirs(upload_dir, exist_ok=True)
-    stored_filename = f'{uuid.uuid4().hex}{ext}'
-    file_path = os.path.join(upload_dir, stored_filename)
+    # GDrive upload
+    service = get_drive_service()
+    folder_info = ensure_patient_drive_folder(endo['patient_id'], service)
+    folder_id = folder_info['id']
+    
     comparison_group = metadata['comparison_group'] or f"Endodontia dente {endo['elemento_dentario']}"
     file_format = ext.lstrip('.')
     if file_format == 'dcm':
         file_format = 'dicom'
 
     try:
-        file.save(file_path)
+        drive_file = upload_file_in_memory(
+            service=service,
+            file_stream=file.stream,
+            filename=original_filename or f"endodontia{ext}",
+            mime_type=file.mimetype,
+            parent_id=folder_id
+        )
+        file_path = f"gdrive://{drive_file['id']}"
+        
         image_id = execute(
             '''
             INSERT INTO endodontia_imagens (
@@ -329,7 +342,7 @@ def upload_image(endo_id):
                 endo['patient_id'],
                 endo_id,
                 followup_id,
-                original_filename or stored_filename,
+                original_filename or f"endodontia{ext}",
                 file_path,
                 metadata['visual_category'],
                 metadata['caption'],
@@ -392,7 +405,7 @@ def serve_image(image_id):
         (image_id,),
         one=True,
     )
-    if not image or not os.path.exists(image['file_path']):
+    if not image:
         return 'Arquivo não encontrado', 404
 
     audit_log(
@@ -408,7 +421,20 @@ def serve_image(image_id):
             'elemento_dentario': image.get('elemento_dentario'),
         },
     )
-    return sensitive_file_response(image['file_path'])
+    
+    if str(image['file_path']).startswith('gdrive://'):
+        gdrive_id = str(image['file_path']).replace('gdrive://', '')
+        service = get_drive_service()
+        try:
+            file_bytes = download_file_in_memory(service, gdrive_id)
+            mime_type, _ = mimetypes.guess_type(image['filename'])
+            return Response(file_bytes, mimetype=mime_type or 'application/octet-stream')
+        except Exception as e:
+            return f"Erro ao baixar arquivo do Drive: {str(e)}", 500
+    else:
+        if not os.path.exists(image['file_path']):
+            return "Arquivo local não encontrado", 404
+        return sensitive_file_response(image['file_path'])
 
 
 @endodontia_bp.route('/proservation/<int:proservation_id>/evaluate', methods=['POST'])

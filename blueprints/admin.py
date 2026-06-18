@@ -21,14 +21,13 @@ from services.cost_reference_service import (
     update_cost_reference as save_cost_reference,
 )
 from services.esus_export_service import (
-    get_esus_batch_detail,
     get_esus_dashboard,
-    get_esus_homologation_report,
-    register_esus_export_batch,
-    simulate_esus_transmission_preflight,
+    get_esus_remessa,
+    gerar_remessa_xml,
+    enviar_remessa_por_email,
+    list_esus_remessas,
     update_esus_settings,
     update_treatment_sigtap,
-    validate_esus_export_batch,
 )
 from services.inventory_service import (
     create_inventory_item,
@@ -1079,24 +1078,22 @@ def esus_integration():
 @permission_required('integrations:write')
 def update_esus_integration_settings():
     settings_id = update_esus_settings({
-        'environment': request.form.get('environment'),
-        'base_url': request.form.get('base_url'),
-        'pec_version': request.form.get('pec_version'),
-        'ledi_version': request.form.get('ledi_version'),
         'cnes': request.form.get('cnes'),
         'ine': request.form.get('ine'),
-        'installation_id': request.form.get('installation_id'),
-        'client_id': request.form.get('client_id'),
-        'credential_status': request.form.get('credential_status'),
+        'email_destino_remessa': request.form.get('email_destino_remessa'),
+        'remessa_ativa': request.form.get('remessa_ativa') == '1',
         'notes': request.form.get('notes'),
-        'active': request.form.get('active') == '1',
     })
     audit_log(
         action='esus_settings_updated',
         module='integrations',
         entity_type='esus_integration_settings',
         entity_id=settings_id,
-        details={'environment': request.form.get('environment'), 'credential_status': request.form.get('credential_status')},
+        details={
+            'cnes': request.form.get('cnes'),
+            'ine': request.form.get('ine'),
+            'remessa_ativa': request.form.get('remessa_ativa'),
+        },
     )
     flash('Configuração e-SUS atualizada.', 'success')
     return redirect(url_for('admin.esus_integration', month=request.form.get('month') or None))
@@ -1125,180 +1122,134 @@ def update_procedure_sigtap(procedure_id):
     return redirect(url_for('admin.esus_integration', month=request.form.get('month') or None))
 
 
-@admin_bp.route('/integrations/esus/batches', methods=['POST'])
+# ─── Rotas de Remessa XML (novo modelo) ───────────────────────────────────────
+
+@admin_bp.route('/integrations/esus/remessa/gerar', methods=['POST'])
 @login_required
 @permission_required('integrations:write')
-def create_esus_batch():
-    month = request.form.get('month') or None
-    batch_id, payload = register_esus_export_batch(month, generated_by=current_user.id)
-    audit_log(
-        action='esus_batch_created',
-        module='integrations',
-        entity_type='esus_export_batch',
-        entity_id=batch_id,
-        details=payload.get('summary'),
-    )
-    flash('Lote draft e-SUS gerado para conferência.', 'success')
-    return redirect(url_for('admin.esus_batch_detail', batch_id=batch_id))
+def gerar_esus_remessa():
+    """Gera uma remessa XML manualmente para o período informado."""
+    data_inicio = request.form.get('data_inicio')
+    data_fim = request.form.get('data_fim')
+    periodo_label = request.form.get('periodo_label') or f'{data_inicio} a {data_fim}'
 
-
-@admin_bp.route('/integrations/esus/batches/<int:batch_id>')
-@login_required
-@permission_required('integrations:view')
-def esus_batch_detail(batch_id):
-    detail = get_esus_batch_detail(batch_id)
-    if not detail:
-        flash('Lote e-SUS não encontrado.', 'danger')
+    if not data_inicio or not data_fim:
+        flash('Informe o período (data início e data fim).', 'danger')
         return redirect(url_for('admin.esus_integration'))
 
-    audit_log(
-        action='esus_batch_opened',
-        module='integrations',
-        entity_type='esus_export_batch',
-        entity_id=batch_id,
-        details={
-            'reference_month': detail['batch']['reference_month'],
-            'status': detail['batch']['status'],
-        },
-    )
+    try:
+        result = gerar_remessa_xml(
+            data_inicio=data_inicio,
+            data_fim=data_fim,
+            periodo_label=periodo_label,
+            generated_by=current_user.id,
+        )
+        audit_log(
+            action='esus_remessa_gerada',
+            module='integrations',
+            entity_type='esus_remessas',
+            entity_id=result['remessa_id'],
+            details={
+                'periodo_label': periodo_label,
+                'records_ready': result['records_ready'],
+                'records_skipped': result['records_skipped'],
+                'xsd_valid': result['xsd_valid'],
+            },
+        )
+        xsd_msg = '' if result['xsd_valid'] else f" Avisos XSD: {'; '.join(result['xsd_errors'][:2])}"
+        flash(f"Remessa XML gerada: {result['records_ready']} atendimento(s) exportado(s).{xsd_msg}", 'success')
+        return redirect(url_for('admin.esus_remessa_detail', remessa_id=result['remessa_id']))
+    except Exception as exc:
+        flash(f'Erro ao gerar remessa: {str(exc)}', 'danger')
+        return redirect(url_for('admin.esus_integration'))
+
+
+@admin_bp.route('/integrations/esus/remessa/<int:remessa_id>')
+@login_required
+@permission_required('integrations:view')
+def esus_remessa_detail(remessa_id):
+    remessa = get_esus_remessa(remessa_id)
+    if not remessa:
+        flash('Remessa não encontrada.', 'danger')
+        return redirect(url_for('admin.esus_integration'))
     return render_template(
-        'admin/esus_batch_detail.html',
-        detail=detail,
+        'admin/esus_remessa_detail.html',
+        remessa=remessa,
         can_write=current_user.can('integrations:write'),
     )
 
 
-@admin_bp.route('/integrations/esus/batches/<int:batch_id>/download')
+@admin_bp.route('/integrations/esus/remessa/<int:remessa_id>/download')
 @login_required
 @permission_required('integrations:view')
-def download_esus_batch(batch_id):
-    detail = get_esus_batch_detail(batch_id)
-    if not detail:
-        flash('Lote e-SUS não encontrado.', 'danger')
+def download_esus_remessa(remessa_id):
+    remessa = get_esus_remessa(remessa_id)
+    if not remessa or not remessa.get('xml_path'):
+        flash('Remessa ou arquivo XML não encontrado.', 'danger')
         return redirect(url_for('admin.esus_integration'))
 
+    xml_path = remessa['xml_path']
+    if not os.path.exists(xml_path):
+        flash('Arquivo XML não encontrado no servidor. Gere novamente.', 'danger')
+        return redirect(url_for('admin.esus_remessa_detail', remessa_id=remessa_id))
+
+    with open(xml_path, 'rb') as f:
+        xml_bytes = f.read()
+
+    filename = os.path.basename(xml_path)
     audit_log(
-        action='esus_batch_downloaded',
+        action='esus_remessa_downloaded',
         module='integrations',
-        entity_type='esus_export_batch',
-        entity_id=batch_id,
-        details={
-            'reference_month': detail['batch']['reference_month'],
-            'status': detail['batch']['status'],
-            'payload_hash': detail['batch']['payload_hash'],
-        },
+        entity_type='esus_remessas',
+        entity_id=remessa_id,
+        details={'periodo_label': remessa.get('periodo_label'), 'filename': filename},
     )
-    filename = f"esus_lote_{batch_id}_{detail['batch']['reference_month']}.json"
-    payload_json = json.dumps(detail['payload'], ensure_ascii=False, indent=2, default=str)
     response = Response(
-        payload_json,
-        mimetype='application/json; charset=utf-8',
+        xml_bytes,
+        mimetype='application/xml; charset=utf-8',
         headers={'Content-Disposition': f'attachment; filename="{filename}"'},
     )
     response.headers.update(SENSITIVE_CACHE_HEADERS)
     return response
 
 
-@admin_bp.route('/integrations/esus/batches/<int:batch_id>/validate', methods=['POST'])
+@admin_bp.route('/integrations/esus/remessa/<int:remessa_id>/enviar-email', methods=['POST'])
 @login_required
 @permission_required('integrations:write')
-def validate_esus_batch(batch_id):
-    try:
-        batch = validate_esus_export_batch(
-            batch_id,
-            validated_by=current_user.id,
-            notes=request.form.get('validation_notes'),
-        )
-        audit_log(
-            action='esus_batch_validated_internally',
-            module='integrations',
-            entity_type='esus_export_batch',
-            entity_id=batch_id,
-            details={
-                'reference_month': batch['reference_month'],
-                'records_ready': batch['records_ready'],
-                'payload_hash': batch['payload_hash'],
-            },
-        )
-        flash('Lote validado internamente e bloqueado para conferência.', 'success')
-    except Exception as exc:
-        flash(f'Erro ao validar lote: {str(exc)}', 'danger')
-    return redirect(url_for('admin.esus_batch_detail', batch_id=batch_id))
+def reenviar_esus_remessa_email(remessa_id):
+    """Reenvia o e-mail de uma remessa já gerada."""
+    remessa = get_esus_remessa(remessa_id)
+    if not remessa or not remessa.get('xml_path'):
+        flash('Remessa não encontrada.', 'danger')
+        return redirect(url_for('admin.esus_integration'))
 
+    email_destino = request.form.get('email_destino') or remessa.get('email_destino')
+    if not email_destino:
+        flash('Informe o e-mail de destino.', 'danger')
+        return redirect(url_for('admin.esus_remessa_detail', remessa_id=remessa_id))
 
-@admin_bp.route('/integrations/esus/batches/<int:batch_id>/preflight', methods=['POST'])
-@login_required
-@permission_required('integrations:write')
-def simulate_esus_preflight(batch_id):
-    try:
-        result = simulate_esus_transmission_preflight(batch_id, attempted_by=current_user.id)
-        audit_log(
-            action='esus_batch_preflight_simulated',
-            module='integrations',
-            entity_type='esus_export_batch',
-            entity_id=batch_id,
-            status='success' if result['ready_to_send'] else 'blocked',
-            details={
-                'attempt_id': result['attempt_id'],
-                'ready_to_send': result['ready_to_send'],
-                'blockers': result['response'].get('blockers', []),
-            },
-        )
-        if result['ready_to_send']:
-            flash('Pré-envio simulado aprovado. Lote marcado como pronto para envio real.', 'success')
-        else:
-            flash('Pré-envio simulado bloqueado. Revise as pendências exibidas no lote.', 'warning')
-    except Exception as exc:
-        flash(f'Erro no pré-envio simulado: {str(exc)}', 'danger')
-    return redirect(url_for('admin.esus_batch_detail', batch_id=batch_id))
-
-
-@admin_bp.route('/integrations/esus/homologation-report')
-@login_required
-@permission_required('integrations:view')
-def esus_homologation_report():
-    report = get_esus_homologation_report(
-        month_value=request.args.get('month') or None,
-        batch_id=request.args.get('batch_id') or None,
+    ok, erro = enviar_remessa_por_email(
+        remessa_id=remessa_id,
+        xml_path=remessa['xml_path'],
+        periodo_label=remessa.get('periodo_label', ''),
+        email_destino=email_destino,
     )
     audit_log(
-        action='esus_homologation_report_opened',
+        action='esus_remessa_email_reenviado',
         module='integrations',
-        entity_type='esus_homologation_report',
-        entity_id=report['batch_detail']['batch']['id'] if report['batch_detail'] else None,
-        details={
-            'month': report['month'],
-            'status_label': report['status_label'],
-        },
+        entity_type='esus_remessas',
+        entity_id=remessa_id,
+        status='success' if ok else 'failed',
+        details={'email_destino': email_destino, 'erro': erro},
     )
-    return render_template('admin/esus_homologation_report.html', report=report)
+    if ok:
+        flash(f'Remessa reenviada para {email_destino}.', 'success')
+    else:
+        flash(f'Erro ao reenviar e-mail: {erro}', 'danger')
+    return redirect(url_for('admin.esus_remessa_detail', remessa_id=remessa_id))
 
 
-@admin_bp.route('/integrations/esus/homologation-report/export', methods=['POST'])
-@login_required
-@permission_required('integrations:view')
-def export_esus_homologation_report():
-    report = get_esus_homologation_report(
-        month_value=request.form.get('month') or None,
-        batch_id=request.form.get('batch_id') or None,
-    )
-    html = render_template('pdfs/esus_homologation_report_pdf.html', report=report)
-    pdf_dir = os.path.join(os.getcwd(), 'pdf_temp')
-    os.makedirs(pdf_dir, exist_ok=True)
-    batch_suffix = report['batch_detail']['batch']['id'] if report['batch_detail'] else 'sem_lote'
-    filename = f"esus_homologacao_{report['month']}_{batch_suffix}.pdf"
-    output_path = os.path.join(pdf_dir, filename)
-    task = generate_pdf_task.delay(html, output_path)
-
-    audit_log(
-        action='esus_homologation_report_exported',
-        module='integrations',
-        entity_type='esus_homologation_report',
-        entity_id=batch_suffix,
-        details={
-            'month': report['month'],
-            'filename': filename,
-            'pending_count': len(report['pending_items']),
-        },
-    )
-    return redirect(url_for('documents.pdf_status', task_id=task.id, filename=filename))
+# Nota: as rotas /integrations/esus/batches/* (lotes legados) foram removidas
+# pois o modelo de API REST foi substituído pelo modelo de arquivo XML quinzenal.
+# As tabelas esus_export_batches e esus_transmission_attempts são mantidas por
+# preservação de histórico, mas não recebem mais novos registros.

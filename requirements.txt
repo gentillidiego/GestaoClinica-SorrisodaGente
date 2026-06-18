@@ -40,3 +40,4 @@ psycopg2-binary==2.9.10
 google-api-python-client==2.154.0
 google-auth==2.36.0
 google-auth-httplib2==0.2.0
+lxml==5.3.1
