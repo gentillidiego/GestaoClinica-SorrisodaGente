@@ -1,8 +1,11 @@
 from celery_app import celery
 from services.google_drive_service import get_drive_service, ensure_patient_drive_folder
-import os
-import time
 from services.security_service import audit_log
+from services.exam_file_sync_service import (
+    reconcile_staged_exam_files,
+    sync_staged_exam_file,
+)
+from services.protected_file_delivery_service import cleanup_drive_cache
 
 @celery.task(name='tasks.gdrive_tasks.create_patient_gdrive_folder_task', ignore_result=True)
 def create_patient_gdrive_folder_task(patient_id):
@@ -20,21 +23,34 @@ def create_patient_gdrive_folder_task(patient_id):
 
 @celery.task(name='tasks.gdrive_tasks.cleanup_gdrive_cache_task', ignore_result=True)
 def cleanup_gdrive_cache_task():
-    cache_dir = os.path.join('uploads', 'cache', 'gdrive')
-    if not os.path.exists(cache_dir):
-        return
-        
-    now = time.time()
-    # 2 hours TTL (7200 seconds)
-    ttl_seconds = 2 * 3600
-    
-    for filename in os.listdir(cache_dir):
-        file_path = os.path.join(cache_dir, filename)
-        if os.path.isfile(file_path):
-            stat = os.stat(file_path)
-            # Use atime (last access time) to keep files if they are frequently accessed
-            if now - stat.st_atime > ttl_seconds:
-                try:
-                    os.remove(file_path)
-                except Exception:
-                    pass
+    return cleanup_drive_cache()
+
+
+@celery.task(
+    bind=True,
+    name='tasks.gdrive_tasks.sync_staged_exam_file_task',
+    max_retries=8,
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
+def sync_staged_exam_file_task(self, source, record_id):
+    try:
+        return sync_staged_exam_file(source, record_id)
+    except FileNotFoundError as exc:
+        return {
+            'status': 'failed_missing_local_file',
+            'source': source,
+            'record_id': record_id,
+            'error': str(exc),
+        }
+    except Exception as exc:
+        countdown = min(30 * (2 ** self.request.retries), 1800)
+        raise self.retry(exc=exc, countdown=countdown)
+
+
+@celery.task(
+    name='tasks.gdrive_tasks.reconcile_staged_exam_files_task',
+    ignore_result=True,
+)
+def reconcile_staged_exam_files_task():
+    return reconcile_staged_exam_files()

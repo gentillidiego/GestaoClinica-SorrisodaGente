@@ -43,6 +43,10 @@ celery.conf.beat_schedule['cleanup-gdrive-cache-hourly'] = {
     'task': 'tasks.gdrive_tasks.cleanup_gdrive_cache_task',
     'schedule': crontab(minute='0'),  # Executa a cada hora cheia
 }
+celery.conf.beat_schedule['reconcile-staged-exam-files'] = {
+    'task': 'tasks.gdrive_tasks.reconcile_staged_exam_files_task',
+    'schedule': crontab(minute='*/5'),
+}
 
 # Remessa quinzenal e-SUS APS: executa todo dia às 06:00 e verifica se é dia de envio
 celery.conf.beat_schedule['esus-remessa-quinzenal'] = {

@@ -1329,6 +1329,8 @@ def delete_patient(id):
         
     try:
         execute_transaction([
+            ('DELETE FROM exam_clinico_laboratorial_arquivos WHERE exam_id IN (SELECT id FROM exams WHERE patient_id = %s)', (id,)),
+            ('DELETE FROM exam_clinico_laboratorial WHERE exam_id IN (SELECT id FROM exams WHERE patient_id = %s)', (id,)),
             ('DELETE FROM exam_imagem_arquivos WHERE exam_id IN (SELECT id FROM exams WHERE patient_id = %s)', (id,)),
             ('DELETE FROM exam_imagem WHERE exam_id IN (SELECT id FROM exams WHERE patient_id = %s)', (id,)),
             ('DELETE FROM exam_fisico WHERE exam_id IN (SELECT id FROM exams WHERE patient_id = %s)', (id,)),

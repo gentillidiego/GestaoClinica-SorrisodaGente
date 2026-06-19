@@ -4,13 +4,14 @@ services:
     container_name: gestaosaudeoral-web
     restart: always
     ports:
-      - "5003:5002"
+      - "127.0.0.1:${APP_HOST_PORT:-5003}:5002"
     volumes:
       - logs_oral:/app/logs
-      - uploads_oral:/app/uploads
+      - ${UPLOADS_HOST_PATH:-/srv/gestaosaudeoral/uploads}:/app/uploads
       - pdf_temp_oral:/app/pdf_temp
       - backups_oral:/app/backups
       - ./secrets:/run/secrets/sorriso:ro
+      - ${RCLONE_CONFIG_HOST_PATH:?Configure RCLONE_CONFIG_HOST_PATH no .env}:/run/secrets/rclone/rclone.conf
     env_file:
       - .env
     depends_on:
@@ -22,6 +23,8 @@ services:
         condition: service_started
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - USE_X_ACCEL_REDIRECT=${USE_X_ACCEL_REDIRECT:-true}
+      - X_ACCEL_INTERNAL_PREFIX=/_protected_exam_files/
 
   mail:
     build:
@@ -59,9 +62,10 @@ services:
     volumes:
       - pdf_temp_oral:/app/pdf_temp
       - logs_oral:/app/logs
-      - uploads_oral:/app/uploads
+      - ${UPLOADS_HOST_PATH:-/srv/gestaosaudeoral/uploads}:/app/uploads
       - backups_oral:/app/backups
       - ./secrets:/run/secrets/sorriso:ro
+      - ${RCLONE_CONFIG_HOST_PATH:?Configure RCLONE_CONFIG_HOST_PATH no .env}:/run/secrets/rclone/rclone.conf
     env_file:
       - .env
     depends_on:
@@ -82,7 +86,7 @@ services:
     volumes:
       - pdf_temp_oral:/app/pdf_temp
       - logs_oral:/app/logs
-      - uploads_oral:/app/uploads
+      - ${UPLOADS_HOST_PATH:-/srv/gestaosaudeoral/uploads}:/app/uploads
       - backups_oral:/app/backups
       - celerybeat_oral:/app/celerybeat-schedule
       - ./secrets:/run/secrets/sorriso:ro
@@ -108,19 +112,45 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data_oral:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U clinica_user -d clinica"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  backup:
+    build:
+      context: .
+      dockerfile: deploy/backup/Dockerfile
+    container_name: gestaosaudeoral-backup
+    restart: always
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: clinica
+      POSTGRES_USER: clinica_user
+      BACKUP_DIR: /backups
+      TZ: ${TZ:-America/Maceio}
+    volumes:
+      - backups_oral:/backups
+      - ${UPLOADS_HOST_PATH:-/srv/gestaosaudeoral/uploads}:/uploads:ro
+      - ${RCLONE_CONFIG_HOST_PATH:?Configure RCLONE_CONFIG_HOST_PATH no .env}:/config/rclone/rclone.conf
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "find /backups/LAST_SUCCESS -mmin -2160 -print -quit | grep -q ."]
+      interval: 30m
+      timeout: 10s
+      retries: 3
+      start_period: 10m
+
 volumes:
   redis_data_oral:
   pdf_temp_oral:
   postgres_data_oral:
   logs_oral:
-  uploads_oral:
   backups_oral:
   celerybeat_oral:

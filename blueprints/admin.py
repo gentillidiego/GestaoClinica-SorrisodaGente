@@ -21,6 +21,7 @@ from services.cost_reference_service import (
     update_cost_reference as save_cost_reference,
 )
 from services.esus_export_service import (
+    EsusDuplicateRemessaError,
     get_esus_dashboard,
     get_esus_remessa,
     gerar_remessa_xml,
@@ -1080,6 +1081,18 @@ def update_esus_integration_settings():
     settings_id = update_esus_settings({
         'cnes': request.form.get('cnes'),
         'ine': request.form.get('ine'),
+        'cod_ibge': request.form.get('cod_ibge'),
+        'contra_chave': request.form.get('contra_chave'),
+        'uuid_instalacao': request.form.get('uuid_instalacao'),
+        'cpf_cnpj': request.form.get('cpf_cnpj'),
+        'nome_razao_social': request.form.get('nome_razao_social'),
+        'fone': request.form.get('fone'),
+        'email_institucional': request.form.get('email_institucional'),
+        'versao_sistema': request.form.get('versao_sistema'),
+        'nome_banco_dados': request.form.get('nome_banco_dados'),
+        'versao_major': request.form.get('versao_major'),
+        'versao_minor': request.form.get('versao_minor'),
+        'versao_revision': request.form.get('versao_revision'),
         'email_destino_remessa': request.form.get('email_destino_remessa'),
         'remessa_ativa': request.form.get('remessa_ativa') == '1',
         'notes': request.form.get('notes'),
@@ -1132,9 +1145,10 @@ def gerar_esus_remessa():
     data_inicio = request.form.get('data_inicio')
     data_fim = request.form.get('data_fim')
     periodo_label = request.form.get('periodo_label') or f'{data_inicio} a {data_fim}'
+    professional_id = request.form.get('professional_id')
 
-    if not data_inicio or not data_fim:
-        flash('Informe o período (data início e data fim).', 'danger')
+    if not data_inicio or not data_fim or not professional_id:
+        flash('Informe o período e o profissional da remessa.', 'danger')
         return redirect(url_for('admin.esus_integration'))
 
     try:
@@ -1143,6 +1157,7 @@ def gerar_esus_remessa():
             data_fim=data_fim,
             periodo_label=periodo_label,
             generated_by=current_user.id,
+            professional_id=professional_id,
         )
         audit_log(
             action='esus_remessa_gerada',
@@ -1156,9 +1171,15 @@ def gerar_esus_remessa():
                 'xsd_valid': result['xsd_valid'],
             },
         )
-        xsd_msg = '' if result['xsd_valid'] else f" Avisos XSD: {'; '.join(result['xsd_errors'][:2])}"
-        flash(f"Remessa XML gerada: {result['records_ready']} atendimento(s) exportado(s).{xsd_msg}", 'success')
+        flash(
+            f"Remessa XML validada e gerada para {result['professional_name']}: "
+            f"{result['records_ready']} procedimento(s).",
+            'success',
+        )
         return redirect(url_for('admin.esus_remessa_detail', remessa_id=result['remessa_id']))
+    except EsusDuplicateRemessaError as exc:
+        flash(str(exc), 'warning')
+        return redirect(url_for('admin.esus_remessa_detail', remessa_id=exc.remessa['id']))
     except Exception as exc:
         flash(f'Erro ao gerar remessa: {str(exc)}', 'danger')
         return redirect(url_for('admin.esus_integration'))

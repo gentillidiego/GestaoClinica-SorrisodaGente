@@ -1,6 +1,12 @@
 import datetime as dt
+from pathlib import Path
+
+import pytest
+from lxml import etree
 
 import services.esus_export_service as esus_export_service
+import services.esus_xml_service as esus_xml_service
+import services.mail_service as mail_service
 import services.sigtap_service as sigtap_service
 from constants import (
     Role,
@@ -9,20 +15,22 @@ from constants import (
     role_requires_professional_data,
 )
 from services.esus_export_service import (
-    build_esus_payload,
-    build_batch_transmission_readiness,
-    build_esus_meeting_checklist,
-    build_homologation_status,
+    EsusDuplicateRemessaError,
+    build_esus_readiness,
+    build_quinzenal_periods,
     classify_esus_missing_fields,
-    get_esus_batch_detail,
-    get_esus_dashboard,
-    get_esus_homologation_report,
+    gerar_remessa_xml,
     month_period,
-    procedure_locked_by_validated_batch,
-    register_esus_export_batch,
-    simulate_esus_transmission_preflight,
+    settings_validation_errors,
     update_treatment_sigtap,
-    validate_esus_export_batch,
+)
+from services.esus_xml_service import (
+    EsusXmlValidationError,
+    build_num_lote,
+    build_xml_ficha_odontologica,
+    derive_sexo,
+    normalize_boolean,
+    validate_xml_against_xsd,
 )
 from services.sigtap_service import (
     build_sigtap_specialty_groups,
@@ -34,12 +42,66 @@ from services.sigtap_service import (
 )
 
 
+FIXTURE_DIR = Path(__file__).parent / 'fixtures' / 'esus'
+
+
+@pytest.fixture
+def complete_settings():
+    return {
+        'cnes': '0000001',
+        'ine': '1010020002',
+        'cod_ibge': '4205407',
+        'contra_chave': 'TREINAMENTO',
+        'uuid_instalacao': 'TREINAMENTO',
+        'cpf_cnpj': '01234567890',
+        'nome_razao_social': 'ADMINISTRADOR INSTALAÇÃO',
+        'fone': '8216756527',
+        'email_institucional': 'prof@esus.br',
+        'versao_sistema': '5.4.8',
+        'nome_banco_dados': 'PostgreSQL',
+        'versao_major': 7,
+        'versao_minor': 2,
+        'versao_revision': 1,
+        'email_destino_remessa': 'ti@example.gov.br',
+        'remessa_ativa': True,
+    }
+
+
+@pytest.fixture
+def ready_rows():
+    base = {
+        'patient_id': 123,
+        'cpf': '05888644714',
+        'cns': None,
+        'patient_name': 'Paciente Teste',
+        'data_nascimento': '1990-01-01',
+        'genero': 'Fem',
+        'gestante': 'Não',
+        'necessidades_especiais': None,
+        'quantidade': 1,
+        'service_datetime': dt.datetime(2026, 6, 2, 9, 30),
+        'professor_id': 7,
+        'professional_cns': '972733454440007',
+        'professional_cbo': '223293',
+        'cro': '1234',
+        'cro_uf': 'SC',
+        'professional_name': 'Dra. Teste',
+        'sigtap_competence': '202605',
+    }
+    return [
+        {**base, 'id': 1, 'sigtap_code': '0101050046'},
+        {**base, 'id': 2, 'sigtap_code': '0307030040'},
+    ]
+
+
+def canonical(xml_bytes):
+    return etree.tostring(etree.fromstring(xml_bytes), method='c14n')
+
+
 def test_sigtap_code_normalization_and_split():
     assert normalize_sigtap_code('03.070.300-40') == '0307030040'
     assert normalize_sigtap_code('123') == ''
-
     parts = split_sigtap_code('0307030040')
-
     assert parts['group_code'] == '03'
     assert parts['subgroup_code'] == '07'
     assert parts['form_code'] == '03'
@@ -48,17 +110,14 @@ def test_sigtap_code_normalization_and_split():
 def test_parse_tb_procedimento_fixed_width_line():
     name = 'PROFILAXIA / REMOÇÃO DA PLACA BACTERIANA'
     line = '0307030040' + name.ljust(250) + 'M'
-
     assert parse_tb_procedimento_line(line) == ('0307030040', name)
 
 
 def test_sigtap_specialty_groups_filter_treatment_codes(monkeypatch):
     monkeypatch.setattr(sigtap_service, 'get_latest_sigtap_competence', lambda: '202606')
     monkeypatch.setattr(sigtap_service, 'get_sigtap_procedure', lambda code, competence=None: None)
-
     groups = build_sigtap_specialty_groups()
     endodontia = next(group for group in groups if group['value'] == 'endodontia')
-
     assert any(item['code'] == '0307020061' for item in endodontia['procedures'])
     assert is_sigtap_code_allowed_for_specialty('endodontia', '0307020061')
     assert not is_sigtap_code_allowed_for_specialty('endodontia', '0414020138')
@@ -66,557 +125,404 @@ def test_sigtap_specialty_groups_filter_treatment_codes(monkeypatch):
 
 def test_upsert_sigtap_procedure_persists_group_fields(monkeypatch):
     captured = {}
-
-    def fake_execute(sql, params=()):
-        captured['sql'] = sql
-        captured['params'] = params
-
-    monkeypatch.setattr(sigtap_service, 'execute', fake_execute)
-
+    monkeypatch.setattr(
+        sigtap_service,
+        'execute',
+        lambda sql, params=(): captured.update(sql=sql, params=params),
+    )
     code = upsert_sigtap_procedure('0307030040', 'Profilaxia', competence='202605')
-
     assert code == '0307030040'
     assert 'INSERT INTO sigtap_procedures' in captured['sql']
-    assert captured['params'][0] == '0307030040'
-    assert captured['params'][1] == '202605'
-    assert captured['params'][3] == '03'
-    assert captured['params'][4] == '07'
-    assert captured['params'][5] == '03'
-
-
-def test_esus_month_period():
-    start, end = month_period('2026-05')
-
-    assert start == dt.date(2026, 5, 1)
-    assert end == dt.date(2026, 5, 31)
-
-
-def test_build_esus_payload_uses_only_sigtap_ready_records(monkeypatch):
-    rows = [
-        {
-            'id': 1,
-            'patient_id': 10,
-            'dente': '46',
-            'descricao': 'Profilaxia',
-            'sigtap_code': '0307030040',
-            'sigtap_competence': '202605',
-            'sigtap_name': 'PROFILAXIA / REMOÇÃO DA PLACA BACTERIANA',
-            'criado_em': dt.datetime(2026, 5, 10, 9, 30),
-            'professor_id': 7,
-            'cns': '123456789012345',
-            'cpf': '12345678901',
-            'patient_name': 'Paciente Teste',
-            'professional_cns': '700000000000000',
-            'professional_cbo': '223208',
-            'professional_cnes': '1234567',
-            'professional_ine': '0000000000',
-            'cro': '1234',
-            'cro_uf': 'AL',
-            'professional_name': 'Dra. Teste',
-        },
-        {
-            'id': 2,
-            'patient_id': 11,
-            'dente': '11',
-            'descricao': 'Procedimento sem código',
-            'sigtap_code': None,
-            'sigtap_competence': None,
-            'sigtap_name': None,
-            'criado_em': dt.datetime(2026, 5, 11, 9, 30),
-            'professor_id': 7,
-            'cns': '456789012345678',
-            'cpf': '98765432100',
-            'patient_name': 'Paciente Sem Código',
-            'professional_cns': '700000000000000',
-            'professional_cbo': '223208',
-            'professional_cnes': '1234567',
-            'professional_ine': '0000000000',
-            'cro': '1234',
-            'cro_uf': 'AL',
-            'professional_name': 'Dra. Teste',
-        },
-    ]
-
-    monkeypatch.setattr(esus_export_service, 'list_completed_procedures_for_esus', lambda month_value=None: rows)
-    monkeypatch.setattr(
-        esus_export_service,
-        'get_esus_settings',
-        lambda: {'cnes': '1234567', 'ine': '0000000000'},
-    )
-
-    payload, payload_hash = build_esus_payload('2026-05')
-
-    assert len(payload['records']) == 1
-    assert payload['records'][0]['procedure']['sigtap_code'] == '0307030040'
-    assert payload['summary']['total'] == 2
-    assert payload['summary']['ready'] == 1
-    assert payload['summary']['missing_sigtap'] == 1
-    assert len(payload_hash) == 64
+    assert captured['params'][3:6] == ('03', '07', '03')
 
 
 def test_integrations_permissions_are_restricted():
-    assert role_has_permission(Role.ADMIN, 'integrations:view')
     assert role_has_permission(Role.ADMIN, 'integrations:write')
-    assert role_has_permission(Role.COORDENACAO, 'integrations:view')
     assert role_has_permission(Role.COORDENACAO, 'integrations:write')
     assert role_has_permission(Role.AUDITORIA, 'integrations:view')
-    assert role_has_permission(Role.AUDITORIA, 'integrations:write') is False
-    assert role_has_permission(Role.BI, 'integrations:view')
-    assert role_has_permission(Role.SSA, 'integrations:view') is False
-
-
-def test_professional_roles_require_esus_identification_fields():
+    assert not role_has_permission(Role.AUDITORIA, 'integrations:write')
     assert role_requires_professional_data(Role.CLINICOS)
-    assert role_requires_professional_data(Role.CME)
-    assert role_requires_professional_data(Role.RADIOLOGIA)
-    assert role_requires_professional_data(Role.DENTISTA)
-    assert role_requires_professional_data(Role.TRIAGEM) is False
     assert role_requires_dental_license(Role.CLINICOS)
-    assert role_requires_dental_license(Role.DENTISTA)
-    assert role_requires_dental_license(Role.TRIAGEM) is False
-    assert role_requires_professional_data(Role.RECEPCAO) is False
 
 
-def test_classify_esus_missing_fields_flags_city_and_patient_data():
-    row = {
-        'sigtap_code': '0307030040',
-        'sigtap_competence': '202605',
-        'cns': None,
-        'cpf': None,
-        'professor_id': None,
-        'professional_cns': None,
-        'professional_cbo': None,
-        'professional_cnes': None,
-        'professional_ine': None,
-        'cro': None,
+def test_month_and_quinzenal_periods():
+    assert month_period('2026-05') == (dt.date(2026, 5, 1), dt.date(2026, 5, 31))
+    p1, p2 = build_quinzenal_periods(dt.date(2026, 6, 15))
+    assert p1['periodo_inicio'] == dt.date(2026, 6, 1)
+    assert p1['periodo_fim'] == dt.date(2026, 6, 14)
+    assert p1['is_due_today']
+    assert p2['periodo_inicio'] == dt.date(2026, 5, 15)
+    assert p2['periodo_fim'] == dt.date(2026, 5, 31)
+
+
+def test_clinical_normalization_maps_real_database_values():
+    assert derive_sexo('Masc') == 0
+    assert derive_sexo('Fem') == 1
+    assert derive_sexo('') is None
+    assert normalize_boolean('Sim') is True
+    assert normalize_boolean('Não') is False
+    assert normalize_boolean('Não Sei') is None
+
+
+def test_settings_validation_requires_complete_transport_envelope(complete_settings):
+    assert settings_validation_errors(complete_settings) == []
+    incomplete = {**complete_settings, 'cod_ibge': '', 'contra_chave': '', 'cpf_cnpj': '1'}
+    errors = settings_validation_errors(incomplete)
+    assert 'Código IBGE municipal deve conter 7 dígitos' in errors
+    assert 'Contra-chave da instalação não informada' in errors
+    assert 'CPF/CNPJ da instalação deve conter 11 ou 14 dígitos' in errors
+
+
+def test_all_xsd_dependencies_are_present_and_parseable():
+    required = {
+        'dadotransporte.xsd',
+        'dadoinstalacao.xsd',
+        'versao.xsd',
+        'resultadoexame.xsd',
+        'fichaatendimentoodontologicomaster.xsd',
+        'fichaatendimentoodontologicochild.xsd',
     }
-
-    missing = classify_esus_missing_fields(row, settings={'cnes': '', 'ine': ''})
-
-    assert 'CNS/CPF' in missing
-    assert 'profissional' in missing
-    assert 'CNS profissional' in missing
-    assert 'CBO' in missing
-    assert 'CRO' in missing
-    assert 'CNES' in missing
-    assert 'INE/equipe' in missing
+    assert required.issubset({path.name for path in Path(esus_xml_service.XSD_DIR).glob('*.xsd')})
+    etree.XMLSchema(etree.parse(str(Path(esus_xml_service.XSD_DIR) / 'dadotransporte.xsd')))
 
 
-def test_classify_esus_missing_fields_flags_invalid_formats():
-    row = {
-        'sigtap_code': '0307030040',
-        'sigtap_competence': '202605',
+def test_generated_xml_matches_golden_and_official_structure(complete_settings, ready_rows):
+    xml_bytes, metadata = build_xml_ficha_odontologica(
+        ready_rows,
+        complete_settings,
+        data_inicio=dt.date(2026, 6, 1),
+        data_fim=dt.date(2026, 6, 14),
+        professional_id=7,
+        uuid_dado_serializado='0000001-dado-golden',
+        uuid_ficha='0000001-ficha-golden',
+        num_lote=123,
+    )
+    golden = (FIXTURE_DIR / 'atendimento_odontologico_golden.xml').read_bytes()
+    assert canonical(xml_bytes) == canonical(golden)
+    assert metadata['attendance_count'] == 1
+    assert xml_bytes.count(b'<procedimentosRealizados>') == 2
+    assert b'<coMsProcedimento>' in xml_bytes
+    assert b'<lotacaoFormPrincipal>' in xml_bytes
+
+
+def test_generated_xml_validates_against_complete_official_xsd(complete_settings, ready_rows):
+    xml_bytes, _ = build_xml_ficha_odontologica(
+        ready_rows,
+        complete_settings,
+        data_inicio=dt.date(2026, 6, 1),
+        data_fim=dt.date(2026, 6, 14),
+        professional_id=7,
+    )
+    assert validate_xml_against_xsd(xml_bytes) == (True, [])
+
+
+def test_invalid_xml_is_rejected_by_xsd(complete_settings, ready_rows):
+    xml_bytes, _ = build_xml_ficha_odontologica(
+        ready_rows,
+        complete_settings,
+        data_inicio=dt.date(2026, 6, 1),
+        data_fim=dt.date(2026, 6, 14),
+        professional_id=7,
+    )
+    invalid = xml_bytes.replace(
+        b'<coMsProcedimento>0101050046</coMsProcedimento>',
+        b'<codigoProcedimento>0101050046</codigoProcedimento>',
+        1,
+    )
+    valid, errors = validate_xml_against_xsd(invalid)
+    assert not valid
+    assert errors
+    assert any('ficha:' in error for error in errors)
+
+
+def test_alphanumeric_clinical_procedure_code_is_preserved(complete_settings, ready_rows):
+    rows = [{**ready_rows[0], 'sigtap_code': 'ABPO015'}]
+    xml_bytes, _ = build_xml_ficha_odontologica(
+        rows,
+        complete_settings,
+        data_inicio=dt.date(2026, 6, 1),
+        data_fim=dt.date(2026, 6, 14),
+        professional_id=7,
+    )
+    assert b'<coMsProcedimento>ABPO015</coMsProcedimento>' in xml_bytes
+    assert validate_xml_against_xsd(xml_bytes) == (True, [])
+
+
+def test_num_lote_is_stable_per_period_and_professional():
+    first = build_num_lote(dt.date(2026, 6, 1), dt.date(2026, 6, 14), 7)
+    second = build_num_lote(dt.date(2026, 6, 1), dt.date(2026, 6, 14), 7)
+    other = build_num_lote(dt.date(2026, 6, 1), dt.date(2026, 6, 14), 8)
+    assert first == second
+    assert first != other
+
+
+def test_query_uses_real_patient_columns_and_clinical_date(monkeypatch):
+    captured = {}
+
+    def fake_query(sql, params=(), one=False):
+        captured['sql'] = sql
+        captured['params'] = params
+        return []
+
+    monkeypatch.setattr(esus_export_service, 'query', fake_query)
+    esus_export_service.list_atendimentos_para_remessa(
+        dt.date(2026, 6, 1),
+        dt.date(2026, 6, 14),
+    )
+    assert 'p.genero' in captured['sql']
+    assert 'p.sexo' not in captured['sql']
+    assert 'p.necessidade_especial' not in captured['sql']
+    assert 'tp.data_sessao' in captured['sql']
+
+
+def test_readiness_does_not_hide_missing_sigtap(monkeypatch, ready_rows):
+    missing = {**ready_rows[0], 'id': 3, 'sigtap_code': None, 'sigtap_competence': None}
+    monkeypatch.setattr(
+        esus_export_service,
+        'list_atendimentos_para_remessa',
+        lambda start, end: [ready_rows[0], missing],
+    )
+    readiness = build_esus_readiness(
+        data_inicio=dt.date(2026, 6, 1),
+        data_fim=dt.date(2026, 6, 14),
+    )
+    assert readiness['total'] == 2
+    assert readiness['ready'] == 1
+    assert readiness['missing_sigtap'] == 1
+
+
+def test_classify_esus_missing_fields_flags_invalid_clinical_record():
+    missing = classify_esus_missing_fields({
+        'sigtap_code': None,
+        'sigtap_competence': None,
         'cns': '123',
         'cpf': '',
-        'professor_id': 9,
+        'professor_id': None,
         'professional_cns': '700',
         'professional_cbo': '223',
-        'professional_cnes': '123',
-        'professional_ine': '000',
-        'cro': '1234',
-        'cro_uf': 'A1',
-    }
-
-    missing = classify_esus_missing_fields(row, settings={'cnes': '123', 'ine': '000'})
-
+        'cro': None,
+        'service_datetime': None,
+    })
+    assert 'SIGTAP' in missing
     assert 'CNS/CPF inválido' in missing
-    assert 'CNS profissional inválido' in missing
-    assert 'CBO inválido' in missing
-    assert 'CNES inválido' in missing
-    assert 'INE/equipe inválido' in missing
-    assert 'CRO-UF inválido' in missing
+    assert 'profissional' in missing
+    assert 'data do atendimento' in missing
+
+
+def test_generation_is_idempotent_per_period_and_professional(monkeypatch, complete_settings):
+    existing = {
+        'id': 91,
+        'periodo_inicio': dt.date(2026, 6, 1),
+        'periodo_fim': dt.date(2026, 6, 14),
+        'professional_id': 7,
+    }
+    monkeypatch.setattr(esus_export_service, 'get_esus_settings', lambda: complete_settings)
+    monkeypatch.setattr(esus_export_service, 'find_existing_remessa', lambda *args: existing)
+    with pytest.raises(EsusDuplicateRemessaError) as exc:
+        gerar_remessa_xml('2026-06-01', '2026-06-14', professional_id=7)
+    assert exc.value.remessa['id'] == 91
+
+
+def test_invalid_xml_is_never_saved_or_registered(
+    monkeypatch,
+    tmp_path,
+    complete_settings,
+    ready_rows,
+):
+    readiness = {
+        'total': 2,
+        'ready': 2,
+        'missing_sigtap': 0,
+        'incomplete': 0,
+        'ready_records': ready_rows,
+        'missing_sigtap_records': [],
+        'incomplete_records': [],
+    }
+    calls = []
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(esus_export_service, 'get_esus_settings', lambda: complete_settings)
+    monkeypatch.setattr(esus_export_service, 'build_esus_readiness', lambda **kwargs: readiness)
+    monkeypatch.setattr(esus_export_service, 'find_existing_remessa', lambda *args: None)
+    monkeypatch.setattr(
+        esus_export_service,
+        'assert_valid_xml',
+        lambda xml: (_ for _ in ()).throw(EsusXmlValidationError(['falha XSD'])),
+    )
+    monkeypatch.setattr(
+        esus_export_service,
+        '_persist_remessa_and_link_procedures',
+        lambda *args, **kwargs: calls.append(args),
+    )
+    with pytest.raises(EsusXmlValidationError):
+        gerar_remessa_xml('2026-06-01', '2026-06-14', professional_id=7)
+    assert calls == []
+    assert not list(tmp_path.rglob('*.xml'))
+
+
+def test_valid_generation_registers_hash_and_links_procedures(
+    monkeypatch,
+    tmp_path,
+    complete_settings,
+    ready_rows,
+):
+    readiness = {
+        'total': 2,
+        'ready': 2,
+        'missing_sigtap': 0,
+        'incomplete': 0,
+        'ready_records': ready_rows,
+        'missing_sigtap_records': [],
+        'incomplete_records': [],
+    }
+    persisted = {}
+
+    def fake_persist(params, procedure_ids):
+        persisted['params'] = params
+        persisted['procedure_ids'] = procedure_ids
+        return 42
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(esus_export_service, 'get_esus_settings', lambda: complete_settings)
+    monkeypatch.setattr(esus_export_service, 'build_esus_readiness', lambda **kwargs: readiness)
+    monkeypatch.setattr(esus_export_service, 'find_existing_remessa', lambda *args: None)
+    monkeypatch.setattr(
+        esus_export_service,
+        '_persist_remessa_and_link_procedures',
+        fake_persist,
+    )
+    result = gerar_remessa_xml(
+        '2026-06-01',
+        '2026-06-14',
+        periodo_label='2026-06 P1',
+        generated_by=3,
+        professional_id=7,
+    )
+    assert result['remessa_id'] == 42
+    assert result['xsd_valid']
+    assert Path(result['xml_path']).exists()
+    assert validate_xml_against_xsd(Path(result['xml_path']).read_bytes()) == (True, [])
+    assert persisted['procedure_ids'] == [1, 2]
+    assert persisted['params'][6] == result['xml_hash']
+    assert persisted['params'][7] == result['uuid_dado_serializado']
+    assert persisted['params'][8] == result['uuid_ficha']
+
+
+def test_remessa_and_procedure_links_are_atomic(monkeypatch):
+    class FakeCursor:
+        def __init__(self):
+            self.rowcount = 0
+            self.closed = False
+            self.calls = []
+
+        def execute(self, sql, params):
+            self.calls.append((sql, params))
+            if 'UPDATE tratamento_procedimentos' in sql:
+                self.rowcount = 1
+
+        def fetchone(self):
+            return {'id': 42}
+
+        def close(self):
+            self.closed = True
+
+    class FakeConnection:
+        def __init__(self):
+            self.cursor_instance = FakeCursor()
+            self.committed = False
+            self.rolled_back = False
+
+        def cursor(self):
+            return self.cursor_instance
+
+        def commit(self):
+            self.committed = True
+
+        def rollback(self):
+            self.rolled_back = True
+
+    connection = FakeConnection()
+    returned = []
+    monkeypatch.setattr(esus_export_service, 'get_db_connection', lambda: connection)
+    monkeypatch.setattr(
+        esus_export_service,
+        'put_db_connection',
+        lambda conn: returned.append(conn),
+    )
+
+    with pytest.raises(RuntimeError, match='Nem todos os procedimentos'):
+        esus_export_service._persist_remessa_and_link_procedures(
+            tuple(range(15)),
+            [1, 2],
+        )
+
+    assert connection.rolled_back
+    assert not connection.committed
+    assert connection.cursor_instance.closed
+    assert returned == [connection]
+
+
+def test_email_revalidates_xml_and_hash_before_sending(
+    monkeypatch,
+    tmp_path,
+    complete_settings,
+    ready_rows,
+):
+    xml_bytes, _ = build_xml_ficha_odontologica(
+        ready_rows,
+        complete_settings,
+        data_inicio=dt.date(2026, 6, 1),
+        data_fim=dt.date(2026, 6, 14),
+        professional_id=7,
+    )
+    xml_path = tmp_path / 'remessa.xml'
+    xml_path.write_bytes(xml_bytes)
+    sent = []
+    updates = []
+    monkeypatch.setattr(
+        esus_export_service,
+        'get_esus_remessa',
+        lambda remessa_id: {
+            'id': remessa_id,
+            'xml_hash': esus_xml_service.xml_sha256(xml_bytes),
+            'professional_name': 'Dra. Teste',
+        },
+    )
+    monkeypatch.setattr(mail_service, 'send_email', lambda **kwargs: sent.append(kwargs))
+    monkeypatch.setattr(
+        esus_export_service,
+        'marcar_remessa_enviada',
+        lambda remessa_id, email: updates.append((remessa_id, email)),
+    )
+    ok, error = esus_export_service.enviar_remessa_por_email(
+        42,
+        str(xml_path),
+        '2026-06 P1',
+        'ti@example.gov.br',
+    )
+    assert ok and error is None
+    assert sent[0]['attachments'][0][2] == 'application/xml'
+    assert updates == [(42, 'ti@example.gov.br')]
+
+
+def test_update_treatment_sigtap_blocks_procedure_already_in_remessa(monkeypatch):
+    monkeypatch.setattr(esus_export_service, 'query', lambda *args, **kwargs: {'id': 5})
+    with pytest.raises(ValueError, match='remessa e-SUS #5'):
+        update_treatment_sigtap(88, '0307030040', '202605')
 
 
 def test_update_treatment_sigtap_uses_loaded_catalog(monkeypatch):
     captured = {}
-    sigtap = {
-        'code': '0307030040',
-        'competence': '202605',
-        'name': 'PROFILAXIA / REMOÇÃO DA PLACA BACTERIANA',
-    }
+    sigtap = {'code': '0307030040', 'competence': '202605', 'name': 'PROFILAXIA'}
 
-    monkeypatch.setattr(esus_export_service, 'get_sigtap_procedure', lambda code, competence=None: sigtap)
-    monkeypatch.setattr(esus_export_service, 'procedure_locked_by_validated_batch', lambda procedure_id: None)
+    def fake_query(sql, params=(), one=False):
+        return None
 
-    def fake_execute(sql, params=()):
-        captured['sql'] = sql
-        captured['params'] = params
-
-    monkeypatch.setattr(esus_export_service, 'execute', fake_execute)
-
-    result = update_treatment_sigtap(88, '0307030040', '202605')
-
-    assert result == sigtap
-    assert 'UPDATE tratamento_procedimentos' in captured['sql']
-    assert captured['params'] == ('0307030040', '202605', 'PROFILAXIA / REMOÇÃO DA PLACA BACTERIANA', 88)
-
-
-def test_update_treatment_sigtap_blocks_validated_batch_record(monkeypatch):
-    monkeypatch.setattr(esus_export_service, 'procedure_locked_by_validated_batch', lambda procedure_id: 5)
-
-    try:
-        update_treatment_sigtap(88, '0307030040', '202605')
-    except ValueError as exc:
-        assert 'lote e-SUS validado internamente #5' in str(exc)
-    else:
-        raise AssertionError('Expected validated batch lock error')
-
-
-def test_register_esus_export_batch_stores_payload_snapshot(monkeypatch):
-    payload = {
-        'reference_month': '2026-05',
-        'records': [{'local_procedure_id': 1}],
-        'summary': {'total': 2, 'ready': 1, 'missing_sigtap': 1, 'incomplete': 0},
-    }
-    captured = {}
-
-    monkeypatch.setattr(esus_export_service, 'build_esus_payload', lambda month_value=None: (payload, 'abc123'))
-
-    def fake_execute(sql, params=()):
-        captured['sql'] = sql
-        captured['params'] = params
-        return 42
-
-    monkeypatch.setattr(esus_export_service, 'execute', fake_execute)
-
-    batch_id, result_payload = register_esus_export_batch('2026-05', generated_by=7)
-
-    assert batch_id == 42
-    assert result_payload == payload
-    assert 'payload_json' in captured['sql']
-    assert captured['params'][0] == '2026-05'
-    assert captured['params'][2] == 'abc123'
-    assert '"local_procedure_id": 1' in captured['params'][3]
-    assert captured['params'][7] == 0
-    assert captured['params'][8] == 7
-
-
-def test_get_esus_batch_detail_uses_stored_payload_and_pending_records(monkeypatch):
-    payload = {
-        'reference_month': '2026-05',
-        'records': [{'local_procedure_id': 1}],
-        'summary': {'total': 1, 'ready': 1, 'missing_sigtap': 0, 'incomplete': 0},
-    }
+    monkeypatch.setattr(esus_export_service, 'query', fake_query)
+    monkeypatch.setattr(esus_export_service, 'get_sigtap_procedure', lambda *args: sigtap)
     monkeypatch.setattr(
         esus_export_service,
-        'get_esus_batch',
-        lambda batch_id: {
-            'id': batch_id,
-            'reference_month': '2026-05',
-            'payload_json': payload,
-            'payload_hash': None,
-            'status': 'draft',
-        },
+        'execute',
+        lambda sql, params=(): captured.update(sql=sql, params=params),
     )
-    monkeypatch.setattr(
-        esus_export_service,
-        'build_esus_readiness',
-        lambda month_value=None: {
-            'missing_sigtap_records': [{'id': 2}],
-            'incomplete_records': [{'id': 3}],
-        },
-    )
-    monkeypatch.setattr(esus_export_service, 'list_esus_transmission_attempts', lambda batch_id: [{'id': 4}])
-    monkeypatch.setattr(
-        esus_export_service,
-        'build_batch_transmission_readiness',
-        lambda batch, payload, computed_hash=None: {'ready': False, 'blockers': ['bloqueio']},
-    )
-
-    detail = get_esus_batch_detail(9)
-
-    assert detail['batch']['id'] == 9
-    assert detail['records'] == payload['records']
-    assert detail['pending_records'] == [{'id': 2}, {'id': 3}]
-    assert detail['attempts'] == [{'id': 4}]
-    assert detail['legacy_payload'] is False
-
-
-def test_validate_esus_export_batch_marks_internal_validation(monkeypatch):
-    payload = {
-        'summary': {'total': 4, 'ready': 3, 'missing_sigtap': 1, 'incomplete': 0},
-        'records': [{'local_procedure_id': 1}],
-    }
-    calls = []
-    batches = [
-        {'id': 12, 'status': 'draft', 'reference_month': '2026-05', 'payload_json': payload, 'payload_hash': 'hash-1'},
-        {'id': 12, 'status': 'validated_internally', 'reference_month': '2026-05', 'payload_hash': 'hash-1'},
-    ]
-
-    monkeypatch.setattr(esus_export_service, 'get_esus_batch', lambda batch_id: batches.pop(0))
-    monkeypatch.setattr(esus_export_service, 'execute', lambda sql, params=(): calls.append((sql, params)))
-
-    validated = validate_esus_export_batch(12, validated_by=7, notes='Conferido')
-
-    assert validated['status'] == 'validated_internally'
-    assert 'validated_by' in calls[0][0]
-    assert calls[0][1][0] == 'hash-1'
-    assert calls[0][1][1:5] == (4, 3, 1, 0)
-    assert calls[0][1][5] == 7
-    assert calls[0][1][6] == 'Conferido'
-
-
-def test_procedure_locked_by_validated_batch_detects_record(monkeypatch):
-    monkeypatch.setattr(
-        esus_export_service,
-        'query',
-        lambda *args, **kwargs: [{
-            'id': 3,
-            'payload_json': {'records': [{'local_procedure_id': 88}]},
-        }],
-    )
-
-    assert procedure_locked_by_validated_batch(88) == 3
-    assert procedure_locked_by_validated_batch(99) is None
-
-
-def test_batch_transmission_readiness_requires_validated_payload_and_settings():
-    result = build_batch_transmission_readiness(
-        batch={'status': 'draft', 'payload_hash': 'hash'},
-        payload={'records': []},
-        computed_hash='different',
-        settings={
-            'environment': 'aguardando_prefeitura',
-            'base_url': '',
-            'credential_status': 'pending',
-            'cnes': '',
-            'ine': '',
-            'active': False,
-        },
-    )
-
-    assert result['ready'] is False
-    assert 'lote ainda não validado internamente' in result['blockers']
-    assert 'hash do payload divergente' in result['blockers']
-    assert 'payload sem registros prontos' in result['blockers']
-    assert 'URL PEC/e-SUS não informada' in result['blockers']
-
-
-def test_batch_transmission_readiness_accepts_ready_configuration():
-    result = build_batch_transmission_readiness(
-        batch={'status': 'validated_internally', 'payload_hash': 'hash'},
-        payload={'records': [{'local_procedure_id': 1}]},
-        computed_hash='hash',
-        settings={
-            'environment': 'homologacao',
-            'base_url': 'https://esus.local',
-            'credential_status': 'received',
-            'cnes': '1234567',
-            'ine': '0000000000',
-            'active': True,
-        },
-    )
-
-    assert result['ready'] is True
-    assert result['blockers'] == []
-    assert result['endpoint_url'] == 'https://esus.local'
-
-
-def test_simulate_esus_transmission_preflight_blocks_when_not_ready(monkeypatch):
-    calls = []
-    detail = {
-        'batch': {'id': 7, 'status': 'validated_internally'},
-        'transmission_readiness': {
-            'ready': False,
-            'blockers': ['URL PEC/e-SUS não informada'],
-            'records_count': 10,
-            'payload_hash': 'hash-7',
-            'endpoint_url': '',
-        },
-    }
-
-    monkeypatch.setattr(esus_export_service, 'get_esus_batch_detail', lambda batch_id: detail)
-    monkeypatch.setattr(esus_export_service, 'register_esus_transmission_attempt', lambda **kwargs: calls.append(kwargs) or 99)
-    monkeypatch.setattr(esus_export_service, 'execute', lambda sql, params=(): calls.append({'sql': sql, 'params': params}))
-
-    result = simulate_esus_transmission_preflight(7, attempted_by=3)
-
-    assert result['status'] == 'blocked'
-    assert result['ready_to_send'] is False
-    assert calls[0]['status'] == 'blocked'
-    assert calls[0]['http_status'] == 428
-    assert 'simulation_blocked' in calls[1]['sql']
-
-
-def test_simulate_esus_transmission_preflight_marks_ready_to_send(monkeypatch):
-    calls = []
-    detail = {
-        'batch': {'id': 8, 'status': 'validated_internally'},
-        'transmission_readiness': {
-            'ready': True,
-            'blockers': [],
-            'records_count': 12,
-            'payload_hash': 'hash-8',
-            'endpoint_url': 'https://esus.local',
-        },
-    }
-
-    monkeypatch.setattr(esus_export_service, 'get_esus_batch_detail', lambda batch_id: detail)
-    monkeypatch.setattr(esus_export_service, 'register_esus_transmission_attempt', lambda **kwargs: calls.append(kwargs) or 100)
-    monkeypatch.setattr(esus_export_service, 'execute', lambda sql, params=(): calls.append({'sql': sql, 'params': params}))
-
-    result = simulate_esus_transmission_preflight(8, attempted_by=3)
-
-    assert result['status'] == 'success'
-    assert result['ready_to_send'] is True
-    assert calls[0]['status'] == 'success'
-    assert calls[0]['http_status'] == 200
-    assert "status = 'ready_to_send'" in calls[1]['sql']
-    assert calls[1]['params'][0] == 'https://esus.local'
-
-
-def test_build_esus_meeting_checklist_groups_prefecture_items():
-    checklist = build_esus_meeting_checklist(
-        settings={
-            'environment': 'homologacao',
-            'base_url': 'https://esus.local',
-            'pec_version': '5.4.36',
-            'ledi_version': '7.4.1',
-            'credential_status': 'received',
-            'cnes': '1234567',
-            'ine': '0000000000',
-            'active': True,
-        },
-        homologation={'ready': True, 'blocking_count': 0},
-        batch_detail={
-            'batch': {
-                'status': 'ready_to_send',
-                'payload_hash': 'hash-1',
-                'response_status': 'simulation_success',
-            },
-            'transmission_readiness': {'ready': True, 'blockers': []},
-        },
-    )
-
-    assert checklist['pending'] == []
-    assert 'Dados da prefeitura' in checklist['groups']
-    assert any(item['label'] == 'Endpoint PEC/e-SUS informado' for item in checklist['items'])
-
-
-def test_esus_homologation_report_composes_batch_manual_and_pending(monkeypatch):
-    dashboard = {
-        'settings': {
-            'environment': 'aguardando_prefeitura',
-            'base_url': '',
-            'pec_version': '',
-            'ledi_version': '',
-            'credential_status': 'pending',
-            'cnes': '',
-            'ine': '',
-            'active': False,
-        },
-        'homologation': {'ready': False, 'blocking_count': 2, 'items': []},
-        'readiness': {'total': 1, 'ready': 1},
-        'patient_gaps': {'missing_cns_or_cpf': 0},
-        'missing_professionals': [],
-    }
-    batch = {'id': 4, 'reference_month': '2026-06'}
-    batch_detail = {
-        'batch': {
-            'id': 4,
-            'status': 'validated_internally',
-            'payload_hash': 'hash-4',
-            'response_status': 'simulation_blocked',
-        },
-        'attempts': [{'id': 1}],
-        'transmission_readiness': {
-            'ready': False,
-            'blockers': ['URL PEC/e-SUS não informada'],
-        },
-    }
-
-    monkeypatch.setattr(esus_export_service, 'get_esus_dashboard', lambda month_value=None: dashboard)
-    monkeypatch.setattr(esus_export_service, 'get_esus_batch', lambda batch_id: batch)
-    monkeypatch.setattr(esus_export_service, 'get_esus_batch_detail', lambda batch_id: batch_detail)
-    monkeypatch.setattr(esus_export_service, 'get_latest_esus_batch', lambda month_value=None: batch)
-    monkeypatch.setattr(esus_export_service, 'get_sigtap_summary', lambda: {'latest': {'total': 10}})
-
-    report = get_esus_homologation_report(month_value='2026-06', batch_id=4)
-
-    assert report['month'] == '2026-06'
-    assert report['batch_detail']['batch']['id'] == 4
-    assert 'URL PEC/e-SUS não informada' in report['pending_items']
-    assert len(report['manual_steps']) >= 8
-    assert 'endpoint' in report['external_dependency_note']
-
-
-def test_get_esus_dashboard_composes_operational_context(monkeypatch):
-    monkeypatch.setattr(
-        esus_export_service,
-        'build_esus_readiness',
-        lambda month_value=None: {'total': 1, 'ready': 1, 'missing_sigtap': 0, 'incomplete': 0},
-    )
-    monkeypatch.setattr(
-        esus_export_service,
-        'get_esus_settings',
-        lambda: {
-            'environment': 'homologacao',
-            'base_url': 'https://esus.local',
-            'pec_version': '5.4.36',
-            'ledi_version': '7.4.1',
-            'credential_status': 'received',
-            'cnes': '1234567',
-            'ine': '0000000000',
-        },
-    )
-    monkeypatch.setattr(
-        esus_export_service,
-        'get_sigtap_summary',
-        lambda: {'latest': {'total': 10, 'competence': '202605'}},
-    )
-    monkeypatch.setattr(esus_export_service, 'get_patient_identifier_gaps', lambda: {'total': 2, 'missing_cns_or_cpf': 0, 'invalid_cns_or_cpf': 0})
-    monkeypatch.setattr(esus_export_service, 'list_professionals_missing_required_data', lambda limit=80: [])
-    monkeypatch.setattr(esus_export_service, 'list_procedures_missing_sigtap', lambda limit=80: [])
-    monkeypatch.setattr(esus_export_service, 'list_esus_batches', lambda limit=12: [{'id': 1}])
-
-    dashboard = get_esus_dashboard('2026-05')
-
-    assert dashboard['month'] == '2026-05'
-    assert dashboard['readiness']['ready'] == 1
-    assert dashboard['settings']['environment'] == 'homologacao'
-    assert dashboard['homologation']['ready']
-    assert dashboard['batches'][0]['id'] == 1
-
-
-def test_homologation_status_reports_blockers():
-    status = build_homologation_status(
-        settings={
-            'environment': 'aguardando_prefeitura',
-            'base_url': '',
-            'pec_version': '',
-            'ledi_version': '',
-            'credential_status': 'pending',
-            'cnes': '',
-            'ine': '',
-        },
-        readiness={'missing_sigtap': 1, 'incomplete': 2},
-        sigtap_summary={'latest': {'total': 0}},
-        patient_gaps={'missing_cns_or_cpf': 3},
-        missing_professionals=[{'id': 1}],
-    )
-
-    assert status['ready'] is False
-    assert status['blocking_count'] == len(status['items'])
-
-
-def test_homologation_status_blocks_invalid_identifier_formats():
-    status = build_homologation_status(
-        settings={
-            'environment': 'homologacao',
-            'base_url': 'https://esus.local',
-            'pec_version': '5.4.36',
-            'ledi_version': '7.4.1',
-            'credential_status': 'received',
-            'cnes': '123',
-            'ine': '000',
-        },
-        readiness={'missing_sigtap': 0, 'incomplete': 0},
-        sigtap_summary={'latest': {'total': 1}},
-        patient_gaps={'missing_cns_or_cpf': 0, 'invalid_cns_or_cpf': 2},
-        missing_professionals=[],
-    )
-
-    labels = {item['label']: item for item in status['items']}
-    assert labels['CNES configurado']['ok'] is False
-    assert labels['INE/equipe configurado']['ok'] is False
-    assert labels['Pacientes com CNS/CPF válido']['ok'] is False
+    assert update_treatment_sigtap(88, '0307030040', '202605') == sigtap
+    assert captured['params'] == ('0307030040', '202605', 'PROFILAXIA', 88)

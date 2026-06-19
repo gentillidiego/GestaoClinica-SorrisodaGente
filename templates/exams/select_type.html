@@ -91,6 +91,20 @@
                 style="font-size: 0.95rem; color: hsl(var(--text-muted)); margin-top: 1rem; text-align: center; font-weight: 500; line-height: 1.4;">
                 Radiografias, tomografias e fotos.</p>
         </a>
+
+        <!-- Exame Clínico / Laboratorial -->
+        <a href="{{ url_for('exams.clinico_laboratorial', anamnesis_id=anamnesis.id) }}" class="card stat-card"
+            style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 1.5rem; border-bottom: 4px solid hsl(165, 65%, 38%); transition: all 0.3s; background: white; min-height: 320px;">
+            <div
+                style="font-size: 4rem; margin-bottom: 1.5rem; height: 80px; display: flex; align-items: center; justify-content: center;">
+                🧪</div>
+            <h3
+                style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 800; color: hsl(165, 65%, 32%); margin: 0; text-align: center;">
+                Clínico / Laboratorial</h3>
+            <p
+                style="font-size: 0.95rem; color: hsl(var(--text-muted)); margin-top: 1rem; text-align: center; font-weight: 500; line-height: 1.4;">
+                Laudos de sangue, coagulação, glicemia e outros exames clínicos.</p>
+        </a>
     </div>
 
     <div style="margin-top: 4rem; text-align: center;">

@@ -40,15 +40,25 @@ Copie `.env.example` para `.env` e preencha antes de subir os containers:
 
 | Container | Tecnologia | Função | Porta |
 |-----------|-----------|--------|-------|
-| `gestaosaudeoral-web` | Flask + Gunicorn (gevent) | Servidor web principal | `5003` (host) |
-| `gestaosaudeoral-postgres` | PostgreSQL 16 | Banco de dados persistente | `5433` (host) |
+| `gestaosaudeoral-web` | Flask + Gunicorn (gevent) | Servidor web principal | `127.0.0.1:5003`, atrás do Nginx |
+| `gestaosaudeoral-postgres` | PostgreSQL 16 | Banco de dados persistente | somente rede Docker |
 | `gestaosaudeoral-redis` | Redis 7 | Broker Celery + Rate Limiting + Cache | — |
 | `gestaosaudeoral-celery` | Celery Worker | Geração assíncrona de PDFs | — |
+| `gestaosaudeoral-backup` | PostgreSQL 16 + rclone | Backup diário e cópia externa | — |
 
 **Volumes compartilhados:**
 - `pdf_temp_oral` — compartilhado entre `web` e `celery-worker`. O web grava o HTML source e o worker escreve o PDF gerado.
 - `postgres_data_oral` — dados persistentes do PostgreSQL.
 - `redis_data_oral` — AOF persistência do Redis.
+
+**Arquivos clínicos protegidos:**
+
+- `/srv/gestaosaudeoral/uploads` é montado como `/app/uploads` no web, worker e
+  beat e como `/uploads:ro` no container de backup.
+- O Flask autoriza o acesso e o Nginx entrega os arquivos por uma localização
+  `internal` usando `X-Accel-Redirect`.
+- Miniaturas e prévias WebP são permanentes; originais usam cache de 2 dias,
+  limite de 15 GB e limpeza LRU.
 
 **Healthchecks:** `redis` e `postgres` possuem healthchecks. O `web` e o `celery-worker` só sobem após ambos estarem saudáveis (`condition: service_healthy`).
 

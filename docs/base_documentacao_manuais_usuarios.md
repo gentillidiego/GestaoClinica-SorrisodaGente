@@ -110,10 +110,27 @@ Nesta etapa, o BI está em modo de validação do que já existe. Não entram no
 ### 4.7. Integração SUS e SIGTAP
 *   **Catálogo SIGTAP:** Custos importados (TXT/ZIP) ou editados em `/admin/finance/cost-references`. Homologação de valores exige status `validated`.
 *   **e-SUS APS (`/admin/integrations/esus`):**
-    *   Preparação de lotes mensais (Draft).
-    *   Exige preenchimento de campos obrigatórios (CNS paciente, CNS/CBO/CNES/INE do profissional).
-    *   Painel mostra pendências antes do fechamento do lote.
-    *   Lotes passam por *Validação Interna* e *Pré-envio Simulado* antes de exportar o JSON real para a Prefeitura.
+    *   Gera envelope XML LEDI quinzenal da Ficha de Atendimento Odontológico.
+    *   Exige CNS ou CPF válido do paciente, SIGTAP, CNS/CBO/CRO do profissional e configuração oficial da instalação.
+    *   Cada remessa pertence a um período e um profissional; o sistema impede geração duplicada.
+    *   O XML precisa passar integralmente pelos XSDs oficiais antes de ser salvo e é validado novamente antes do envio.
+    *   O administrador pode baixar o XML ou enviá-lo por e-mail ao TI municipal.
+    *   O envio automático só deve ser ativado depois de importação assistida e aceite no PEC da Secretaria.
+
+### 4.7.1. Exames de Imagem e Clínico/Laboratoriais
+
+*   **Exame de Imagem 2.0:** selecionar o tipo, anexar uma ou mais imagens e
+    informar observação somente quando ela acrescentar contexto clínico.
+*   **Clínico/Laboratorial:** selecionar o grupo do exame e anexar o laudo em
+    PDF ou imagem.
+*   O arquivo aparece como salvo assim que é gravado no prontuário; a proteção
+    no Google Drive acontece em segundo plano.
+*   A tela informa se o arquivo está aguardando sincronização, sincronizando,
+    protegido no Drive ou aguardando nova tentativa automática.
+*   Não reenviar o mesmo arquivo apenas porque o status ainda está
+    `sincronizando`.
+*   Imagens abrem primeiro em versão otimizada; o original permanece disponível
+    quando necessário.
 
 ### 4.8. Administração
 *   **Usuários:** Cadastro, edição de perfil e gestão do ciclo de vida do acesso.

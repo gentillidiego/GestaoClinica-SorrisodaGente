@@ -2,489 +2,316 @@
 
 {% block title %}{{ 'Editar' if exam_data else 'Novo' }} Exame de Imagem - Gestão Clínica{% endblock %}
 
-{% block content %}
-<div class="animate-fade">
-    <div style="margin-bottom: 2rem;">
-        <a href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}"
-            style="display: inline-flex; align-items: center; gap: 0.5rem; color: hsl(var(--text-muted)); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.2s;"
-            onmouseover="this.style.color='hsl(var(--primary))'" onmouseout="this.style.color='hsl(var(--text-muted))'">
-            <span>⬅️</span> Voltar ao Prontuário
-        </a>
-    </div>
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/exam-image-v2.css') }}?v=2.2">
+{% endblock %}
 
-    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 3rem;">
+{% block content %}
+<main
+    class="image-exam-v2 animate-fade"
+    id="imageExamApp"
+    data-exam-id="{{ exam_data.exam_id if exam_data else '' }}"
+    data-create-url="{{ url_for('exams.imagem', anamnesis_id=anamnesis.id) }}"
+    data-upload-url="{{ url_for('exams.upload_imagem', exam_id=exam_data.exam_id) if exam_data else '' }}"
+    data-view-url="{{ url_for('exams.imagem', anamnesis_id=anamnesis.id, exam_id=exam_data.exam_id) if exam_data else '' }}"
+    data-return-url="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}"
+>
+    <a class="image-exam-back" href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}">
+        <span aria-hidden="true">←</span>
+        Voltar ao prontuário
+    </a>
+
+    <header class="image-exam-header">
         <div>
-            <h1 style="font-family: var(--font-heading); font-size: 2rem; font-weight: 800; color: hsl(var(--primary));">
-                Exame de Imagem
-            </h1>
-            <p style="color: hsl(var(--text-muted)); margin-top: 0.5rem;">
-                Paciente: <strong style="color: hsl(var(--text-main));">{{ anamnesis.patient_name }}</strong>
+            <span class="image-exam-eyebrow">Prontuário · Exames</span>
+            <h1>{{ 'Adicionar imagens' if exam_data else 'Novo exame de imagem' }}</h1>
+            <p>
+                <strong>{{ anamnesis.patient_name }}</strong>
                 {% if exam_data %}
-                <span style="margin: 0 1rem; color: hsl(var(--border));">|</span>
-                Exame: <strong style="color: hsl(var(--primary));">{{ exam_data.tipo_imagem }} - {{ exam_data.escopo }}{% if exam_data.detalhe_escopo and exam_data.escopo != 'Complexo Maxilomandibular' %} ({{ exam_data.detalhe_escopo }}){% endif %}</strong>
+                <span aria-hidden="true">·</span>
+                {{ imagens|length }} {{ 'imagem salva' if imagens|length == 1 else 'imagens salvas' }}
+                {% else %}
+                <span aria-hidden="true">·</span>
+                Selecione o tipo e envie as imagens na mesma tela
                 {% endif %}
             </p>
         </div>
-    </div>
+        <div class="image-exam-security" title="Armazenamento institucional protegido">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3 5 6v5c0 4.8 2.9 8.5 7 10 4.1-1.5 7-5.2 7-10V6l-7-3Z"></path>
+                <path d="m9 12 2 2 4-4"></path>
+            </svg>
+            <span>Armazenamento seguro</span>
+        </div>
+    </header>
 
-    <input type="hidden" name="csrf_token" id="csrf_token_global" value="{{ csrf_token() }}">
+    <section class="image-exam-status" id="uploadStatus" aria-live="polite" hidden>
+        <div class="image-exam-status__icon" id="uploadStatusIcon" aria-hidden="true"></div>
+        <div class="image-exam-status__content">
+            <strong id="uploadStatusTitle"></strong>
+            <span id="uploadStatusMessage"></span>
+            <div class="image-exam-progress" id="uploadProgress" hidden>
+                <div class="image-exam-progress__bar" id="uploadProgressBar"></div>
+            </div>
+        </div>
+        <button type="button" class="image-exam-status__close" id="closeStatus" aria-label="Fechar aviso">×</button>
+    </section>
 
-    {% if not exam_data %}
-    <form method="POST" class="card" style="max-width: 800px;">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <h3 style="font-size: 1.25rem; font-weight: 700; color: hsl(var(--primary)); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
-            <span>🖼️</span> Dados do Exame
-        </h3>
+    <form class="image-exam-card" id="imageExamForm" method="post" enctype="multipart/form-data" novalidate>
+        <input type="hidden" name="csrf_token" id="csrfToken" value="{{ csrf_token() }}">
+        <input type="hidden" name="escopo" value="{{ exam_data.escopo if exam_data else '' }}">
 
-        <!-- TIPO DE IMAGEM -->
-        <div class="form-group" style="margin-bottom: 1.5rem;">
-            <label class="form-label">Tipo de Imagem <span style="color: hsl(var(--danger));">*</span></label>
-            <select name="tipo_imagem" id="tipo_imagem" class="form-input" required onchange="updateEscopoOptions()">
-                <option value="">Selecione o tipo de exame...</option>
-                <optgroup label="Radiografias Intrabucais">
-                    <option value="Periapical">Radiografia Periapical</option>
-                    <option value="Bite-wing">Radiografia Interproximal (Bite-wing)</option>
-                    <option value="Oclusal">Radiografia Oclusal</option>
-                </optgroup>
-                <optgroup label="Radiografias Extrabucais">
-                    <option value="Panorâmica">Radiografia Panorâmica</option>
-                    <option value="Telerradiografia">Telerradiografia Lateral</option>
-                </optgroup>
-                <optgroup label="Exames Avançados">
-                    <option value="Tomografia">Tomografia Computadorizada (TC / CBCT)</option>
-                    <option value="Ultrassonografia">Ultrassonografia</option>
-                    <option value="Ressonância">Ressonância Magnética</option>
-                </optgroup>
-                <optgroup label="Fotografia">
-                    <option value="Fotografia Clínica">Fotografia Clínica (Intra/Extrabucal)</option>
-                </optgroup>
-            </select>
+        <div class="image-exam-section-heading">
+            <div class="image-exam-section-number">1</div>
+            <div>
+                <h2>Identifique o exame</h2>
+                <p>Só o tipo é obrigatório. O restante pode ser informado se ajudar no atendimento.</p>
+            </div>
         </div>
 
-        <!-- ESCOPO E DETALHE -->
-        <div id="escopo_container" style="display: none; padding: 1.5rem; background: hsl(var(--bg-main)); border-radius: var(--radius-md); border: 1px solid hsl(var(--border)); margin-bottom: 1.5rem;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-                <div class="form-group" style="margin-bottom: 0;">
-                    <label class="form-label">Escopo Anatômico <span style="color: hsl(var(--danger));">*</span></label>
-                    <select name="escopo" id="escopo" class="form-input" required onchange="handleEscopoChange()">
-                        <option value="">Selecione...</option>
-                        <option value="Elemento">Por Elemento (Unidade Dental)</option>
-                        <option value="Quadrante">Por Quadrante</option>
-                        <option value="Arcada">Por Arcada</option>
-                        <option value="Complexo Maxilomandibular">Complexo Maxilomandibular (Ambas Arcadas)</option>
-                        <option value="Outro">Outro (Especificar)</option>
-                    </select>
+        <div class="image-exam-fields">
+            <div class="image-exam-field">
+                <label for="tipo_imagem">Tipo do exame <span aria-label="obrigatório">*</span></label>
+                <select name="tipo_imagem" id="tipo_imagem" required>
+                    <option value="">Selecione o tipo</option>
+                    <optgroup label="Radiografias intrabucais">
+                        <option value="Periapical" {% if exam_data and exam_data.tipo_imagem == 'Periapical' %}selected{% endif %}>Radiografia periapical</option>
+                        <option value="Bite-wing" {% if exam_data and exam_data.tipo_imagem == 'Bite-wing' %}selected{% endif %}>Interproximal (bite-wing)</option>
+                        <option value="Oclusal" {% if exam_data and exam_data.tipo_imagem == 'Oclusal' %}selected{% endif %}>Radiografia oclusal</option>
+                    </optgroup>
+                    <optgroup label="Radiografias extrabucais">
+                        <option value="Panorâmica" {% if exam_data and exam_data.tipo_imagem == 'Panorâmica' %}selected{% endif %}>Radiografia panorâmica</option>
+                        <option value="Telerradiografia" {% if exam_data and exam_data.tipo_imagem == 'Telerradiografia' %}selected{% endif %}>Telerradiografia lateral</option>
+                    </optgroup>
+                    <optgroup label="Exames avançados">
+                        <option value="Tomografia" {% if exam_data and exam_data.tipo_imagem == 'Tomografia' %}selected{% endif %}>Tomografia (TC / CBCT)</option>
+                        <option value="Ultrassonografia" {% if exam_data and exam_data.tipo_imagem == 'Ultrassonografia' %}selected{% endif %}>Ultrassonografia</option>
+                        <option value="Ressonância" {% if exam_data and exam_data.tipo_imagem == 'Ressonância' %}selected{% endif %}>Ressonância magnética</option>
+                    </optgroup>
+                    <optgroup label="Fotografia">
+                        <option value="Fotografia Clínica" {% if exam_data and exam_data.tipo_imagem == 'Fotografia Clínica' %}selected{% endif %}>Fotografia clínica</option>
+                    </optgroup>
+                    <option value="Outro" {% if exam_data and exam_data.tipo_imagem == 'Outro' %}selected{% endif %}>Outro exame de imagem</option>
+                </select>
+                <span class="image-exam-field-error" id="typeError"></span>
+            </div>
+
+            <div class="image-exam-field">
+                <label for="detalhe_escopo">Região ou dente <span>(opcional)</span></label>
+                <input
+                    type="text"
+                    name="detalhe_escopo"
+                    id="detalhe_escopo"
+                    value="{{ exam_data.detalhe_escopo if exam_data else '' }}"
+                    placeholder="Ex.: dente 21, arcada superior ou ATM direita"
+                    autocomplete="off"
+                >
+                <small id="regionHint">Use este campo apenas quando a localização for importante.</small>
+            </div>
+        </div>
+
+        <div class="image-exam-divider"></div>
+
+        <div class="image-exam-section-heading">
+            <div class="image-exam-section-number">2</div>
+            <div>
+                <h2>{{ 'Adicione mais imagens' if exam_data else 'Adicione as imagens' }}</h2>
+                <p>Você verá uma prévia antes de enviar e uma confirmação quando tudo estiver salvo.</p>
+            </div>
+        </div>
+
+        <input
+            type="file"
+            id="imageFiles"
+            name="images"
+            accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+            multiple
+            hidden
+        >
+
+        <button type="button" class="image-dropzone" id="imageDropzone">
+            <span class="image-dropzone__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                    <path d="M4 16.5V19h16v-2.5"></path>
+                    <path d="M12 4v11"></path>
+                    <path d="m7.5 8.5 4.5-4.5 4.5 4.5"></path>
+                </svg>
+            </span>
+            <span class="image-dropzone__copy">
+                <strong>Escolher imagens</strong>
+                <span>ou arraste os arquivos para cá</span>
+            </span>
+            <span class="image-dropzone__rules">JPG, PNG ou WEBP · até 25 MB cada · máximo de 12</span>
+        </button>
+        <span class="image-exam-field-error image-exam-file-error" id="fileError"></span>
+
+        <div class="image-selection" id="selectedImages" hidden>
+            <div class="image-selection__header">
+                <strong id="selectedCount"></strong>
+                <button type="button" id="clearSelection">Remover todas</button>
+            </div>
+            <div class="image-selection__grid" id="selectedImagesGrid"></div>
+        </div>
+
+        <details class="image-exam-advanced">
+            <summary>
+                <span>
+                    <strong>Detalhes opcionais</strong>
+                    <small>Nota clínica, legenda, data e comparação</small>
+                </span>
+                <span class="image-exam-advanced__chevron" aria-hidden="true">⌄</span>
+            </summary>
+            <div class="image-exam-advanced__body">
+                <div class="image-exam-field image-exam-field--wide">
+                    <label for="observacoes">Nota clínica <span>(opcional)</span></label>
+                    <textarea
+                        name="observacoes"
+                        id="observacoes"
+                        rows="3"
+                        placeholder="Laudo prévio, justificativa ou observação relevante"
+                    >{{ exam_data.observacoes if exam_data else '' }}</textarea>
                 </div>
-                
-                <div class="form-group" id="detalhe_container" style="margin-bottom: 0;">
-                    <label class="form-label" id="detalhe_label">Detalhes</label>
-                    
-                    <!-- Input Texto Padrão -->
-                    <input type="text" name="detalhe_escopo" id="detalhe_texto" class="form-input" 
-                           placeholder="Ex: 11, 21" value="">
-                    
-                    <!-- Select Quadrante -->
-                    <select id="detalhe_quadrante" class="form-input" style="display: none;">
-                        <option value="1º Quadrante (Sup. Dir.)">1º Quadrante (Sup. Dir.)</option>
-                        <option value="2º Quadrante (Sup. Esq.)">2º Quadrante (Sup. Esq.)</option>
-                        <option value="3º Quadrante (Inf. Esq.)">3º Quadrante (Inf. Esq.)</option>
-                        <option value="4º Quadrante (Inf. Dir.)">4º Quadrante (Inf. Dir.)</option>
-                    </select>
-                    
-                    <!-- Select Arcada -->
-                    <select id="detalhe_arcada" class="form-input" style="display: none;">
-                        <option value="Superior">Arcada Superior</option>
-                        <option value="Inferior">Arcada Inferior</option>
-                    </select>
+
+                <div class="image-exam-fields image-exam-fields--advanced">
+                    <div class="image-exam-field">
+                        <label for="upload_caption">Legenda das imagens <span>(opcional)</span></label>
+                        <input type="text" id="upload_caption" name="caption" placeholder="O sistema cria uma legenda se ficar vazio">
+                    </div>
+                    <div class="image-exam-field">
+                        <label for="upload_taken_at">Data do exame <span>(opcional)</span></label>
+                        <input type="datetime-local" id="upload_taken_at" name="taken_at">
+                    </div>
+                    <div class="image-exam-field">
+                        <label for="upload_visual_category">Categoria <span>(opcional)</span></label>
+                        <select id="upload_visual_category" name="visual_category">
+                            <option value="">Automática (recomendado)</option>
+                            <option value="radiografia">Radiografia</option>
+                            <option value="cbct">Tomografia / CBCT</option>
+                            <option value="intraoral">Foto intraoral</option>
+                            <option value="extraoral">Foto extraoral</option>
+                            <option value="documento_complementar">Documento complementar</option>
+                        </select>
+                    </div>
+                    <div class="image-exam-field">
+                        <label for="upload_comparison_label">Etapa <span>(opcional)</span></label>
+                        <select id="upload_comparison_label" name="comparison_label">
+                            <option value="diagnostico">Diagnóstico</option>
+                            <option value="antes">Antes</option>
+                            <option value="evolucao">Evolução</option>
+                            <option value="depois">Depois</option>
+                            <option value="controle">Controle</option>
+                            <option value="pos_operatorio">Pós-operatório</option>
+                        </select>
+                    </div>
+                    <div class="image-exam-field">
+                        <label for="upload_comparison_group">Grupo comparativo <span>(opcional)</span></label>
+                        <input type="text" id="upload_comparison_group" name="comparison_group" placeholder="Ex.: implante 36">
+                    </div>
+                    <div class="image-exam-field">
+                        <label for="upload_clinical_context">Contexto da imagem <span>(opcional)</span></label>
+                        <input type="text" id="upload_clinical_context" name="clinical_context" placeholder="Ex.: controle após instalação">
+                    </div>
                 </div>
             </div>
-            <p id="escopo_hint" style="font-size: 0.8rem; color: hsl(var(--text-muted)); margin-top: 0.5rem; display: none;"></p>
-        </div>
+        </details>
 
-        <!-- OBSERVAÇÕES -->
-        <div class="form-group" style="margin-bottom: 2rem;">
-            <label class="form-label">Observações Clínicas (Opcional)</label>
-            <textarea name="observacoes" class="form-input" rows="4" 
-                      placeholder="Laudo prévio, justificativa do pedido ou notas clínicas..."></textarea>
-        </div>
-
-        <div style="display: flex; justify-content: flex-end; gap: 1rem; padding-top: 1.5rem; border-top: 1px solid hsl(var(--border));">
-            <a href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}" class="btn btn-outline">Voltar</a>
-            <button type="submit" class="btn btn-primary" id="btnSalvar">
-                <span>📄 Criar Exame e Adicionar Imagens</span>
-            </button>
-        </div>
-    </form>
-    {% endif %}
-
-    {% if exam_data %}
-    <!-- GALERIA DE IMAGENS -->
-    <div class="card" style="max-width: 800px; margin-top: 2rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-            <h3 style="font-size: 1.25rem; font-weight: 700; color: hsl(var(--primary)); display: flex; align-items: center; gap: 0.5rem;">
-                <span>📸</span> Arquivos de Imagem
-            </h3>
-            
+        <footer class="image-exam-actions">
+            <span class="image-exam-actions__hint" id="actionHint">
+                {% if exam_data %}Escolha imagens para adicionar ou salve alterações nos dados.{% else %}Selecione o tipo e pelo menos uma imagem.{% endif %}
+            </span>
             <div>
-                <input type="file" id="image_upload" multiple accept="image/*" style="display: none;" onchange="handleImageUpload(event, {{ exam_data.exam_id }})">
-                <button type="button" class="btn btn-primary" onclick="document.getElementById('image_upload').click()">
-                    Carregar Imagem(ns)
+                <a href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}" class="btn btn-outline">Cancelar</a>
+                <button type="submit" class="btn btn-primary image-exam-submit" id="saveExamButton">
+                    <span class="image-exam-submit__idle">{{ 'Salvar alterações' if exam_data else 'Salvar exame' }}</span>
+                    <span class="image-exam-submit__busy" hidden>
+                        <span class="image-exam-spinner" aria-hidden="true"></span>
+                        Salvando…
+                    </span>
                 </button>
             </div>
+        </footer>
+    </form>
+
+    <section class="image-gallery-card" id="savedGallery">
+        <div class="image-gallery-header">
+            <div>
+                <span class="image-exam-eyebrow">Imagens salvas</span>
+                <h2>Galeria do exame</h2>
+            </div>
+            <span class="image-gallery-count" id="galleryCount">{{ imagens|length }}</span>
         </div>
 
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem; padding:1rem; margin-bottom:1rem; border:1px solid hsl(var(--border)); border-radius:var(--radius-md); background:hsl(var(--bg-main));">
-            <div style="grid-column:1 / -1;">
-                <label class="form-label" style="font-size:0.78rem; font-weight:800;">LEGENDA DO LOTE <span style="color:hsl(var(--danger));">*</span></label>
-                <input type="text" id="upload_caption" class="form-input" placeholder="Ex: Radiografia panorâmica inicial" required>
-            </div>
-            <div>
-                <label class="form-label" style="font-size:0.78rem; font-weight:800;">CATEGORIA</label>
-                <select id="upload_visual_category" class="form-input">
-                    <option value="radiografia" selected>Radiografia</option>
-                    <option value="intraoral">Intraoral</option>
-                    <option value="extraoral">Extraoral</option>
-                    <option value="antes_depois">Antes/Depois</option>
-                    <option value="evolucao">Evolução</option>
-                    <option value="documento_complementar">Documento complementar</option>
-                </select>
-            </div>
-            <div>
-                <label class="form-label" style="font-size:0.78rem; font-weight:800;">ETAPA VISUAL</label>
-                <select id="upload_comparison_label" class="form-input">
-                    <option value="diagnostico" selected>Diagnóstico</option>
-                    <option value="antes">Antes</option>
-                    <option value="evolucao">Evolução</option>
-                    <option value="depois">Depois</option>
-                    <option value="controle">Controle</option>
-                    <option value="pos_operatorio">Pós-operatório</option>
-                </select>
-            </div>
-            <div>
-                <label class="form-label" style="font-size:0.78rem; font-weight:800;">GRUPO COMPARATIVO</label>
-                <input type="text" id="upload_comparison_group" class="form-input" placeholder="Ex: Implante 36">
-            </div>
-            <div>
-                <label class="form-label" style="font-size:0.78rem; font-weight:800;">DATA CLÍNICA</label>
-                <input type="datetime-local" id="upload_taken_at" class="form-input">
-            </div>
-            <div style="grid-column:1 / -1;">
-                <label class="form-label" style="font-size:0.78rem; font-weight:800;">CONTEXTO CLÍNICO</label>
-                <input type="text" id="upload_clinical_context" class="form-input" placeholder="Ex: Controle após instalação da prótese">
-            </div>
-        </div>
-
-        <div id="upload_progress" style="display: none; color: hsl(var(--text-muted)); margin-bottom: 1rem; font-size: 0.9rem;">
-            Enviando imagens...
-        </div>
-
-        <!-- Miniaturas -->
-        <div id="gallery_thumbnails" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem;">
+        <div class="image-gallery-grid" id="galleryGrid" {% if not imagens %}hidden{% endif %}>
             {% for img in imagens %}
-            <div class="thumbnail-wrapper" style="cursor: pointer; border: 2px solid transparent; border-radius: var(--radius-sm); overflow: hidden; width: 80px; height: 80px;" onclick="selectImage({{ loop.index0 }})">
-                <img src="{{ url_for('exams.serve_imagem', arquivo_id=img.id) }}" alt="{{ img.filename }}" style="width: 100%; height: 100%; object-fit: cover;">
-            </div>
+            {% set storage_status = img.storage_status or 'synced' %}
+            <button
+                type="button"
+                class="image-gallery-item"
+                data-image-id="{{ img.id }}"
+                data-image-url="{{ url_for('exams.serve_imagem_preview', arquivo_id=img.id) }}"
+                data-original-url="{{ url_for('exams.serve_imagem', arquivo_id=img.id) }}"
+                data-image-filename="{{ img.filename }}"
+                data-image-caption="{{ img.caption or img.filename }}"
+                data-status-url="{{ url_for('exams.status_imagem_arquivo', arquivo_id=img.id) }}"
+                aria-label="Abrir {{ img.caption or img.filename }}"
+            >
+                <span class="image-gallery-item__media">
+                    <span class="image-gallery-item__loading">Carregando…</span>
+                    <img
+                        src="{{ url_for('exams.serve_imagem_thumbnail', arquivo_id=img.id) }}"
+                        alt="{{ img.caption or img.filename }}"
+                        loading="lazy"
+                    >
+                </span>
+                <span class="image-gallery-item__info">
+                    <strong>{{ img.caption or img.filename }}</strong>
+                    <small>{{ img.filename }}</small>
+                    <span
+                        class="file-sync-status file-sync-status--{{ storage_status }}"
+                        data-sync-status="{{ storage_status }}"
+                        data-status-url="{{ url_for('exams.status_imagem_arquivo', arquivo_id=img.id) }}"
+                    >
+                        <i aria-hidden="true"></i>
+                        <span>
+                            {% if storage_status == 'synced' %}Protegido no Google Drive institucional
+                            {% elif storage_status == 'syncing' %}Salvo no prontuário · sincronizando com o Drive
+                            {% elif storage_status == 'failed' %}Salvo no prontuário · nova tentativa automática
+                            {% else %}Salvo no prontuário · aguardando sincronização{% endif %}
+                        </span>
+                    </span>
+                </span>
+            </button>
             {% endfor %}
         </div>
 
-        <!-- Visualizador Principal -->
-        <div id="main_viewer" style="display: none; position: relative; background: #000; border-radius: var(--radius-md); overflow: hidden; align-items: center; justify-content: center; min-height: 300px; max-height: 500px;">
-            <button type="button" onclick="prevImage(event)" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; font-size: 1.2rem; z-index: 10;">&lt;</button>
-            
-            <img id="main_image" src="" style="max-width: 100%; max-height: 500px; object-fit: contain; cursor: zoom-in;" onclick="openFullscreen()">
-            
-            <button type="button" onclick="nextImage(event)" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; font-size: 1.2rem; z-index: 10;">&gt;</button>
+        <div class="image-gallery-empty" id="galleryEmpty" {% if imagens %}hidden{% endif %}>
+            <span aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                    <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                    <circle cx="9" cy="10" r="1.5"></circle>
+                    <path d="m5 17 4.5-4 3 2.5 2.5-2 4 3.5"></path>
+                </svg>
+            </span>
+            <strong>Nenhuma imagem salva ainda</strong>
+            <p>As imagens aparecerão aqui assim que o envio for concluído.</p>
         </div>
-        
-        <p id="no_images_msg" style="color: hsl(var(--text-muted)); font-style: italic; text-align: center; {% if imagens %}display: none;{% endif %}">Nenhuma imagem carregada ainda.</p>
-    </div>
-    {% endif %}
+    </section>
+</main>
+
+<div class="image-lightbox" id="imageLightbox" role="dialog" aria-modal="true" aria-label="Visualizador de imagem" hidden>
+    <button type="button" class="image-lightbox__close" id="closeLightbox" aria-label="Fechar visualizador">×</button>
+    <button type="button" class="image-lightbox__nav image-lightbox__nav--previous" id="previousImage" aria-label="Imagem anterior">‹</button>
+    <figure>
+        <img id="lightboxImage" alt="">
+        <figcaption>
+            <strong id="lightboxCaption"></strong>
+            <span id="lightboxPosition"></span>
+        </figcaption>
+    </figure>
+    <button type="button" class="image-lightbox__nav image-lightbox__nav--next" id="nextImage" aria-label="Próxima imagem">›</button>
 </div>
+{% endblock %}
 
-<!-- Modal Fullscreen -->
-<div id="fullscreen_modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; align-items: center; justify-content: center;">
-    <button type="button" onclick="closeFullscreen()" style="position: absolute; top: 20px; right: 20px; background: none; color: white; border: none; font-size: 2rem; cursor: pointer; z-index: 10000;">&times;</button>
-    
-    <button type="button" onclick="prevImage(event)" style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 50%; width: 60px; height: 60px; cursor: pointer; font-size: 2rem; z-index: 10000;">&lt;</button>
-    
-    <img id="fullscreen_image" src="" style="max-width: 90%; max-height: 90%; object-fit: contain;">
-    
-    <button type="button" onclick="nextImage(event)" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 50%; width: 60px; height: 60px; cursor: pointer; font-size: 2rem; z-index: 10000;">&gt;</button>
-</div>
-
-<script>
-    // Inicialização ao carregar a página
-    document.addEventListener('DOMContentLoaded', () => {
-        updateEscopoOptions();
-    });
-
-    // Lógica para adaptar o formulário com base no Tipo de Imagem
-    function updateEscopoOptions() {
-        const tipo = document.getElementById('tipo_imagem').value;
-        const escopoContainer = document.getElementById('escopo_container');
-        const escopoSelect = document.getElementById('escopo');
-        
-        if (!tipo) {
-            escopoContainer.style.display = 'none';
-            return;
-        }
-        
-        escopoContainer.style.display = 'block';
-        
-        // Regras de negócio
-        if (tipo === 'Panorâmica' || tipo === 'Telerradiografia') {
-            escopoSelect.value = 'Complexo Maxilomandibular';
-            // Bloqueia mudança se for estritamente panorâmica
-            escopoSelect.setAttribute('readonly', 'readonly');
-            escopoSelect.style.pointerEvents = 'none';
-        } else if (tipo === 'Periapical') {
-            if (escopoSelect.value !== 'Elemento') {
-                escopoSelect.value = 'Elemento';
-            }
-            escopoSelect.removeAttribute('readonly');
-            escopoSelect.style.pointerEvents = 'auto';
-        } else {
-            escopoSelect.removeAttribute('readonly');
-            escopoSelect.style.pointerEvents = 'auto';
-            if (tipo === 'Bite-wing' && !escopoSelect.value) {
-                 escopoSelect.value = 'Quadrante';
-            }
-        }
-        
-        handleEscopoChange();
-    }
-
-    // Lógica para adaptar o input de detalhe com base no Escopo
-    function handleEscopoChange() {
-        const escopo = document.getElementById('escopo').value;
-        const detalheContainer = document.getElementById('detalhe_container');
-        const label = document.getElementById('detalhe_label');
-        const hint = document.getElementById('escopo_hint');
-        
-        const inputTexto = document.getElementById('detalhe_texto');
-        const selectQuadrante = document.getElementById('detalhe_quadrante');
-        const selectArcada = document.getElementById('detalhe_arcada');
-        
-        // Esconde todos inicialmente e remove name attributes para não conflitar no submit
-        inputTexto.style.display = 'none';
-        inputTexto.removeAttribute('name');
-        
-        selectQuadrante.style.display = 'none';
-        selectQuadrante.removeAttribute('name');
-        
-        selectArcada.style.display = 'none';
-        selectArcada.removeAttribute('name');
-        
-        detalheContainer.style.display = 'block';
-        hint.style.display = 'block';
-
-        if (escopo === 'Elemento') {
-            label.innerText = 'Números dos Dentes';
-            inputTexto.style.display = 'block';
-            inputTexto.setAttribute('name', 'detalhe_escopo');
-            inputTexto.placeholder = 'Ex: 11, 12, 21, 36...';
-            hint.innerText = 'Digite os números separados por vírgula.';
-        } 
-        else if (escopo === 'Quadrante') {
-            label.innerText = 'Selecione o Quadrante';
-            selectQuadrante.style.display = 'block';
-            selectQuadrante.setAttribute('name', 'detalhe_escopo');
-            hint.innerText = '';
-        } 
-        else if (escopo === 'Arcada') {
-            label.innerText = 'Selecione a Arcada';
-            selectArcada.style.display = 'block';
-            selectArcada.setAttribute('name', 'detalhe_escopo');
-            hint.innerText = '';
-        } 
-        else if (escopo === 'Complexo Maxilomandibular') {
-            detalheContainer.style.display = 'none';
-            hint.innerText = 'Abrange ambas as arcadas simultaneamente.';
-            // Valor vazio submetido via hidden ou simplesmente nulo
-            inputTexto.setAttribute('name', 'detalhe_escopo');
-            inputTexto.value = '';
-        }
-        else {
-            label.innerText = 'Especifique';
-            inputTexto.style.display = 'block';
-            inputTexto.setAttribute('name', 'detalhe_escopo');
-            inputTexto.placeholder = 'Ex: Articulação ATM...';
-            hint.innerText = '';
-        }
-    }
-
-    // --- LÓGICA DA GALERIA ---
-    {% if exam_data %}
-    let currentImages = [];
-    let currentIndex = 0;
-
-    // Inicializar array de imagens baseado no HTML
-    document.addEventListener('DOMContentLoaded', () => {
-        {% for img in imagens %}
-        currentImages.push({
-            id: {{ img.id }},
-            filename: "{{ img.filename }}",
-            url: "{{ url_for('exams.serve_imagem', arquivo_id=img.id) }}"
-        });
-        {% endfor %}
-        
-        if (currentImages.length > 0) {
-            document.getElementById('no_images_msg').style.display = 'none';
-            selectImage(0);
-        }
-    });
-
-    async function handleImageUpload(event, examId) {
-        const files = event.target.files;
-        if (!files || files.length === 0) return;
-
-        const caption = document.getElementById('upload_caption').value.trim();
-        if (!caption) {
-            alert('Informe a legenda do lote antes de carregar as imagens.');
-            event.target.value = '';
-            return;
-        }
-
-        const formData = new FormData();
-        for (let i = 0; i < files.length; i++) {
-            formData.append('images', files[i]);
-        }
-        formData.append('caption', caption);
-        formData.append('visual_category', document.getElementById('upload_visual_category').value);
-        formData.append('comparison_label', document.getElementById('upload_comparison_label').value);
-        formData.append('comparison_group', document.getElementById('upload_comparison_group').value);
-        formData.append('taken_at', document.getElementById('upload_taken_at').value);
-        formData.append('clinical_context', document.getElementById('upload_clinical_context').value);
-
-        // CSRF Token para chamadas fetch/AJAX
-        const csrfTokenInput = document.getElementById('csrf_token_global');
-        if (csrfTokenInput) {
-            formData.append('csrf_token', csrfTokenInput.value);
-        } else {
-            console.error('CSRF token not found');
-            alert('Erro de segurança: Token CSRF não encontrado.');
-            return;
-        }
-
-        const progressDiv = document.getElementById('upload_progress');
-        progressDiv.style.display = 'block';
-
-        try {
-            const response = await fetch(`/exams/imagem/${examId}/upload`, {
-                method: 'POST',
-                body: formData
-            });
-            const data = await response.json();
-
-            if (data.success) {
-                // Adiciona as novas imagens ao array
-                const startIndex = currentImages.length;
-                currentImages.push(...data.files);
-                
-                // Renderiza novas miniaturas
-                const container = document.getElementById('gallery_thumbnails');
-                data.files.forEach((img, i) => {
-                    const idx = startIndex + i;
-                    const div = document.createElement('div');
-                    div.className = 'thumbnail-wrapper';
-                    div.style.cssText = 'cursor: pointer; border: 2px solid transparent; border-radius: var(--radius-sm); overflow: hidden; width: 80px; height: 80px;';
-                    div.onclick = () => selectImage(idx);
-                    
-                    const imgEl = document.createElement('img');
-                    imgEl.src = img.url;
-                    imgEl.alt = img.filename;
-                    imgEl.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
-                    
-                    div.appendChild(imgEl);
-                    container.appendChild(div);
-                });
-
-                document.getElementById('no_images_msg').style.display = 'none';
-                
-                if (startIndex === 0) {
-                    selectImage(0);
-                }
-                
-                // Clear input
-                event.target.value = '';
-            } else {
-                alert('Erro no upload: ' + data.error);
-            }
-        } catch (error) {
-            console.error('Upload error:', error);
-            alert('Erro ao fazer upload das imagens.');
-        } finally {
-            progressDiv.style.display = 'none';
-        }
-    }
-
-    function selectImage(index) {
-        if (index < 0 || index >= currentImages.length) return;
-        currentIndex = index;
-        const img = currentImages[index];
-        
-        // Atualiza a visualização principal
-        const mainViewer = document.getElementById('main_viewer');
-        const mainImg = document.getElementById('main_image');
-        mainImg.src = img.url;
-        mainViewer.style.display = 'flex';
-        
-        // Atualiza bordas nas miniaturas
-        const thumbs = document.querySelectorAll('.thumbnail-wrapper');
-        thumbs.forEach((t, i) => {
-            if (i === index) {
-                t.style.borderColor = 'hsl(var(--primary))';
-            } else {
-                t.style.borderColor = 'transparent';
-            }
-        });
-        
-        // Se o fullscreen estiver aberto, atualiza ele também
-        const fsModal = document.getElementById('fullscreen_modal');
-        if (fsModal.style.display === 'flex') {
-            document.getElementById('fullscreen_image').src = img.url;
-        }
-    }
-
-    function prevImage(event) {
-        if (event) event.stopPropagation();
-        if (currentImages.length === 0) return;
-        let prevIndex = currentIndex - 1;
-        if (prevIndex < 0) prevIndex = currentImages.length - 1;
-        selectImage(prevIndex);
-    }
-
-    function nextImage(event) {
-        if (event) event.stopPropagation();
-        if (currentImages.length === 0) return;
-        let nextIndex = currentIndex + 1;
-        if (nextIndex >= currentImages.length) nextIndex = 0;
-        selectImage(nextIndex);
-    }
-
-    function openFullscreen() {
-        const fsModal = document.getElementById('fullscreen_modal');
-        const fsImg = document.getElementById('fullscreen_image');
-        fsImg.src = currentImages[currentIndex].url;
-        fsModal.style.display = 'flex';
-    }
-
-    function closeFullscreen() {
-        document.getElementById('fullscreen_modal').style.display = 'none';
-    }
-    
-    // Fechar fullscreen no ESC
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && document.getElementById('fullscreen_modal').style.display === 'flex') {
-            closeFullscreen();
-        }
-        if (e.key === 'ArrowLeft') {
-            prevImage();
-        }
-        if (e.key === 'ArrowRight') {
-            nextImage();
-        }
-    });
-    {% endif %}
-</script>
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/exam-image-v2.js') }}?v=2.2"></script>
 {% endblock %}

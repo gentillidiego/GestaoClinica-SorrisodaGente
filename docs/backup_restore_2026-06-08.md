@@ -121,4 +121,37 @@ scripts/docker_restore_verify.sh gestao_saude_oral_YYYYMMDD_HHMMSS.dump
 
 A etapa de backup e restauração está aprovada para o estágio atual. O projeto agora possui geração de backup compatível com PostgreSQL 16 e verificação automatizada de restauração em banco temporário.
 
-Próxima etapa sugerida: Hardening LGPD.
+## Evolução de Produção em 18/06/2026
+
+O fluxo passou a executar em um container dedicado:
+
+- backup diário do PostgreSQL 16;
+- arquivo compactado do diretório persistente
+  `/srv/gestaosaudeoral/uploads`, montado como `/uploads:ro`;
+- validação do dump com `pg_restore --list`;
+- validação do arquivo de uploads com `tar -tzf`;
+- manifesto SHA-256;
+- retenção local de 30 dias;
+- cópia externa no Google Drive via OAuth;
+- comparação integral da cópia externa com `rclone check --download`.
+
+Evidência:
+
+```text
+gestao_saude_oral_20260618_144255.dump
+uploads_20260618_144255.tar.gz
+manifest_20260618_144255.sha256
+0 differences found
+3 matching files
+```
+
+Restore isolado:
+
+```text
+Restore validado com sucesso: gestao_saude_oral_20260618_144255.dump
+Tabelas públicas restauradas: 52
+Pacientes restaurados: 1
+```
+
+O arquivo `/backups/LAST_SUCCESS` alimenta o healthcheck do container e impede
+uma nova execução no mesmo dia após simples restart.

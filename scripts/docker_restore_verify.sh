@@ -45,14 +45,20 @@ docker run -d \
     -e POSTGRES_DB=restore_db \
     "${POSTGRES_IMAGE}" >/dev/null
 
+ready=false
 for _ in $(seq 1 30); do
     if docker exec "${container_name}" pg_isready -U restore_user -d restore_db >/dev/null 2>&1; then
+        ready=true
         break
     fi
     sleep 1
 done
 
-docker exec "${container_name}" pg_isready -U restore_user -d restore_db >/dev/null
+if [ "${ready}" != true ]; then
+    docker logs "${container_name}" >&2
+    echo "PostgreSQL temporário não ficou pronto para validar o restore." >&2
+    exit 1
+fi
 
 docker run --rm \
     --network "${DOCKER_NETWORK}" \

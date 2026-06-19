@@ -1,0 +1,65 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<transporte:dadoTransporteTransportXml xmlns:instalacao="http://esus.ufsc.br/dadoinstalacao" xmlns:transporte="http://esus.ufsc.br/dadotransporte" xmlns:odonto="http://esus.ufsc.br/fichaatendimentoodontologicomaster">
+  <uuidDadoSerializado>0000001-dado-golden</uuidDadoSerializado>
+  <tipoDadoSerializado>5</tipoDadoSerializado>
+  <codIbge>4205407</codIbge>
+  <cnesDadoSerializado>0000001</cnesDadoSerializado>
+  <ineDadoSerializado>1010020002</ineDadoSerializado>
+  <numLote>123</numLote>
+  <odonto:fichaAtendimentoOdontologicoMasterTransport>
+    <uuidFicha>0000001-ficha-golden</uuidFicha>
+    <tpCdsOrigem>3</tpCdsOrigem>
+    <atendimentosOdontologicos>
+      <numProntuario>123</numProntuario>
+      <cpfCidadao>05888644714</cpfCidadao>
+      <dtNascimento>631162800000</dtNascimento>
+      <localAtendimento>1</localAtendimento>
+      <gestante>false</gestante>
+      <tipoAtendimento>2</tipoAtendimento>
+      <tiposConsultaOdonto>1</tiposConsultaOdonto>
+      <procedimentosRealizados>
+        <coMsProcedimento>0101050046</coMsProcedimento>
+        <quantidade>1</quantidade>
+      </procedimentosRealizados>
+      <procedimentosRealizados>
+        <coMsProcedimento>0307030040</coMsProcedimento>
+        <quantidade>1</quantidade>
+      </procedimentosRealizados>
+      <turno>1</turno>
+      <sexo>1</sexo>
+      <dataHoraInicialAtendimento>1780403400000</dataHoraInicialAtendimento>
+      <dataHoraFinalAtendimento>1780403400000</dataHoraFinalAtendimento>
+    </atendimentosOdontologicos>
+    <headerTransport>
+      <lotacaoFormPrincipal>
+        <profissionalCNS>972733454440007</profissionalCNS>
+        <cboCodigo_2002>223293</cboCodigo_2002>
+        <cnes>0000001</cnes>
+        <ine>1010020002</ine>
+      </lotacaoFormPrincipal>
+      <dataAtendimento>1780403400000</dataAtendimento>
+      <codigoIbgeMunicipio>4205407</codigoIbgeMunicipio>
+    </headerTransport>
+  </odonto:fichaAtendimentoOdontologicoMasterTransport>
+  <instalacao:remetente>
+    <contraChave>TREINAMENTO</contraChave>
+    <uuidInstalacao>TREINAMENTO</uuidInstalacao>
+    <cpfOuCnpj>01234567890</cpfOuCnpj>
+    <nomeOuRazaoSocial>ADMINISTRADOR INSTALAÇÃO</nomeOuRazaoSocial>
+    <fone>8216756527</fone>
+    <email>prof@esus.br</email>
+    <versaoSistema>5.4.8</versaoSistema>
+    <nomeBancoDados>PostgreSQL</nomeBancoDados>
+  </instalacao:remetente>
+  <instalacao:originadora>
+    <contraChave>TREINAMENTO</contraChave>
+    <uuidInstalacao>TREINAMENTO</uuidInstalacao>
+    <cpfOuCnpj>01234567890</cpfOuCnpj>
+    <nomeOuRazaoSocial>ADMINISTRADOR INSTALAÇÃO</nomeOuRazaoSocial>
+    <fone>8216756527</fone>
+    <email>prof@esus.br</email>
+    <versaoSistema>5.4.8</versaoSistema>
+    <nomeBancoDados>PostgreSQL</nomeBancoDados>
+  </instalacao:originadora>
+  <versao major="7" minor="2" revision="1"/>
+</transporte:dadoTransporteTransportXml>

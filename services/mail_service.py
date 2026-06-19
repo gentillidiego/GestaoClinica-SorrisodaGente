@@ -10,7 +10,7 @@ def _bool_env(name, default=False):
     return value.strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
-def send_email(subject, to_email, text_body, html_body=None):
+def send_email(subject, to_email, text_body, html_body=None, attachments=None):
     if not to_email:
         raise ValueError('Destinatario de e-mail ausente.')
 
@@ -29,6 +29,14 @@ def send_email(subject, to_email, text_body, html_body=None):
     message.set_content(text_body)
     if html_body:
         message.add_alternative(html_body, subtype='html')
+    for filename, content, mime_type in attachments or []:
+        maintype, subtype = (mime_type or 'application/octet-stream').split('/', 1)
+        message.add_attachment(
+            content,
+            maintype=maintype,
+            subtype=subtype,
+            filename=filename,
+        )
 
     smtp_class = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
     with smtp_class(host, port, timeout=15) as server:

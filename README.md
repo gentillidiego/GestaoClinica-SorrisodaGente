@@ -1,6 +1,6 @@
 # Gestão Saúde Oral - Programa Sorriso da Gente
 
-README 2.7 - pivô e-SUS APS para modelo de arquivo XML quinzenal — atualizado em 18/06/2026.
+README 2.9 - exames 2.0, armazenamento rápido e e-SUS LEDI — atualizado em 19/06/2026.
 
 Plataforma de gestão clínica, operacional e institucional de saúde bucal para o programa Sorriso da Gente. O sistema reúne triagem municipal, agenda, prontuário odontológico, estomatologia, exames, estoque, Central de Comando, BI, epidemiologia, relatórios e preparação SIGTAP/e-SUS APS.
 
@@ -13,18 +13,26 @@ Leitura operacional atual:
 - Fase 0 concluída e validada: núcleo clínico de alta urgência, estomatologia, alerta vermelho e PDF de encaminhamento.
 - Fase 1 com base implementada: perfis, permissões, auditoria inicial, backup operacional, estrutura LGPD e hardening inicial de arquivos sensíveis. Ainda falta hardening de produção.
 - Fase 2 com primeira versão operacional concluída: triagem, agenda, Central de Comando, fila inteligente, alertas, rastreabilidade, estoque, unidades de execução e resumo diário.
-- Fase 3 iniciada e avançada: Epidemiologia, BI, relatórios institucionais, custos SIGTAP, PDF governamental e integração e-SUS APS implementada via arquivo XML quinzenal (Ficha de Atendimento Odontológico, XSD oficial DATASUS). Pendente CNES/INE da Secretaria de Saúde para ativar envio automático.
+- Fase 3 iniciada e avançada: Epidemiologia, BI, relatórios institucionais, custos SIGTAP, PDF governamental e integração e-SUS APS implementada via envelope XML LEDI quinzenal da Ficha de Atendimento Odontológico. A geração é validada contra a cadeia completa de XSDs e é idempotente por período/profissional. Pendente configuração oficial da instalação e importação assistida no PEC municipal.
 - Assinatura a rogo implementada para TCLE e confirmação do atendimento quando o paciente for não alfabetizado, com autenticação do CD, duas testemunhas, SHA-256, IP, user-agent, CPF do paciente e trilha de auditoria.
 - Pacote probatório de assinatura padronizado para TCLE, confirmação do atendimento, Anamnese, Prótese, Pagamentos e Endodontia, com eventos em `signature_events`, registros em `digital_signatures`, link de comprovante e exibição na Linha do Tempo.
 - Pré-cadastro profissional público implementado em `/cadastro/`, com página de confirmação dedicada, aprovação/recusa administrativa, criação de usuário em primeiro acesso e notificação por e-mail ao profissional.
 - Fluxo de primeiro acesso e recuperação de senha implementado: profissional aprovado entra com login + data de nascimento, define senha definitiva, confirma e-mail e pode redefinir senha por link temporário.
 - Ciclo de vida de usuários ajustado para produção: exclusão só é permitida quando o usuário não possui login, primeiro acesso, recuperação de senha, auditoria ou qualquer vínculo operacional/clínico; usuários com histórico devem ter o acesso inativado.
 - E-mail transacional configurado com serviço Docker `gestaosaudeoral-mail`, Postfix send-only, OpenDKIM, SPF, DKIM, DMARC e PTR/rDNS solicitado/registrado via API da Hostinger.
+- Módulo de Exame de Imagem redesenhado em fluxo único: seleção do tipo, contexto clínico essencial, upload em lote, progresso, confirmação imediata e estado visível da sincronização com o Drive.
+- Novo módulo `Clínico / Laboratorial` disponível em Exames, com upload de PDF ou imagem para hemograma, coagulação, glicemia/diabetes, marcadores inflamatórios, função renal/hepática, doenças transmissíveis, tireoide, ferro/vitaminas e perfil lipídico/cardiovascular.
+- Imagens e laudos são salvos primeiro na VPS e sincronizados em segundo plano com o Google Drive institucional. Miniaturas e prévias WebP permanecem locais; originais usam cache de 2 dias/15 GB e são entregues pelo Nginx após autorização do Flask.
 - Módulo de Endodontia ampliado até a Etapa E10 em nível MVP clínico-operacional, mas **não é prioridade de evolução neste momento**.
 - Endodontia e Prótese permanecem temporariamente ocultas da navegação do prontuário por decisão operacional; os módulos não foram removidos.
 - Decisão de 17/06/2026: escopo congelado para Endodontia, Prótese, Portal do Paciente e evoluções de BI até o Go/No-Go de produção. O BI existente pode ser validado e usado como apoio gerencial, mas não deve receber novas visões, indicadores, redesign ou ampliações antes da produção assistida.
-- Última validação registrada em 17/06/2026: `.venv/bin/pytest -q` com `203 passed`; base ativa vazia com 2 usuários preservados; backup/restore baseline validado; Etapa 1 do Google Drive preparada para teste com Service Account.
-- Status de produção: **não liberar produção plena ainda**. A aplicação está funcional e validada em Docker, mas ainda exige fechamento dos bloqueadores P0 de infraestrutura, LGPD, backup/restore, homologação operacional e aceite formal listados em `Plano de Prontidão para Produção`.
+- Última validação registrada em 19/06/2026: suíte completa com `233 passed`,
+  HTTPS público HTTP `200`, web/worker/beat/backup saudáveis, rota interna do
+  Nginx inacessível externamente e tarefas de limpeza/reconciliação executadas.
+- Status de produção: infraestrutura e módulos desta entrega estão implantados
+  em produção assistida. A liberação institucional plena ainda depende dos
+  bloqueadores P0 remanescentes de LGPD, homologação operacional, treinamento,
+  aceite formal e importação assistida do XML e-SUS no PEC municipal.
 
 Prioridade atual de trabalho:
 
@@ -61,7 +69,7 @@ VOLTE E VERIFIQUE:
 - A triagem não define unidade de execução. A unidade é determinada depois, no agendamento da consulta.
 - Estoque e materiais são opcionais nesta etapa e não podem bloquear evolução clínica, assinatura, e-SUS ou alta.
 - Economia gerada no BI é estimativa operacional até homologação formal pela gestão pública.
-- **e-SUS APS**: integração implementada via arquivo XML quinzenal (Ficha de Atendimento Odontológico). ⚠️ **BLOQUEANTE:** aguardando CNES (7 dígitos) e INE (10 dígitos) do TI da Secretaria de Saúde (Rômulo) para ativar o envio automático. Preencher em `Admin > SIGTAP / e-SUS APS > Configuração` ou nas variáveis `ESUS_CNES` e `ESUS_INE` do `.env`.
+- **e-SUS APS**: integração implementada via envelope XML LEDI quinzenal. ⚠️ **BLOQUEANTE:** obter do TI municipal CNES, INE, código IBGE, contra-chave, UUID da instalação, CPF/CNPJ e razão social da instalação, além da versão LEDI aceita pelo PEC. O sistema não salva nem envia XML inválido.
 - Backups Docker devem usar `scripts/docker_backup_postgres.sh`, que executa `pg_dump` via `postgres:16-alpine`, compatível com o PostgreSQL 16 do projeto.
 - AVISO RELEVANTE: os módulos `Endodontia` e `Prótese` estão temporariamente ocultos da navegação do prontuário do paciente. Sempre informar ao usuário que esses módulos estão ocultos por decisão operacional temporária, não removidos do sistema.
 - TCLE e confirmação de atendimento permitem assinatura a rogo apenas para paciente não alfabetizado, com login/senha do CD responsável e duas testemunhas. Não usar esse fluxo como substituto de conveniência para assinatura comum.
@@ -70,26 +78,32 @@ VOLTE E VERIFIQUE:
 
 | Container | Função | Porta |
 |---|---|---|
-| `gestaosaudeoral-web` | Flask + Gunicorn/Gevent | `5003` |
-| `gestaosaudeoral-postgres` | PostgreSQL 16 | `5433` no host |
+| `gestaosaudeoral-web` | Flask + Gunicorn/Gevent | `127.0.0.1:5003`, acessível externamente somente pelo Nginx/HTTPS |
+| `gestaosaudeoral-postgres` | PostgreSQL 16 | somente rede interna Docker |
 | `gestaosaudeoral-redis` | Redis, sessão, cache e broker | interno |
 | `gestaosaudeoral-celery` | Worker Celery para PDFs e tarefas | interno |
 | `gestaosaudeoral-beat` | Scheduler Celery Beat | interno |
 | `gestaosaudeoral-mail` | Postfix send-only + OpenDKIM para e-mail transacional | interno, SMTP `25` |
+| `gestaosaudeoral-backup` | Backup diário PostgreSQL/uploads, integridade e cópia externa | interno |
 
 Volumes nomeados:
 
 - `postgres_data_oral`: banco de dados.
-- `uploads_oral`: exames, radiografias e fotos clínicas.
 - `pdf_temp_oral`: PDFs temporários/gerados.
 - `logs_oral`: logs.
 - `backups_oral`: backups operacionais.
 - `redis_data_oral`: Redis.
+- `celerybeat_oral`: agenda persistente do Celery Beat.
 - `deploy/mail/dkim`: chave DKIM privada local montada no container de e-mail. Diretório ignorado pelo Git, exceto `.gitkeep`.
 
 Bind mounts sensíveis:
 
+- `/srv/gestaosaudeoral/uploads:/app/uploads`: staging, derivados WebP e cache
+  protegido dos exames; o Nginx lê esses arquivos pelo grupo `www-data`.
 - `./secrets:/run/secrets/sorriso:ro`: JSON da Service Account do Google Drive. O diretório `secrets/` é ignorado pelo Git.
+- O arquivo OAuth dedicado do rclone é montado pelo caminho
+  `RCLONE_CONFIG_HOST_PATH`; deve conter somente o remote usado pelo sistema e
+  ter permissão `0600`.
 
 ## Comandos Operacionais
 
@@ -211,15 +225,39 @@ Copiar `.env.example` para `.env` e preencher:
 | `ADMIN_PASSWORD` | Senha do admin inicial |
 | `BACKUP_DIR` | Diretório de backups |
 | `BACKUP_RETENTION_DAYS` | Retenção local |
+| `BACKUP_SCHEDULE_HOUR` / `BACKUP_SCHEDULE_MINUTE` | Horário do backup diário |
+| `BACKUP_OFFSITE_ENABLED` | Ativa cópia externa após verificação local |
+| `BACKUP_RCLONE_REMOTE` | Destino externo dos dumps, uploads e manifestos |
 | `GDRIVE_KEY_PATH` | Caminho absoluto do JSON da Service Account do Google Drive |
 | `GDRIVE_ROOT_FOLDER_ID` | ID opcional da pasta raiz `Prontuários` compartilhada com a Service Account |
 | `GDRIVE_PATIENTS_FOLDER_NAME` | Nome da pasta raiz quando `GDRIVE_ROOT_FOLDER_ID` não estiver definido |
+| `GDRIVE_UPLOAD_MODE` | `rclone` para upload com a cota do usuário OAuth |
+| `GDRIVE_RCLONE_CONFIG` / `GDRIVE_RCLONE_REMOTE` | Configuração OAuth usada nos uploads |
+| `RCLONE_CONFIG_HOST_PATH` | Arquivo rclone dedicado montado nos containers |
+| `EXAM_FILE_STAGING_DIR` | Diretório persistente para staging rápido de imagens e laudos |
+| `EXAM_FILE_SYNC_MAX_ATTEMPTS` | Limite de tentativas reconciliadas antes de intervenção operacional |
+| `UPLOADS_HOST_PATH` | Diretório do host compartilhado entre Docker e Nginx |
+| `USE_X_ACCEL_REDIRECT` / `X_ACCEL_INTERNAL_PREFIX` | Ativa entrega autorizada pelo Flask e executada pelo Nginx |
+| `GDRIVE_CACHE_TTL_SECONDS` | Retenção dos originais no cache local; padrão 2 dias |
+| `GDRIVE_CACHE_LIMIT_GB` | Limite nominal do cache de originais; padrão 15 GB |
+| `GDRIVE_CACHE_HIGH_WATERMARK` | Inicia remoção LRU ao atingir 80% do limite |
+| `GDRIVE_CACHE_TARGET_WATERMARK` | Alvo do cache após a limpeza LRU; padrão 70% |
+| `EXAM_DERIVATIVE_DIR` | Miniaturas e prévias WebP permanentes |
 | `REPORTS_SCHEDULER_ENABLED` | Liga/desliga rotina automática de relatórios |
 | `REPORTS_SCHEDULE_DAY` | Dia de geração mensal |
 | `REPORTS_SCHEDULE_HOUR` | Hora de geração |
 | `REPORTS_SCHEDULE_MINUTE` | Minuto de geração |
 | `REPORTS_SCHEDULE_TYPES` | Tipos de relatório automático |
 | `SIGTAP_DEFAULT_COMPETENCE` | Competência SIGTAP padrão |
+| `ESUS_CNES` / `ESUS_INE` | CNES da unidade e INE da equipe |
+| `ESUS_COD_IBGE` | Código IBGE municipal com 7 dígitos |
+| `ESUS_CONTRA_CHAVE` / `ESUS_UUID_INSTALACAO` | Identificação LEDI da instalação |
+| `ESUS_CPF_CNPJ` / `ESUS_NOME_RAZAO_SOCIAL` | Responsável institucional pelo sistema originador |
+| `ESUS_FONE` / `ESUS_EMAIL_INSTITUCIONAL` | Contatos opcionais do envelope |
+| `ESUS_VERSAO_SISTEMA` / `ESUS_NOME_BANCO_DADOS` | Metadados do sistema originador |
+| `ESUS_VERSAO_MAJOR`, `ESUS_VERSAO_MINOR`, `ESUS_VERSAO_REVISION` | Versão LEDI homologada pelo município |
+| `ESUS_EMAIL_DESTINO` | Destinatário operacional da remessa |
+| `ESUS_REMESSA_ATIVA` | Ativa o scheduler somente após homologação |
 | `TZ` | Fuso horário |
 | `APP_BASE_URL` | URL pública usada nos links de e-mail, ex.: `https://sorrisodagentealagoas.com` |
 | `SMTP_HOST` | Host SMTP interno, atualmente `mail` no Docker Compose |
@@ -236,15 +274,48 @@ VOLTE E VERIFIQUE: conferir `.env.example` sempre que adicionar nova variável.
 
 Estado atual da integração:
 
-- Etapa 2 implementada (Integração Total): o sistema utiliza a abordagem de propriedade total dos arquivos (Opção 2). Os exames, PDFs e fotos são salvos diretamente em uma pasta no Google Drive pertencente à conta pessoal/institucional do administrador, com o uso da permissão de Editor concedida à Service Account.
+- Pasta raiz, pastas dos pacientes, arquivos clínicos e backups pertencem à
+  conta institucional `sorrisodagentealagoas@gmail.com`.
+- Criação de pastas e uploads usam o OAuth institucional via rclone. Isso é
+  obrigatório em “Meu Drive”, pois Service Accounts não possuem cota própria
+  de armazenamento.
+- A Service Account permanece apenas como credencial técnica auxiliar para
+  leitura/metadados; ela não cria nem possui os novos itens.
 - O caminho do JSON da Service Account deve ser configurado em `GDRIVE_KEY_PATH`.
 - O ID da pasta raiz no Drive pessoal deve ser colocado em `GDRIVE_ROOT_FOLDER_ID`.
 - O sistema salva o ID da pasta do paciente em `patients.gdrive_folder_id`.
 - O nome da pasta do paciente segue o formato `[CPF] - [Nome do Paciente]`.
 - A pasta do paciente é criada de forma assíncrona, via Celery, no exato momento do cadastro do paciente.
-- Upload de arquivos de Exames, Endodontia e Estomatologia ocorrem em memória (proxy) sendo repassados diretamente ao Drive.
-- Foi implementado um mecanismo de Cache Local Inteligente com TTL de 2 horas. Imagens baixadas ficam na pasta física da VPS (`uploads/cache/gdrive/`) e são apagadas pelo `Celery Beat` de hora em hora caso não tenham sido visualizadas recentemente, economizando uso de rede e memória RAM sem comprometer a cota de disco da VPS.
-- Backup offsite do banco de dados no Drive ainda não está automatizado; será a etapa seguinte.
+- Imagens de exames e laudos clínico/laboratoriais são gravados primeiro no
+  diretório persistente do host `/srv/gestaosaudeoral/uploads`, montado como
+  `/app/uploads` nos containers. O Celery sincroniza com o Drive em segundo
+  plano usando nome remoto idempotente; o staging só é liberado após o ID remoto
+  ser confirmado e o original recente ser promovido ao cache. O Beat reconcilia
+  pendências a cada 5 minutos.
+- Imagens recebem miniatura WebP e prévia otimizada permanentes. Os originais
+  permanecem no cache local por 2 dias, com limite nominal de 15 GB e remoção
+  LRU iniciada em 80%. Após autorização no Flask, o Nginx entrega os bytes via
+  `X-Accel-Redirect`; PDFs suportam HTTP Range, ETag e cache privado.
+- A configuração versionada do site fica em
+  `deploy/nginx/sorrisodagentealagoas.com`; a rota interna nunca deve ser
+  exposta sem a diretiva `internal`.
+- Endodontia e Estomatologia ainda entregam o original pelo Flask e não usam
+  miniaturas/prévias WebP nem `X-Accel-Redirect`.
+- Backup offsite do banco e dos uploads é automático e validado pelo container
+  `gestaosaudeoral-backup`.
+
+Instalar um remote OAuth previamente autorizado como a conta institucional:
+
+```bash
+python3 scripts/export_rclone_remote.py \
+  --source "$HOME/.config/rclone/rclone.conf" \
+  --section sorriso.institucional \
+  --target secrets/sorriso-rclone.conf \
+  --target-section sorriso.drive
+```
+
+O arquivo exportado é um segredo, fica fora do Git e deve permanecer com modo
+`0600`.
 
 Procedimento automatizado:
 
@@ -293,8 +364,11 @@ docker compose exec -T gestaoclinica python scripts/check_google_drive.py --pati
 VOLTE E VERIFIQUE:
 
 - Nunca registrar senha de conta Google no sistema, `.env`, README, logs ou Git.
-- A senha de conta Google não é usada pela Service Account.
+- A senha da conta Google não é usada; o OAuth é revogável na conta Google.
 - O JSON da Service Account deve ficar fora do repositório e com permissão restrita.
+- Não autorizar contas pessoais de operadores no remote da aplicação.
+- Não usar Service Account para upload em pasta de “Meu Drive”: o Google retorna
+  `storageQuotaExceeded` mesmo quando o proprietário da pasta possui espaço.
 - Se `GDRIVE_ROOT_FOLDER_ID` não for definido, a pasta será criada no Drive da própria Service Account, não necessariamente no Drive da conta institucional.
 
 ## Perfis de Acesso
@@ -484,6 +558,50 @@ Estado:
 - Plano de Tratamento registra especialidade SIGTAP escolhida e valida se o código selecionado pertence à especialidade informada.
 - No prontuário do paciente, as abas visíveis seguem a ordem: Paciente, Anamnese, Exames, Plano de Tratamento, Atendimento, Estomatologia, Receituário, Atestado, Visual, Materiais quando permitido e Linha do Tempo.
 - Endodontia e Prótese permanecem implementadas, mas estão ocultas temporariamente da navegação do prontuário.
+
+### Exames de Imagem e Clínico/Laboratoriais
+
+Rotas principais:
+
+- `/exams/imagem/<anamnesis_id>`
+- `/exams/imagem/<anamnesis_id>/<exam_id>`
+- `/exams/clinico-laboratorial/<anamnesis_id>`
+- `/exams/clinico-laboratorial/<anamnesis_id>/<exam_id>`
+
+Estado:
+
+- O Exame de Imagem 2.0 usa uma única tela e solicita apenas tipo do exame,
+  imagens e observação clínica opcional.
+- Escopo anatômico, categoria visual e legenda padrão são inferidos pelo tipo de
+  exame, mantendo a possibilidade de contexto clínico sem formulário excessivo.
+- O módulo Clínico/Laboratorial aceita PDF, JPG, PNG e WEBP e organiza os laudos
+  no mesmo prontuário/pasta institucional do paciente.
+- O request grava cada arquivo de forma atômica no staging persistente da VPS e
+  retorna imediatamente ao operador.
+- O Celery envia o arquivo ao Drive com nome remoto idempotente; falhas são
+  reenfileiradas e o Beat reconcilia pendências a cada 5 minutos.
+- A interface diferencia claramente `salvo no prontuário`, `sincronizando`,
+  `protegido no Google Drive` e `nova tentativa automática`.
+- Para imagens, o sistema gera miniatura WebP de até 560 px e prévia WebP de até
+  1800 px. Os derivados são permanentes e evitam carregar o original na galeria.
+- Originais recém-enviados ou baixados do Drive ficam no cache por 2 dias. O
+  limite nominal é 15 GB; a limpeza LRU começa em 80% e reduz até 70%.
+- Downloads remotos são atômicos e usam bloqueio por arquivo, impedindo que
+  vários usuários baixem simultaneamente o mesmo original.
+- O Flask autoriza o acesso e o Nginx entrega os bytes com
+  `X-Accel-Redirect`, `ETag`, `Cache-Control: private` e HTTP Range para PDFs.
+- Enquanto a sincronização estiver pendente, a visualização usa automaticamente
+  o arquivo local.
+
+VOLTE E VERIFIQUE:
+
+- A localização interna `/_protected_exam_files/` deve permanecer com
+  `internal` no Nginx.
+- Não montar `/srv/gestaosaudeoral/uploads` como diretório público.
+- Não remover o staging antes da confirmação do ID remoto e da promoção do
+  original ao cache.
+- PDF ou imagem clínica deve ser acessível apenas após autenticação e vínculo
+  com paciente autorizado.
 
 ### Endodontia
 
@@ -718,17 +836,19 @@ Inclui:
 - Catálogo local SIGTAP.
 - Importador de competência oficial.
 - Vínculo de procedimento clínico com SIGTAP.
-- Lote draft e-SUS APS.
-- Checklist de homologação.
-- Validação interna.
-- Pré-envio simulado.
-- Download JSON.
-- Relatório de homologação em PDF.
+- Envelope `dadoTransporteTransportXml` completo.
+- Ficha de Atendimento Odontológico com procedimentos agrupados por atendimento.
+- Mapeamento de `patients.genero`, data clínica e gestação da anamnese.
+- Validação bloqueante pela cadeia oficial de XSDs antes da persistência e antes do envio.
+- Hash SHA-256 e download protegido do XML.
+- Remessa única por período e profissional.
+- Envio manual ou automático por e-mail para o TI municipal.
 
 VOLTE E VERIFIQUE:
 
-- Transmissão real não está implementada.
-- Depende de endpoint, HTTPS, autenticação, CNES/INE, versão PEC/e-SUS APS e regras da prefeitura.
+- Não ativar o scheduler antes da importação assistida no PEC municipal.
+- A versão LEDI e os identificadores da instalação precisam ser confirmados pelo TI da Secretaria.
+- Uma remessa já gerada para o mesmo período/profissional deve ser reenviada, não recriada.
 
 ## Status por Fase
 
@@ -811,7 +931,7 @@ Pronto:
 - Automação mensal com Celery Beat.
 - Prontidão SIGTAP/DataSUS.
 - Geração de arquivo XML no formato oficial da Ficha de Atendimento Odontológico (e-SUS APS/DATASUS).
-- Validação dos XMLs contra os XSDs oficiais do Ministério da Saúde (scripts/xsd/).
+- Validação bloqueante do envelope e da ficha contra a cadeia completa dos XSDs oficiais em `scripts/xsd/`.
 - Download do XML no painel administrativo para entrega manual.
 - Envio automático por e-mail para o TI da Secretaria de Saúde.
 - Validação interna de formato para CNS/CPF, CNS profissional, CBO, CNES, INE/equipe e CRO-UF.
@@ -828,9 +948,9 @@ Pendente:
 - Calendário de revisão dos valores e responsável técnico.
 - Assinatura digital ICP-Brasil/Gov.br ou provedor homologado.
 - Envio institucional de relatórios por e-mail, se a gestão decidir automatizar distribuição.
-- Validação da versão PEC/e-SUS APS da prefeitura.
-- Transmissão real para e-SUS quando houver endpoint e credenciais.
-- Validação final de compatibilidade externa com ambiente da prefeitura.
+- Confirmação da versão LEDI aceita pelo PEC municipal.
+- Preenchimento dos identificadores oficiais da instalação.
+- Importação assistida e aceite do XML no ambiente da prefeitura.
 
 ## Plano de Prontidão para Produção
 
@@ -846,16 +966,16 @@ Objetivo:
 | Funcionalidade clínica e operacional | Prontuário, triagem, agenda, Central, BI, relatórios, assinatura probatória, pré-cadastro, primeiro acesso e e-mail transacional estão funcionais | Pode seguir para homologação assistida |
 | Testes automatizados | `.venv/bin/pytest -q` com `190 passed` em 16/06/2026 | Base técnica favorável |
 | Docker local/VPS | Web, PostgreSQL, Redis, Celery, Beat e Mail em execução | Base funcional |
-| Git/release | Branch `main` está `ahead 21` em relação a `origin/main` | Precisa publicar/taguear antes de release |
-| Banco atual | Base contém `patients_demo=100`, `patients_total=100`, `users_active=4` | Bloqueia entrada com pacientes reais até limpeza/decisão de migração |
-| PostgreSQL | `docker-compose.yml` publica `5433:5432` no host | Bloqueia produção plena se a porta estiver acessível externamente |
+| Git/release | Remoto SSH oficial configurado; atualização de 19/06/2026 sincronizada em `main` | Criar tags somente para releases formalmente homologadas |
+| Banco atual | Base operacional preparada sem massa demonstrativa | Validar política de entrada/migração antes de importar dados externos |
+| PostgreSQL | Sem publicação no host; acessível apenas pela rede Docker | Resolvido em 18/06/2026 |
 | Domínio/e-mail | Domínio e e-mail transacional configurados; Postfix/OpenDKIM ativo | Falta validação final de entrega e monitoramento |
-| HTTPS/proxy/firewall | Não há evidência final registrada no README de proxy HTTPS/firewall de produção | Bloqueia produção plena |
+| HTTPS/proxy/firewall | HTTPS ativo; web em `127.0.0.1:5003`; PostgreSQL interno; rota de arquivos protegida por `internal` | Resolvido tecnicamente em 19/06/2026; manter monitoramento |
 | Segurança/LGPD | Hardening inicial existe, mas retenção, descarte, criptografia em repouso e matriz de acesso final seguem pendentes | Bloqueia produção plena |
-| Backup/continuidade | Scripts existem e restore já foi validado em etapa anterior, mas falta automação diária e cópia externa atual | Bloqueia produção plena |
+| Backup/continuidade | Backup diário de PostgreSQL/uploads, SHA-256, cópia externa e restore isolado validados | Resolvido tecnicamente em 18/06/2026; manter monitoramento |
 | Homologação operacional | Fluxos prontos, mas falta aceite formal por perfil com usuários reais | Bloqueia uso oficial amplo |
 | Treinamento | Base documental existe; manuais finais por perfil ainda pendentes | Bloqueia entrada com equipe ampla |
-| e-SUS/SIGTAP | e-SUS permanece draft/simulação; SIGTAP depende de competência oficial e homologação | Não bloqueia piloto interno, mas bloqueia anúncio de integração real |
+| e-SUS/SIGTAP | Envelope LEDI, XSDs, golden XML e idempotência implementados; falta configuração oficial e aceite pelo PEC | Não bloqueia piloto interno, mas bloqueia anúncio de homologação municipal |
 | Assinatura digital formal | Pacote probatório SHA-256/auditoria implementado; decisão institucional ICP-Brasil/Gov.br/outro ainda pendente | Não bloquear piloto se houver aceite jurídico formal; bloquear promessa de assinatura ICP |
 
 Conclusão executiva:
@@ -880,10 +1000,10 @@ Ordem recomendada:
    - Registrar no README o hash da release usada em produção assistida.
 
 3. Fechar infraestrutura de borda.
-   - Definir proxy HTTPS final.
-   - Restringir portas expostas.
-   - Remover ou proteger a exposição do PostgreSQL `5433`.
-   - Confirmar `/health` via HTTPS.
+   - Proxy HTTPS confirmado.
+   - Web restrita a `127.0.0.1:5003`.
+   - PostgreSQL sem porta publicada no host.
+   - `/health` confirmado via HTTPS.
 
 4. Fechar base real.
    - Decidir se produção começa vazia ou migrada.
@@ -892,14 +1012,15 @@ Ordem recomendada:
    - Trocar senhas temporárias e desativar usuários de teste.
 
 5. Executar hardening LGPD final.
-   - Confirmar proteção dos volumes `uploads_oral`, `pdf_temp_oral` e relatórios.
+   - Confirmar proteção do bind mount `/srv/gestaosaudeoral/uploads`, do volume
+     `pdf_temp_oral` e dos relatórios.
    - Validar tentativa de acesso direto a arquivos sem login.
    - Definir retenção/descarte, criptografia em repouso e rotina de incidente.
 
 6. Automatizar backup e restore.
-   - Agendar backup diário do PostgreSQL e uploads.
-   - Enviar cópia para fora da VPS.
-   - Rodar restore de verificação antes do go-live.
+   - Backup diário do PostgreSQL e uploads implementado.
+   - Cópia externa no Google Drive implementada e comparada.
+   - Restore isolado validado; manter teste periódico.
 
 7. Homologar ponta a ponta.
    - Executar roteiro com Recepção, Clínico e Coordenação.
@@ -1009,7 +1130,8 @@ Ordem recomendada:
    - Responsável sugerido: infraestrutura/devops.
    - O que fazer:
      - Automatizar `scripts/docker_backup_postgres.sh` diariamente.
-     - Incluir backup do PostgreSQL e do volume `uploads_oral`.
+     - Incluir backup do PostgreSQL e do diretório persistente
+       `/srv/gestaosaudeoral/uploads`.
      - Incluir estratégia para `deploy/mail/dkim/mail.private`, sem versionar a chave.
      - Replicar backup para fora da VPS/servidor principal.
      - Rodar `scripts/docker_restore_verify.sh` em ambiente isolado.
@@ -1097,9 +1219,9 @@ Ordem recomendada:
    - Manter relatórios como estimativa enquanto não houver homologação formal.
 
 3. e-SUS APS.
-   - Confirmar versão PEC/e-SUS APS da prefeitura.
-   - Obter endpoint, credenciais, CNES, INE/equipe e regras de homologação.
-   - Manter como draft/simulado até transmissão real validada.
+   - Confirmar versão PEC/e-SUS APS e versão LEDI aceita pela prefeitura.
+   - Obter identificadores da instalação, CNES, INE, código IBGE e regras de importação.
+   - Manter o envio automático inativo até importação assistida validada.
 
 4. BI existente, Epidemiologia e território.
    - Não criar novas visões, indicadores, filtros, cards ou redesign de BI antes do Go/No-Go.
@@ -1159,7 +1281,7 @@ Produção plena só deve ser liberada quando todos os itens abaixo estiverem ma
 - [ ] Assinatura comum e assinatura a rogo homologadas.
 - [ ] Regra de Agenda por perfil validada.
 - [ ] Endodontia e Prótese comunicadas como módulos ocultos temporariamente.
-- [ ] e-SUS marcado como draft/simulado ou homologado formalmente.
+- [ ] XML e-SUS importado de forma assistida no PEC ou envio automático mantido inativo.
 - [ ] Economia gerada marcada como estimativa ou homologada formalmente.
 - [ ] `.venv/bin/pytest -q` verde.
 - [ ] `git diff --check` limpo.
@@ -1846,8 +1968,8 @@ O que fazer:
 - Substituir referências demonstrativas por valores oficiais aprovados.
 - Definir responsável técnico pela metodologia.
 - Validar versão PEC/e-SUS APS da prefeitura.
-- Confirmar compatibilidade LEDI.
-- Obter endpoint, autenticação, CNES, INE e regras de homologação.
+- Confirmar a versão LEDI aceita no PEC municipal.
+- Obter os identificadores da instalação, CNES, INE, código IBGE e regras de importação.
 - Validar campos obrigatórios finais.
 - Refinar coordenadas territoriais se o mapa for ferramenta de decisão.
 
@@ -1856,9 +1978,9 @@ Como fazer:
 1. Gerar relatório BI/PDF com nota metodológica.
 2. Revisar `/admin/finance/cost-references`.
 3. Marcar referências homologadas apenas com aprovação formal.
-4. Gerar lote draft e-SUS.
-5. Rodar validação interna e pré-envio simulado.
-6. Apresentar checklist de homologação e-SUS à prefeitura.
+4. Gerar envelope XML LEDI em homologação.
+5. Confirmar validação XSD, SHA-256 e idempotência.
+6. Importar o arquivo de forma assistida no PEC municipal.
 7. Registrar pendências por campo obrigatório.
 8. Atualizar documentação técnica.
 
@@ -1880,12 +2002,12 @@ Critério de pronto:
 - Economia gerada com metodologia aprovada ou marcada claramente como estimativa.
 - Referências oficiais cadastradas.
 - Lote e-SUS sem pendências críticas.
-- Transmissão real implementada somente se a prefeitura fornecer ambiente e credenciais.
+- Envio automático ativado somente depois do aceite do arquivo no PEC municipal.
 
 VOLTE E VERIFIQUE:
 
 - Não vender economia estimada como economia formal antes de homologação.
-- Não marcar e-SUS como integrado enquanto não houver transmissão real validada.
+- Não marcar e-SUS como homologado enquanto não houver importação aceita no PEC municipal.
 
 ### Etapa 6 - QA Final, Congelamento e Implantação Assistida
 
@@ -1984,7 +2106,7 @@ Prioridade 1 - produção/homologação institucional:
 - Assinatura digital homologada.
 - Homologação da economia gerada.
 - Referências oficiais de custo.
-- e-SUS transmissão real, se a prefeitura fornecer ambiente.
+- e-SUS com importação municipal homologada e scheduler liberado.
 - Coordenadas finas de bairros, locais e unidades.
 - Produtividade/custos por unidade, se a segunda unidade entrar em operação.
 
@@ -2099,10 +2221,56 @@ Próxima continuidade recomendada:
 - 17/06/2026: Cadastro de paciente passou a registrar endereço residencial estruturado com CEP, rua, número, bairro, cidade, UF e código IBGE; CEP encontrado preenche os campos automaticamente e relatórios/epidemiologia passam a preferir bairro/cidade estruturados.
 - 17/06/2026: Preparada a Etapa 1 da integração com Google Drive via Service Account: conexão com Drive API v3, pasta raiz de prontuários, pasta do paciente no formato `[CPF] - [Nome]`, persistência em `patients.gdrive_folder_id` e script de teste `scripts/check_google_drive.py`. Upload de exames e backup offsite permanecem aguardando validação da credencial real.
 - 17/06/2026: Automatizado o provisionamento do Google Drive com `scripts/setup_google_drive_automation.sh`, incluindo Google Cloud CLI, projeto/API, Service Account, chave JSON fora do Git, pasta raiz, compartilhamento com a conta institucional, atualização do `.env`, reload Docker e teste de conexão.
+- 18/06/2026: OAuth de upload e propriedade do Drive migrados para a conta institucional `sorrisodagentealagoas@gmail.com`; backup diário/offsite, restore isolado e restrição das portas de produção foram validados.
+- 18/06/2026: Corrigidos consulta e mapeamento clínico do e-SUS, implementado o envelope `dadoTransporteTransportXml`, completada a cadeia de XSDs, adicionada fixture XML golden e aplicada idempotência por período/profissional.
+- 18/06/2026: Exame de Imagem redesenhado para o fluxo 2.0 e criado o módulo Clínico/Laboratorial com upload de imagens e PDFs.
+- 19/06/2026: Uploads de Exames passaram a usar staging local rápido, sincronização assíncrona com o Drive, fallback local, derivados WebP permanentes e status de sincronização visível ao operador.
+- 19/06/2026: Originais passaram a usar cache local de 2 dias/15 GB com LRU, download remoto atômico com lock e entrega protegida pelo Nginx via `X-Accel-Redirect`, ETag, cache privado e HTTP Range para PDFs.
+- 19/06/2026: O armazenamento de uploads foi migrado do volume Docker antigo para `/srv/gestaosaudeoral/uploads`; web, worker, beat e backup foram implantados e validados em produção.
 
 ## Última Validação Técnica Registrada
 
-Resultado mais recente em 17/06/2026:
+Resultado mais recente em 19/06/2026:
+
+- Correção do envelope XML LEDI e-SUS APS concluída.
+- Consulta de produção alinhada às colunas reais `patients.genero` e `tratamento_procedimentos.data_sessao`.
+- Cadeia completa de XSDs oficiais disponível; envelope e ficha odontológica interna são validados separadamente para não depender do `xs:any` em modo `lax`.
+- Fixture golden criada em `tests/fixtures/esus/atendimento_odontologico_golden.xml`.
+- Idempotência aplicada por período inicial, período final e profissional.
+- Google Drive alterado para OAuth institucional:
+  `sorrisodagentealagoas@gmail.com` é proprietária da raiz, pasta do paciente,
+  exame migrado e backups externos.
+- Service Account permanece somente como credencial técnica auxiliar para
+  leitura/metadados.
+- Escrita, leitura e remoção validadas na pasta real do paciente.
+- Backup automático executado com dump, uploads, manifesto SHA-256 e
+  `rclone check --download` sem diferenças.
+- Restore isolado validado: `52` tabelas públicas e `1` paciente.
+- Web publicada somente em `127.0.0.1:5003`; PostgreSQL sem publicação no host.
+- HTTPS público `/health`: HTTP `200`.
+- Suíte completa: `233 passed`.
+- Testes focados de exames, staging, cache e entrega protegida: `26 passed`.
+- Testes focados e-SUS/SIGTAP: `24 passed`.
+- Testes focados Google Drive: `7 passed`.
+- `git diff --check`: sem erros.
+- Compilação Python dos serviços, tasks, blueprint, banco e CLI e-SUS: sem erros.
+- Backup pré-migração: `gestao_saude_oral_20260618_141549.dump`.
+- Backup de uploads pré-migração: `uploads_20260618_141549.tar.gz`.
+- `docker compose up -d --build`: executado para web, worker, beat e mail.
+- Docker: `lxml 5.3.1` disponível; task `tasks.esus_tasks.gerar_e_enviar_remessa_quinzenal` registrada.
+- PostgreSQL: tabela `esus_remessas`, campos do envelope e índice único `idx_esus_remessas_period_professional` aplicados.
+- `/admin/integrations/esus`: HTTP 200 autenticado.
+- `/health`: `status=healthy`, `database=ok`.
+- HTTPS principal: HTTP `200`; rota interna
+  `/_protected_exam_files/` respondeu `404` externamente.
+- Web, worker Celery, Beat e backup em estado saudável após a migração.
+- Smoke test de arquivos confirmou miniatura `560x373`, prévia `1800x1200`,
+  `X-Accel-Redirect`, `Cache-Control: private` e `Accept-Ranges: bytes`.
+- Tarefas `cleanup_gdrive_cache_task` e
+  `reconcile_staged_exam_files_task` executadas com sucesso no worker.
+- Envio automático permanece inativo enquanto os identificadores oficiais da instalação e o aceite do PEC municipal não forem fornecidos.
+
+Validação anterior em 17 e 18/06/2026:
 
 - Release candidata de homologação: `homologacao-2026-06-17`.
 - Commit da versão candidata: `d39dfce406b5c669dbb8d0e78c4dd3c009d46dff`.
@@ -2188,7 +2356,7 @@ VOLTE E VERIFIQUE: repetir validação completa antes de qualquer entrega final 
 - SIGTAP/e-SUS APS: `/admin/integrations/esus`
 - Auditoria: `/admin/audit`
 - Health: `/health`
-- Banco no host: porta `5433`
+- Banco: somente rede interna Docker, sem porta publicada no host
 
 ---
 

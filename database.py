@@ -281,7 +281,21 @@ MIGRATIONS = {
         ('comparison_group', 'TEXT'),
         ('taken_at', 'TIMESTAMP'),
         ('uploaded_by', 'INTEGER'),
-        ('active', 'BOOLEAN DEFAULT TRUE')
+        ('active', 'BOOLEAN DEFAULT TRUE'),
+        ('staging_path', 'TEXT'),
+        ('storage_status', "TEXT DEFAULT 'synced'"),
+        ('storage_error', 'TEXT'),
+        ('sync_attempts', 'INTEGER DEFAULT 0'),
+        ('storage_updated_at', 'TIMESTAMP DEFAULT NOW()'),
+        ('synced_at', 'TIMESTAMP')
+    ],
+    'exam_clinico_laboratorial_arquivos': [
+        ('staging_path', 'TEXT'),
+        ('storage_status', "TEXT DEFAULT 'synced'"),
+        ('storage_error', 'TEXT'),
+        ('sync_attempts', 'INTEGER DEFAULT 0'),
+        ('storage_updated_at', 'TIMESTAMP DEFAULT NOW()'),
+        ('synced_at', 'TIMESTAMP')
     ],
     'generated_reports': [
         ('details', 'JSONB'),
@@ -304,7 +318,21 @@ MIGRATIONS = {
         ('pec_version', 'TEXT'),
         ('ledi_version', 'TEXT'),
         ('cnes', 'TEXT'),
-        ('ine', 'TEXT')
+        ('ine', 'TEXT'),
+        ('cod_ibge', 'TEXT'),
+        ('contra_chave', 'TEXT'),
+        ('uuid_instalacao', 'TEXT'),
+        ('cpf_cnpj', 'TEXT'),
+        ('nome_razao_social', 'TEXT'),
+        ('fone', 'TEXT'),
+        ('email_institucional', 'TEXT'),
+        ('versao_sistema', 'TEXT'),
+        ('nome_banco_dados', "TEXT DEFAULT 'PostgreSQL'"),
+        ('versao_major', 'INTEGER DEFAULT 7'),
+        ('versao_minor', 'INTEGER DEFAULT 2'),
+        ('versao_revision', 'INTEGER DEFAULT 1'),
+        ('email_destino_remessa', 'TEXT'),
+        ('remessa_ativa', 'BOOLEAN DEFAULT FALSE')
     ],
     'esus_export_batches': [
         ('payload_json', 'JSONB'),
@@ -312,6 +340,15 @@ MIGRATIONS = {
         ('validated_by', 'INTEGER'),
         ('validated_at', 'TIMESTAMP'),
         ('validation_notes', 'TEXT')
+    ],
+    'esus_remessas': [
+        ('professional_id', 'INTEGER'),
+        ('professional_name', 'TEXT'),
+        ('uuid_dado_serializado', 'TEXT'),
+        ('uuid_ficha', 'TEXT'),
+        ('num_lote', 'BIGINT'),
+        ('xsd_valid', 'BOOLEAN DEFAULT FALSE'),
+        ('xsd_errors', "JSONB DEFAULT '[]'::jsonb")
     ],
     'estomatologia': [
         ('cancer_confirmed', 'BOOLEAN DEFAULT FALSE'),
@@ -910,8 +947,50 @@ def _init_db_locked():
             taken_at TIMESTAMP,
             uploaded_by INTEGER,
             active BOOLEAN DEFAULT TRUE,
+            staging_path TEXT,
+            storage_status TEXT DEFAULT 'synced',
+            storage_error TEXT,
+            sync_attempts INTEGER DEFAULT 0,
+            storage_updated_at TIMESTAMP DEFAULT NOW(),
+            synced_at TIMESTAMP,
             data_upload TIMESTAMP DEFAULT NOW(),
             FOREIGN KEY (exam_id) REFERENCES exams (id) ON DELETE CASCADE
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS exam_clinico_laboratorial (
+            id SERIAL PRIMARY KEY,
+            exam_id INTEGER NOT NULL UNIQUE,
+            categoria TEXT NOT NULL,
+            laboratorio TEXT,
+            data_coleta DATE,
+            observacoes TEXT,
+            FOREIGN KEY (exam_id) REFERENCES exams (id) ON DELETE CASCADE
+        )
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS exam_clinico_laboratorial_arquivos (
+            id SERIAL PRIMARY KEY,
+            exam_id INTEGER NOT NULL,
+            patient_id INTEGER NOT NULL,
+            filename TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            mime_type TEXT,
+            caption TEXT,
+            uploaded_by INTEGER,
+            active BOOLEAN DEFAULT TRUE,
+            staging_path TEXT,
+            storage_status TEXT DEFAULT 'synced',
+            storage_error TEXT,
+            sync_attempts INTEGER DEFAULT 0,
+            storage_updated_at TIMESTAMP DEFAULT NOW(),
+            synced_at TIMESTAMP,
+            data_upload TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (exam_id) REFERENCES exams (id) ON DELETE CASCADE,
+            FOREIGN KEY (patient_id) REFERENCES patients (id) ON DELETE CASCADE,
+            FOREIGN KEY (uploaded_by) REFERENCES users (id) ON DELETE SET NULL
         )
     ''')
 
@@ -1076,6 +1155,18 @@ def _init_db_locked():
             id SERIAL PRIMARY KEY,
             cnes TEXT,
             ine TEXT,
+            cod_ibge TEXT,
+            contra_chave TEXT,
+            uuid_instalacao TEXT,
+            cpf_cnpj TEXT,
+            nome_razao_social TEXT,
+            fone TEXT,
+            email_institucional TEXT,
+            versao_sistema TEXT,
+            nome_banco_dados TEXT DEFAULT 'PostgreSQL',
+            versao_major INTEGER DEFAULT 7,
+            versao_minor INTEGER DEFAULT 2,
+            versao_revision INTEGER DEFAULT 1,
             email_destino_remessa TEXT,
             remessa_ativa BOOLEAN DEFAULT FALSE,
             notes TEXT,
@@ -1145,12 +1236,19 @@ def _init_db_locked():
             periodo_inicio DATE NOT NULL,
             periodo_fim DATE NOT NULL,
             periodo_label VARCHAR(20),
+            professional_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            professional_name TEXT,
             xml_path TEXT,
             xml_hash VARCHAR(64),
+            uuid_dado_serializado TEXT,
+            uuid_ficha TEXT,
+            num_lote BIGINT,
             records_total INTEGER DEFAULT 0,
             records_ready INTEGER DEFAULT 0,
             records_skipped INTEGER DEFAULT 0,
             status VARCHAR(30) DEFAULT 'gerado',
+            xsd_valid BOOLEAN DEFAULT FALSE,
+            xsd_errors JSONB DEFAULT '[]'::jsonb,
             email_destino TEXT,
             enviado_em TIMESTAMPTZ,
             erro_mensagem TEXT,
@@ -1701,7 +1799,33 @@ def _init_db_locked():
         UPDATE exam_imagem_arquivos
         SET visual_category = COALESCE(visual_category, 'radiografia'),
             comparison_label = COALESCE(comparison_label, 'diagnostico'),
-            active = COALESCE(active, TRUE)
+            active = COALESCE(active, TRUE),
+            sync_attempts = COALESCE(sync_attempts, 0),
+            storage_updated_at = COALESCE(storage_updated_at, data_upload, NOW()),
+            storage_status = CASE
+                WHEN file_path LIKE 'gdrive://%%' THEN 'synced'
+                WHEN storage_status = 'synced' THEN 'pending'
+                ELSE COALESCE(storage_status, 'pending')
+            END,
+            synced_at = CASE
+                WHEN file_path LIKE 'gdrive://%%' THEN COALESCE(synced_at, data_upload)
+                ELSE synced_at
+            END
+    """)
+    execute("""
+        UPDATE exam_clinico_laboratorial_arquivos
+        SET active = COALESCE(active, TRUE),
+            sync_attempts = COALESCE(sync_attempts, 0),
+            storage_updated_at = COALESCE(storage_updated_at, data_upload, NOW()),
+            storage_status = CASE
+                WHEN file_path LIKE 'gdrive://%%' THEN 'synced'
+                WHEN storage_status = 'synced' THEN 'pending'
+                ELSE COALESCE(storage_status, 'pending')
+            END,
+            synced_at = CASE
+                WHEN file_path LIKE 'gdrive://%%' THEN COALESCE(synced_at, data_upload)
+                ELSE synced_at
+            END
     """)
     execute("""
         UPDATE estomatologia_fotos
@@ -1743,6 +1867,12 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_exam_imagem_arquivos_patient_id ON exam_imagem_arquivos(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_exam_imagem_arquivos_visual_category ON exam_imagem_arquivos(visual_category)",
         "CREATE INDEX IF NOT EXISTS idx_exam_imagem_arquivos_comparison_group ON exam_imagem_arquivos(comparison_group)",
+        "CREATE INDEX IF NOT EXISTS idx_exam_imagem_arquivos_storage_status ON exam_imagem_arquivos(storage_status, storage_updated_at)",
+        "CREATE INDEX IF NOT EXISTS idx_exam_clinico_lab_exam_id ON exam_clinico_laboratorial(exam_id)",
+        "CREATE INDEX IF NOT EXISTS idx_exam_clinico_lab_categoria ON exam_clinico_laboratorial(categoria)",
+        "CREATE INDEX IF NOT EXISTS idx_exam_clinico_lab_arquivos_exam_id ON exam_clinico_laboratorial_arquivos(exam_id)",
+        "CREATE INDEX IF NOT EXISTS idx_exam_clinico_lab_arquivos_patient_id ON exam_clinico_laboratorial_arquivos(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_exam_clinico_lab_arquivos_storage_status ON exam_clinico_laboratorial_arquivos(storage_status, storage_updated_at)",
         "CREATE INDEX IF NOT EXISTS idx_atendimentos_patient_id ON atendimentos(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_estomatologia_patient_id ON estomatologia(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_estomatologia_suspeita ON estomatologia(suspeita_neoplasia)",
@@ -1847,6 +1977,7 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_esus_batches_reference_month ON esus_export_batches(reference_month)",
         "CREATE INDEX IF NOT EXISTS idx_esus_batches_status ON esus_export_batches(status)",
         "CREATE INDEX IF NOT EXISTS idx_esus_batches_validated_at ON esus_export_batches(validated_at)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_esus_remessas_period_professional ON esus_remessas(periodo_inicio, periodo_fim, professional_id) WHERE professional_id IS NOT NULL",
         "CREATE INDEX IF NOT EXISTS idx_esus_attempts_batch_id ON esus_transmission_attempts(batch_id)",
         "CREATE INDEX IF NOT EXISTS idx_esus_attempts_attempted_at ON esus_transmission_attempts(attempted_at)",
         "CREATE INDEX IF NOT EXISTS idx_demo_seed_runs_created_at ON demo_seed_runs(created_at)",

@@ -28,11 +28,14 @@ def gerar_e_enviar_remessa_quinzenal(self, force_periodo_label=None, dry_run=Fal
     Retorna dict com resultado da execução.
     """
     from services.esus_export_service import (
+        EsusDuplicateRemessaError,
+        build_esus_readiness,
         build_quinzenal_periods,
         enviar_remessa_por_email,
         gerar_remessa_xml,
         get_esus_settings,
         is_settings_complete,
+        list_professionals_for_readiness,
     )
 
     settings = get_esus_settings()
@@ -59,44 +62,72 @@ def gerar_e_enviar_remessa_quinzenal(self, force_periodo_label=None, dry_run=Fal
         label = period['periodo_label']
         logger.info(f'[e-SUS] Gerando remessa: {label}')
 
-        try:
-            result = gerar_remessa_xml(
-                data_inicio=period['periodo_inicio'],
-                data_fim=period['periodo_fim'],
-                periodo_label=label,
-                generated_by=None,  # automático
-            )
-
-            if not dry_run and email_destino:
-                ok, erro = enviar_remessa_por_email(
-                    remessa_id=result['remessa_id'],
-                    xml_path=result['xml_path'],
+        readiness = build_esus_readiness(
+            data_inicio=period['periodo_inicio'],
+            data_fim=period['periodo_fim'],
+        )
+        professionals = list_professionals_for_readiness(readiness)
+        for professional in professionals:
+            if not professional['ready']:
+                continue
+            try:
+                result = gerar_remessa_xml(
+                    data_inicio=period['periodo_inicio'],
+                    data_fim=period['periodo_fim'],
                     periodo_label=label,
-                    email_destino=email_destino,
-                    filename=result['filename'],
+                    generated_by=None,
+                    professional_id=professional['id'],
                 )
-                if ok:
-                    logger.info(f'[e-SUS] Remessa {label} enviada para {email_destino}.')
-                    resultados.append({'periodo': label, 'status': 'enviado', 'email': email_destino})
+
+                if not dry_run and email_destino:
+                    ok, erro = enviar_remessa_por_email(
+                        remessa_id=result['remessa_id'],
+                        xml_path=result['xml_path'],
+                        periodo_label=label,
+                        email_destino=email_destino,
+                        filename=result['filename'],
+                    )
+                    status = 'enviado' if ok else 'erro_email'
+                    resultados.append({
+                        'periodo': label,
+                        'profissional': professional['name'],
+                        'status': status,
+                        'email': email_destino if ok else None,
+                        'erro': erro,
+                    })
                 else:
-                    logger.error(f'[e-SUS] Falha no envio da remessa {label}: {erro}')
-                    resultados.append({'periodo': label, 'status': 'erro_email', 'erro': erro})
-            else:
-                logger.info(f'[e-SUS] Remessa {label} gerada (dry_run ou sem e-mail destino).')
+                    resultados.append({
+                        'periodo': label,
+                        'profissional': professional['name'],
+                        'status': 'gerado_sem_envio',
+                        'xml_path': result['xml_path'],
+                        'records_ready': result['records_ready'],
+                    })
+            except EsusDuplicateRemessaError as exc:
+                logger.info('[e-SUS] %s', exc)
                 resultados.append({
                     'periodo': label,
-                    'status': 'gerado_sem_envio',
-                    'xml_path': result['xml_path'],
-                    'records_ready': result['records_ready'],
+                    'profissional': professional['name'],
+                    'status': 'duplicado_ignorado',
+                    'remessa_id': exc.remessa['id'],
                 })
-
-        except Exception as exc:
-            logger.exception(f'[e-SUS] Erro ao gerar remessa {label}: {exc}')
-            resultados.append({'periodo': label, 'status': 'erro', 'erro': str(exc)})
-            try:
-                raise self.retry(exc=exc)
-            except self.MaxRetriesExceededError:
-                pass
+            except Exception as exc:
+                logger.exception(
+                    '[e-SUS] Erro ao gerar remessa %s para %s: %s',
+                    label,
+                    professional['name'],
+                    exc,
+                )
+                resultados.append({
+                    'periodo': label,
+                    'profissional': professional['name'],
+                    'status': 'erro',
+                    'erro': str(exc),
+                })
+                try:
+                    raise self.retry(exc=exc)
+                except self.MaxRetriesExceededError:
+                    pass
 
     if not resultados:
         return {'status': 'sem_remessa', 'mensagem': 'Nenhum período de envio corresponde a hoje.'}

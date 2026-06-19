@@ -32,6 +32,7 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
+    {% block extra_head %}{% endblock %}
 </head>
 
 <body class="layout-wrapper {% if not current_user.is_authenticated %}not-logged{% endif %}">
@@ -236,6 +237,7 @@
             });
         }, 5000);
     </script>
+    {% block extra_scripts %}{% endblock %}
 </body>
 
 </html>

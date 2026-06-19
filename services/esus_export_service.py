@@ -1,48 +1,46 @@
-"""
-Serviço de exportação e-SUS APS
-Modelo: geração de arquivo XML quinzenal (Ficha de Atendimento Odontológico)
-Entrega: download manual + e-mail para o TI da Secretaria de Saúde
+"""Exportação e-SUS APS por XML LEDI da Ficha de Atendimento Odontológico."""
 
-Regra de corte:
-  - Dia 15 do mês: exporta dias 1 a 14 do mês corrente
-  - Dia 5 do mês seguinte: exporta dias 15 ao último do mês anterior
-"""
 import datetime as dt
-import hashlib
 import json
 import os
+import re
+import tempfile
+import uuid
 
-from database import execute, query
-from services.esus_xml_service import build_xml_ficha_odontologica, validate_xml_against_xsd, xml_sha256
+from database import execute, get_db_connection, put_db_connection, query
+from services.esus_xml_service import (
+    assert_valid_xml,
+    build_xml_ficha_odontologica,
+    only_digits,
+    parse_date,
+    xml_sha256,
+)
 from services.sigtap_service import get_sigtap_procedure, get_sigtap_summary
 
 
-# ─────────────────────────────────────────
-# Utilitários de período e validação
-# ─────────────────────────────────────────
+class EsusDuplicateRemessaError(ValueError):
+    def __init__(self, remessa):
+        self.remessa = remessa
+        super().__init__(
+            f"Já existe a remessa #{remessa['id']} para este período e profissional."
+        )
+
 
 def month_period(month_value=None, today=None):
-    """Retorna (data_inicio, data_fim) para um mês no formato 'YYYY-MM'."""
     if month_value:
         start = dt.datetime.strptime(month_value, '%Y-%m').date().replace(day=1)
     else:
-        today = today or dt.date.today()
-        start = today.replace(day=1)
-
-    if start.month == 12:
-        next_month = start.replace(year=start.year + 1, month=1)
-    else:
-        next_month = start.replace(month=start.month + 1)
+        start = (today or dt.date.today()).replace(day=1)
+    next_month = (
+        start.replace(year=start.year + 1, month=1)
+        if start.month == 12
+        else start.replace(month=start.month + 1)
+    )
     return start, next_month - dt.timedelta(days=1)
 
 
 def current_month_value(today=None):
-    today = today or dt.date.today()
-    return today.strftime('%Y-%m')
-
-
-def only_digits(value):
-    return ''.join(ch for ch in str(value or '') if ch.isdigit())
+    return (today or dt.date.today()).strftime('%Y-%m')
 
 
 def has_digits_length(value, length):
@@ -54,66 +52,77 @@ def has_valid_patient_identifier(row):
 
 
 def has_valid_uf(value):
-    return len(str(value or '').strip()) == 2 and str(value or '').strip().isalpha()
+    text = str(value or '').strip()
+    return len(text) == 2 and text.isalpha()
 
 
 def build_quinzenal_periods(today=None):
-    """
-    Determina os períodos quinzenais de remessa com base na data atual.
-
-    Retorna lista de dicts com:
-      - periodo_inicio, periodo_fim (date)
-      - periodo_label (str, ex: '2026-06 P1')
-      - is_due_today (bool): True se hoje é o dia de envio deste período
-    """
     today = today or dt.date.today()
     p1_day = int(os.getenv('ESUS_REMESSA_DIA_P1', '15'))
     p2_day = int(os.getenv('ESUS_REMESSA_DIA_P2', '5'))
+    current_month = today.replace(day=1)
+    previous_month = (
+        current_month.replace(year=current_month.year - 1, month=12)
+        if current_month.month == 1
+        else current_month.replace(month=current_month.month - 1)
+    )
+    previous_month_end = current_month - dt.timedelta(days=1)
+    return [
+        {
+            'periodo_inicio': current_month,
+            'periodo_fim': current_month.replace(day=14),
+            'periodo_label': f"{current_month:%Y-%m} P1",
+            'is_due_today': today == current_month.replace(day=p1_day),
+        },
+        {
+            'periodo_inicio': previous_month.replace(day=15),
+            'periodo_fim': previous_month_end,
+            'periodo_label': f"{previous_month:%Y-%m} P2",
+            'is_due_today': today == current_month.replace(day=p2_day),
+        },
+    ]
 
-    periods = []
 
-    # Período 1: dias 1-14 do mês corrente (due: dia p1_day do mesmo mês)
-    mes_corrente = today.replace(day=1)
-    p1_inicio = mes_corrente
-    p1_fim = mes_corrente.replace(day=14)
-    p1_due = mes_corrente.replace(day=p1_day)
-    periods.append({
-        'periodo_inicio': p1_inicio,
-        'periodo_fim': p1_fim,
-        'periodo_label': f"{mes_corrente.strftime('%Y-%m')} P1",
-        'is_due_today': today == p1_due,
+ENV_SETTING_MAP = {
+    'cnes': 'ESUS_CNES',
+    'ine': 'ESUS_INE',
+    'cod_ibge': 'ESUS_COD_IBGE',
+    'contra_chave': 'ESUS_CONTRA_CHAVE',
+    'uuid_instalacao': 'ESUS_UUID_INSTALACAO',
+    'cpf_cnpj': 'ESUS_CPF_CNPJ',
+    'nome_razao_social': 'ESUS_NOME_RAZAO_SOCIAL',
+    'fone': 'ESUS_FONE',
+    'email_institucional': 'ESUS_EMAIL_INSTITUCIONAL',
+    'versao_sistema': 'ESUS_VERSAO_SISTEMA',
+    'nome_banco_dados': 'ESUS_NOME_BANCO_DADOS',
+    'email_destino_remessa': 'ESUS_EMAIL_DESTINO',
+}
+
+
+def _env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'sim', 'on'}
+
+
+def _settings_defaults():
+    settings = {key: os.getenv(env_name, '') for key, env_name in ENV_SETTING_MAP.items()}
+    settings.update({
+        'remessa_ativa': _env_bool('ESUS_REMESSA_ATIVA', False),
+        'versao_major': int(os.getenv('ESUS_VERSAO_MAJOR', '7')),
+        'versao_minor': int(os.getenv('ESUS_VERSAO_MINOR', '2')),
+        'versao_revision': int(os.getenv('ESUS_VERSAO_REVISION', '1')),
+        'nome_banco_dados': settings.get('nome_banco_dados') or 'PostgreSQL',
+        'versao_sistema': settings.get('versao_sistema') or 'GestaoSaudeOral 2.8',
+        'notes': '',
     })
+    return settings
 
-    # Período 2: dias 15-fim do mês anterior (due: dia p2_day do mês corrente)
-    if mes_corrente.month == 1:
-        mes_anterior = mes_corrente.replace(year=mes_corrente.year - 1, month=12)
-    else:
-        mes_anterior = mes_corrente.replace(month=mes_corrente.month - 1)
-
-    if mes_anterior.month == 12:
-        ultimo_dia_ant = mes_anterior.replace(day=31)
-    else:
-        ultimo_dia_ant = mes_corrente - dt.timedelta(days=1)
-
-    p2_inicio = mes_anterior.replace(day=15)
-    p2_fim = ultimo_dia_ant
-    p2_due = mes_corrente.replace(day=p2_day)
-    periods.append({
-        'periodo_inicio': p2_inicio,
-        'periodo_fim': p2_fim,
-        'periodo_label': f"{mes_anterior.strftime('%Y-%m')} P2",
-        'is_due_today': today == p2_due,
-    })
-
-    return periods
-
-
-# ─────────────────────────────────────────
-# Configurações e-SUS (simplificadas)
-# ─────────────────────────────────────────
 
 def get_esus_settings():
-    settings = query(
+    defaults = _settings_defaults()
+    stored = query(
         """
         SELECT *
         FROM esus_integration_settings
@@ -122,17 +131,13 @@ def get_esus_settings():
         """,
         one=True,
     )
-    if settings:
-        return dict(settings)
-
-    # Fallback para variáveis de ambiente (útil em primeiro acesso)
-    return {
-        'cnes': os.getenv('ESUS_CNES', ''),
-        'ine': os.getenv('ESUS_INE', ''),
-        'email_destino_remessa': os.getenv('ESUS_EMAIL_DESTINO', ''),
-        'remessa_ativa': os.getenv('ESUS_REMESSA_ATIVA', 'false').lower() in {'1', 'true', 'yes', 'sim'},
-        'notes': '',
-    }
+    if not stored:
+        return defaults
+    merged = defaults
+    for key, value in dict(stored).items():
+        if value not in (None, ''):
+            merged[key] = value
+    return merged
 
 
 def update_esus_settings(data):
@@ -140,59 +145,81 @@ def update_esus_settings(data):
         "SELECT id FROM esus_integration_settings ORDER BY updated_at DESC, id DESC LIMIT 1",
         one=True,
     )
-    params = (
+    fields = (
         data.get('cnes') or None,
         data.get('ine') or None,
+        data.get('cod_ibge') or None,
+        data.get('contra_chave') or None,
+        data.get('uuid_instalacao') or None,
+        data.get('cpf_cnpj') or None,
+        data.get('nome_razao_social') or None,
+        data.get('fone') or None,
+        data.get('email_institucional') or None,
+        data.get('versao_sistema') or None,
+        data.get('nome_banco_dados') or 'PostgreSQL',
+        int(data.get('versao_major') or 7),
+        int(data.get('versao_minor') or 2),
+        int(data.get('versao_revision') or 1),
         data.get('email_destino_remessa') or None,
         bool(data.get('remessa_ativa')),
         data.get('notes') or None,
     )
-
+    columns = """
+        cnes, ine, cod_ibge, contra_chave, uuid_instalacao,
+        cpf_cnpj, nome_razao_social, fone, email_institucional,
+        versao_sistema, nome_banco_dados, versao_major, versao_minor,
+        versao_revision, email_destino_remessa, remessa_ativa, notes
+    """
     if existing:
         execute(
             """
             UPDATE esus_integration_settings
-            SET cnes = %s,
-                ine = %s,
-                email_destino_remessa = %s,
-                remessa_ativa = %s,
-                notes = %s,
-                updated_at = NOW()
+            SET cnes = %s, ine = %s, cod_ibge = %s, contra_chave = %s,
+                uuid_instalacao = %s, cpf_cnpj = %s, nome_razao_social = %s,
+                fone = %s, email_institucional = %s, versao_sistema = %s,
+                nome_banco_dados = %s, versao_major = %s, versao_minor = %s,
+                versao_revision = %s, email_destino_remessa = %s,
+                remessa_ativa = %s, notes = %s, updated_at = NOW()
             WHERE id = %s
             """,
-            (*params, existing['id'])
+            (*fields, existing['id']),
         )
         return existing['id']
-
     return execute(
-        """
-        INSERT INTO esus_integration_settings (cnes, ine, email_destino_remessa, remessa_ativa, notes)
-        VALUES (%s, %s, %s, %s, %s)
+        f"""
+        INSERT INTO esus_integration_settings ({columns})
+        VALUES ({', '.join(['%s'] * len(fields))})
         RETURNING id
         """,
-        params
+        fields,
     )
+
+
+def settings_validation_errors(settings=None):
+    settings = settings or get_esus_settings()
+    errors = []
+    if not has_digits_length(settings.get('cnes'), 7):
+        errors.append('CNES deve conter 7 dígitos')
+    if not has_digits_length(settings.get('ine'), 10):
+        errors.append('INE deve conter 10 dígitos')
+    if not has_digits_length(settings.get('cod_ibge'), 7):
+        errors.append('Código IBGE municipal deve conter 7 dígitos')
+    if not str(settings.get('contra_chave') or '').strip():
+        errors.append('Contra-chave da instalação não informada')
+    cpf_cnpj = only_digits(settings.get('cpf_cnpj'))
+    if len(cpf_cnpj) not in {11, 14}:
+        errors.append('CPF/CNPJ da instalação deve conter 11 ou 14 dígitos')
+    if not str(settings.get('nome_razao_social') or '').strip():
+        errors.append('Nome/razão social da instalação não informado')
+    return errors
 
 
 def is_settings_complete(settings=None):
-    """Retorna True se CNES e INE estão configurados (pré-requisito para envio)."""
-    s = settings or get_esus_settings()
-    return (
-        has_digits_length(s.get('cnes'), 7)
-        and has_digits_length(s.get('ine'), 10)
-    )
+    return not settings_validation_errors(settings)
 
-
-# ─────────────────────────────────────────
-# Consultas de produção
-# ─────────────────────────────────────────
 
 def list_atendimentos_para_remessa(data_inicio, data_fim):
-    """
-    Lista atendimentos concluídos com SIGTAP e identificação de paciente válidos,
-    dentro do período informado. Cada linha representa um procedimento (pode haver
-    múltiplos por atendimento).
-    """
+    """Lista toda a produção concluída; a prontidão decide o que pode ser exportado."""
     return query(
         """
         SELECT
@@ -205,48 +232,52 @@ def list_atendimentos_para_remessa(data_inicio, data_fim):
             tp.sigtap_name,
             tp.criado_em,
             tp.professor_id,
+            CASE
+                WHEN COALESCE(tp.data_sessao, '') ~ '^\\d{4}-\\d{2}-\\d{2}'
+                    THEN SUBSTRING(tp.data_sessao FROM 1 FOR 10)::date::timestamp
+                ELSE tp.criado_em
+            END AS service_datetime,
+            1 AS quantidade,
             p.cns,
             p.cpf,
-            p.nome           AS patient_name,
+            p.nome AS patient_name,
             p.data_nascimento,
-            p.sexo,
-            p.necessidade_especial,
-            u.cns            AS professional_cns,
-            u.cbo            AS professional_cbo,
-            u.cnes           AS professional_cnes,
-            u.ine            AS professional_ine,
+            p.genero,
+            NULL::boolean AS necessidades_especiais,
+            u.cns AS professional_cns,
+            u.cbo AS professional_cbo,
+            u.cnes AS professional_cnes,
+            u.ine AS professional_ine,
             u.cro,
             u.cro_uf,
-            u.full_name      AS professional_name,
+            u.full_name AS professional_name,
             an.gestante
         FROM tratamento_procedimentos tp
         JOIN patients p ON p.id = tp.patient_id
         LEFT JOIN users u ON u.id = tp.professor_id
-        LEFT JOIN anamnesis an ON an.patient_id = p.id
-            AND an.id = (
-                SELECT MAX(a2.id) FROM anamnesis a2 WHERE a2.patient_id = p.id
-            )
+        LEFT JOIN anamnesis an ON an.id = (
+            SELECT MAX(a2.id) FROM anamnesis a2 WHERE a2.patient_id = p.id
+        )
         WHERE tp.status = 'Concluído'
-          AND tp.sigtap_code IS NOT NULL
-          AND tp.criado_em::date BETWEEN %s AND %s
-        ORDER BY tp.criado_em ASC, tp.id ASC
+          AND (
+              CASE
+                  WHEN COALESCE(tp.data_sessao, '') ~ '^\\d{4}-\\d{2}-\\d{2}'
+                      THEN SUBSTRING(tp.data_sessao FROM 1 FOR 10)::date
+                  ELSE tp.criado_em::date
+              END
+          ) BETWEEN %s AND %s
+        ORDER BY service_datetime ASC, tp.patient_id ASC, tp.id ASC
         """,
         (data_inicio, data_fim),
     )
 
 
 def list_completed_procedures_for_esus(month_value=None):
-    """Compatibilidade: lista procedimentos do mês completo (usado pelo dashboard)."""
     start, end = month_period(month_value)
     return list_atendimentos_para_remessa(start, end)
 
 
-# ─────────────────────────────────────────
-# Qualidade / prontidão (preservado)
-# ─────────────────────────────────────────
-
 def _missing_professional_fields(row):
-    from constants import role_requires_dental_license
     missing = []
     if not row.get('cns'):
         missing.append('CNS profissional')
@@ -267,48 +298,45 @@ def _missing_professional_fields(row):
 
 def list_professionals_missing_required_data(limit=80):
     from constants import PROFESSIONAL_DATA_REQUIRED_ROLES
+
     roles = tuple(PROFESSIONAL_DATA_REQUIRED_ROLES)
     placeholders = ', '.join(['%s'] * len(roles))
     rows = query(
         f"""
         SELECT id, username, full_name, role, cns, cbo, cnes, ine, cro, cro_uf
         FROM users
-        WHERE role IN ({placeholders})
-          AND active = TRUE
+        WHERE role IN ({placeholders}) AND active = TRUE
         ORDER BY role, full_name, username
         LIMIT %s
         """,
         (*roles, limit),
     )
-
-    missing_rows = []
+    result = []
     for row in rows:
         missing = _missing_professional_fields(row)
         if missing:
-            row = dict(row)
-            row['missing_fields'] = missing
-            missing_rows.append(row)
-    return missing_rows
+            item = dict(row)
+            item['missing_fields'] = missing
+            result.append(item)
+    return result
 
 
 def get_patient_identifier_gaps():
     row = query(
         """
-        SELECT COUNT(*) as total,
+        SELECT COUNT(*) AS total,
                COUNT(*) FILTER (
                    WHERE COALESCE(NULLIF(TRIM(cns), ''), '') = ''
-                      OR COALESCE(NULLIF(TRIM(cpf), ''), '') = ''
-               ) as missing_cns_or_cpf,
+                     AND COALESCE(NULLIF(TRIM(cpf), ''), '') = ''
+               ) AS missing_cns_or_cpf,
                COUNT(*) FILTER (
-                   WHERE (
-                       COALESCE(NULLIF(TRIM(cns), ''), '') <> ''
-                       OR COALESCE(NULLIF(TRIM(cpf), ''), '') <> ''
-                   )
-                   AND NOT (
-                       length(regexp_replace(COALESCE(cns, ''), '\\D', '', 'g')) = 15
-                       OR length(regexp_replace(COALESCE(cpf, ''), '\\D', '', 'g')) = 11
-                   )
-               ) as invalid_cns_or_cpf
+                   WHERE (COALESCE(NULLIF(TRIM(cns), ''), '') <> ''
+                       OR COALESCE(NULLIF(TRIM(cpf), ''), '') <> '')
+                     AND NOT (
+                         length(regexp_replace(COALESCE(cns, ''), '\\D', '', 'g')) = 15
+                         OR length(regexp_replace(COALESCE(cpf, ''), '\\D', '', 'g')) = 11
+                     )
+               ) AS invalid_cns_or_cpf
         FROM patients
         """,
         one=True,
@@ -317,7 +345,6 @@ def get_patient_identifier_gaps():
 
 
 def classify_esus_missing_fields(row, settings=None):
-    settings = settings or get_esus_settings()
     missing = []
     if not row.get('sigtap_code'):
         missing.append('SIGTAP')
@@ -343,36 +370,30 @@ def classify_esus_missing_fields(row, settings=None):
         missing.append('CRO-UF')
     elif row.get('cro_uf') and not has_valid_uf(row.get('cro_uf')):
         missing.append('CRO-UF inválido')
+    if not row.get('service_datetime'):
+        missing.append('data do atendimento')
     return missing
 
 
 def build_esus_readiness(month_value=None, data_inicio=None, data_fim=None):
     if data_inicio and data_fim:
         rows = list_atendimentos_para_remessa(data_inicio, data_fim)
-        ref = f"{data_inicio} a {data_fim}"
+        reference = f'{data_inicio} a {data_fim}'
     else:
         rows = list_completed_procedures_for_esus(month_value)
-        ref = month_value or dt.date.today().strftime('%Y-%m')
-
-    ready = []
-    missing_sigtap = []
-    incomplete = []
-    settings = get_esus_settings()
-
-    for row in rows:
-        missing = classify_esus_missing_fields(row, settings=settings)
-        row = dict(row)
-        row['missing_fields'] = missing
-        if missing:
-            if 'SIGTAP' in missing or 'competência SIGTAP' in missing:
-                missing_sigtap.append(row)
-            else:
-                incomplete.append(row)
-        else:
+        reference = month_value or current_month_value()
+    ready, missing_sigtap, incomplete = [], [], []
+    for raw_row in rows:
+        row = dict(raw_row)
+        row['missing_fields'] = classify_esus_missing_fields(row)
+        if not row['missing_fields']:
             ready.append(row)
-
+        elif 'SIGTAP' in row['missing_fields'] or 'competência SIGTAP' in row['missing_fields']:
+            missing_sigtap.append(row)
+        else:
+            incomplete.append(row)
     return {
-        'reference_month': ref,
+        'reference_month': reference,
         'total': len(rows),
         'ready': len(ready),
         'missing_sigtap': len(missing_sigtap),
@@ -383,58 +404,79 @@ def build_esus_readiness(month_value=None, data_inicio=None, data_fim=None):
     }
 
 
+def list_professionals_for_readiness(readiness):
+    professionals = {}
+    for category, rows in (
+        ('ready', readiness['ready_records']),
+        ('pending', readiness['missing_sigtap_records'] + readiness['incomplete_records']),
+    ):
+        for row in rows:
+            professional_id = row.get('professor_id')
+            if not professional_id:
+                continue
+            item = professionals.setdefault(professional_id, {
+                'id': professional_id,
+                'name': row.get('professional_name') or f'Profissional #{professional_id}',
+                'ready': 0,
+                'pending': 0,
+            })
+            item[category] += 1
+    return sorted(professionals.values(), key=lambda item: item['name'].lower())
+
+
 def list_procedures_missing_sigtap(limit=80):
     return query(
         """
         SELECT tp.id, tp.patient_id, tp.dente, tp.descricao, tp.status, tp.criado_em,
-               p.nome as patient_name, p.cpf, p.cns
+               p.nome AS patient_name, p.cpf, p.cns
         FROM tratamento_procedimentos tp
         JOIN patients p ON p.id = tp.patient_id
         WHERE tp.sigtap_code IS NULL
         ORDER BY tp.criado_em DESC
         LIMIT %s
         """,
-        (limit,)
+        (limit,),
     )
 
 
 def update_treatment_sigtap(procedure_id, sigtap_code, sigtap_competence=None):
+    locked = query(
+        """
+        SELECT r.id
+        FROM esus_remessas r
+        WHERE r.id = (
+            SELECT esus_export_batch_id
+            FROM tratamento_procedimentos
+            WHERE id = %s AND esus_export_status IN ('generated', 'sent')
+        )
+        """,
+        (procedure_id,),
+        one=True,
+    )
+    if locked:
+        raise ValueError(f"Procedimento já incluído na remessa e-SUS #{locked['id']}.")
     sigtap = get_sigtap_procedure(sigtap_code, sigtap_competence)
     if not sigtap:
         raise ValueError('Código SIGTAP não encontrado na competência carregada.')
-
     execute(
         """
         UPDATE tratamento_procedimentos
-        SET sigtap_code = %s,
-            sigtap_competence = %s,
-            sigtap_name = %s,
-            esus_export_status = CASE
-                WHEN status = 'Concluído' THEN 'pending'
-                ELSE esus_export_status
-            END
+        SET sigtap_code = %s, sigtap_competence = %s, sigtap_name = %s,
+            esus_export_status = CASE WHEN status = 'Concluído' THEN 'pending' ELSE esus_export_status END
         WHERE id = %s
         """,
-        (sigtap['code'], sigtap['competence'], sigtap['name'], procedure_id)
+        (sigtap['code'], sigtap['competence'], sigtap['name'], procedure_id),
     )
     return sigtap
 
 
 def build_homologation_status(settings, readiness, sigtap_summary, patient_gaps, missing_professionals):
-    patient_missing = patient_gaps.get('missing_cns_or_cpf', 0)
-    patient_invalid = patient_gaps.get('invalid_cns_or_cpf', 0)
-    cnes_ok = has_digits_length(settings.get('cnes'), 7)
-    ine_ok = has_digits_length(settings.get('ine'), 10)
+    settings_errors = settings_validation_errors(settings)
     items = [
         {
-            'label': 'CNES configurado',
-            'ok': cnes_ok,
-            'detail': settings.get('cnes') or '⚠️ Aguardando TI da Secretaria',
-        },
-        {
-            'label': 'INE/equipe configurado',
-            'ok': ine_ok,
-            'detail': settings.get('ine') or '⚠️ Aguardando TI da Secretaria',
+            'label': 'Envelope LEDI configurado',
+            'ok': not settings_errors,
+            'detail': 'completo' if not settings_errors else '; '.join(settings_errors),
         },
         {
             'label': 'E-mail de destino configurado',
@@ -448,16 +490,20 @@ def build_homologation_status(settings, readiness, sigtap_summary, patient_gaps,
         },
         {
             'label': 'Pacientes com CNS/CPF válido',
-            'ok': patient_missing == 0 and patient_invalid == 0,
-            'detail': f"{patient_missing} pendente(s), {patient_invalid} inválido(s)",
+            'ok': patient_gaps.get('missing_cns_or_cpf', 0) == 0
+            and patient_gaps.get('invalid_cns_or_cpf', 0) == 0,
+            'detail': (
+                f"{patient_gaps.get('missing_cns_or_cpf', 0)} pendente(s), "
+                f"{patient_gaps.get('invalid_cns_or_cpf', 0)} inválido(s)"
+            ),
         },
         {
-            'label': 'Profissionais com CNS/CBO',
-            'ok': len(missing_professionals) == 0,
-            'detail': f"{len(missing_professionals)} pendente(s)",
+            'label': 'Profissionais com CNS/CBO/CRO',
+            'ok': not missing_professionals,
+            'detail': f'{len(missing_professionals)} pendente(s)',
         },
         {
-            'label': 'Produção sem bloqueios de SIGTAP',
+            'label': 'Produção sem bloqueios',
             'ok': readiness['missing_sigtap'] == 0 and readiness['incomplete'] == 0,
             'detail': f"{readiness['missing_sigtap'] + readiness['incomplete']} bloqueio(s)",
         },
@@ -465,21 +511,21 @@ def build_homologation_status(settings, readiness, sigtap_summary, patient_gaps,
     return {
         'ready': all(item['ok'] for item in items),
         'items': items,
-        'blocking_count': sum(1 for item in items if not item['ok']),
-        'cnes_ine_missing': not cnes_ok or not ine_ok,
+        'blocking_count': sum(not item['ok'] for item in items),
+        'cnes_ine_missing': not has_digits_length(settings.get('cnes'), 7)
+        or not has_digits_length(settings.get('ine'), 10),
+        'settings_errors': settings_errors,
     }
 
-
-# ─────────────────────────────────────────
-# Gestão de remessas XML
-# ─────────────────────────────────────────
 
 def list_esus_remessas(limit=20):
     return query(
         """
-        SELECT r.*, u.username, u.full_name
+        SELECT r.*, creator.username, creator.full_name,
+               professional.full_name AS professional_name_current
         FROM esus_remessas r
-        LEFT JOIN users u ON u.id = r.generated_by
+        LEFT JOIN users creator ON creator.id = r.generated_by
+        LEFT JOIN users professional ON professional.id = r.professional_id
         ORDER BY r.created_at DESC
         LIMIT %s
         """,
@@ -490,9 +536,11 @@ def list_esus_remessas(limit=20):
 def get_esus_remessa(remessa_id):
     return query(
         """
-        SELECT r.*, u.username, u.full_name
+        SELECT r.*, creator.username, creator.full_name,
+               professional.full_name AS professional_name_current
         FROM esus_remessas r
-        LEFT JOIN users u ON u.id = r.generated_by
+        LEFT JOIN users creator ON creator.id = r.generated_by
+        LEFT JOIN users professional ON professional.id = r.professional_id
         WHERE r.id = %s
         """,
         (remessa_id,),
@@ -500,55 +548,164 @@ def get_esus_remessa(remessa_id):
     )
 
 
-def gerar_remessa_xml(data_inicio, data_fim, periodo_label=None, generated_by=None):
-    """
-    Gera o arquivo XML da Ficha de Atendimento Odontológico para o período,
-    salva em pdf_temp/ e registra na tabela esus_remessas.
+def find_existing_remessa(data_inicio, data_fim, professional_id):
+    return query(
+        """
+        SELECT *
+        FROM esus_remessas
+        WHERE periodo_inicio = %s AND periodo_fim = %s AND professional_id = %s
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (data_inicio, data_fim, professional_id),
+        one=True,
+    )
 
-    Retorna: dict com id, xml_path, records_ready, records_skipped, xml_hash, erros_xsd
-    """
+
+def _clean_period_label(value):
+    return re.sub(r'[^A-Za-z0-9_.-]+', '_', str(value or '').strip()).strip('_') or 'periodo'
+
+
+def _persist_remessa_and_link_procedures(remessa_params, procedure_ids):
+    """Registra a remessa e vincula os procedimentos na mesma transação."""
+    connection = get_db_connection()
+    cursor = None
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            """
+            INSERT INTO esus_remessas (
+                periodo_inicio, periodo_fim, periodo_label, professional_id, professional_name,
+                xml_path, xml_hash, uuid_dado_serializado, uuid_ficha, num_lote,
+                records_total, records_ready, records_skipped, status,
+                xsd_valid, xsd_errors, generated_by
+            )
+            VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, 0, 'gerado', TRUE, %s, %s
+            )
+            RETURNING id
+            """,
+            remessa_params,
+        )
+        remessa_id = cursor.fetchone()['id']
+        cursor.execute(
+            """
+            UPDATE tratamento_procedimentos
+            SET esus_export_status = 'generated',
+                esus_exported_at = NOW(),
+                esus_export_batch_id = %s
+            WHERE id = ANY(%s)
+            """,
+            (remessa_id, procedure_ids),
+        )
+        if cursor.rowcount != len(procedure_ids):
+            raise RuntimeError(
+                'Nem todos os procedimentos foram vinculados à remessa '
+                f'({cursor.rowcount}/{len(procedure_ids)}).'
+            )
+        connection.commit()
+        return remessa_id
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        if cursor is not None:
+            cursor.close()
+        put_db_connection(connection)
+
+
+def gerar_remessa_xml(data_inicio, data_fim, periodo_label=None, generated_by=None, professional_id=None):
+    data_inicio = parse_date(data_inicio)
+    data_fim = parse_date(data_fim)
+    if not data_inicio or not data_fim or data_inicio > data_fim:
+        raise ValueError('Período de remessa inválido.')
+
     settings = get_esus_settings()
-    cnes = settings.get('cnes') or ''
-    ine = settings.get('ine') or ''
+    setting_errors = settings_validation_errors(settings)
+    if setting_errors:
+        raise ValueError('Configuração do envelope incompleta: ' + '; '.join(setting_errors))
 
-    # Busca atendimentos prontos
+    if professional_id is not None:
+        professional_id = int(professional_id)
+        existing = find_existing_remessa(data_inicio, data_fim, professional_id)
+        if existing:
+            raise EsusDuplicateRemessaError(existing)
+
     readiness = build_esus_readiness(data_inicio=data_inicio, data_fim=data_fim)
-    atendimentos_prontos = readiness['ready_records']
-    skipped = readiness['missing_sigtap'] + readiness['incomplete']
+    professionals = list_professionals_for_readiness(readiness)
+    if professional_id is None:
+        ready_ids = [item['id'] for item in professionals if item['ready']]
+        if len(ready_ids) != 1:
+            raise ValueError('Selecione o profissional da remessa.')
+        professional_id = ready_ids[0]
+    professional_id = int(professional_id)
 
-    xml_bytes, uuid_ficha = build_xml_ficha_odontologica(atendimentos_prontos, cnes, ine)
+    existing = find_existing_remessa(data_inicio, data_fim, professional_id)
+    if existing:
+        raise EsusDuplicateRemessaError(existing)
+
+    ready_rows = [
+        row for row in readiness['ready_records']
+        if row.get('professor_id') == professional_id
+    ]
+    pending_rows = [
+        row for row in readiness['missing_sigtap_records'] + readiness['incomplete_records']
+        if row.get('professor_id') == professional_id
+    ]
+    if pending_rows:
+        raise ValueError(
+            f'Profissional possui {len(pending_rows)} procedimento(s) bloqueado(s) no período. '
+            'Corrija os dados antes de gerar a remessa.'
+        )
+    if not ready_rows:
+        raise ValueError('Nenhum procedimento pronto para o profissional no período informado.')
+
+    professional_name = ready_rows[0].get('professional_name') or f'Profissional #{professional_id}'
+    xml_bytes, metadata = build_xml_ficha_odontologica(
+        ready_rows,
+        settings,
+        data_inicio=data_inicio,
+        data_fim=data_fim,
+        professional_id=professional_id,
+    )
+    assert_valid_xml(xml_bytes)
     hash_xml = xml_sha256(xml_bytes)
 
-    # Valida contra XSD
-    valido, erros_xsd = validate_xml_against_xsd(xml_bytes)
-
-    # Salva arquivo
-    pdf_dir = os.path.join(os.getcwd(), 'pdf_temp', 'esus')
-    os.makedirs(pdf_dir, exist_ok=True)
-    label_clean = (periodo_label or f"{data_inicio}_{data_fim}").replace(' ', '_')
-    filename = f"esus_odonto_{label_clean}_{uuid_ficha[:8]}.xml"
-    xml_path = os.path.join(pdf_dir, filename)
-    with open(xml_path, 'wb') as f:
-        f.write(xml_bytes)
-
-    # Registra remessa
-    remessa_id = execute(
-        """
-        INSERT INTO esus_remessas (
-            periodo_inicio, periodo_fim, periodo_label,
-            xml_path, xml_hash, records_total, records_ready, records_skipped,
-            status, generated_by
-        )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'gerado', %s)
-        RETURNING id
-        """,
-        (
-            data_inicio, data_fim, periodo_label,
-            xml_path, hash_xml,
-            readiness['total'], len(atendimentos_prontos), skipped,
-            generated_by,
-        ),
+    output_dir = os.path.join(os.getcwd(), 'pdf_temp', 'esus')
+    os.makedirs(output_dir, exist_ok=True)
+    clean_label = _clean_period_label(periodo_label or f'{data_inicio}_{data_fim}')
+    filename = (
+        f'esus_odonto_{clean_label}_prof{professional_id}_'
+        f'{metadata["uuid_ficha"][-8:]}_{uuid.uuid4().hex[:8]}.xml'
     )
+    xml_path = os.path.join(output_dir, filename)
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=output_dir, suffix='.xml.tmp', delete=False) as temp_file:
+            temp_file.write(xml_bytes)
+            temp_path = temp_file.name
+        os.replace(temp_path, xml_path)
+        temp_path = None
+
+        procedure_ids = [row['id'] for row in ready_rows]
+        remessa_id = _persist_remessa_and_link_procedures(
+            (
+                data_inicio, data_fim, periodo_label, professional_id, professional_name,
+                xml_path, hash_xml, metadata['uuid_dado_serializado'], metadata['uuid_ficha'],
+                metadata['num_lote'], len(ready_rows), len(ready_rows), json.dumps([]), generated_by,
+            ),
+            procedure_ids,
+        )
+    except Exception:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
+        if os.path.exists(xml_path):
+            os.remove(xml_path)
+        duplicate = find_existing_remessa(data_inicio, data_fim, professional_id)
+        if duplicate:
+            raise EsusDuplicateRemessaError(duplicate)
+        raise
 
     return {
         'remessa_id': remessa_id,
@@ -556,78 +713,74 @@ def gerar_remessa_xml(data_inicio, data_fim, periodo_label=None, generated_by=No
         'filename': filename,
         'xml_bytes': xml_bytes,
         'xml_hash': hash_xml,
-        'uuid_ficha': uuid_ficha,
-        'records_ready': len(atendimentos_prontos),
-        'records_skipped': skipped,
-        'xsd_valid': valido,
-        'xsd_errors': erros_xsd,
+        **metadata,
+        'professional_id': professional_id,
+        'professional_name': professional_name,
+        'records_ready': len(ready_rows),
+        'records_skipped': 0,
+        'xsd_valid': True,
+        'xsd_errors': [],
     }
 
 
 def marcar_remessa_enviada(remessa_id, email_destino):
-    """Atualiza o status da remessa após envio por e-mail."""
     execute(
         """
         UPDATE esus_remessas
-        SET status = 'enviado_email',
-            email_destino = %s,
-            enviado_em = NOW()
+        SET status = 'enviado_email', email_destino = %s, enviado_em = NOW(),
+            erro_mensagem = NULL
         WHERE id = %s
         """,
         (email_destino, remessa_id),
+    )
+    execute(
+        """
+        UPDATE tratamento_procedimentos
+        SET esus_export_status = 'sent'
+        WHERE esus_export_batch_id = %s
+        """,
+        (remessa_id,),
     )
 
 
 def marcar_remessa_erro(remessa_id, mensagem_erro):
     execute(
-        """
-        UPDATE esus_remessas
-        SET status = 'erro',
-            erro_mensagem = %s
-        WHERE id = %s
-        """,
+        "UPDATE esus_remessas SET status = 'erro', erro_mensagem = %s WHERE id = %s",
         (mensagem_erro, remessa_id),
     )
 
 
 def enviar_remessa_por_email(remessa_id, xml_path, periodo_label, email_destino, filename=None):
-    """
-    Envia o arquivo XML da remessa por e-mail usando o Postfix já configurado.
-    Retorna True se enviou ou False com mensagem de erro.
-    """
-    from services.mail_service import send_mail
+    from services.mail_service import send_email
 
     filename = filename or os.path.basename(xml_path)
-    subject = f'Remessa e-SUS APS — Ficha Odontológica — {periodo_label}'
-    body = (
-        f'Prezado(a),\n\n'
-        f'Segue em anexo a remessa eletrônica de atendimentos odontológicos '
-        f'referente ao período: {periodo_label}.\n\n'
-        f'Arquivo: {filename}\n\n'
-        f'Importar no concentrador e-SUS APS conforme procedimento habitual.\n\n'
-        f'Clínica Sorriso da Gente'
-    )
-
     try:
-        with open(xml_path, 'rb') as f:
-            xml_content = f.read()
-        send_mail(
-            to=email_destino,
-            subject=subject,
-            body=body,
+        remessa = get_esus_remessa(remessa_id)
+        if not remessa:
+            raise ValueError('Remessa não encontrada.')
+        with open(xml_path, 'rb') as xml_file:
+            xml_content = xml_file.read()
+        assert_valid_xml(xml_content)
+        if xml_sha256(xml_content) != remessa.get('xml_hash'):
+            raise ValueError('Hash do XML diverge do registro da remessa.')
+        send_email(
+            subject=f'Remessa e-SUS APS — Ficha Odontológica — {periodo_label}',
+            to_email=email_destino,
+            text_body=(
+                f'Segue em anexo a remessa de atendimentos odontológicos de {periodo_label}.\n\n'
+                f'Profissional: {remessa.get("professional_name") or remessa.get("professional_name_current")}\n'
+                f'Arquivo: {filename}\n'
+                f'SHA-256: {remessa.get("xml_hash")}\n'
+            ),
             attachments=[(filename, xml_content, 'application/xml')],
         )
         marcar_remessa_enviada(remessa_id, email_destino)
         return True, None
     except Exception as exc:
-        msg = str(exc)
-        marcar_remessa_erro(remessa_id, msg)
-        return False, msg
+        message = str(exc)
+        marcar_remessa_erro(remessa_id, message)
+        return False, message
 
-
-# ─────────────────────────────────────────
-# Dashboard principal
-# ─────────────────────────────────────────
 
 def get_esus_dashboard(month_value=None):
     month_value = month_value or current_month_value()
@@ -636,34 +789,26 @@ def get_esus_dashboard(month_value=None):
     sigtap_summary = get_sigtap_summary()
     patient_gaps = get_patient_identifier_gaps()
     missing_professionals = list_professionals_missing_required_data(limit=80)
-    remessas = list_esus_remessas(limit=10)
-    periods = build_quinzenal_periods()
-
-    homologation = build_homologation_status(
-        settings, readiness, sigtap_summary, patient_gaps, missing_professionals
-    )
-
     return {
         'month': month_value,
         'readiness': readiness,
         'settings': settings,
         'patient_gaps': patient_gaps,
         'missing_professionals': missing_professionals,
-        'homologation': homologation,
+        'homologation': build_homologation_status(
+            settings, readiness, sigtap_summary, patient_gaps, missing_professionals
+        ),
         'missing_sigtap': list_procedures_missing_sigtap(limit=80),
-        'remessas': remessas,
-        'periods': periods,
+        'remessas': list_esus_remessas(limit=10),
+        'periods': build_quinzenal_periods(),
         'settings_complete': is_settings_complete(settings),
         'sigtap_summary': sigtap_summary,
+        'available_professionals': list_professionals_for_readiness(readiness),
     }
 
 
-# ─────────────────────────────────────────
-# Compatibilidade legada (não removidos para não quebrar imports)
-# ─────────────────────────────────────────
-
 def list_esus_batches(limit=20):
-    """Legado: lista lotes antigos (não mais gerados)."""
+    """Compatibilidade de leitura do histórico anterior ao pivô XML."""
     return query(
         """
         SELECT b.*, u.username, u.full_name
@@ -672,5 +817,5 @@ def list_esus_batches(limit=20):
         ORDER BY b.generated_at DESC
         LIMIT %s
         """,
-        (limit,)
+        (limit,),
     )

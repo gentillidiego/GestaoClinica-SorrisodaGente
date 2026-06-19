@@ -2,6 +2,10 @@
 .env
 .env.*
 !.env.example
+secrets/
+deploy/mail/dkim/*.private
+deploy/mail/dkim/*.txt
+.git/
 
 # Bancos de dados locais e backups
 *.db

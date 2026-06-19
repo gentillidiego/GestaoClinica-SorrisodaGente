@@ -1,19 +1,139 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash
+import io
+import json
+import mimetypes
+import os
+import re
+
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask_login import login_required, current_user
 from database import execute, query
 from werkzeug.security import check_password_hash
-import json
-import re
+from werkzeug.utils import secure_filename
 from constants import can_sign_clinical_document
 from services.security_service import audit_log, permission_required
-from services.sensitive_file_service import sensitive_file_response
 from services.visual_media_service import build_exam_image_metadata
-from services.google_drive_service import get_drive_service, ensure_patient_drive_folder, upload_file_in_memory, download_file_in_memory
-import io
-from flask import Response
-import mimetypes
+from services.clinical_lab_exam_service import (
+    CLINICAL_LAB_EXAM_TYPES,
+    CLINICAL_LAB_MAX_FILES,
+    CLINICAL_LAB_MAX_FILE_SIZE,
+    build_clinical_lab_caption,
+    get_clinical_lab_exam_label,
+    is_clinical_lab_image,
+    prepare_clinical_lab_uploads,
+)
+from services.google_drive_service import get_drive_service
+from services.exam_file_sync_service import (
+    enqueue_exam_file_sync,
+    get_exam_file_sync_status,
+    remove_staged_file,
+    stage_uploaded_file,
+)
+from services.protected_file_delivery_service import (
+    ensure_cached_drive_file,
+    get_or_create_image_derivative,
+    protected_local_file_response,
+)
 
 exams_bp = Blueprint('exams', __name__, url_prefix='/exams')
+
+IMAGE_EXAM_TYPE_RULES = {
+    'Periapical': {'scope': 'Elemento', 'category': 'radiografia'},
+    'Bite-wing': {'scope': 'Quadrante', 'category': 'radiografia'},
+    'Oclusal': {'scope': 'Arcada', 'category': 'radiografia'},
+    'Panorâmica': {'scope': 'Complexo Maxilomandibular', 'category': 'radiografia'},
+    'Telerradiografia': {'scope': 'Complexo Maxilomandibular', 'category': 'radiografia'},
+    'Tomografia': {'scope': 'Complexo Maxilomandibular', 'category': 'cbct'},
+    'Ultrassonografia': {'scope': 'Outro', 'category': 'documento_complementar'},
+    'Ressonância': {'scope': 'Outro', 'category': 'documento_complementar'},
+    'Fotografia Clínica': {'scope': 'Outro', 'category': 'intraoral'},
+    'Outro': {'scope': 'Outro', 'category': 'documento_complementar'},
+}
+IMAGE_UPLOAD_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}
+IMAGE_UPLOAD_MAX_FILES = 12
+IMAGE_UPLOAD_MAX_FILE_SIZE = 25 * 1024 * 1024
+
+
+def infer_image_exam_scope(tipo_imagem):
+    """Escolhe um escopo clínico seguro sem obrigar o usuário a preencher outro campo."""
+    return IMAGE_EXAM_TYPE_RULES.get(tipo_imagem, IMAGE_EXAM_TYPE_RULES['Outro'])['scope']
+
+
+def infer_image_visual_category(tipo_imagem):
+    return IMAGE_EXAM_TYPE_RULES.get(tipo_imagem, IMAGE_EXAM_TYPE_RULES['Outro'])['category']
+
+
+def build_image_upload_caption(tipo_imagem, filename, supplied_caption=None):
+    caption = str(supplied_caption or '').strip()
+    return caption or f'{tipo_imagem or "Exame de imagem"} — {filename}'
+
+
+def image_count_label(total, *, saved=False):
+    noun = 'imagem' if total == 1 else 'imagens'
+    if not saved:
+        return f'{total} {noun}'
+    adjective = 'salva' if total == 1 else 'salvas'
+    return f'{total} {noun} {adjective}'
+
+
+def _wants_json_response():
+    return (
+        request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        or request.accept_mimetypes.best == 'application/json'
+    )
+
+
+def _uploaded_file_size(file):
+    declared_size = getattr(file, 'content_length', None)
+    if declared_size:
+        return declared_size
+    try:
+        position = file.stream.tell()
+        file.stream.seek(0, os.SEEK_END)
+        size = file.stream.tell()
+        file.stream.seek(position)
+        return size
+    except (AttributeError, OSError):
+        return None
+
+
+def prepare_image_uploads(files):
+    """Valida o lote inteiro antes de iniciar qualquer gravação no Drive."""
+    valid_files = [file for file in files if file and file.filename]
+    if not valid_files:
+        raise ValueError('Selecione pelo menos uma imagem.')
+    if len(valid_files) > IMAGE_UPLOAD_MAX_FILES:
+        raise ValueError(f'Envie no máximo {IMAGE_UPLOAD_MAX_FILES} imagens por vez.')
+
+    prepared_files = []
+    for index, file in enumerate(valid_files, start=1):
+        safe_name = secure_filename(file.filename)
+        ext = os.path.splitext(safe_name)[1].lower()
+        if ext not in IMAGE_UPLOAD_EXTENSIONS:
+            raise ValueError(
+                f'O arquivo “{file.filename}” não é compatível. Use JPG, PNG ou WEBP.'
+            )
+
+        mime_type = (file.mimetype or '').lower()
+        if mime_type and mime_type != 'application/octet-stream' and not mime_type.startswith('image/'):
+            raise ValueError(f'O arquivo “{file.filename}” não foi reconhecido como imagem.')
+
+        size = _uploaded_file_size(file)
+        if size is not None and size > IMAGE_UPLOAD_MAX_FILE_SIZE:
+            raise ValueError(f'O arquivo “{file.filename}” ultrapassa o limite de 25 MB.')
+
+        if not safe_name:
+            safe_name = f'imagem-{index}{ext}'
+        prepared_files.append((file, safe_name, ext, file.filename))
+    return prepared_files
 
 @exams_bp.route('/list/<int:anamnesis_id>')
 @login_required
@@ -285,13 +405,17 @@ def imagem(anamnesis_id, exam_id=None):
         imagens = query("SELECT * FROM exam_imagem_arquivos WHERE exam_id = %s ORDER BY data_upload ASC", (exam_id,))
 
     if request.method == 'POST':
-        tipo_imagem = request.form.get('tipo_imagem')
-        escopo = request.form.get('escopo')
-        detalhe_escopo = request.form.get('detalhe_escopo', '')
-        observacoes = request.form.get('observacoes', '')
+        wants_json = _wants_json_response()
+        tipo_imagem = (request.form.get('tipo_imagem') or '').strip()
+        escopo = (request.form.get('escopo') or '').strip() or infer_image_exam_scope(tipo_imagem)
+        detalhe_escopo = (request.form.get('detalhe_escopo') or '').strip()
+        observacoes = (request.form.get('observacoes') or '').strip()
 
-        if not tipo_imagem or not escopo:
-            flash('Tipo de Imagem e Escopo são obrigatórios.', 'warning')
+        if tipo_imagem not in IMAGE_EXAM_TYPE_RULES:
+            message = 'Selecione um tipo de exame de imagem válido.'
+            if wants_json:
+                return jsonify({'success': False, 'error': message}), 400
+            flash(message, 'warning')
             return redirect(request.url)
 
         resumo_clinico = f"{tipo_imagem} - {escopo}"
@@ -302,28 +426,48 @@ def imagem(anamnesis_id, exam_id=None):
             execute("UPDATE exam_imagem SET tipo_imagem=%s, escopo=%s, detalhe_escopo=%s, observacoes=%s WHERE exam_id=%s",
                     (tipo_imagem, escopo, detalhe_escopo, observacoes, exam_id))
             execute("UPDATE exams SET resumo_clinico=%s WHERE id=%s", (resumo_clinico, exam_id))
-            flash('Exame de Imagem atualizado com sucesso!', 'success')
+            if not wants_json:
+                flash('Exame de Imagem atualizado com sucesso!', 'success')
         else:
             new_exam_id = execute("INSERT INTO exams (anamnesis_id, patient_id, tipo, resumo_clinico) VALUES (%s, %s, %s, %s) RETURNING id",
                                   (anamnesis_id, anamnesis['patient_id'], 'imagem', resumo_clinico))
             execute("INSERT INTO exam_imagem (exam_id, tipo_imagem, escopo, detalhe_escopo, observacoes) VALUES (%s, %s, %s, %s, %s)",
                     (new_exam_id, tipo_imagem, escopo, detalhe_escopo, observacoes))
-            flash('Exame de Imagem criado com sucesso!', 'success')
+            if not wants_json:
+                flash('Exame de Imagem criado com sucesso!', 'success')
             exam_id = new_exam_id
+
+        if wants_json:
+            return jsonify({
+                'success': True,
+                'exam_id': exam_id,
+                'upload_url': url_for('exams.upload_imagem', exam_id=exam_id),
+                'view_url': url_for(
+                    'exams.imagem',
+                    anamnesis_id=anamnesis_id,
+                    exam_id=exam_id,
+                ),
+                'message': 'Dados do exame salvos.',
+            })
         
         # Redireciona para a própria página para possibilitar o upload de imediato
         return redirect(url_for('exams.imagem', anamnesis_id=anamnesis_id, exam_id=exam_id))
 
     return render_template('exams/imagem.html', anamnesis=dict(anamnesis), exam_data=exam_data, imagens=imagens)
 
-import os
-import uuid
-from werkzeug.utils import secure_filename
-from flask import jsonify
-
 @exams_bp.route('/imagem/<int:exam_id>/upload', methods=['POST'])
 @login_required
 def upload_imagem(exam_id):
+    max_batch_size = (IMAGE_UPLOAD_MAX_FILES * IMAGE_UPLOAD_MAX_FILE_SIZE) + (2 * 1024 * 1024)
+    if request.content_length and request.content_length > max_batch_size:
+        return jsonify({
+            'success': False,
+            'error': (
+                f'O lote ultrapassa o limite permitido. Envie no máximo '
+                f'{IMAGE_UPLOAD_MAX_FILES} imagens de até 25 MB cada.'
+            ),
+        }), 413
+
     if 'images' not in request.files:
         return jsonify({'error': 'Nenhum arquivo enviado.'}), 400
     
@@ -333,8 +477,9 @@ def upload_imagem(exam_id):
 
     exam = query(
         """
-        SELECT e.id, e.patient_id
+        SELECT e.id, e.patient_id, ei.tipo_imagem
         FROM exams e
+        JOIN exam_imagem ei ON ei.exam_id = e.id
         JOIN patients p ON p.id = e.patient_id
         WHERE e.id = %s
         """,
@@ -345,35 +490,32 @@ def upload_imagem(exam_id):
         return jsonify({'error': 'Exame não encontrado.'}), 404
 
     metadata = build_exam_image_metadata(request.form)
-    if not metadata['caption']:
-        return jsonify({'error': 'A legenda da imagem é obrigatória.'}), 400
+    if not request.form.get('visual_category'):
+        metadata['visual_category'] = infer_image_visual_category(exam['tipo_imagem'])
 
-    allowed_extensions = {'.jpg', '.jpeg', '.png', '.webp'}
-    prepared_files = []
-    for file in files:
-        original_filename = secure_filename(file.filename)
-        ext = os.path.splitext(original_filename)[1].lower()
-        if ext not in allowed_extensions:
-            return jsonify({'error': 'Formato inválido. Use JPG, PNG ou WEBP.'}), 400
-        prepared_files.append((file, original_filename, ext))
+    try:
+        prepared_files = prepare_image_uploads(files)
+    except ValueError as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 400
 
-    service = get_drive_service()
-    folder_info = ensure_patient_drive_folder(exam['patient_id'], service)
-    folder_id = folder_info['id']
-    
     saved_files = []
+    failed_files = []
     
-    for file, original_filename, ext in prepared_files:
-        if file:
-            # Upload para o GDrive em memória
-            drive_file = upload_file_in_memory(
-                service=service,
-                file_stream=file.stream,
-                filename=original_filename,
-                mime_type=file.mimetype,
-                parent_id=folder_id
+    for file, original_filename, _ext, client_filename in prepared_files:
+        staged_path = None
+        try:
+            staged_path = stage_uploaded_file(
+                file,
+                'exam_image',
+                exam['patient_id'],
+                exam_id,
+                original_filename,
             )
-            gdrive_file_id = f"gdrive://{drive_file['id']}"
+            caption = build_image_upload_caption(
+                exam['tipo_imagem'],
+                original_filename,
+                metadata['caption'],
+            )
             
             # Save to database
             arquivo_id = execute(
@@ -381,57 +523,168 @@ def upload_imagem(exam_id):
                 INSERT INTO exam_imagem_arquivos (
                     exam_id, patient_id, filename, file_path, visual_category,
                     caption, clinical_context, comparison_label, comparison_group,
-                    taken_at, uploaded_by
+                    taken_at, uploaded_by, staging_path, storage_status,
+                    storage_updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NULLIF(%s, '')::timestamp, %s)
+                VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    NULLIF(%s, '')::timestamp, %s, %s, 'pending', NOW()
+                )
                 RETURNING id
                 """,
                 (
                     exam_id,
                     exam['patient_id'],
                     original_filename,
-                    gdrive_file_id,
+                    staged_path,
                     metadata['visual_category'],
-                    metadata['caption'],
+                    caption,
                     metadata['clinical_context'],
                     metadata['comparison_label'],
                     metadata['comparison_group'],
                     metadata['taken_at'] or '',
                     current_user.id,
+                    staged_path,
                 )
             )
+            try:
+                enqueue_exam_file_sync('exam_image', arquivo_id)
+            except Exception as exc:
+                current_app.logger.exception(
+                    'Imagem %s salva localmente, mas ainda não reenfileirada',
+                    arquivo_id,
+                )
+                try:
+                    execute(
+                        """
+                        UPDATE exam_imagem_arquivos
+                        SET storage_error = %s,
+                            storage_updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (f'Aguardando reconciliação automática: {str(exc)[-500:]}', arquivo_id),
+                    )
+                except Exception:
+                    current_app.logger.exception(
+                        'Falha ao registrar espera de sincronização da imagem %s',
+                        arquivo_id,
+                    )
             saved_files.append({
                 'id': arquivo_id,
                 'filename': original_filename,
+                'client_filename': client_filename,
                 'url': url_for('exams.serve_imagem', arquivo_id=arquivo_id),
-                'caption': metadata['caption'],
+                'thumbnail_url': url_for(
+                    'exams.serve_imagem_thumbnail',
+                    arquivo_id=arquivo_id,
+                ),
+                'preview_url': url_for(
+                    'exams.serve_imagem_preview',
+                    arquivo_id=arquivo_id,
+                ),
+                'caption': caption,
                 'visual_category': metadata['visual_category'],
                 'comparison_label': metadata['comparison_label'],
+                'storage_status': 'pending',
+                'storage_label': 'Salva no prontuário · sincronizando com o Drive',
+                'status_url': url_for(
+                    'exams.status_imagem_arquivo',
+                    arquivo_id=arquivo_id,
+                ),
+            })
+        except Exception:
+            current_app.logger.exception(
+                'Falha no upload do arquivo %s para o exame %s',
+                original_filename,
+                exam_id,
+            )
+            if staged_path:
+                remove_staged_file(staged_path)
+            failed_files.append({
+                'filename': original_filename,
+                'client_filename': client_filename,
+                'error': 'Não foi possível salvar esta imagem.',
             })
 
-    audit_log(
-        action='visual_media_uploaded',
-        module='visual_media',
-        entity_type='exam_imagem_arquivos',
-        entity_id=exam_id,
-        patient_id=exam['patient_id'],
-        details={
-            'source': 'exam_image',
-            'exam_id': exam_id,
-            'files': [file_data['id'] for file_data in saved_files],
-            'visual_category': metadata['visual_category'],
-            'comparison_label': metadata['comparison_label'],
-            'comparison_group': metadata['comparison_group'],
-        },
-    )
-            
-    return jsonify({'success': True, 'files': saved_files})
+    if saved_files:
+        try:
+            audit_log(
+                action='visual_media_staged',
+                module='visual_media',
+                entity_type='exam_imagem_arquivos',
+                entity_id=exam_id,
+                patient_id=exam['patient_id'],
+                details={
+                    'source': 'exam_image',
+                    'exam_id': exam_id,
+                    'files': [file_data['id'] for file_data in saved_files],
+                    'failed_files': [file_data['filename'] for file_data in failed_files],
+                    'visual_category': metadata['visual_category'],
+                    'comparison_label': metadata['comparison_label'],
+                    'comparison_group': metadata['comparison_group'],
+                    'storage_status': 'pending',
+                },
+            )
+        except Exception:
+            current_app.logger.exception(
+                'Falha ao registrar auditoria do staging do exame de imagem %s',
+                exam_id,
+            )
 
-@exams_bp.route('/imagem/arquivo/<int:arquivo_id>')
+    if failed_files:
+        status_code = 207 if saved_files else 502
+        return jsonify({
+            'success': False,
+            'partial': bool(saved_files),
+            'files': saved_files,
+            'failed_files': failed_files,
+            'error': (
+                f'{image_count_label(len(saved_files), saved=True)}; '
+                f'{image_count_label(len(failed_files))} '
+                f'{"não concluída" if len(failed_files) == 1 else "não concluídas"}.'
+                if saved_files
+                else 'Não foi possível salvar as imagens. Tente novamente.'
+            ),
+        }), status_code
+
+    return jsonify({
+        'success': True,
+        'files': saved_files,
+        'total': len(saved_files),
+        'message': (
+            f'{image_count_label(len(saved_files), saved=True)} no prontuário. '
+            'A cópia para o Google Drive continuará em segundo plano.'
+        ),
+    })
+
+
+@exams_bp.route('/imagem/arquivo/<int:arquivo_id>/status')
 @login_required
 @permission_required('patients:view')
-def serve_imagem(arquivo_id):
-    arquivo = query(
+def status_imagem_arquivo(arquivo_id):
+    status = get_exam_file_sync_status('exam_image', arquivo_id)
+    if not status:
+        return jsonify({'success': False, 'error': 'Arquivo não encontrado.'}), 404
+    return jsonify({'success': True, **status})
+
+
+def _resolve_exam_file_original(arquivo):
+    for candidate in (
+        arquivo.get('staging_path'),
+        arquivo.get('file_path'),
+    ):
+        if candidate and not str(candidate).startswith('gdrive://') and os.path.isfile(candidate):
+            return candidate
+
+    file_path = str(arquivo.get('file_path') or '')
+    if file_path.startswith('gdrive://'):
+        drive_id = file_path.replace('gdrive://', '', 1)
+        return ensure_cached_drive_file(get_drive_service(), drive_id)
+    return None
+
+
+def _get_image_exam_file(arquivo_id):
+    return query(
         """
         SELECT a.*, e.patient_id
         FROM exam_imagem_arquivos a
@@ -443,6 +696,65 @@ def serve_imagem(arquivo_id):
         (arquivo_id,),
         one=True,
     )
+
+
+@exams_bp.route('/imagem/arquivo/<int:arquivo_id>/thumbnail')
+@login_required
+@permission_required('patients:view')
+def serve_imagem_thumbnail(arquivo_id):
+    arquivo = _get_image_exam_file(arquivo_id)
+    if not arquivo:
+        return 'Arquivo não encontrado', 404
+    try:
+        original_path = _resolve_exam_file_original(arquivo)
+        derivative = get_or_create_image_derivative(
+            'exam_image',
+            arquivo_id,
+            'thumbnail',
+            original_path,
+        )
+        return protected_local_file_response(
+            derivative,
+            mimetype='image/webp',
+            download_name=f'thumbnail-{arquivo["filename"]}.webp',
+            max_age=7 * 86400,
+        )
+    except Exception:
+        current_app.logger.exception('Falha ao gerar miniatura da imagem %s', arquivo_id)
+        return 'Miniatura indisponível', 502
+
+
+@exams_bp.route('/imagem/arquivo/<int:arquivo_id>/preview')
+@login_required
+@permission_required('patients:view')
+def serve_imagem_preview(arquivo_id):
+    arquivo = _get_image_exam_file(arquivo_id)
+    if not arquivo:
+        return 'Arquivo não encontrado', 404
+    try:
+        original_path = _resolve_exam_file_original(arquivo)
+        derivative = get_or_create_image_derivative(
+            'exam_image',
+            arquivo_id,
+            'preview',
+            original_path,
+        )
+        return protected_local_file_response(
+            derivative,
+            mimetype='image/webp',
+            download_name=f'preview-{arquivo["filename"]}.webp',
+            max_age=7 * 86400,
+        )
+    except Exception:
+        current_app.logger.exception('Falha ao gerar prévia da imagem %s', arquivo_id)
+        return 'Prévia indisponível', 502
+
+
+@exams_bp.route('/imagem/arquivo/<int:arquivo_id>')
+@login_required
+@permission_required('patients:view')
+def serve_imagem(arquivo_id):
+    arquivo = _get_image_exam_file(arquivo_id)
     if not arquivo:
         return "Arquivo não encontrado", 404
 
@@ -455,19 +767,520 @@ def serve_imagem(arquivo_id):
         details={'filename': arquivo.get('filename'), 'caption': arquivo.get('caption')},
     )
 
-    if str(arquivo['file_path']).startswith('gdrive://'):
-        gdrive_id = str(arquivo['file_path']).replace('gdrive://', '')
-        service = get_drive_service()
+    try:
+        original_path = _resolve_exam_file_original(arquivo)
+        if not original_path:
+            return 'Arquivo não encontrado', 404
+        mime_type, _ = mimetypes.guess_type(arquivo['filename'])
+        return protected_local_file_response(
+            original_path,
+            mimetype=mime_type or 'application/octet-stream',
+            download_name=arquivo['filename'],
+            max_age=86400,
+        )
+    except Exception:
+        current_app.logger.exception('Falha ao abrir imagem original %s', arquivo_id)
+        return 'Não foi possível abrir o arquivo.', 502
+
+
+def _clinical_lab_file_count_label(total, *, saved=False):
+    noun = 'arquivo' if total == 1 else 'arquivos'
+    if not saved:
+        return f'{total} {noun}'
+    adjective = 'salvo' if total == 1 else 'salvos'
+    return f'{total} {noun} {adjective}'
+
+
+@exams_bp.route('/clinico-laboratorial/<int:anamnesis_id>', methods=['GET', 'POST'])
+@exams_bp.route(
+    '/clinico-laboratorial/<int:anamnesis_id>/<int:exam_id>',
+    methods=['GET', 'POST'],
+)
+@login_required
+def clinico_laboratorial(anamnesis_id, exam_id=None):
+    anamnesis = query(
+        """
+        SELECT a.*, p.nome AS patient_name
+        FROM anamnesis a
+        JOIN patients p ON p.id = a.patient_id
+        WHERE a.id = %s
+        """,
+        (anamnesis_id,),
+        one=True,
+    )
+    if not anamnesis:
+        flash('Anamnese não encontrada.', 'danger')
+        return redirect(url_for('anamnesis.search'))
+
+    exam_data = None
+    arquivos = []
+    if exam_id:
+        exam_data = query(
+            """
+            SELECT cl.*
+            FROM exam_clinico_laboratorial cl
+            JOIN exams e ON e.id = cl.exam_id
+            WHERE cl.exam_id = %s
+              AND e.anamnesis_id = %s
+            """,
+            (exam_id, anamnesis_id),
+            one=True,
+        )
+        if not exam_data:
+            flash('Exame clínico/laboratorial não encontrado.', 'danger')
+            return redirect(url_for('patients.view_patient', id=anamnesis['patient_id']))
+        arquivo_rows = query(
+            """
+            SELECT *
+            FROM exam_clinico_laboratorial_arquivos
+            WHERE exam_id = %s
+              AND COALESCE(active, TRUE) = TRUE
+            ORDER BY data_upload ASC, id ASC
+            """,
+            (exam_id,),
+        )
+        arquivos = []
+        for row in arquivo_rows:
+            item = dict(row)
+            item['is_image'] = is_clinical_lab_image(
+                item.get('filename'),
+                item.get('mime_type'),
+            )
+            arquivos.append(item)
+
+    if request.method == 'POST':
+        wants_json = _wants_json_response()
+        categoria = (request.form.get('categoria') or '').strip()
+        laboratorio = (request.form.get('laboratorio') or '').strip()
+        data_coleta = (request.form.get('data_coleta') or '').strip()
+        observacoes = (request.form.get('observacoes') or '').strip()
+
+        if categoria not in CLINICAL_LAB_EXAM_TYPES:
+            message = 'Selecione um tipo de exame clínico/laboratorial válido.'
+            if wants_json:
+                return jsonify({'success': False, 'error': message}), 400
+            flash(message, 'warning')
+            return redirect(request.url)
+
+        resumo_clinico = get_clinical_lab_exam_label(categoria)
+        if laboratorio:
+            resumo_clinico += f' — {laboratorio}'
+
+        if exam_id:
+            execute(
+                """
+                UPDATE exam_clinico_laboratorial
+                SET categoria = %s,
+                    laboratorio = %s,
+                    data_coleta = NULLIF(%s, '')::date,
+                    observacoes = %s
+                WHERE exam_id = %s
+                """,
+                (categoria, laboratorio, data_coleta, observacoes, exam_id),
+            )
+            execute(
+                "UPDATE exams SET resumo_clinico = %s WHERE id = %s",
+                (resumo_clinico, exam_id),
+            )
+            if not wants_json:
+                flash('Exame clínico/laboratorial atualizado com sucesso!', 'success')
+        else:
+            exam_id = execute(
+                """
+                INSERT INTO exams (anamnesis_id, patient_id, tipo, resumo_clinico)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    anamnesis_id,
+                    anamnesis['patient_id'],
+                    'clinico_laboratorial',
+                    resumo_clinico,
+                ),
+            )
+            execute(
+                """
+                INSERT INTO exam_clinico_laboratorial (
+                    exam_id, categoria, laboratorio, data_coleta, observacoes
+                )
+                VALUES (%s, %s, %s, NULLIF(%s, '')::date, %s)
+                """,
+                (exam_id, categoria, laboratorio, data_coleta, observacoes),
+            )
+            if not wants_json:
+                flash('Exame clínico/laboratorial criado com sucesso!', 'success')
+
+        if wants_json:
+            return jsonify({
+                'success': True,
+                'exam_id': exam_id,
+                'upload_url': url_for(
+                    'exams.upload_clinico_laboratorial',
+                    exam_id=exam_id,
+                ),
+                'view_url': url_for(
+                    'exams.clinico_laboratorial',
+                    anamnesis_id=anamnesis_id,
+                    exam_id=exam_id,
+                ),
+                'message': 'Dados do exame salvos.',
+            })
+
+        return redirect(
+            url_for(
+                'exams.clinico_laboratorial',
+                anamnesis_id=anamnesis_id,
+                exam_id=exam_id,
+            )
+        )
+
+    return render_template(
+        'exams/clinico_laboratorial.html',
+        anamnesis=dict(anamnesis),
+        exam_data=exam_data,
+        arquivos=arquivos,
+        exam_types=CLINICAL_LAB_EXAM_TYPES,
+    )
+
+
+@exams_bp.route('/clinico-laboratorial/<int:exam_id>/upload', methods=['POST'])
+@login_required
+def upload_clinico_laboratorial(exam_id):
+    max_batch_size = (
+        CLINICAL_LAB_MAX_FILES * CLINICAL_LAB_MAX_FILE_SIZE
+    ) + (2 * 1024 * 1024)
+    if request.content_length and request.content_length > max_batch_size:
+        return jsonify({
+            'success': False,
+            'error': (
+                f'O lote ultrapassa o limite permitido. Envie no máximo '
+                f'{CLINICAL_LAB_MAX_FILES} arquivos de até 25 MB cada.'
+            ),
+        }), 413
+
+    if 'files' not in request.files:
+        return jsonify({'success': False, 'error': 'Nenhum arquivo enviado.'}), 400
+    files = request.files.getlist('files')
+
+    exam = query(
+        """
+        SELECT e.id, e.patient_id, cl.categoria
+        FROM exams e
+        JOIN exam_clinico_laboratorial cl ON cl.exam_id = e.id
+        JOIN patients p ON p.id = e.patient_id
+        WHERE e.id = %s
+        """,
+        (exam_id,),
+        one=True,
+    )
+    if not exam:
+        return jsonify({'success': False, 'error': 'Exame não encontrado.'}), 404
+
+    try:
+        prepared_files = prepare_clinical_lab_uploads(files)
+    except ValueError as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 400
+
+    supplied_caption = (request.form.get('caption') or '').strip()
+    saved_files = []
+    failed_files = []
+
+    for file, filename, _extension, client_filename in prepared_files:
+        staged_path = None
         try:
-            file_bytes = download_file_in_memory(service, gdrive_id)
-            mime_type, _ = mimetypes.guess_type(arquivo['filename'])
-            return Response(file_bytes, mimetype=mime_type or 'application/octet-stream')
-        except Exception as e:
-            return f"Erro ao baixar arquivo do Drive: {str(e)}", 500
-    else:
-        if not os.path.exists(arquivo['file_path']):
-            return "Arquivo local não encontrado", 404
-        return sensitive_file_response(arquivo['file_path'])
+            guessed_mime_type = mimetypes.guess_type(filename)[0]
+            mime_type = file.mimetype
+            if not mime_type or mime_type == 'application/octet-stream':
+                mime_type = guessed_mime_type or 'application/octet-stream'
+            staged_path = stage_uploaded_file(
+                file,
+                'clinical_lab',
+                exam['patient_id'],
+                exam_id,
+                filename,
+            )
+            caption = build_clinical_lab_caption(
+                exam['categoria'],
+                filename,
+                supplied_caption,
+            )
+            arquivo_id = execute(
+                """
+                INSERT INTO exam_clinico_laboratorial_arquivos (
+                    exam_id, patient_id, filename, file_path, mime_type,
+                    caption, uploaded_by, staging_path, storage_status,
+                    storage_updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending', NOW())
+                RETURNING id
+                """,
+                (
+                    exam_id,
+                    exam['patient_id'],
+                    filename,
+                    staged_path,
+                    mime_type,
+                    caption,
+                    current_user.id,
+                    staged_path,
+                ),
+            )
+            try:
+                enqueue_exam_file_sync('clinical_lab', arquivo_id)
+            except Exception as exc:
+                current_app.logger.exception(
+                    'Laudo %s salvo localmente, mas ainda não reenfileirado',
+                    arquivo_id,
+                )
+                try:
+                    execute(
+                        """
+                        UPDATE exam_clinico_laboratorial_arquivos
+                        SET storage_error = %s,
+                            storage_updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (f'Aguardando reconciliação automática: {str(exc)[-500:]}', arquivo_id),
+                    )
+                except Exception:
+                    current_app.logger.exception(
+                        'Falha ao registrar espera de sincronização do laudo %s',
+                        arquivo_id,
+                    )
+            saved_files.append({
+                'id': arquivo_id,
+                'filename': filename,
+                'client_filename': client_filename,
+                'caption': caption,
+                'mime_type': mime_type,
+                'is_image': is_clinical_lab_image(filename, mime_type),
+                'url': url_for(
+                    'exams.serve_clinico_laboratorial_arquivo',
+                    arquivo_id=arquivo_id,
+                ),
+                'thumbnail_url': (
+                    url_for(
+                        'exams.serve_clinico_laboratorial_thumbnail',
+                        arquivo_id=arquivo_id,
+                    )
+                    if is_clinical_lab_image(filename, mime_type)
+                    else None
+                ),
+                'preview_url': (
+                    url_for(
+                        'exams.serve_clinico_laboratorial_preview',
+                        arquivo_id=arquivo_id,
+                    )
+                    if is_clinical_lab_image(filename, mime_type)
+                    else None
+                ),
+                'storage_status': 'pending',
+                'storage_label': 'Salvo no prontuário · sincronizando com o Drive',
+                'status_url': url_for(
+                    'exams.status_clinico_laboratorial_arquivo',
+                    arquivo_id=arquivo_id,
+                ),
+            })
+        except Exception:
+            current_app.logger.exception(
+                'Falha no upload do arquivo %s para o exame clínico/laboratorial %s',
+                filename,
+                exam_id,
+            )
+            if staged_path:
+                remove_staged_file(staged_path)
+            failed_files.append({
+                'filename': filename,
+                'client_filename': client_filename,
+                'error': 'Não foi possível salvar este arquivo.',
+            })
+
+    if saved_files:
+        try:
+            audit_log(
+                action='clinical_lab_files_uploaded',
+                module='clinical_lab_exam',
+                entity_type='exam_clinico_laboratorial_arquivos',
+                entity_id=exam_id,
+                patient_id=exam['patient_id'],
+                details={
+                    'exam_id': exam_id,
+                    'category': exam['categoria'],
+                    'files': [item['id'] for item in saved_files],
+                    'failed_files': [item['filename'] for item in failed_files],
+                    'storage_status': 'pending',
+                },
+            )
+        except Exception:
+            current_app.logger.exception(
+                'Falha ao registrar auditoria do exame clínico/laboratorial %s',
+                exam_id,
+            )
+
+    if failed_files:
+        status_code = 207 if saved_files else 502
+        failed_label = _clinical_lab_file_count_label(len(failed_files))
+        return jsonify({
+            'success': False,
+            'partial': bool(saved_files),
+            'files': saved_files,
+            'failed_files': failed_files,
+            'error': (
+                f'{_clinical_lab_file_count_label(len(saved_files), saved=True)}; '
+                f'{failed_label} '
+                f'{"não concluído" if len(failed_files) == 1 else "não concluídos"}.'
+                if saved_files
+                else 'Não foi possível salvar os arquivos. Tente novamente.'
+            ),
+        }), status_code
+
+    return jsonify({
+        'success': True,
+        'files': saved_files,
+        'total': len(saved_files),
+        'message': (
+            f'{_clinical_lab_file_count_label(len(saved_files), saved=True)} '
+            'no prontuário. A cópia para o Google Drive continuará em segundo plano.'
+        ),
+    })
+
+
+@exams_bp.route('/clinico-laboratorial/arquivo/<int:arquivo_id>/status')
+@login_required
+@permission_required('patients:view')
+def status_clinico_laboratorial_arquivo(arquivo_id):
+    status = get_exam_file_sync_status('clinical_lab', arquivo_id)
+    if not status:
+        return jsonify({'success': False, 'error': 'Arquivo não encontrado.'}), 404
+    return jsonify({'success': True, **status})
+
+
+def _get_clinical_lab_file(arquivo_id):
+    return query(
+        """
+        SELECT a.*, e.patient_id
+        FROM exam_clinico_laboratorial_arquivos a
+        JOIN exams e ON e.id = a.exam_id
+        WHERE a.id = %s
+          AND COALESCE(a.active, TRUE) = TRUE
+        """,
+        (arquivo_id,),
+        one=True,
+    )
+
+
+@exams_bp.route(
+    '/clinico-laboratorial/arquivo/<int:arquivo_id>/thumbnail'
+)
+@login_required
+@permission_required('patients:view')
+def serve_clinico_laboratorial_thumbnail(arquivo_id):
+    arquivo = _get_clinical_lab_file(arquivo_id)
+    if not arquivo or not is_clinical_lab_image(
+        arquivo.get('filename'),
+        arquivo.get('mime_type'),
+    ):
+        return 'Imagem não encontrada', 404
+    try:
+        original_path = _resolve_exam_file_original(arquivo)
+        derivative = get_or_create_image_derivative(
+            'clinical_lab',
+            arquivo_id,
+            'thumbnail',
+            original_path,
+        )
+        return protected_local_file_response(
+            derivative,
+            mimetype='image/webp',
+            download_name=f'thumbnail-{arquivo["filename"]}.webp',
+            max_age=7 * 86400,
+        )
+    except Exception:
+        current_app.logger.exception(
+            'Falha ao gerar miniatura do laudo %s',
+            arquivo_id,
+        )
+        return 'Miniatura indisponível', 502
+
+
+@exams_bp.route(
+    '/clinico-laboratorial/arquivo/<int:arquivo_id>/preview'
+)
+@login_required
+@permission_required('patients:view')
+def serve_clinico_laboratorial_preview(arquivo_id):
+    arquivo = _get_clinical_lab_file(arquivo_id)
+    if not arquivo or not is_clinical_lab_image(
+        arquivo.get('filename'),
+        arquivo.get('mime_type'),
+    ):
+        return 'Imagem não encontrada', 404
+    try:
+        original_path = _resolve_exam_file_original(arquivo)
+        derivative = get_or_create_image_derivative(
+            'clinical_lab',
+            arquivo_id,
+            'preview',
+            original_path,
+        )
+        return protected_local_file_response(
+            derivative,
+            mimetype='image/webp',
+            download_name=f'preview-{arquivo["filename"]}.webp',
+            max_age=7 * 86400,
+        )
+    except Exception:
+        current_app.logger.exception(
+            'Falha ao gerar prévia do laudo %s',
+            arquivo_id,
+        )
+        return 'Prévia indisponível', 502
+
+
+@exams_bp.route('/clinico-laboratorial/arquivo/<int:arquivo_id>')
+@login_required
+@permission_required('patients:view')
+def serve_clinico_laboratorial_arquivo(arquivo_id):
+    arquivo = _get_clinical_lab_file(arquivo_id)
+    if not arquivo:
+        return 'Arquivo não encontrado', 404
+
+    audit_log(
+        action='clinical_lab_file_viewed',
+        module='clinical_lab_exam',
+        entity_type='exam_clinico_laboratorial_arquivos',
+        entity_id=arquivo_id,
+        patient_id=arquivo['patient_id'],
+        details={
+            'filename': arquivo.get('filename'),
+            'caption': arquivo.get('caption'),
+        },
+    )
+
+    mime_type = arquivo.get('mime_type')
+    if not mime_type or mime_type == 'application/octet-stream':
+        mime_type = (
+            mimetypes.guess_type(arquivo['filename'])[0]
+            or 'application/octet-stream'
+        )
+    try:
+        original_path = _resolve_exam_file_original(arquivo)
+        if not original_path:
+            return 'Arquivo não encontrado', 404
+        return protected_local_file_response(
+            original_path,
+            mimetype=mime_type,
+            as_attachment=False,
+            download_name=arquivo['filename'],
+            max_age=86400,
+        )
+    except Exception:
+        current_app.logger.exception(
+            'Falha ao abrir arquivo clínico/laboratorial %s',
+            arquivo_id,
+        )
+        return 'Não foi possível abrir o arquivo.', 502
+
 
 @exams_bp.route('/delete/<int:exam_id>', methods=['POST'])
 @login_required
@@ -506,6 +1319,11 @@ def delete_exam(exam_id):
         execute("DELETE FROM exam_periograma WHERE exam_id = %s", (exam_id,))
     elif exam['tipo'] == 'imagem':
         execute("DELETE FROM exam_imagem WHERE exam_id = %s", (exam_id,))
+    elif exam['tipo'] == 'clinico_laboratorial':
+        execute(
+            "DELETE FROM exam_clinico_laboratorial WHERE exam_id = %s",
+            (exam_id,),
+        )
 
     # Excluir da tabela principal
     execute("DELETE FROM exams WHERE id = %s", (exam_id,))

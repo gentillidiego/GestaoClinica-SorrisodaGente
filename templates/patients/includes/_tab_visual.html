@@ -108,14 +108,20 @@
                     {% for item in comparison.items %}
                         {% if item.source_type == 'exam_image' %}
                             {% set file_url = url_for('exams.serve_imagem', arquivo_id=item.source_id) %}
+                            {% set thumb_url = url_for('exams.serve_imagem_thumbnail', arquivo_id=item.source_id) %}
+                            {% set preview_url = url_for('exams.serve_imagem_preview', arquivo_id=item.source_id) %}
                         {% elif item.source_type == 'endodontia_image' %}
                             {% set file_url = url_for('endodontia.serve_image', image_id=item.source_id) %}
+                            {% set thumb_url = file_url %}
+                            {% set preview_url = file_url %}
                         {% else %}
                             {% set file_url = url_for('patients.serve_estomatologia_photo', id=patient.id, photo_id=item.source_id) %}
+                            {% set thumb_url = file_url %}
+                            {% set preview_url = file_url %}
                         {% endif %}
                         <div style="border:1px solid hsl(var(--border)); border-radius:var(--radius-sm); overflow:hidden; background:hsl(var(--bg-main));">
                             {% if item.is_previewable %}
-                            <img src="{{ file_url }}" alt="{{ item.caption }}" style="width:100%; aspect-ratio:4/3; object-fit:cover; display:block; cursor:zoom-in;" onclick="openVisualMediaModal('{{ file_url }}', {{ item.caption|tojson }})">
+                            <img src="{{ thumb_url }}" loading="lazy" alt="{{ item.caption }}" style="width:100%; aspect-ratio:4/3; object-fit:cover; display:block; cursor:zoom-in;" onclick="openVisualMediaModal('{{ preview_url }}', {{ item.caption|tojson }})">
                             {% else %}
                             <a href="{{ file_url }}" target="_blank" rel="noopener" style="width:100%; aspect-ratio:4/3; display:flex; align-items:center; justify-content:center; text-decoration:none; color:hsl(var(--primary)); background:#f8fafc; font-weight:900;">
                                 {{ item.file_extension_label }}
@@ -148,18 +154,24 @@
                 {% for item in group.items %}
                     {% if item.source_type == 'exam_image' %}
                         {% set file_url = url_for('exams.serve_imagem', arquivo_id=item.source_id) %}
+                        {% set thumb_url = url_for('exams.serve_imagem_thumbnail', arquivo_id=item.source_id) %}
+                        {% set preview_url = url_for('exams.serve_imagem_preview', arquivo_id=item.source_id) %}
                         {% set metadata_url = url_for('patients.update_exam_visual_metadata', id=patient.id, arquivo_id=item.source_id) %}
                     {% elif item.source_type == 'endodontia_image' %}
                         {% set file_url = url_for('endodontia.serve_image', image_id=item.source_id) %}
+                        {% set thumb_url = file_url %}
+                        {% set preview_url = file_url %}
                         {% set metadata_url = url_for('patients.update_endodontia_visual_metadata', id=patient.id, image_id=item.source_id) %}
                     {% else %}
                         {% set file_url = url_for('patients.serve_estomatologia_photo', id=patient.id, photo_id=item.source_id) %}
+                        {% set thumb_url = file_url %}
+                        {% set preview_url = file_url %}
                         {% set metadata_url = url_for('patients.update_estomatologia_visual_metadata', id=patient.id, photo_id=item.source_id) %}
                     {% endif %}
 
                     <div class="visual-item">
                         {% if item.is_previewable %}
-                        <img src="{{ file_url }}" alt="{{ item.caption }}" class="visual-thumb" onclick="openVisualMediaModal('{{ file_url }}', {{ item.caption|tojson }})">
+                        <img src="{{ thumb_url }}" loading="lazy" alt="{{ item.caption }}" class="visual-thumb" onclick="openVisualMediaModal('{{ preview_url }}', {{ item.caption|tojson }})">
                         {% else %}
                         <a href="{{ file_url }}" target="_blank" rel="noopener" class="visual-thumb" style="display:flex; align-items:center; justify-content:center; text-decoration:none; color:hsl(var(--primary)); font-weight:900;">
                             {{ item.file_extension_label }}

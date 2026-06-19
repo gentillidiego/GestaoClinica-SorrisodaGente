@@ -26,7 +26,8 @@
                 <div class="rank-row"><span>ID</span><strong>#{{ remessa.id }}</strong></div>
                 <div class="rank-row"><span>Período</span><strong>{{ remessa.periodo_inicio }} a {{ remessa.periodo_fim }}</strong></div>
                 <div class="rank-row"><span>Rótulo</span><strong>{{ remessa.periodo_label or '—' }}</strong></div>
-                <div class="rank-row"><span>Atendimentos exportados</span><strong style="color:#16a34a;">{{ remessa.records_ready }}</strong></div>
+                <div class="rank-row"><span>Profissional</span><strong>{{ remessa.professional_name or remessa.professional_name_current or '—' }}</strong></div>
+                <div class="rank-row"><span>Procedimentos exportados</span><strong style="color:#16a34a;">{{ remessa.records_ready }}</strong></div>
                 <div class="rank-row"><span>Pulados (sem dados)</span><strong style="color:#f59e0b;">{{ remessa.records_skipped }}</strong></div>
                 <div class="rank-row"><span>Status</span>
                     <strong style="color:{% if remessa.status == 'enviado_email' %}#16a34a{% elif remessa.status == 'erro' %}#ef4444{% else %}#2563eb{% endif %};">
@@ -44,6 +45,13 @@
                     <span>SHA-256</span>
                     <strong style="font-family:monospace; font-size:0.75rem; word-break:break-all;">{{ remessa.xml_hash }}</strong>
                 </div>
+                {% endif %}
+                <div class="rank-row"><span>Validação XSD</span><strong style="color:{% if remessa.xsd_valid %}#16a34a{% else %}#ef4444{% endif %};">{{ 'Válido' if remessa.xsd_valid else 'Inválido' }}</strong></div>
+                {% if remessa.uuid_dado_serializado %}
+                <div class="rank-row"><span>UUID do transporte</span><strong style="font-family:monospace; font-size:0.75rem; word-break:break-all;">{{ remessa.uuid_dado_serializado }}</strong></div>
+                {% endif %}
+                {% if remessa.num_lote %}
+                <div class="rank-row"><span>Número do lote</span><strong>{{ remessa.num_lote }}</strong></div>
                 {% endif %}
                 {% if remessa.erro_mensagem %}
                 <div style="margin-top:1rem; padding:0.75rem; background:#fee2e2; border-radius:8px; color:#991b1b; font-size:0.875rem;">

@@ -11,14 +11,16 @@
         </div>
     </div>
 
-    {# ── Alerta: CNES/INE pendentes ───────────────────────────────────── #}
+    {# ── Alerta: envelope LEDI pendente ────────────────────────────────── #}
     {% if not dashboard.settings_complete %}
     <div class="alert alert-warning" style="display:flex; align-items:center; gap:1rem; padding:1rem 1.5rem; margin-bottom:1.5rem; border-radius:12px; background:#fef3c7; border-left:5px solid #f59e0b;">
         <span style="font-size:1.4rem;">⚠️</span>
         <div>
-            <strong>CNES e/ou INE não configurados.</strong>
-            O envio automático de remessas está bloqueado até que você informe o CNES e o INE fornecidos pelo TI da Secretaria (Rômulo).
-            Preencha os campos abaixo assim que receber os dados.
+            <strong>Envelope LEDI incompleto.</strong>
+            O sistema não salva nem envia XML sem todos os identificadores obrigatórios e validação XSD.
+            {% if dashboard.homologation.settings_errors %}
+            Pendências: {{ dashboard.homologation.settings_errors|join('; ') }}.
+            {% endif %}
         </div>
     </div>
     {% endif %}
@@ -82,6 +84,68 @@
                                    {% if not can_write %}disabled{% endif %}>
                         </div>
                         <div>
+                            <label class="form-label" for="cod_ibge">Código IBGE do município <span style="color:#ef4444;">*</span></label>
+                            <input class="form-control" id="cod_ibge" name="cod_ibge"
+                                   value="{{ dashboard.settings.cod_ibge or '' }}" placeholder="2704302"
+                                   {% if not can_write %}disabled{% endif %}>
+                        </div>
+                        <div>
+                            <label class="form-label" for="contra_chave">Contra-chave da instalação <span style="color:#ef4444;">*</span></label>
+                            <input class="form-control" id="contra_chave" name="contra_chave"
+                                   value="{{ dashboard.settings.contra_chave or '' }}"
+                                   {% if not can_write %}disabled{% endif %}>
+                        </div>
+                        <div>
+                            <label class="form-label" for="uuid_instalacao">UUID da instalação</label>
+                            <input class="form-control" id="uuid_instalacao" name="uuid_instalacao"
+                                   value="{{ dashboard.settings.uuid_instalacao or '' }}"
+                                   {% if not can_write %}disabled{% endif %}>
+                        </div>
+                        <div>
+                            <label class="form-label" for="cpf_cnpj">CPF/CNPJ da instalação <span style="color:#ef4444;">*</span></label>
+                            <input class="form-control" id="cpf_cnpj" name="cpf_cnpj"
+                                   value="{{ dashboard.settings.cpf_cnpj or '' }}"
+                                   {% if not can_write %}disabled{% endif %}>
+                        </div>
+                        <div style="grid-column:1/-1;">
+                            <label class="form-label" for="nome_razao_social">Nome/Razão Social <span style="color:#ef4444;">*</span></label>
+                            <input class="form-control" id="nome_razao_social" name="nome_razao_social"
+                                   value="{{ dashboard.settings.nome_razao_social or '' }}"
+                                   {% if not can_write %}disabled{% endif %}>
+                        </div>
+                        <div>
+                            <label class="form-label" for="fone">Telefone institucional</label>
+                            <input class="form-control" id="fone" name="fone"
+                                   value="{{ dashboard.settings.fone or '' }}"
+                                   {% if not can_write %}disabled{% endif %}>
+                        </div>
+                        <div>
+                            <label class="form-label" for="email_institucional">E-mail institucional no envelope</label>
+                            <input class="form-control" type="email" id="email_institucional" name="email_institucional"
+                                   value="{{ dashboard.settings.email_institucional or '' }}"
+                                   {% if not can_write %}disabled{% endif %}>
+                        </div>
+                        <div>
+                            <label class="form-label" for="versao_sistema">Versão do sistema originador</label>
+                            <input class="form-control" id="versao_sistema" name="versao_sistema"
+                                   value="{{ dashboard.settings.versao_sistema or 'GestaoSaudeOral 2.8' }}"
+                                   {% if not can_write %}disabled{% endif %}>
+                        </div>
+                        <div>
+                            <label class="form-label" for="nome_banco_dados">Banco de dados</label>
+                            <input class="form-control" id="nome_banco_dados" name="nome_banco_dados"
+                                   value="{{ dashboard.settings.nome_banco_dados or 'PostgreSQL' }}"
+                                   {% if not can_write %}disabled{% endif %}>
+                        </div>
+                        <div style="grid-column:1/-1;">
+                            <label class="form-label">Versão LEDI do transporte</label>
+                            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:0.75rem;">
+                                <input class="form-control" type="number" min="0" name="versao_major" value="{{ dashboard.settings.versao_major or 7 }}" aria-label="Versão major" {% if not can_write %}disabled{% endif %}>
+                                <input class="form-control" type="number" min="0" name="versao_minor" value="{{ dashboard.settings.versao_minor or 2 }}" aria-label="Versão minor" {% if not can_write %}disabled{% endif %}>
+                                <input class="form-control" type="number" min="0" name="versao_revision" value="{{ dashboard.settings.versao_revision or 1 }}" aria-label="Versão revision" {% if not can_write %}disabled{% endif %}>
+                            </div>
+                        </div>
+                        <div>
                             <label class="form-label" for="ine">INE / Equipe <span style="color:#ef4444;">*</span></label>
                             <input class="form-control" id="ine" name="ine"
                                    value="{{ dashboard.settings.ine or '' }}"
@@ -120,6 +184,18 @@
                 <form method="POST" action="{{ url_for('admin.gerar_esus_remessa') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem; align-items:end;">
+                        <div style="grid-column:1/-1;">
+                            <label class="form-label" for="professional_id">Profissional</label>
+                            <select class="form-control" id="professional_id" name="professional_id" required>
+                                <option value="">Selecione</option>
+                                {% for professional in dashboard.available_professionals %}
+                                <option value="{{ professional.id }}" {% if professional.pending %}disabled{% endif %}>
+                                    {{ professional.name }} — {{ professional.ready }} pronto(s)
+                                    {% if professional.pending %} / {{ professional.pending }} pendente(s){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
                         <div>
                             <label class="form-label" for="data_inicio">Data Início</label>
                             <input type="date" class="form-control" id="data_inicio" name="data_inicio" required>
@@ -186,6 +262,7 @@
                         <a href="{{ url_for('admin.esus_remessa_detail', remessa_id=r.id) }}" style="color:hsl(var(--primary)); font-weight:800; text-decoration:none;">
                             #{{ r.id }} · {{ r.periodo_label or 'sem rótulo' }}
                         </a>
+                        · {{ r.professional_name or r.professional_name_current or 'profissional não identificado' }}
                         · <span style="font-size:0.8rem; color:{% if r.status == 'enviado_email' %}#16a34a{% elif r.status == 'erro' %}#ef4444{% else %}#2563eb{% endif %};">{{ r.status }}</span>
                     </span>
                     <strong>{{ r.records_ready }}</strong>
