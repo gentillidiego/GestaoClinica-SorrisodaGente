@@ -38,6 +38,7 @@
     let examId = app.dataset.examId || '';
     let uploadUrl = app.dataset.uploadUrl || '';
     let viewUrl = app.dataset.viewUrl || '';
+    const returnUrl = app.dataset.returnUrl || '';
     let selectedFiles = [];
     let isBusy = false;
     let currentLightboxIndex = 0;
@@ -104,6 +105,10 @@
         busyButtonLabel.hidden = !busy;
         dropzone.setAttribute('aria-disabled', busy ? 'true' : 'false');
         form.setAttribute('aria-busy', busy ? 'true' : 'false');
+    }
+
+    function returnToExamsTab() {
+        window.location.assign(returnUrl || app.dataset.createUrl);
     }
 
     function updateRegionHelp() {
@@ -498,31 +503,21 @@
         try {
             await saveMetadata();
             if (selectedFiles.length === 0) {
-                showStatus(
-                    'success',
-                    'Alterações salvas',
-                    'Os dados do exame foram atualizados com sucesso.',
-                );
+                returnToExamsTab();
                 return;
             }
 
             const result = await uploadImages();
-            if (result.files && result.files.length) addSavedFilesToGallery(result.files);
-
             if (result.partial) {
+                if (result.files && result.files.length) addSavedFilesToGallery(result.files);
                 showStatus(
                     'warning',
                     'Envio parcialmente concluído',
                     `${result.error} As imagens salvas já aparecem na galeria; tente novamente apenas com as restantes.`,
                 );
             } else {
-                showStatus(
-                    'success',
-                    'Envio concluído',
-                    result.message || `${pluralizeImages(result.total || 0)} ${
-                        result.total === 1 ? 'salva' : 'salvas'
-                    } com segurança.`,
-                );
+                returnToExamsTab();
+                return;
             }
         } catch (error) {
             showStatus(

@@ -15,6 +15,7 @@
     data-create-url="{{ url_for('exams.clinico_laboratorial', anamnesis_id=anamnesis.id) }}"
     data-upload-url="{{ url_for('exams.upload_clinico_laboratorial', exam_id=exam_data.exam_id) if exam_data else '' }}"
     data-view-url="{{ url_for('exams.clinico_laboratorial', anamnesis_id=anamnesis.id, exam_id=exam_data.exam_id) if exam_data else '' }}"
+    data-return-url="{{ url_for('patients.view_patient', id=anamnesis.patient_id, _anchor='tab-exames') }}"
 >
     <a class="image-exam-back" href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}">
         <span aria-hidden="true">←</span>
@@ -57,7 +58,7 @@
         <button type="button" class="image-exam-status__close" id="closeLabStatus" aria-label="Fechar aviso">×</button>
     </section>
 
-    <form class="image-exam-card" id="labExamForm" method="post" enctype="multipart/form-data" novalidate>
+    <form class="image-exam-card" id="labExamForm" method="post" enctype="multipart/form-data" data-async-submit="true" novalidate>
         <input type="hidden" name="csrf_token" id="labCsrfToken" value="{{ csrf_token() }}">
 
         <div class="image-exam-section-heading">
@@ -323,5 +324,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{{ url_for('static', filename='js/clinical-lab-exam.js') }}?v=1.2"></script>
+<script src="{{ url_for('static', filename='js/clinical-lab-exam.js') }}?v=1.3"></script>
 {% endblock %}

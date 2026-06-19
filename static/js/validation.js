@@ -38,6 +38,12 @@ function initFormListeners() {
     
     forms.forEach(form => {
         form.addEventListener('submit', (e) => {
+            // Formulários assíncronos controlam o próprio estado e o próprio
+            // redirecionamento. Não substituir o botão desses fluxos.
+            if (form.dataset.asyncSubmit === 'true') {
+                return;
+            }
+
             // Validate CPF if present
             const cpfInput = form.querySelector('input[name="cpf"], #cpf');
             if (cpfInput && cpfInput.value) {
@@ -68,7 +74,6 @@ function initFormListeners() {
                 // Prevent multiple clicks
                 setTimeout(() => {
                     submitBtn.disabled = true;
-                    const originalText = submitBtn.innerHTML;
                     submitBtn.innerHTML = `<span class="spinner-inline"></span> Salvando...`;
                 }, 10);
             }

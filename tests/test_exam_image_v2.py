@@ -1,4 +1,5 @@
 import io
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -167,3 +168,15 @@ def test_image_exam_v2_upload_stages_locally_and_queues_drive_sync(monkeypatch):
     assert inserted['params'][5] == 'Tomografia — corte_01.png'
     assert inserted['params'][11] == 'uploads/staging/exams/exam_image/image-101.png'
     assert queued == [('exam_image', 101)]
+
+
+def test_image_exam_async_form_returns_to_exams_tab_without_global_spinner():
+    project_root = Path(__file__).resolve().parents[1]
+    template = (project_root / 'templates/exams/imagem.html').read_text()
+    script = (project_root / 'static/js/exam-image-v2.js').read_text()
+    validation = (project_root / 'static/js/validation.js').read_text()
+
+    assert 'data-async-submit="true"' in template
+    assert "_anchor='tab-exames'" in template
+    assert 'window.location.assign(returnUrl || app.dataset.createUrl)' in script
+    assert "form.dataset.asyncSubmit === 'true'" in validation

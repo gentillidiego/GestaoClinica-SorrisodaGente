@@ -120,7 +120,13 @@ def remove_staged_file(path):
 def enqueue_exam_file_sync(source, record_id):
     from tasks.gdrive_tasks import sync_staged_exam_file_task
 
-    return sync_staged_exam_file_task.delay(source, int(record_id))
+    # O request já persistiu o arquivo e não pode aguardar tentativas de conexão
+    # com o broker. Se o Redis estiver indisponível, o reconciliador periódico
+    # encontrará o registro pendente e tentará novamente.
+    return sync_staged_exam_file_task.apply_async(
+        args=[source, int(record_id)],
+        retry=False,
+    )
 
 
 def get_exam_file_sync_record(source, record_id):

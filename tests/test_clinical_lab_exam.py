@@ -1,4 +1,5 @@
 import io
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -183,3 +184,15 @@ def test_clinical_lab_pdf_upload_stages_locally_and_queues_drive_sync(monkeypatc
     assert inserted['params'][4] == 'application/pdf'
     assert inserted['params'][7] == 'uploads/staging/exams/clinical_lab/laudo-301.pdf'
     assert queued == [('clinical_lab', 301)]
+
+
+def test_clinical_lab_async_form_returns_to_exams_tab():
+    project_root = Path(__file__).resolve().parents[1]
+    template = (
+        project_root / 'templates/exams/clinico_laboratorial.html'
+    ).read_text()
+    script = (project_root / 'static/js/clinical-lab-exam.js').read_text()
+
+    assert 'data-async-submit="true"' in template
+    assert "_anchor='tab-exames'" in template
+    assert 'window.location.assign(returnUrl || app.dataset.createUrl)' in script

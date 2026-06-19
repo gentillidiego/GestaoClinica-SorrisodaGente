@@ -2227,6 +2227,7 @@ Próxima continuidade recomendada:
 - 19/06/2026: Uploads de Exames passaram a usar staging local rápido, sincronização assíncrona com o Drive, fallback local, derivados WebP permanentes e status de sincronização visível ao operador.
 - 19/06/2026: Originais passaram a usar cache local de 2 dias/15 GB com LRU, download remoto atômico com lock e entrega protegida pelo Nginx via `X-Accel-Redirect`, ETag, cache privado e HTTP Range para PDFs.
 - 19/06/2026: O armazenamento de uploads foi migrado do volume Docker antigo para `/srv/gestaosaudeoral/uploads`; web, worker, beat e backup foram implantados e validados em produção.
+- 19/06/2026: Corrigida a interferência do script global de validação nos formulários assíncronos de Exames. Após a confirmação da gravação local, Imagem e Clínico/Laboratorial retornam automaticamente para a aba Exames; sincronização, derivados e Drive continuam em segundo plano.
 
 ## Última Validação Técnica Registrada
 

@@ -14,7 +14,7 @@
     data-create-url="{{ url_for('exams.imagem', anamnesis_id=anamnesis.id) }}"
     data-upload-url="{{ url_for('exams.upload_imagem', exam_id=exam_data.exam_id) if exam_data else '' }}"
     data-view-url="{{ url_for('exams.imagem', anamnesis_id=anamnesis.id, exam_id=exam_data.exam_id) if exam_data else '' }}"
-    data-return-url="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}"
+    data-return-url="{{ url_for('patients.view_patient', id=anamnesis.patient_id, _anchor='tab-exames') }}"
 >
     <a class="image-exam-back" href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}">
         <span aria-hidden="true">←</span>
@@ -57,7 +57,7 @@
         <button type="button" class="image-exam-status__close" id="closeStatus" aria-label="Fechar aviso">×</button>
     </section>
 
-    <form class="image-exam-card" id="imageExamForm" method="post" enctype="multipart/form-data" novalidate>
+    <form class="image-exam-card" id="imageExamForm" method="post" enctype="multipart/form-data" data-async-submit="true" novalidate>
         <input type="hidden" name="csrf_token" id="csrfToken" value="{{ csrf_token() }}">
         <input type="hidden" name="escopo" value="{{ exam_data.escopo if exam_data else '' }}">
 
@@ -313,5 +313,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{{ url_for('static', filename='js/exam-image-v2.js') }}?v=2.2"></script>
+<script src="{{ url_for('static', filename='js/exam-image-v2.js') }}?v=2.3"></script>
 {% endblock %}
