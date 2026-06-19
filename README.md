@@ -1,6 +1,6 @@
 # Gestão Saúde Oral - Programa Sorriso da Gente
 
-README 2.9 - exames 2.0, armazenamento rápido e e-SUS LEDI — atualizado em 19/06/2026.
+README 3.0 - auditoria de prontidão para produção — atualizado em 19/06/2026.
 
 Plataforma de gestão clínica, operacional e institucional de saúde bucal para o programa Sorriso da Gente. O sistema reúne triagem municipal, agenda, prontuário odontológico, estomatologia, exames, estoque, Central de Comando, BI, epidemiologia, relatórios e preparação SIGTAP/e-SUS APS.
 
@@ -27,12 +27,15 @@ Leitura operacional atual:
 - Endodontia e Prótese permanecem temporariamente ocultas da navegação do prontuário por decisão operacional; os módulos não foram removidos.
 - Decisão de 17/06/2026: escopo congelado para Endodontia, Prótese, Portal do Paciente e evoluções de BI até o Go/No-Go de produção. O BI existente pode ser validado e usado como apoio gerencial, mas não deve receber novas visões, indicadores, redesign ou ampliações antes da produção assistida.
 - Última validação registrada em 19/06/2026: suíte completa com `239 passed`,
-  HTTPS público HTTP `200`, web/worker/beat/backup saudáveis, rota interna do
-  Nginx inacessível externamente e tarefas de limpeza/reconciliação executadas.
-- Status de produção: infraestrutura e módulos desta entrega estão implantados
-  em produção assistida. A liberação institucional plena ainda depende dos
-  bloqueadores P0 remanescentes de LGPD, homologação operacional, treinamento,
-  aceite formal e importação assistida do XML e-SUS no PEC municipal.
+  HTTPS público HTTP `200`, web/worker/beat/backup saudáveis, restore isolado
+  com `54` tabelas e tarefas de limpeza/reconciliação executadas.
+- **Status de produção após reauditoria de 19/06/2026: NO-GO para produção
+  plena com ampliação de pacientes reais.** A aplicação atual está operacional,
+  mas a VPS ainda mantém uma implantação legada da Gestão Clínica com aplicação
+  e PostgreSQL publicados externamente, e várias rotas clínicas ainda aplicam
+  apenas autenticação sem a autorização por perfil definida na matriz RBAC.
+- O relatório técnico completo da reauditoria está em
+  `docs/auditoria_prontidao_producao_2026-06-19.md`.
 
 Prioridade atual de trabalho:
 
@@ -978,8 +981,8 @@ Objetivo:
 | Banco atual | Base operacional preparada sem massa demonstrativa | Validar política de entrada/migração antes de importar dados externos |
 | PostgreSQL | Sem publicação no host; acessível apenas pela rede Docker | Resolvido em 18/06/2026 |
 | Domínio/e-mail | Domínio e e-mail transacional configurados; Postfix/OpenDKIM ativo | Falta validação final de entrega e monitoramento |
-| HTTPS/proxy/firewall | HTTPS ativo; web em `127.0.0.1:5003`; PostgreSQL interno; rota de arquivos protegida por `internal` | Resolvido tecnicamente em 19/06/2026; manter monitoramento |
-| Segurança/LGPD | Hardening inicial existe, mas retenção, descarte, criptografia em repouso e matriz de acesso final seguem pendentes | Bloqueia produção plena |
+| HTTPS/proxy/firewall | Compose atual: HTTPS ativo, web em `127.0.0.1:5003`, PostgreSQL interno e rota de arquivos protegida por `internal`. VPS: implantação legada ainda publica app `5002` e PostgreSQL `5432`, ambos alcançáveis externamente | **Bloqueia produção plena até desativar/isolar a pilha legada e revisar todas as portas públicas** |
+| Segurança/LGPD | Hardening inicial existe, mas autorização por perfil não está aplicada de forma uniforme nas rotas clínicas; retenção, descarte, criptografia em repouso e matriz de acesso final seguem pendentes | Bloqueia produção plena |
 | Backup/continuidade | Backup diário de PostgreSQL/uploads, SHA-256, cópia externa e restore isolado validados | Resolvido tecnicamente em 18/06/2026; manter monitoramento |
 | Homologação operacional | Fluxos prontos, mas falta aceite formal por perfil com usuários reais | Bloqueia uso oficial amplo |
 | Treinamento | Base documental existe; manuais finais por perfil ainda pendentes | Bloqueia entrada com equipe ampla |
@@ -988,10 +991,104 @@ Objetivo:
 
 Conclusão executiva:
 
-- A aplicação está **apta para homologação assistida controlada**.
+- A aplicação está **apta para homologação técnica controlada sem ampliação de
+  dados reais**, desde que a pilha legada e as portas públicas sejam tratadas
+  imediatamente.
 - A aplicação **não deve entrar em produção plena com pacientes reais** antes de fechar os P0 abaixo.
-- O maior risco atual não é funcionalidade clínica; é governança de produção: exposição de portas, segredos, base demo, LGPD, backup externo, aceite e treinamento.
+- Os maiores riscos atuais são exposição da pilha legada, autorização
+  incompleta no backend, dependências vulneráveis e governança LGPD.
 - A entrada recomendada é em duas etapas: `produção assistida` com checklist fechado e depois `produção plena` após evidências e aceite formal.
+
+### Reauditoria Técnica em 19/06/2026
+
+Achados críticos confirmados:
+
+1. **Pilha legada pública na mesma VPS.**
+   - O projeto antigo `gestaoclinica`, localizado em
+     `/home/diego/projetos/GestaoClinica`, continua executando.
+   - `gestaoclinica-docker` publica `0.0.0.0:5002`.
+   - `gestaoclinica-postgres` publica `0.0.0.0:5432`.
+   - As portas `5002` e `5432` responderam pelo endereço público.
+   - A base legada ainda contém `19` pacientes, `8` usuários e `39`
+     atendimentos.
+   - O Nginx padrão ainda encaminha `/GestaoClinica/` para essa aplicação e o
+     Uptime Kuma monitora o endereço legado.
+
+2. **Autorização clínica incompleta.**
+   - A matriz `ROLE_PERMISSIONS` existe, mas listagem, visualização, edição e
+     exclusão de pacientes, anamnese, criação/alteração de exames, documentos,
+     tratamento, atendimento, Endodontia e Prótese possuem várias rotas
+     protegidas somente por `@login_required`.
+   - Acesso por URL pode contornar itens ocultos no menu.
+   - Comprovantes de assinatura e PDFs clínicos precisam validar permissão e
+     vínculo do usuário com o documento solicitado.
+
+3. **Dependências com vulnerabilidades conhecidas.**
+   - Auditoria dos pins com `pip-audit --no-deps --disable-pip` encontrou `15`
+     ocorrências em `Flask 3.0.3`, `Pillow 12.1.1`,
+     `python-dotenv 1.0.1`, `Werkzeug 3.0.3` e `lxml 5.3.1`.
+   - Atualizações mínimas indicadas pelo auditor: Flask `3.1.3`, Pillow
+     `12.2.0`, python-dotenv `1.2.2`, Werkzeug `3.1.6` e lxml `6.1.0`.
+   - Toda atualização deve passar pela suíte, geração de PDF, upload de imagens,
+     XML/XSD e smoke test Docker.
+
+4. **Sessão e cabeçalhos HTTP incompletos.**
+   - O cookie observado não contém `Secure` nem `SameSite`.
+   - As respostas públicas não apresentam HSTS, CSP, `X-Frame-Options`,
+     `Referrer-Policy` ou `Permissions-Policy`.
+   - Logout ainda ocorre por `GET`; deve ser `POST` com CSRF.
+
+5. **Arquivos e Google Drive.**
+   - Os dois arquivos de exames atuais estão sincronizados e não há pendência
+     de staging.
+   - O backup diário e a restauração isolada estão funcionando.
+   - O rclone consegue usar o Drive, mas tenta atualizar o token em um arquivo
+     montado individualmente e falha na troca atômica com `device or resource
+     busy`; montar um diretório restrito ou copiar a configuração para volume
+     gravável elimina essa fragilidade.
+   - Uploads validam extensão, MIME informado pelo cliente e tamanho, mas ainda
+     precisam validar assinatura real do conteúdo, integridade de imagem/PDF e,
+     conforme decisão institucional, antivírus.
+
+6. **Operação e governança.**
+   - O Uptime Kuma não monitora `https://sorrisodagentealagoas.com/health`.
+   - O teste Locust histórico teve `476/2333` requisições falhas por HTTP `429`;
+     portanto ainda não existe evidência válida de capacidade do fluxo clínico.
+   - Não há configuração e-SUS ativa: `esus_integration_settings=0` e nenhuma
+     remessa foi gerada.
+   - A competência SIGTAP carregada é `202603`; deve ser conferida com a
+     competência adotada na entrada em produção.
+   - As `32` referências financeiras permanecem com metodologia `draft`.
+   - Os `3` usuários ativos não possuem todos os dados de e-mail/data de
+     nascimento necessários à recuperação e ao primeiro acesso.
+
+Pontos positivos confirmados:
+
+- `239 passed`.
+- `git diff --check` limpo na versão auditada.
+- `main` sincronizada com `origin/main`.
+- HTTPS válido e renovação automática ativa.
+- Compose atual sem publicação direta do PostgreSQL.
+- Backup diário com manifesto, cópia externa e restore validado em `54`
+  tabelas.
+- Celery, Redis, PostgreSQL, Postfix/OpenDKIM e aplicação saudáveis.
+- Fila Postfix vazia; SPF, DKIM, DMARC e PTR publicados.
+- Banco atual sem dados demo e exames atuais sincronizados com o Drive.
+
+Ordem obrigatória antes do Go/No-Go:
+
+1. Fazer backup final e desativar/isolar a pilha legada; fechar `5002/5432` e
+   revisar todas as demais portas públicas da VPS.
+2. Aplicar autorização RBAC no backend de todas as rotas clínicas e adicionar
+   testes de acesso por perfil/IDOR.
+3. Atualizar dependências vulneráveis e validar regressão completa.
+4. Endurecer cookies, cabeçalhos HTTP, logout e mensagens de erro.
+5. Corrigir persistência do token OAuth/rclone e validar conteúdo real dos
+   uploads.
+6. Configurar monitoramento e alertas do domínio atual, backup, fila, disco e
+   certificados.
+7. Completar usuários, e-SUS/SIGTAP, política LGPD, treinamento e homologação
+   operacional.
 
 ### Próximos Passos para Finalizar Desenvolvimento
 
@@ -2257,10 +2354,13 @@ Resultado mais recente em 19/06/2026:
 - Escrita, leitura e remoção validadas na pasta real do paciente.
 - Backup automático executado com dump, uploads, manifesto SHA-256 e
   `rclone check --download` sem diferenças.
-- Restore isolado validado: `52` tabelas públicas e `1` paciente.
-- Web publicada somente em `127.0.0.1:5003`; PostgreSQL sem publicação no host.
+- Restore isolado validado novamente em 19/06/2026: `54` tabelas públicas e
+  `1` paciente.
+- Compose atual: web publicada somente em `127.0.0.1:5003` e PostgreSQL sem
+  publicação no host. A reauditoria identificou uma pilha legada separada,
+  ainda expondo app `5002` e PostgreSQL `5432`.
 - HTTPS público `/health`: HTTP `200`.
-- Suíte completa: `233 passed`.
+- Suíte completa: `239 passed`.
 - Testes focados de exames, staging, cache e entrega protegida: `26 passed`.
 - Testes focados e-SUS/SIGTAP: `24 passed`.
 - Testes focados Google Drive: `7 passed`.
