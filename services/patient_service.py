@@ -46,13 +46,10 @@ class PatientService:
     def get_patient_exams(patient_id):
         return query("""
             SELECT e.*, 
-                   COALESCE(e.resumo_clinico, ef.estado_geral, eo.observacoes) as resumo_clinico,
-                   u.username as professor_nome, u.full_name as professor_full_name,
-                   u.role as professor_role
+                   COALESCE(e.resumo_clinico, ef.estado_geral, eo.observacoes) as resumo_clinico
             FROM exams e 
             LEFT JOIN exam_fisico ef ON e.id = ef.exam_id 
             LEFT JOIN exam_odontograma eo ON e.id = eo.exam_id
-            LEFT JOIN users u ON e.professor_id = u.id
             WHERE e.patient_id = %s 
             ORDER BY e.data_criacao DESC
         """, (patient_id,))

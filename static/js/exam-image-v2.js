@@ -41,6 +41,7 @@
     const returnUrl = app.dataset.returnUrl || '';
     let selectedFiles = [];
     let isBusy = false;
+    let allowNavigation = false;
     let currentLightboxIndex = 0;
     const objectUrls = new Set();
 
@@ -108,6 +109,8 @@
     }
 
     function returnToExamsTab() {
+        allowNavigation = true;
+        setBusy(false);
         window.location.assign(returnUrl || app.dataset.createUrl);
     }
 
@@ -599,7 +602,7 @@
         if (event.key === 'ArrowRight') openLightbox(currentLightboxIndex + 1);
     });
     window.addEventListener('beforeunload', (event) => {
-        if (!isBusy) return;
+        if (!isBusy || allowNavigation) return;
         event.preventDefault();
         event.returnValue = '';
     });

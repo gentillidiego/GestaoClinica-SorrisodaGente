@@ -180,9 +180,9 @@ def test_daily_operational_summary_builds_filtered_kpis_and_recommendations(monk
             'max_waiting_days': 95,
         }],
         'clinical_pending': {
-            'pending_exams': {'total': 3, 'patient_count': 2, 'items': []},
+            'pending_exams': {'total': 0, 'patient_count': 0, 'items': []},
             'unsigned_documents': {'total': 4, 'patient_count': 3, 'items': []},
-            'total': 7,
+            'total': 4,
         },
         'queue_metrics': {
             'without_return': {
@@ -256,7 +256,7 @@ def test_daily_operational_summary_builds_filtered_kpis_and_recommendations(monk
     assert summary['kpis'][3]['value'] == 11
     assert summary['kpis'][-1]['value'] == '1/2'
     assert any('alertas críticos' in item for item in summary['recommendations'])
-    assert any('exames pendentes' in item for item in summary['recommendations'])
+    assert any('documentos sem assinatura' in item for item in summary['recommendations'])
     assert any('metas críticas' in item for item in summary['recommendations'])
 
 
@@ -526,7 +526,7 @@ def test_operational_alert_builder_includes_phase29_pending_clinical_alerts():
     )
     alert_types = {alert['type'] for alert in alerts}
 
-    assert 'pending_exams' in alert_types
+    assert 'pending_exams' not in alert_types
     assert 'unsigned_documents' in alert_types
     assert all(alert['severity'] == 'warning' for alert in alerts)
 
@@ -548,44 +548,19 @@ def test_operational_alert_builder_includes_phase292_queue_metrics():
     assert 'agenda_bottleneck' in alert_types
 
 
-def test_pending_exam_alert_summary_counts_unvalidated_exams(monkeypatch):
-    calls = []
-
-    def fake_query(sql, params=(), one=False):
-        calls.append((sql, params, one))
-        assert 'e.professor_id IS NULL OR e.data_validacao IS NULL' in sql
-        if one:
-            return {'total': 2, 'patient_count': 1}
-        return [{
-            'id': 10,
-            'patient_id': 7,
-            'patient_name': 'Paciente Teste',
-            'tipo': 'fisico',
-        }]
-
-    monkeypatch.setattr(command_center_service, 'query', fake_query)
-
+def test_pending_exam_alert_summary_is_disabled():
     summary = get_pending_exam_alert_summary(patient_id=7)
 
-    assert summary['total'] == 2
-    assert summary['patient_count'] == 1
-    assert summary['items'][0]['patient_name'] == 'Paciente Teste'
-    assert calls[0][1] == (7,)
-    assert calls[1][1] == (7, 8)
+    assert summary == {'total': 0, 'patient_count': 0, 'items': []}
 
 
-def test_pending_exam_alert_summary_applies_command_center_filters(monkeypatch):
-    captured = []
-
-    def fake_query(sql, params=(), one=False):
-        captured.append((sql, params, one))
-        if one:
-            return {'total': 1, 'patient_count': 1}
-        return []
-
-    monkeypatch.setattr(command_center_service, 'query', fake_query)
-
-    get_pending_exam_alert_summary(filters={
+def test_pending_exam_alert_summary_ignores_filters_without_querying(monkeypatch):
+    monkeypatch.setattr(
+        command_center_service,
+        'query',
+        lambda *args, **kwargs: pytest.fail('não deve consultar validação de exames'),
+    )
+    summary = get_pending_exam_alert_summary(filters={
         'municipio_id': '3',
         'especialidade_id': '5',
         'professional_id': '9',
@@ -593,12 +568,7 @@ def test_pending_exam_alert_summary_applies_command_center_filters(monkeypatch):
         'end_date': '2026-06-30',
     })
 
-    sql = captured[0][0]
-    assert 'DATE(e.data_criacao) >= %s' in sql
-    assert 's_filter.municipio_id = %s' in sql
-    assert 's_filter.especialidade_id = %s' in sql
-    assert 'c_filter.dentista_id = %s' in sql
-    assert captured[0][1] == ('2026-06-01', '2026-06-30', 3, 5, 9, '2026-06-01', '2026-06-30')
+    assert summary['total'] == 0
 
 
 def test_unsigned_document_alert_summary_uses_clinical_document_sources(monkeypatch):
@@ -630,7 +600,7 @@ def test_unsigned_document_alert_summary_uses_clinical_document_sources(monkeypa
     assert summary['items'][0]['missing_signatures'] == 'paciente, dentista responsável'
 
 
-def test_patient_clinical_alert_summary_combines_exam_and_signature_pending(monkeypatch):
+def test_patient_clinical_alert_summary_ignores_exam_validation(monkeypatch):
     monkeypatch.setattr(
         command_center_service,
         'get_pending_exam_alert_summary',
@@ -659,7 +629,7 @@ def test_patient_clinical_alert_summary_combines_exam_and_signature_pending(monk
 
     summary = get_patient_clinical_alert_summary(42)
 
-    assert summary['total'] == 6
+    assert summary['total'] == 5
     assert summary['has_alerts'] is True
     assert summary['pending_exams']['total'] == 1
     assert summary['unsigned_documents']['total'] == 2

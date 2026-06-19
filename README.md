@@ -592,6 +592,12 @@ Estado:
   `X-Accel-Redirect`, `ETag`, `Cache-Control: private` e HTTP Range para PDFs.
 - Enquanto a sincronização estiver pendente, a visualização usa automaticamente
   o arquivo local.
+- Exames não exigem assinatura ou validação manual adicional. Criação,
+  atualização, visualização e exclusão são registradas na auditoria com usuário,
+  data, IP, método e rota.
+- `Visualizar Exame` abre uma tela exclusivamente de leitura. Imagens e PDFs
+  podem ser abertos em tela cheia; imagens oferecem zoom, ajuste, setas e
+  movimentação por arraste.
 
 VOLTE E VERIFIQUE:
 
@@ -602,6 +608,8 @@ VOLTE E VERIFIQUE:
   original ao cache.
 - PDF ou imagem clínica deve ser acessível apenas após autenticação e vínculo
   com paciente autorizado.
+- Não reintroduzir o botão `Validar` nem pendência por
+  `professor_id/data_validacao` nos cards, alertas ou Central de Comando.
 
 ### Endodontia
 
@@ -2228,6 +2236,8 @@ Próxima continuidade recomendada:
 - 19/06/2026: Originais passaram a usar cache local de 2 dias/15 GB com LRU, download remoto atômico com lock e entrega protegida pelo Nginx via `X-Accel-Redirect`, ETag, cache privado e HTTP Range para PDFs.
 - 19/06/2026: O armazenamento de uploads foi migrado do volume Docker antigo para `/srv/gestaosaudeoral/uploads`; web, worker, beat e backup foram implantados e validados em produção.
 - 19/06/2026: Corrigida a interferência do script global de validação nos formulários assíncronos de Exames. Após a confirmação da gravação local, Imagem e Clínico/Laboratorial retornam automaticamente para a aba Exames; sincronização, derivados e Drive continuam em segundo plano.
+- 19/06/2026: Removida a validação manual/assinatura de todos os cards de Exames e seus alertas derivados. A rastreabilidade passou a depender exclusivamente da auditoria automática da ação.
+- 19/06/2026: `Visualizar Exame` passou a abrir um visualizador dedicado para imagens e PDFs, sem formulário de edição, com tela cheia, zoom, ajuste, setas, arraste e navegação entre arquivos.
 
 ## Última Validação Técnica Registrada
 

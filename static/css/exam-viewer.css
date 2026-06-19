@@ -1,0 +1,297 @@
+.exam-viewer {
+    width: min(1500px, 100%);
+    margin: 0 auto;
+    color: hsl(var(--text-main));
+}
+
+.exam-viewer__header {
+    display: grid;
+    grid-template-columns: minmax(130px, auto) minmax(0, 1fr) minmax(130px, auto);
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.exam-viewer__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: hsl(var(--primary));
+    font-size: 0.82rem;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.exam-viewer__identity {
+    min-width: 0;
+    text-align: center;
+}
+
+.exam-viewer__identity span {
+    display: block;
+    color: hsl(var(--text-muted));
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.exam-viewer__identity h1 {
+    overflow: hidden;
+    margin: 0.15rem 0 0;
+    color: hsl(var(--primary));
+    font-family: var(--font-heading);
+    font-size: clamp(1.15rem, 2vw, 1.55rem);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.exam-viewer__shell {
+    display: grid;
+    grid-template-rows: auto minmax(420px, calc(100vh - 310px)) auto;
+    overflow: hidden;
+    min-height: 600px;
+    border: 1px solid rgb(255 255 255 / 0.12);
+    border-radius: 16px;
+    background: #050b16;
+    box-shadow: 0 22px 55px rgb(15 23 42 / 0.2);
+}
+
+.exam-viewer__shell:fullscreen {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    min-height: 100vh;
+    border: 0;
+    border-radius: 0;
+}
+
+.exam-viewer__toolbar,
+.exam-viewer__footer {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.65rem 0.8rem;
+    background: #0d1726;
+    color: white;
+}
+
+.exam-viewer__toolbar {
+    overflow-x: auto;
+}
+
+.exam-viewer__toolbar button,
+.exam-viewer__footer button {
+    flex: 0 0 auto;
+    min-width: 38px;
+    height: 36px;
+    padding: 0 0.7rem;
+    border: 1px solid rgb(255 255 255 / 0.14);
+    border-radius: 8px;
+    background: rgb(255 255 255 / 0.08);
+    color: white;
+    cursor: pointer;
+    font-weight: 800;
+}
+
+.exam-viewer__toolbar button:hover,
+.exam-viewer__footer button:hover {
+    background: rgb(255 255 255 / 0.16);
+}
+
+.exam-viewer__toolbar strong {
+    min-width: 48px;
+    text-align: center;
+    font-size: 0.75rem;
+}
+
+.exam-viewer__toolbar a {
+    flex: 0 0 auto;
+    margin-left: auto;
+    color: #bfdbfe;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.exam-viewer__toolbar-separator {
+    flex: 0 0 1px;
+    width: 1px;
+    height: 25px;
+    margin: 0 0.2rem;
+    background: rgb(255 255 255 / 0.14);
+}
+
+.exam-viewer__stage {
+    position: relative;
+    overflow: hidden;
+    min-height: 0;
+    background:
+        radial-gradient(circle at center, rgb(30 41 59 / 0.7), transparent 58%),
+        #020617;
+    touch-action: none;
+    user-select: none;
+}
+
+.exam-viewer__image-layer {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    cursor: grab;
+}
+
+.exam-viewer__image-layer.is-dragging {
+    cursor: grabbing;
+}
+
+.exam-viewer__image-layer[hidden],
+.exam-viewer__pdf[hidden],
+.exam-viewer__loading[hidden] {
+    display: none;
+}
+
+.exam-viewer__image-layer img {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    transform-origin: center;
+    will-change: transform;
+}
+
+.exam-viewer__pdf {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: white;
+}
+
+.exam-viewer__loading {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: rgb(255 255 255 / 0.7);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.exam-viewer__footer {
+    justify-content: center;
+    text-align: center;
+}
+
+.exam-viewer__footer > div {
+    min-width: 0;
+    width: min(700px, calc(100% - 110px));
+}
+
+.exam-viewer__footer strong,
+.exam-viewer__footer span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.exam-viewer__footer strong {
+    font-size: 0.82rem;
+}
+
+.exam-viewer__footer span {
+    margin-top: 0.1rem;
+    color: rgb(255 255 255 / 0.55);
+    font-size: 0.68rem;
+}
+
+.exam-viewer__files {
+    display: flex;
+    gap: 0.7rem;
+    overflow-x: auto;
+    padding: 0.9rem 0.1rem 0.2rem;
+}
+
+.exam-viewer__file {
+    display: grid;
+    grid-template-columns: 52px minmax(0, 150px);
+    align-items: center;
+    gap: 0.65rem;
+    flex: 0 0 auto;
+    padding: 0.45rem;
+    border: 1px solid hsl(var(--border));
+    border-radius: 10px;
+    background: white;
+    color: hsl(var(--text-main));
+    cursor: pointer;
+    text-align: left;
+}
+
+.exam-viewer__file.is-active {
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.12);
+}
+
+.exam-viewer__file img,
+.exam-viewer__pdf-icon {
+    width: 52px;
+    height: 42px;
+    border-radius: 6px;
+    object-fit: cover;
+}
+
+.exam-viewer__pdf-icon {
+    display: grid;
+    place-items: center;
+    background: #fee2e2;
+    color: #b91c1c;
+    font-size: 0.72rem;
+    font-weight: 900;
+}
+
+.exam-viewer__file > span:last-child {
+    overflow: hidden;
+    font-size: 0.72rem;
+    font-weight: 750;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.exam-viewer__empty {
+    display: grid;
+    place-items: center;
+    min-height: 420px;
+    padding: 3rem;
+    border: 1px dashed hsl(var(--border));
+    border-radius: 16px;
+    background: white;
+    text-align: center;
+}
+
+.exam-viewer__empty > span {
+    color: hsl(var(--primary));
+    font-size: 3rem;
+}
+
+.exam-viewer__empty h2 {
+    margin: 0.8rem 0 0;
+}
+
+.exam-viewer__empty p {
+    margin: 0.35rem 0 1rem;
+    color: hsl(var(--text-muted));
+}
+
+@media (max-width: 760px) {
+    .exam-viewer__header {
+        grid-template-columns: auto 1fr;
+    }
+
+    .exam-viewer__identity {
+        text-align: left;
+    }
+
+    .exam-viewer__shell {
+        grid-template-rows: auto minmax(380px, calc(100vh - 270px)) auto;
+        min-height: 540px;
+        border-radius: 10px;
+    }
+}

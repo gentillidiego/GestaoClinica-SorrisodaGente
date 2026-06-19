@@ -204,13 +204,6 @@
             <strong style="color:hsl(var(--warning)); font-size:1.25rem;">{{ clinical_alerts.total }}</strong>
         </div>
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:0.8rem; margin-top:1rem;">
-            {% if clinical_alerts.pending_exams.total %}
-            <a href="#tab-exames" onclick="handleTabClick(event, 'tab-exames')" style="display:flex; flex-direction:column; gap:0.25rem; padding:0.85rem 1rem; border-radius:var(--radius-md); border:1px solid hsl(var(--border)); background:#fff; text-decoration:none;">
-                <span style="font-size:0.76rem; font-weight:800; color:hsl(var(--text-muted)); text-transform:uppercase;">Exames pendentes</span>
-                <strong style="color:hsl(var(--text-main));">{{ clinical_alerts.pending_exams.total }} exame(s)</strong>
-                <small style="color:hsl(var(--warning)); font-weight:700;">Aguardando validação clínica</small>
-            </a>
-            {% endif %}
             {% if clinical_alerts.unsigned_documents.total %}
             <a href="#tab-atendimento" onclick="handleTabClick(event, 'tab-atendimento')" style="display:flex; flex-direction:column; gap:0.25rem; padding:0.85rem 1rem; border-radius:var(--radius-md); border:1px solid hsl(var(--border)); background:#fff; text-decoration:none;">
                 <span style="font-size:0.76rem; font-weight:800; color:hsl(var(--text-muted)); text-transform:uppercase;">Documentos sem assinatura</span>

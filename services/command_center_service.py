@@ -850,9 +850,9 @@ def _build_daily_summary_recommendations(data):
         recommendations.append(
             'Reagendar ou justificar pacientes com mais de 30 dias sem retorno.'
         )
-    if clinical_pending['pending_exams']['total'] or clinical_pending['unsigned_documents']['total']:
+    if clinical_pending['unsigned_documents']['total']:
         recommendations.append(
-            'Regularizar exames pendentes e documentos sem assinatura para reduzir risco de auditoria.'
+            'Regularizar documentos sem assinatura para reduzir risco de auditoria.'
         )
     if data['agenda']['no_show']:
         recommendations.append(
@@ -918,8 +918,8 @@ def get_daily_operational_summary(filters=None, generated_by=None, generated_at=
                 'label': 'Pendências clínicas',
                 'value': clinical_pending['total'],
                 'detail': (
-                    f"{clinical_pending['pending_exams']['total']} exame(s), "
-                    f"{clinical_pending['unsigned_documents']['total']} documento(s)"
+                    f"{clinical_pending['unsigned_documents']['total']} documento(s) "
+                    'e retornos clínicos pendentes'
                 ),
             },
             {
@@ -1333,46 +1333,8 @@ def get_demand_forecast_snapshot(today=None, days=90, limit=8, filters=None):
 
 
 def get_pending_exam_alert_summary(limit=8, patient_id=None, filters=None):
-    filters = normalize_command_center_filters(filters)
-    conditions = ["(e.professor_id IS NULL OR e.data_validacao IS NULL)"]
-    params = []
-    if patient_id is not None:
-        conditions.append("e.patient_id = %s")
-        params.append(patient_id)
-    _append_date_range(conditions, params, 'e.data_criacao', filters)
-    _append_patient_scope_filters(conditions, params, filters, patient_alias='p')
-    where = _where_clause(conditions)
-
-    totals = query(
-        f"""
-        SELECT COUNT(*) as total,
-               COUNT(DISTINCT e.patient_id) as patient_count
-        FROM exams e
-        JOIN patients p ON p.id = e.patient_id
-        {where}
-        """,
-        tuple(params),
-        one=True
-    ) or {}
-
-    rows = query(
-        f"""
-        SELECT e.id, e.patient_id, p.nome as patient_name, e.tipo,
-               e.data_criacao, e.resumo_clinico
-        FROM exams e
-        JOIN patients p ON p.id = e.patient_id
-        {where}
-        ORDER BY e.data_criacao ASC, e.id ASC
-        LIMIT %s
-        """,
-        tuple([*params, limit])
-    ) or []
-
-    return {
-        'total': _as_int(totals.get('total')),
-        'patient_count': _as_int(totals.get('patient_count')),
-        'items': rows,
-    }
+    """Compatibilidade: exames não exigem mais validação manual."""
+    return {'total': 0, 'patient_count': 0, 'items': []}
 
 
 def _unsigned_documents_base_sql():
@@ -1686,8 +1648,7 @@ def get_clinical_pending_summary(limit=8, filters=None):
         'unrestored_endodontia': unrestored_endodontia,
         'overdue_endodontia_proservations': overdue_endodontia_proservations,
         'total': (
-            pending_exams['total']
-            + unsigned_documents['total']
+            unsigned_documents['total']
             + overdue_endodontia_returns['total']
             + unrestored_endodontia['total']
             + overdue_endodontia_proservations['total']
@@ -1702,8 +1663,7 @@ def get_patient_clinical_alert_summary(patient_id, limit=5):
     unrestored_endodontia = get_unrestored_endodontia_summary(limit=limit, patient_id=patient_id)
     overdue_endodontia_proservations = get_overdue_endodontia_proservation_summary(limit=limit, patient_id=patient_id)
     total = (
-        pending_exams['total']
-        + unsigned_documents['total']
+        unsigned_documents['total']
         + overdue_endodontia_returns['total']
         + unrestored_endodontia['total']
         + overdue_endodontia_proservations['total']
@@ -2008,19 +1968,6 @@ def build_operational_alerts(
             'message': (
                 f"{top['especialidade']} concentra {top['total']} caso(s) prioritário(s)"
                 f" e espera máxima de {top['max_waiting_days']} dia(s)."
-            ),
-            'endpoint': 'main.command_center',
-        })
-
-    pending_exams = (clinical_pending or {}).get('pending_exams', {})
-    if pending_exams.get('total'):
-        alerts.append({
-            'type': 'pending_exams',
-            'severity': 'warning',
-            'title': 'Exames pendentes',
-            'message': (
-                f"{pending_exams['total']} exame(s) aguardando validação clínica"
-                f" em {pending_exams.get('patient_count', 0)} paciente(s)."
             ),
             'endpoint': 'main.command_center',
         })

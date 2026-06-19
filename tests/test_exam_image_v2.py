@@ -179,4 +179,71 @@ def test_image_exam_async_form_returns_to_exams_tab_without_global_spinner():
     assert 'data-async-submit="true"' in template
     assert "_anchor='tab-exames'" in template
     assert 'window.location.assign(returnUrl || app.dataset.createUrl)' in script
+    assert 'if (!isBusy || allowNavigation) return;' in script
     assert "form.dataset.asyncSubmit === 'true'" in validation
+
+
+def test_exam_card_uses_read_only_viewer_without_manual_validation():
+    project_root = Path(__file__).resolve().parents[1]
+    tab = (
+        project_root / 'templates/patients/includes/_tab_exames.html'
+    ).read_text()
+    viewer = (project_root / 'templates/exams/viewer.html').read_text()
+    viewer_script = (project_root / 'static/js/exam-viewer.js').read_text()
+
+    assert "url_for('exams.visualizar', exam_id=exam.id)" in tab
+    assert 'validate_exam' not in tab
+    assert 'Aguardando validação clínica' not in tab
+    assert 'data-action="zoom-in"' in viewer
+    assert 'data-action="move-left"' in viewer
+    assert 'data-action="fullscreen"' in viewer
+    assert 'requestFullscreen' in viewer_script
+    assert "imageLayer.addEventListener('pointermove'" in viewer_script
+
+
+def test_image_exam_viewer_builds_media_only_context(monkeypatch):
+    app = make_app()
+
+    def fake_query(sql, params=(), one=False):
+        if 'FROM exams e' in sql:
+            return {
+                'id': 10,
+                'anamnesis_id': 2,
+                'patient_id': 9,
+                'patient_name': 'Paciente Teste',
+                'tipo': 'imagem',
+                'resumo_clinico': 'Panorâmica',
+            }
+        if 'FROM exam_imagem WHERE' in sql:
+            return {'tipo_imagem': 'Panorâmica'}
+        if 'FROM exam_imagem_arquivos' in sql:
+            return [{
+                'id': 101,
+                'filename': 'panoramica.jpg',
+                'caption': 'Panorâmica inicial',
+            }]
+        raise AssertionError(sql)
+
+    monkeypatch.setattr(exams_module, 'query', fake_query)
+    monkeypatch.setattr(exams_module, 'audit_log', lambda **kwargs: None)
+    monkeypatch.setattr(
+        exams_module,
+        'url_for',
+        lambda endpoint, **values: (
+            f"/{endpoint}/"
+            + str(values.get('arquivo_id') or values.get('exam_id') or values.get('id') or '')
+        ),
+    )
+    monkeypatch.setattr(
+        exams_module,
+        'render_template',
+        lambda template, **context: {'template': template, **context},
+    )
+
+    with app.test_request_context('/exams/10/visualizar'):
+        response = exams_module.visualizar.__wrapped__.__wrapped__(10)
+
+    assert response['template'] == 'exams/viewer.html'
+    assert response['exam_title'] == 'Panorâmica'
+    assert response['files'][0]['kind'] == 'image'
+    assert response['files'][0]['url'] == '/exams.serve_imagem/101'

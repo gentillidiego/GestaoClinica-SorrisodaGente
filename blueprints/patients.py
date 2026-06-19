@@ -7,7 +7,7 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash,
 from flask_login import login_required, current_user
 from werkzeug.security import check_password_hash
 from database import execute, query, execute_transaction
-from constants import CLINICAL_EXECUTOR_ROLES, can_sign_clinical_document
+from constants import CLINICAL_EXECUTOR_ROLES
 from services.security_service import audit_log, permission_required
 from services.sensitive_file_service import sensitive_file_response
 from services.google_drive_service import get_drive_service, ensure_patient_drive_folder, upload_file_in_memory, download_file_in_memory
@@ -1403,35 +1403,6 @@ def pending_treatments():
     patients_list = list(grouped_patients.values())
     
     return render_template('patients/pending_treatments.html', grouped_patients=patients_list, query=q)
-
-@patients_bp.route('/<int:id>/exam/<int:exam_id>/validate', methods=['POST'])
-@login_required
-def validate_exam(id, exam_id):
-    username = request.form.get('prof_username')
-    password = request.form.get('prof_password')
-    
-    if not username or not password:
-        flash('Usuário e senha são obrigatórios para validar o exame.', 'danger')
-        return redirect(url_for('patients.view_patient', id=id))
-        
-    prof = query("SELECT id, password, role FROM users WHERE username = %s", (username,), one=True)
-    
-    # Apenas dentista ou admin podem validar exames
-    if not prof or not check_password_hash(prof['password'], password) or not can_sign_clinical_document(prof['role']):
-        flash('Credenciais inválidas ou usuário sem permissão para validar exames.', 'danger')
-        return redirect(url_for('patients.view_patient', id=id))
-        
-    try:
-        execute('''
-            UPDATE exams 
-            SET professor_id = %s, data_validacao = CURRENT_TIMESTAMP
-            WHERE id = %s AND patient_id = %s
-        ''', (prof['id'], exam_id, id))
-        flash('Exame validado pelo dentista com sucesso!', 'success')
-    except Exception as e:
-        flash(f'Erro ao validar exame: {str(e)}', 'danger')
-        
-    return redirect(url_for('patients.view_patient', id=id))
 
 # ── Rotas do Módulo de Estomatologia (Fase 0) ────────────────────────────────
 

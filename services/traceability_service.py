@@ -193,10 +193,19 @@ class TraceabilityService:
     @staticmethod
     def _exam_events(patient_id):
         rows = query("""
-            SELECT e.id, e.tipo, e.data_criacao, e.resumo_clinico, e.data_validacao,
-                   u.full_name, u.username
+            SELECT e.id, e.tipo, e.data_criacao, e.resumo_clinico,
+                   al.username
             FROM exams e
-            LEFT JOIN users u ON e.professor_id = u.id
+            LEFT JOIN LATERAL (
+                SELECT username
+                FROM audit_logs
+                WHERE module = 'exams'
+                  AND action = 'exam_created'
+                  AND entity_type = 'exams'
+                  AND entity_id = e.id::text
+                ORDER BY created_at ASC, id ASC
+                LIMIT 1
+            ) al ON TRUE
             WHERE e.patient_id = %s
         """, (patient_id,))
 
@@ -207,18 +216,9 @@ class TraceabilityService:
                 'Exame',
                 f"Exame {row['tipo']}",
                 row['resumo_clinico'] or f"Exame #{row['id']} registrado.",
-                actor=row['full_name'] or row['username'],
-                status='Validado' if row['data_validacao'] else 'Registrado',
+                actor=row['username'],
+                status='Registrado',
             ))
-            if row['data_validacao']:
-                events.append(_event(
-                    row['data_validacao'],
-                    'Exame',
-                    f"Exame {row['tipo']} validado",
-                    f"Validação clínica do exame #{row['id']}.",
-                    actor=row['full_name'] or row['username'],
-                    status='Validado',
-                ))
         return events
 
     @staticmethod

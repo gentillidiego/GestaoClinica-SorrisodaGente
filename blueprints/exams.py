@@ -135,6 +135,165 @@ def prepare_image_uploads(files):
         prepared_files.append((file, safe_name, ext, file.filename))
     return prepared_files
 
+
+EXAM_EDIT_ENDPOINTS = {
+    'fisico': 'exams.fisico',
+    'odontograma': 'exams.odontograma',
+    'controle_placa': 'exams.controle_placa',
+    'periograma': 'exams.periograma',
+}
+
+
+def _audit_exam_saved(exam_id, patient_id, exam_type, created):
+    try:
+        audit_log(
+            action='exam_created' if created else 'exam_updated',
+            module='exams',
+            entity_type='exams',
+            entity_id=exam_id,
+            patient_id=patient_id,
+            details={'exam_type': exam_type},
+        )
+    except Exception:
+        current_app.logger.exception(
+            'Falha ao registrar auditoria do exame %s',
+            exam_id,
+        )
+
+
+@exams_bp.route('/<int:exam_id>/visualizar')
+@login_required
+@permission_required('patients:view')
+def visualizar(exam_id):
+    exam = query(
+        """
+        SELECT e.*, p.nome AS patient_name
+        FROM exams e
+        JOIN patients p ON p.id = e.patient_id
+        WHERE e.id = %s
+        """,
+        (exam_id,),
+        one=True,
+    )
+    if not exam:
+        return 'Exame não encontrado', 404
+
+    if exam['tipo'] in EXAM_EDIT_ENDPOINTS:
+        return redirect(url_for(
+            EXAM_EDIT_ENDPOINTS[exam['tipo']],
+            anamnesis_id=exam['anamnesis_id'],
+            exam_id=exam['id'],
+        ))
+
+    files = []
+    exam_title = exam.get('resumo_clinico') or 'Exame'
+
+    if exam['tipo'] == 'imagem':
+        detail = query(
+            "SELECT * FROM exam_imagem WHERE exam_id = %s",
+            (exam_id,),
+            one=True,
+        ) or {}
+        exam_title = detail.get('tipo_imagem') or 'Exame de imagem'
+        rows = query(
+            """
+            SELECT *
+            FROM exam_imagem_arquivos
+            WHERE exam_id = %s
+              AND COALESCE(active, TRUE) = TRUE
+            ORDER BY data_upload ASC, id ASC
+            """,
+            (exam_id,),
+        )
+        for row in rows:
+            files.append({
+                'id': row['id'],
+                'filename': row['filename'],
+                'caption': row.get('caption') or row['filename'],
+                'kind': 'image',
+                'url': url_for('exams.serve_imagem', arquivo_id=row['id']),
+                'thumbnail_url': url_for(
+                    'exams.serve_imagem_thumbnail',
+                    arquivo_id=row['id'],
+                ),
+            })
+    elif exam['tipo'] == 'clinico_laboratorial':
+        detail = query(
+            """
+            SELECT *
+            FROM exam_clinico_laboratorial
+            WHERE exam_id = %s
+            """,
+            (exam_id,),
+            one=True,
+        ) or {}
+        exam_title = get_clinical_lab_exam_label(detail.get('categoria'))
+        rows = query(
+            """
+            SELECT *
+            FROM exam_clinico_laboratorial_arquivos
+            WHERE exam_id = %s
+              AND COALESCE(active, TRUE) = TRUE
+            ORDER BY data_upload ASC, id ASC
+            """,
+            (exam_id,),
+        )
+        for row in rows:
+            is_image = is_clinical_lab_image(
+                row.get('filename'),
+                row.get('mime_type'),
+            )
+            files.append({
+                'id': row['id'],
+                'filename': row['filename'],
+                'caption': row.get('caption') or row['filename'],
+                'kind': 'image' if is_image else 'pdf',
+                'url': url_for(
+                    'exams.serve_clinico_laboratorial_arquivo',
+                    arquivo_id=row['id'],
+                ),
+                'thumbnail_url': (
+                    url_for(
+                        'exams.serve_clinico_laboratorial_thumbnail',
+                        arquivo_id=row['id'],
+                    )
+                    if is_image
+                    else None
+                ),
+            })
+    else:
+        return 'Tipo de exame não suportado', 404
+
+    try:
+        audit_log(
+            action='exam_viewed',
+            module='exams',
+            entity_type='exams',
+            entity_id=exam_id,
+            patient_id=exam['patient_id'],
+            details={
+                'exam_type': exam['tipo'],
+                'file_count': len(files),
+            },
+        )
+    except Exception:
+        current_app.logger.exception(
+            'Falha ao registrar visualização do exame %s',
+            exam_id,
+        )
+
+    return render_template(
+        'exams/viewer.html',
+        exam=exam,
+        exam_title=exam_title,
+        files=files,
+        return_url=url_for(
+            'patients.view_patient',
+            id=exam['patient_id'],
+            _anchor='tab-exames',
+        ),
+    )
+
 @exams_bp.route('/list/<int:anamnesis_id>')
 @login_required
 def list_exams(anamnesis_id):
@@ -211,6 +370,7 @@ def fisico(anamnesis_id, exam_id=None):
         exam_data = query("SELECT * FROM exam_fisico WHERE exam_id = %s", (exam_id,), one=True)
 
     if request.method == 'POST':
+        created = exam_id is None
         # Se for edição
         if exam_id:
             execute("""
@@ -240,6 +400,14 @@ def fisico(anamnesis_id, exam_id=None):
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (new_exam_id, *_get_fisico_data()))
             flash('Exame Físico salvo com sucesso!', 'success')
+            exam_id = new_exam_id
+
+        _audit_exam_saved(
+            exam_id,
+            anamnesis['patient_id'],
+            'fisico',
+            created,
+        )
         
         return redirect(url_for('patients.view_patient', id=anamnesis['patient_id']))
 
@@ -259,6 +427,7 @@ def odontograma(anamnesis_id, exam_id=None):
         exam_data = query("SELECT * FROM exam_odontograma WHERE exam_id = %s", (exam_id,), one=True)
 
     if request.method == 'POST':
+        created = exam_id is None
         dentes_data = request.form.get('dentes_data')
         notas_dentes = request.form.get('notas_dentes')
         observacoes = request.form.get('observacoes')
@@ -282,6 +451,13 @@ def odontograma(anamnesis_id, exam_id=None):
                    (new_exam_id, dentes_data, notas_dentes, observacoes))
             flash('Odontograma salvo com sucesso!', 'success')
             exam_id = new_exam_id
+
+        _audit_exam_saved(
+            exam_id,
+            anamnesis['patient_id'],
+            'odontograma',
+            created,
+        )
         
         return redirect(url_for('patients.view_patient', id=anamnesis['patient_id']))
 
@@ -301,6 +477,7 @@ def controle_placa(anamnesis_id, exam_id=None):
         exam_data = query("SELECT * FROM exam_controle_placa WHERE exam_id = %s", (exam_id,), one=True)
 
     if request.method == 'POST':
+        created = exam_id is None
         data_faces = request.form.get('data_faces')
         num_dentes = request.form.get('num_dentes')
         num_faces_placa = request.form.get('num_faces_placa')
@@ -326,6 +503,14 @@ def controle_placa(anamnesis_id, exam_id=None):
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, (new_exam_id, data_faces, num_dentes, num_faces_placa, indice_placa, psr_data, condicao_periodontal))
             flash('Controle de Placa salvo!', 'success')
+            exam_id = new_exam_id
+
+        _audit_exam_saved(
+            exam_id,
+            anamnesis['patient_id'],
+            'controle_placa',
+            created,
+        )
         
         return redirect(url_for('patients.view_patient', id=anamnesis['patient_id']))
 
@@ -348,6 +533,7 @@ def periograma(anamnesis_id, exam_id=None):
         exam_data = query("SELECT * FROM exam_periograma WHERE exam_id = %s", (exam_id,), one=True)
 
     if request.method == 'POST':
+        created = exam_id is None
         fase = request.form.get('fase')
         medicoes_data = request.form.get('medicoes_data')
         diagnostico = request.form.get('diagnostico')
@@ -384,6 +570,14 @@ def periograma(anamnesis_id, exam_id=None):
             execute("INSERT INTO exam_periograma (exam_id, fase, medicoes_data, diagnostico) VALUES (%s, %s, %s, %s)", 
                    (new_exam_id, fase, medicoes_data, diagnostico))
             flash('Periograma salvo!', 'success')
+            exam_id = new_exam_id
+
+        _audit_exam_saved(
+            exam_id,
+            anamnesis['patient_id'],
+            'periograma',
+            created,
+        )
         
         return redirect(url_for('patients.view_patient', id=anamnesis['patient_id']))
 
@@ -405,6 +599,7 @@ def imagem(anamnesis_id, exam_id=None):
         imagens = query("SELECT * FROM exam_imagem_arquivos WHERE exam_id = %s ORDER BY data_upload ASC", (exam_id,))
 
     if request.method == 'POST':
+        created = exam_id is None
         wants_json = _wants_json_response()
         tipo_imagem = (request.form.get('tipo_imagem') or '').strip()
         escopo = (request.form.get('escopo') or '').strip() or infer_image_exam_scope(tipo_imagem)
@@ -436,6 +631,13 @@ def imagem(anamnesis_id, exam_id=None):
             if not wants_json:
                 flash('Exame de Imagem criado com sucesso!', 'success')
             exam_id = new_exam_id
+
+        _audit_exam_saved(
+            exam_id,
+            anamnesis['patient_id'],
+            'imagem',
+            created,
+        )
 
         if wants_json:
             return jsonify({
@@ -849,6 +1051,7 @@ def clinico_laboratorial(anamnesis_id, exam_id=None):
             arquivos.append(item)
 
     if request.method == 'POST':
+        created = exam_id is None
         wants_json = _wants_json_response()
         categoria = (request.form.get('categoria') or '').strip()
         laboratorio = (request.form.get('laboratorio') or '').strip()
@@ -909,6 +1112,13 @@ def clinico_laboratorial(anamnesis_id, exam_id=None):
             )
             if not wants_json:
                 flash('Exame clínico/laboratorial criado com sucesso!', 'success')
+
+        _audit_exam_saved(
+            exam_id,
+            anamnesis['patient_id'],
+            'clinico_laboratorial',
+            created,
+        )
 
         if wants_json:
             return jsonify({
@@ -1327,6 +1537,21 @@ def delete_exam(exam_id):
 
     # Excluir da tabela principal
     execute("DELETE FROM exams WHERE id = %s", (exam_id,))
+
+    try:
+        audit_log(
+            action='exam_deleted',
+            module='exams',
+            entity_type='exams',
+            entity_id=exam_id,
+            patient_id=exam['patient_id'],
+            details={'exam_type': exam['tipo']},
+        )
+    except Exception:
+        current_app.logger.exception(
+            'Falha ao registrar auditoria da exclusão do exame %s',
+            exam_id,
+        )
     
     flash('Exame excluído com sucesso!', 'success')
     return redirect(request.referrer or url_for('patients.list'))

@@ -108,13 +108,6 @@
 	        <span class="stat-label">Faltas</span>
 	      </div>
 	    </div>
-	    <div class="stat-card" style="border-bottom:4px solid #0f766e;">
-	      <div class="stat-icon" style="background:#ccfbf1;">EX</div>
-	      <div class="stat-info">
-	        <span class="stat-value" style="color:#0f766e;">{{ data.clinical_pending.pending_exams.total }}</span>
-	        <span class="stat-label">Exames Pendentes</span>
-	      </div>
-	    </div>
 	    <div class="stat-card" style="border-bottom:4px solid #b45309;">
 	      <div class="stat-icon" style="background:#fef3c7;">AS</div>
 	      <div class="stat-info">
@@ -401,13 +394,6 @@
 	        <h2 class="section-header">Pendências Clínicas</h2>
 	        {% if data.clinical_pending.total %}
 	        <div style="display:flex; flex-direction:column; gap:0.9rem;">
-	          {% for exam in data.clinical_pending.pending_exams['items'][:4] %}
-	          <a class="pending-row" href="{{ url_for('patients.view_patient', id=exam.patient_id) }}#tab-exames">
-	            <span>Exame {{ exam.tipo }}</span>
-	            <strong>{{ exam.patient_name }}</strong>
-	            <small>Aguardando validação</small>
-	          </a>
-		          {% endfor %}
 		          {% for doc in data.clinical_pending.unsigned_documents['items'][:4] %}
 		          {% set target_tab = doc.module_tab or 'tab-atendimento' %}
 		          <a class="pending-row" href="{{ url_for('patients.view_patient', id=doc.patient_id) }}#{{ target_tab }}">

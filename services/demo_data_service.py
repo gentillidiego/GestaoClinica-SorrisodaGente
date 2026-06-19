@@ -374,8 +374,8 @@ def _create_anamnesis(patient_id, profile, created_at):
 
 def _create_exams(patient_id, anamnesis_id, profile, professional_id, created_at):
     fisico_id = execute(
-        "INSERT INTO exams (anamnesis_id, patient_id, tipo, resumo_clinico, professor_id, data_validacao, data_criacao) VALUES (%s, %s, 'fisico', %s, %s, %s, %s) RETURNING id",
-        (anamnesis_id, patient_id, f"Exame fisico demo - {profile['label']}", professional_id, created_at, created_at)
+        "INSERT INTO exams (anamnesis_id, patient_id, tipo, resumo_clinico, data_criacao) VALUES (%s, %s, 'fisico', %s, %s) RETURNING id",
+        (anamnesis_id, patient_id, f"Exame fisico demo - {profile['label']}", created_at)
     )
     execute(
         """
@@ -410,8 +410,8 @@ def _create_exams(patient_id, anamnesis_id, profile, professional_id, created_at
         'observacao': profile['label'],
     }
     odontograma_id = execute(
-        "INSERT INTO exams (anamnesis_id, patient_id, tipo, resumo_clinico, professor_id, data_validacao, data_criacao) VALUES (%s, %s, 'odontograma', %s, %s, %s, %s) RETURNING id",
-        (anamnesis_id, patient_id, 'Odontograma demo com necessidades planejadas.', professional_id, created_at, created_at)
+        "INSERT INTO exams (anamnesis_id, patient_id, tipo, resumo_clinico, data_criacao) VALUES (%s, %s, 'odontograma', %s, %s) RETURNING id",
+        (anamnesis_id, patient_id, 'Odontograma demo com necessidades planejadas.', created_at)
     )
     execute(
         "INSERT INTO exam_odontograma (exam_id, dentes_data, notas_dentes, observacoes) VALUES (%s, %s, %s, %s)",
@@ -419,8 +419,8 @@ def _create_exams(patient_id, anamnesis_id, profile, professional_id, created_at
     )
 
     periograma_id = execute(
-        "INSERT INTO exams (anamnesis_id, patient_id, tipo, resumo_clinico, professor_id, data_validacao, data_criacao) VALUES (%s, %s, 'periograma', %s, %s, %s, %s) RETURNING id",
-        (anamnesis_id, patient_id, 'Periograma demo.', professional_id, created_at, created_at)
+        "INSERT INTO exams (anamnesis_id, patient_id, tipo, resumo_clinico, data_criacao) VALUES (%s, %s, 'periograma', %s, %s) RETURNING id",
+        (anamnesis_id, patient_id, 'Periograma demo.', created_at)
     )
     periodontal = {
         'sangramento': profile['key'] in {'diabetico_periodontal', 'gestante_preventivo'},

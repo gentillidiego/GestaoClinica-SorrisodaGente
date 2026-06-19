@@ -129,8 +129,13 @@ Nesta etapa, o BI está em modo de validação do que já existe. Não entram no
     protegido no Drive ou aguardando nova tentativa automática.
 *   Não reenviar o mesmo arquivo apenas porque o status ainda está
     `sincronizando`.
-*   Imagens abrem primeiro em versão otimizada; o original permanece disponível
-    quando necessário.
+*   Ao concluir o salvamento local, o sistema volta automaticamente para a aba
+    **Exames**; o envio ao Drive continua sem bloquear o operador.
+*   Não existe etapa adicional de assinatura ou validação do exame. A auditoria
+    registra automaticamente o usuário responsável por criar, alterar,
+    visualizar ou excluir.
+*   **Visualizar Exame** abre somente os arquivos. Imagens têm zoom, ajuste,
+    setas, arraste e tela cheia; PDFs são exibidos no leitor do navegador.
 
 ### 4.8. Administração
 *   **Usuários:** Cadastro, edição de perfil e gestão do ciclo de vida do acesso.

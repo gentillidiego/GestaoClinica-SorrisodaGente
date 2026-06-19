@@ -196,3 +196,4 @@ def test_clinical_lab_async_form_returns_to_exams_tab():
     assert 'data-async-submit="true"' in template
     assert "_anchor='tab-exames'" in template
     assert 'window.location.assign(returnUrl || app.dataset.createUrl)' in script
+    assert 'if (!isBusy || allowNavigation) return;' in script

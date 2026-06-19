@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}{{ exam_title }} - Visualizar Exame{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/exam-viewer.css') }}?v=1.0">
+{% endblock %}
+
+{% block content %}
+<main class="exam-viewer" id="examViewer">
+    <header class="exam-viewer__header">
+        <a href="{{ return_url }}" class="exam-viewer__back" aria-label="Voltar para a aba Exames">
+            <span aria-hidden="true">←</span>
+            Exames
+        </a>
+        <div class="exam-viewer__identity">
+            <span>{{ exam.patient_name }}</span>
+            <h1>{{ exam_title }}</h1>
+        </div>
+    </header>
+
+    {% if files %}
+    <section class="exam-viewer__shell" id="viewerShell">
+        <div class="exam-viewer__toolbar" role="toolbar" aria-label="Controles do visualizador">
+            <button type="button" data-action="zoom-out" aria-label="Diminuir zoom" title="Diminuir zoom">−</button>
+            <strong id="viewerZoom">100%</strong>
+            <button type="button" data-action="zoom-in" aria-label="Aumentar zoom" title="Aumentar zoom">+</button>
+            <span class="exam-viewer__toolbar-separator"></span>
+            <button type="button" data-action="move-left" aria-label="Mover para a esquerda" title="Mover para a esquerda">←</button>
+            <button type="button" data-action="move-up" aria-label="Mover para cima" title="Mover para cima">↑</button>
+            <button type="button" data-action="move-down" aria-label="Mover para baixo" title="Mover para baixo">↓</button>
+            <button type="button" data-action="move-right" aria-label="Mover para a direita" title="Mover para a direita">→</button>
+            <button type="button" data-action="reset" aria-label="Ajustar à tela" title="Ajustar à tela">Ajustar</button>
+            <span class="exam-viewer__toolbar-separator"></span>
+            <button type="button" data-action="fullscreen" aria-label="Abrir em tela cheia" title="Tela cheia">⛶</button>
+            <a id="viewerOriginalLink" href="#" target="_blank" rel="noopener">Abrir original</a>
+        </div>
+
+        <div class="exam-viewer__stage" id="viewerStage">
+            <div class="exam-viewer__image-layer" id="viewerImageLayer" hidden>
+                <img id="viewerImage" alt="" draggable="false">
+            </div>
+            <iframe
+                id="viewerPdf"
+                class="exam-viewer__pdf"
+                title="Visualizador de PDF"
+                hidden
+            ></iframe>
+            <div class="exam-viewer__loading" id="viewerLoading">Carregando exame…</div>
+        </div>
+
+        <footer class="exam-viewer__footer">
+            <button type="button" data-action="previous" aria-label="Arquivo anterior">‹</button>
+            <div>
+                <strong id="viewerCaption"></strong>
+                <span id="viewerPosition"></span>
+            </div>
+            <button type="button" data-action="next" aria-label="Próximo arquivo">›</button>
+        </footer>
+    </section>
+
+    <nav class="exam-viewer__files" aria-label="Arquivos deste exame">
+        {% for file in files %}
+        <button
+            type="button"
+            class="exam-viewer__file"
+            data-index="{{ loop.index0 }}"
+            data-kind="{{ file.kind }}"
+            data-url="{{ file.url }}"
+            data-caption="{{ file.caption }}"
+            data-filename="{{ file.filename }}"
+        >
+            {% if file.kind == 'image' %}
+            <img src="{{ file.thumbnail_url }}" alt="">
+            {% else %}
+            <span class="exam-viewer__pdf-icon" aria-hidden="true">PDF</span>
+            {% endif %}
+            <span>{{ file.caption }}</span>
+        </button>
+        {% endfor %}
+    </nav>
+    {% else %}
+    <section class="exam-viewer__empty">
+        <span aria-hidden="true">▧</span>
+        <h2>Nenhum arquivo anexado</h2>
+        <p>O exame foi registrado, mas ainda não possui imagem ou PDF.</p>
+        <a href="{{ return_url }}" class="btn btn-primary">Voltar para Exames</a>
+    </section>
+    {% endif %}
+</main>
+{% endblock %}
+
+{% block extra_scripts %}
+{% if files %}
+<script src="{{ url_for('static', filename='js/exam-viewer.js') }}?v=1.0"></script>
+{% endif %}
+{% endblock %}
