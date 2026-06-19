@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from flask import Flask
 from werkzeug.security import generate_password_hash
 
@@ -5,19 +7,47 @@ import services.signature_evidence_service as signature_service
 from constants import Role
 
 
-def test_collect_a_rogo_witnesses_requires_two_witnesses():
-    form = {
-        'rogo_witness1_name': 'Maria Testemunha',
-        'rogo_witness1_document': '111.111.111-11',
-        'rogo_witness2_name': 'Jose Testemunha',
-        'rogo_witness2_document': '222.222.222-22',
-    }
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-    witnesses = signature_service.collect_a_rogo_witnesses(form)
 
-    assert len(witnesses) == 2
-    assert witnesses[0]['name'] == 'Maria Testemunha'
-    assert witnesses[1]['document'] == '222.222.222-22'
+def test_a_rogo_payload_does_not_require_witnesses():
+    patient = {'id': 42, 'nome': 'Paciente Teste', 'cpf': '123.456.789-00', 'rg': '123'}
+    signer = {'id': 7, 'username': 'dra.cibely', 'role': Role.CLINICOS}
+
+    payload = signature_service.build_tcle_payload(
+        patient,
+        signature_service.SIGNATURE_MODE_A_ROGO,
+        signer=signer,
+    )
+
+    assert payload['signature_mode'] == signature_service.SIGNATURE_MODE_A_ROGO
+    assert payload['witnesses'] == []
+
+
+def test_a_rogo_forms_require_only_clinical_user_credentials():
+    atendimento_modal = (
+        PROJECT_ROOT / 'templates/patients/includes/_modals.html'
+    ).read_text(encoding='utf-8')
+    tcle_form = (PROJECT_ROOT / 'templates/patients/tcle.html').read_text(encoding='utf-8')
+
+    for template in (atendimento_modal, tcle_form):
+        assert 'name="rogo_prof_username"' in template
+        assert 'name="rogo_prof_password"' in template
+        assert 'rogo_witness' not in template
+
+
+def test_atendimento_patient_signature_button_uses_safe_data_attributes():
+    atendimento_tab = (
+        PROJECT_ROOT / 'templates/patients/includes/_tab_atendimento.html'
+    ).read_text(encoding='utf-8')
+    scripts = (
+        PROJECT_ROOT / 'templates/patients/includes/_scripts.html'
+    ).read_text(encoding='utf-8')
+
+    assert 'onclick="openPatientSignModalFromButton(this)"' in atendimento_tab
+    assert "data-patient-name=\"{{ patient.nome or '' }}\"" in atendimento_tab
+    assert 'patient.nome|tojson' not in atendimento_tab
+    assert 'function openPatientSignModalFromButton(button)' in scripts
 
 
 def test_validate_a_rogo_signer_accepts_active_clinical_user(monkeypatch):
@@ -64,10 +94,7 @@ def test_register_signature_event_stores_hash_and_request_context(monkeypatch):
         'cro': '1234',
         'cro_uf': 'AL',
     }
-    witnesses = [
-        {'order': 1, 'name': 'Maria', 'document': '111'},
-        {'order': 2, 'name': 'Jose', 'document': '222'},
-    ]
+    witnesses = []
     payload = signature_service.build_tcle_payload(
         patient,
         signature_service.SIGNATURE_MODE_A_ROGO,

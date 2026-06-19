@@ -46,21 +46,6 @@ def calculate_document_hash(payload):
     return hash_text(canonical_payload)
 
 
-def collect_a_rogo_witnesses(form_data):
-    witnesses = []
-    for index in (1, 2):
-        name = (form_data.get(f'rogo_witness{index}_name') or '').strip()
-        document = (form_data.get(f'rogo_witness{index}_document') or '').strip()
-        if not name or not document:
-            raise ValueError('Informe nome e documento das duas testemunhas para assinatura a rogo.')
-        witnesses.append({
-            'order': index,
-            'name': name,
-            'document': document,
-        })
-    return witnesses
-
-
 def validate_a_rogo_signer(username, password):
     username = (username or '').strip()
     if not username or not password:

@@ -109,7 +109,11 @@
                             {% endif %}
                             {% else %}
                             <button
-                                onclick="openPatientSignModal('{{ url_for('patients.sign_patient_atendimento', id=patient.id, appt_id=appt.id) }}', true, {{ patient.nome|tojson }}, {{ patient.cpf|tojson }})"
+                                type="button"
+                                data-action-url="{{ url_for('patients.sign_patient_atendimento', id=patient.id, appt_id=appt.id) }}"
+                                data-patient-name="{{ patient.nome or '' }}"
+                                data-patient-cpf="{{ patient.cpf or '' }}"
+                                onclick="openPatientSignModalFromButton(this)"
                                 class="btn btn-outline"
                                 style="padding: 0.4rem 0.8rem; font-size: 0.85rem; color: hsl(var(--primary)); border-color: hsl(var(--primary));">
                                 📝 Paciente

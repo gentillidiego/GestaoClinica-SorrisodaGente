@@ -22,7 +22,6 @@ from services.signature_evidence_service import (
     SIGNATURE_MODE_CANVAS,
     build_atendimento_payload,
     build_tcle_payload,
-    collect_a_rogo_witnesses,
     json_dumps,
     register_signature_event,
     validate_a_rogo_signer,
@@ -855,7 +854,6 @@ def patient_tcle(id):
                     request.form.get('rogo_prof_username'),
                     request.form.get('rogo_prof_password'),
                 )
-                witnesses = collect_a_rogo_witnesses(request.form)
                 declaration_text = A_ROGO_DECLARATION
                 assinatura = SIGNATURE_MARKER_A_ROGO
                 auth_method = 'login_senha_cd_a_rogo'
@@ -1127,7 +1125,6 @@ def sign_patient_atendimento(id, appt_id):
                 request.form.get('rogo_prof_username'),
                 request.form.get('rogo_prof_password'),
             )
-            witnesses = collect_a_rogo_witnesses(request.form)
             declaration_text = A_ROGO_DECLARATION
             assinatura_base64 = SIGNATURE_MARKER_A_ROGO
             auth_method = 'login_senha_cd_a_rogo'
@@ -1194,7 +1191,7 @@ def sign_patient_atendimento(id, appt_id):
             execute("UPDATE atendimentos SET data = %s WHERE id = %s", (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), appt_id))
             
         if signature_mode == SIGNATURE_MODE_A_ROGO:
-            flash('Assinatura a rogo registrada com evidência de leitura, consentimento e testemunhas.', 'success')
+            flash('Assinatura a rogo registrada com autenticação do CD e evidência de leitura e consentimento.', 'success')
         else:
             flash('Assinatura do paciente registrada com sucesso!', 'success')
     except Exception as e:

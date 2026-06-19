@@ -14,7 +14,7 @@ Leitura operacional atual:
 - Fase 1 com base implementada: perfis, permissões, auditoria inicial, backup operacional, estrutura LGPD e hardening inicial de arquivos sensíveis. Ainda falta hardening de produção.
 - Fase 2 com primeira versão operacional concluída: triagem, agenda, Central de Comando, fila inteligente, alertas, rastreabilidade, estoque, unidades de execução e resumo diário.
 - Fase 3 iniciada e avançada: Epidemiologia, BI, relatórios institucionais, custos SIGTAP, PDF governamental e integração e-SUS APS implementada via envelope XML LEDI quinzenal da Ficha de Atendimento Odontológico. A geração é validada contra a cadeia completa de XSDs e é idempotente por período/profissional. Pendente configuração oficial da instalação e importação assistida no PEC municipal.
-- Assinatura a rogo implementada para TCLE e confirmação do atendimento quando o paciente for não alfabetizado, com autenticação do CD, duas testemunhas, SHA-256, IP, user-agent, CPF do paciente e trilha de auditoria.
+- Assinatura a rogo implementada para TCLE e confirmação do atendimento quando o paciente for não alfabetizado, com autenticação do CD por login/senha, SHA-256, IP, user-agent, CPF do paciente e trilha de auditoria, sem exigência de testemunhas.
 - Pacote probatório de assinatura padronizado para TCLE, confirmação do atendimento, Anamnese, Prótese, Pagamentos e Endodontia, com eventos em `signature_events`, registros em `digital_signatures`, link de comprovante e exibição na Linha do Tempo.
 - Pré-cadastro profissional público implementado em `/cadastro/`, com página de confirmação dedicada, aprovação/recusa administrativa, criação de usuário em primeiro acesso e notificação por e-mail ao profissional.
 - Fluxo de primeiro acesso e recuperação de senha implementado: profissional aprovado entra com login + data de nascimento, define senha definitiva, confirma e-mail e pode redefinir senha por link temporário.
@@ -26,7 +26,7 @@ Leitura operacional atual:
 - Módulo de Endodontia ampliado até a Etapa E10 em nível MVP clínico-operacional, mas **não é prioridade de evolução neste momento**.
 - Endodontia e Prótese permanecem temporariamente ocultas da navegação do prontuário por decisão operacional; os módulos não foram removidos.
 - Decisão de 17/06/2026: escopo congelado para Endodontia, Prótese, Portal do Paciente e evoluções de BI até o Go/No-Go de produção. O BI existente pode ser validado e usado como apoio gerencial, mas não deve receber novas visões, indicadores, redesign ou ampliações antes da produção assistida.
-- Última validação registrada em 19/06/2026: suíte completa com `233 passed`,
+- Última validação registrada em 19/06/2026: suíte completa com `239 passed`,
   HTTPS público HTTP `200`, web/worker/beat/backup saudáveis, rota interna do
   Nginx inacessível externamente e tarefas de limpeza/reconciliação executadas.
 - Status de produção: infraestrutura e módulos desta entrega estão implantados
@@ -72,7 +72,7 @@ VOLTE E VERIFIQUE:
 - **e-SUS APS**: integração implementada via envelope XML LEDI quinzenal. ⚠️ **BLOQUEANTE:** obter do TI municipal CNES, INE, código IBGE, contra-chave, UUID da instalação, CPF/CNPJ e razão social da instalação, além da versão LEDI aceita pelo PEC. O sistema não salva nem envia XML inválido.
 - Backups Docker devem usar `scripts/docker_backup_postgres.sh`, que executa `pg_dump` via `postgres:16-alpine`, compatível com o PostgreSQL 16 do projeto.
 - AVISO RELEVANTE: os módulos `Endodontia` e `Prótese` estão temporariamente ocultos da navegação do prontuário do paciente. Sempre informar ao usuário que esses módulos estão ocultos por decisão operacional temporária, não removidos do sistema.
-- TCLE e confirmação de atendimento permitem assinatura a rogo apenas para paciente não alfabetizado, com login/senha do CD responsável e duas testemunhas. Não usar esse fluxo como substituto de conveniência para assinatura comum.
+- TCLE e confirmação de atendimento permitem assinatura a rogo apenas para paciente não alfabetizado, com login/senha do CD responsável e sem exigência de testemunhas. Não usar esse fluxo como substituto de conveniência para assinatura comum.
 
 ## Arquitetura Docker
 
@@ -552,7 +552,7 @@ Estado:
 - Linha do tempo consolidada.
 - Assinaturas existem em fluxos clínicos, mas assinatura digital institucional ainda está pendente.
 - TCLE e assinatura do paciente na evolução/atendimento aceitam assinatura comum em tela e assinatura a rogo para paciente não alfabetizado.
-- Assinatura a rogo exige autenticação do CD responsável por login/senha, declaração de leitura e explicação ao paciente, duas testemunhas e registro probatório com SHA-256, CPF do paciente, IP, user-agent, timestamp e auditoria.
+- Assinatura a rogo exige autenticação do CD responsável por login/senha, declaração de leitura e explicação ao paciente e registro probatório com SHA-256, CPF do paciente, IP, user-agent, timestamp e auditoria; não exige testemunhas.
 - O comprovante consolidado de assinatura fica disponível em `/documents/signatures/<event_id>` e pode ser acessado pela Linha do Tempo ou pelo TCLE impresso quando houver evento vinculado.
 - Assinaturas clínicas em Anamnese, Prótese, Pagamentos e Endodontia também geram evento probatório com SHA-256 e vínculo técnico ao documento, mesmo quando usam assinatura comum em tela.
 - Plano de Tratamento registra especialidade SIGTAP escolhida e valida se o código selecionado pertence à especialidade informada.
@@ -2228,6 +2228,7 @@ Próxima continuidade recomendada:
 - 17/06/2026: O usuário `Erika` também foi removido da base ativa após validação de ausência de login, primeiro acesso, recuperação de senha, auditoria e vínculos operacionais.
 - 17/06/2026: Cadastro de paciente passou a registrar endereço residencial estruturado com CEP, rua, número, bairro, cidade, UF e código IBGE; CEP encontrado preenche os campos automaticamente e relatórios/epidemiologia passam a preferir bairro/cidade estruturados.
 - 17/06/2026: Preparada a Etapa 1 da integração com Google Drive via Service Account: conexão com Drive API v3, pasta raiz de prontuários, pasta do paciente no formato `[CPF] - [Nome]`, persistência em `patients.gdrive_folder_id` e script de teste `scripts/check_google_drive.py`. Upload de exames e backup offsite permanecem aguardando validação da credencial real.
+- 19/06/2026: Corrigida a abertura da assinatura do paciente na aba Atendimento. A assinatura a rogo do TCLE e da confirmação de atendimento passou a exigir somente login e senha do CD responsável, sem duas testemunhas, preservando hash, IP, user-agent, timestamp e auditoria.
 - 17/06/2026: Automatizado o provisionamento do Google Drive com `scripts/setup_google_drive_automation.sh`, incluindo Google Cloud CLI, projeto/API, Service Account, chave JSON fora do Git, pasta raiz, compartilhamento com a conta institucional, atualização do `.env`, reload Docker e teste de conexão.
 - 18/06/2026: OAuth de upload e propriedade do Drive migrados para a conta institucional `sorrisodagentealagoas@gmail.com`; backup diário/offsite, restore isolado e restrição das portas de produção foram validados.
 - 18/06/2026: Corrigidos consulta e mapeamento clínico do e-SUS, implementado o envelope `dadoTransporteTransportXml`, completada a cadeia de XSDs, adicionada fixture XML golden e aplicada idempotência por período/profissional.

@@ -341,6 +341,15 @@
         alert('Acesso Bloqueado: Este prontuário só será liberado após o paciente assinar o Termo de Consentimento (TCLE).');
     }
 
+    function openPatientSignModalFromButton(button) {
+        openPatientSignModal(
+            button.dataset.actionUrl,
+            true,
+            button.dataset.patientName || '',
+            button.dataset.patientCpf || ''
+        );
+    }
+
     function openPatientSignModal(actionUrl, allowProxySignature = false, patientName = '', patientCpf = '') {
         const modal = document.getElementById('patientSignModal');
         const form = document.getElementById('patientSignForm');
