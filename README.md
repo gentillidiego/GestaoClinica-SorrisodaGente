@@ -270,6 +270,8 @@ Matriz completa:
 Regras permanentes:
 
 - triagem não define unidade;
+- Recepção visualiza a agenda de todos os Clínicos e pode cadastrar, editar,
+  remanejar, cancelar e alterar o status das consultas;
 - Clínicos veem na Agenda apenas o próprio recorte;
 - estoque não pode bloquear registro clínico;
 - economia no BI permanece estimativa até homologação;
