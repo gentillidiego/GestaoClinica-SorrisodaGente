@@ -11,7 +11,9 @@ services:
       - pdf_temp_oral:/app/pdf_temp
       - backups_oral:/app/backups
       - ./secrets:/run/secrets/sorriso:ro
-      - ${RCLONE_CONFIG_HOST_PATH:?Configure RCLONE_CONFIG_HOST_PATH no .env}:/run/secrets/rclone/rclone.conf
+      # O diretório precisa ser gravável: o rclone renova o token criando um
+      # temporário e substituindo rclone.conf atomicamente com rename(2).
+      - ${RCLONE_CONFIG_HOST_DIR:?Configure RCLONE_CONFIG_HOST_DIR no .env}:/run/secrets/rclone
     env_file:
       - .env
     depends_on:
@@ -65,7 +67,7 @@ services:
       - ${UPLOADS_HOST_PATH:-/srv/gestaosaudeoral/uploads}:/app/uploads
       - backups_oral:/app/backups
       - ./secrets:/run/secrets/sorriso:ro
-      - ${RCLONE_CONFIG_HOST_PATH:?Configure RCLONE_CONFIG_HOST_PATH no .env}:/run/secrets/rclone/rclone.conf
+      - ${RCLONE_CONFIG_HOST_DIR:?Configure RCLONE_CONFIG_HOST_DIR no .env}:/run/secrets/rclone
     env_file:
       - .env
     depends_on:
@@ -133,10 +135,11 @@ services:
       POSTGRES_USER: clinica_user
       BACKUP_DIR: /backups
       TZ: ${TZ:-America/Maceio}
+      RCLONE_CONFIG: /run/secrets/rclone/rclone.conf
     volumes:
       - backups_oral:/backups
       - ${UPLOADS_HOST_PATH:-/srv/gestaosaudeoral/uploads}:/uploads:ro
-      - ${RCLONE_CONFIG_HOST_PATH:?Configure RCLONE_CONFIG_HOST_PATH no .env}:/config/rclone/rclone.conf
+      - ${RCLONE_CONFIG_HOST_DIR:?Configure RCLONE_CONFIG_HOST_DIR no .env}:/run/secrets/rclone
     depends_on:
       postgres:
         condition: service_healthy

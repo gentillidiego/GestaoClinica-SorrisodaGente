@@ -16,6 +16,7 @@
 	        </div>
 	        {% endif %}
 
+        {% if can('attendance:write') %}
 	        <!-- Formulário para adicionar nova evolução -->
         <div
             style="margin-bottom: 2rem; background: hsl(var(--bg-main)); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid hsl(var(--border));">
@@ -46,6 +47,7 @@
                 </div>
             </form>
         </div>
+        {% endif %}
 
         <!-- Tabela de Evoluções -->
         <div class="table-container"
@@ -87,7 +89,7 @@
                                 style="display: inline-flex; align-items: center; gap: 0.4rem; color: hsl(var(--success)); font-weight: 600; font-size: 0.9rem; background: hsl(var(--success)/0.1); padding: 0.4rem 0.8rem; border-radius: var(--radius-sm);">
                                 ✅ {{ appt.aluno_executor_nome }}
                             </span>
-                            {% else %}
+                            {% elif can('attendance:write') and can('documents:sign') %}
                             <button
                                 onclick="openStudentSignModal('{{ url_for('patients.sign_student_atendimento', id=patient.id, appt_id=appt.id) }}')"
                                 class="btn btn-outline"
@@ -107,7 +109,7 @@
                                 style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: hsl(var(--success)/0.15); color: hsl(var(--success)); border-radius: 50%;"
                                 title="Assinado pelo Paciente">✅</span>
                             {% endif %}
-                            {% else %}
+                            {% elif can('attendance:write') and can('documents:sign') %}
                             <button
                                 type="button"
                                 data-action-url="{{ url_for('patients.sign_patient_atendimento', id=patient.id, appt_id=appt.id) }}"
@@ -132,7 +134,7 @@
                                 {% else %}Prof.{% endif %}
                                 {{ appt.professor_full_name or appt.professor_nome }}
                             </span>
-                            {% else %}
+                            {% elif can('attendance:write') and can('documents:sign') %}
                             <button
                                 onclick="openSignModal('{{ url_for('patients.sign_atendimento', id=patient.id, appt_id=appt.id) }}')"
                                 class="btn btn-outline"
@@ -142,6 +144,7 @@
                             {% endif %}
                         </td>
                         <td style="padding: 1rem; text-align: right; white-space: nowrap;">
+                            {% if can('attendance:write') %}
                             {% if current_user.id == appt.created_by or current_user.id == appt.professor_id or
                             current_user.is_admin %}
                             <button class="btn btn-outline" style="padding: 0.4rem; font-size: 0.85rem;"
@@ -157,6 +160,7 @@
                                 <button type="submit" class="btn btn-danger"
                                     style="padding: 0.4rem; font-size: 0.85rem;" title="Excluir">🗑️</button>
                             </form>
+                            {% endif %}
                             {% endif %}
                         </td>
                     </tr>

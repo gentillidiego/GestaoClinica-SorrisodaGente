@@ -9,7 +9,7 @@ from services.command_center_service import get_patient_clinical_alert_summary
 
 class PatientService:
     @staticmethod
-    def get_patient_basic_info(patient_id):
+    def get_patient_basic_info(patient_id, include_clinical_alerts=True):
         patient = query("SELECT * FROM patients WHERE id = %s", (patient_id,), one=True)
         if not patient:
             return None
@@ -35,7 +35,11 @@ class PatientService:
             'tcle_signed': tcle_signed,
             'triage': triage,
             'triages': triages,
-            'clinical_alerts': get_patient_clinical_alert_summary(patient_id),
+            'clinical_alerts': (
+                get_patient_clinical_alert_summary(patient_id)
+                if include_clinical_alerts
+                else None
+            ),
         }
 
     @staticmethod
@@ -168,8 +172,11 @@ class PatientService:
         return TraceabilityService.get_patient_traceability_summary(patient_id)
 
     @staticmethod
-    def get_patient_visual_media(patient_id):
-        return get_patient_visual_media_summary(patient_id)
+    def get_patient_visual_media(patient_id, allowed_sources=None):
+        return get_patient_visual_media_summary(
+            patient_id,
+            allowed_sources=allowed_sources,
+        )
 
     @staticmethod
     def get_patient_inventory(patient_id):

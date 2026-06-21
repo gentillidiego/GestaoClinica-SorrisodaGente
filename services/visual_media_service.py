@@ -272,7 +272,12 @@ def _decorate_item(raw_item):
     return item
 
 
-def list_patient_visual_media(patient_id):
+def list_patient_visual_media(patient_id, allowed_sources=None):
+    allowed_sources = set(allowed_sources or {
+        'exam_image',
+        'estomatologia_photo',
+        'endodontia_image',
+    })
     exam_images = query(
         """
         SELECT
@@ -305,7 +310,7 @@ def list_patient_visual_media(patient_id):
           AND COALESCE(a.active, TRUE) = TRUE
         """,
         (patient_id,),
-    )
+    ) if 'exam_image' in allowed_sources else []
     lesion_photos = query(
         """
         SELECT
@@ -336,7 +341,7 @@ def list_patient_visual_media(patient_id):
           AND COALESCE(f.active, TRUE) = TRUE
         """,
         (patient_id,),
-    )
+    ) if 'estomatologia_photo' in allowed_sources else []
     endodontia_images = query(
         """
         SELECT
@@ -371,7 +376,7 @@ def list_patient_visual_media(patient_id):
           AND COALESCE(e.status, 'Ativo') != 'Cancelado'
         """,
         (patient_id,),
-    )
+    ) if 'endodontia_image' in allowed_sources else []
 
     items = [
         _decorate_item(row)
@@ -424,8 +429,8 @@ def build_comparison_groups(items):
     return comparisons
 
 
-def get_patient_visual_media_summary(patient_id):
-    items = list_patient_visual_media(patient_id)
+def get_patient_visual_media_summary(patient_id, allowed_sources=None):
+    items = list_patient_visual_media(patient_id, allowed_sources=allowed_sources)
     stats = {
         'total': len(items),
         'radiografias': sum(1 for item in items if item['visual_category'] == 'radiografia'),

@@ -22,9 +22,11 @@
                 Visualize, edite ou remova pacientes cadastrados.
             </p>
         </div>
+        {% if can('patients:write') %}
         <a href="{{ url_for('patients.register') }}" class="btn btn-primary">
             <span>➕</span> Novo Cadastro
         </a>
+        {% endif %}
     </div>
 
     <!-- Barra de Busca -->
@@ -99,15 +101,19 @@
                         </td>
                         <td
                             style="padding: 1.25rem; text-align: right; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                            {% if can('patients:write') %}
                             <a href="{{ url_for('patients.edit_patient', id=patient.id) }}" class="btn btn-outline"
                                 style="padding: 0.4rem 0.8rem; font-size: 0.8rem; background: white;">
                                 Editar ✏️
                             </a>
+                            {% endif %}
+                            {% if can('patients:delete') %}
                             <button type="button" class="btn btn-outline"
                                 style="padding: 0.4rem 0.8rem; font-size: 0.8rem; color: hsl(var(--danger)); border-color: hsl(var(--danger)/0.3);"
                                 onclick="openDeleteModal({{ patient.id }}, '{{ patient.nome }}')">
                                 Excluir 🗑️
                             </button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -142,6 +148,7 @@
     </div>
 </div>
 
+{% if can('patients:delete') %}
 <!-- Modal de Exclusão -->
 <div id="deleteModal"
     style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
@@ -191,6 +198,7 @@
         }
     }
 </script>
+{% endif %}
 
 <style>
     @keyframes slideUp {

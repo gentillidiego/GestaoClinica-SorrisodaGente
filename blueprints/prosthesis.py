@@ -8,6 +8,7 @@ from services.signature_evidence_service import (
     build_generic_signature_payload,
     register_signature_event,
 )
+from services.web_security_service import flash_internal_error
 
 prosthesis_bp = Blueprint('prosthesis', __name__, url_prefix='/prosthesis')
 
@@ -51,9 +52,55 @@ def _record_prosthesis_signature(document_type, document_id, patient, document_d
         metadata=document_data,
     )
 
+
+def _get_prosthesis(prosthesis_id):
+    return query(
+        """
+        SELECT pr.*, p.nome, p.cpf, p.rg
+        FROM prosthesis pr
+        JOIN patients p ON p.id = pr.patient_id
+        WHERE pr.id = %s
+        """,
+        (prosthesis_id,),
+        one=True,
+    )
+
+
+def _get_prosthesis_stage(etapa_id):
+    return query(
+        """
+        SELECT pe.*, pr.patient_id, p.nome, p.cpf, p.rg
+        FROM prosthesis_etapas pe
+        JOIN prosthesis pr ON pr.id = pe.prosthesis_id
+        JOIN patients p ON p.id = pr.patient_id
+        WHERE pe.id = %s
+        """,
+        (etapa_id,),
+        one=True,
+    )
+
+
+def _patient_scope_matches(requested_patient_id, actual_patient_id):
+    if not requested_patient_id:
+        return True
+    try:
+        return int(requested_patient_id) == int(actual_patient_id)
+    except (TypeError, ValueError):
+        return False
+
+
 @prosthesis_bp.route('/<int:patient_id>/create', methods=['POST'])
 @login_required
 def create_case(patient_id):
+    patient = query(
+        "SELECT id FROM patients WHERE id = %s",
+        (patient_id,),
+        one=True,
+    )
+    if not patient:
+        flash('Paciente não encontrado.', 'danger')
+        return redirect(url_for('patients.list_patients'))
+
     tipo = request.form.get('tipo')
     valor_acordado = request.form.get('valor_acordado', 0)
     aluno_id = request.form.get('aluno_id')
@@ -70,6 +117,7 @@ def create_case(patient_id):
         prosthesis_id = execute('''
             INSERT INTO prosthesis (patient_id, created_by, aluno_responsavel_id, tipo, valor_acordado, status)
             VALUES (%s, %s, %s, %s, %s, 'Ativo')
+            RETURNING id
         ''', (patient_id, current_user.id, aluno_id, tipo, valor_acordado or 0.0))
         
         # Cria as etapas base
@@ -82,14 +130,21 @@ def create_case(patient_id):
             
         flash(f'Tratamento de {tipo} iniciado com sucesso.', 'success')
     except Exception as e:
-        flash(f'Erro ao iniciar tratamento: {str(e)}', 'danger')
+        flash_internal_error('Falha ao iniciar tratamento de prótese')
         
     return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
 
 @prosthesis_bp.route('/etapa/update/<int:etapa_id>', methods=['POST'])
 @login_required
 def update_etapa(etapa_id):
-    patient_id = request.form.get('patient_id')
+    etapa = _get_prosthesis_stage(etapa_id)
+    if not etapa:
+        flash('Etapa de prótese não encontrada.', 'danger')
+        return redirect(url_for('patients.list_patients'))
+    patient_id = etapa['patient_id']
+    if not _patient_scope_matches(request.form.get('patient_id'), patient_id):
+        flash('Etapa não pertence ao paciente informado.', 'danger')
+        return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
     data_etapa = request.form.get('data_etapa')
     data_envio_lab = request.form.get('data_envio_lab')
     servico = request.form.get('servico_solicitado')
@@ -102,14 +157,21 @@ def update_etapa(etapa_id):
         ''', (data_etapa, data_envio_lab, servico, etapa_id))
         flash('Informações da etapa atualizadas.', 'success')
     except Exception as e:
-        flash(f'Erro ao atualizar: {str(e)}', 'danger')
+        flash_internal_error('Falha ao atualizar etapa de prótese')
         
     return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
 
 @prosthesis_bp.route('/etapa/sign_patient/<int:etapa_id>', methods=['POST'])
 @login_required
 def sign_patient(etapa_id):
-    patient_id = request.form.get('patient_id')
+    etapa = _get_prosthesis_stage(etapa_id)
+    if not etapa:
+        flash('Etapa de prótese não encontrada.', 'danger')
+        return redirect(url_for('patients.list_patients'))
+    patient_id = etapa['patient_id']
+    if not _patient_scope_matches(request.form.get('patient_id'), patient_id):
+        flash('Etapa não pertence ao paciente informado.', 'danger')
+        return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
     assinatura = request.form.get('assinatura_base64')
     
     if not assinatura:
@@ -117,20 +179,6 @@ def sign_patient(etapa_id):
         return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
         
     try:
-        etapa = query(
-            """
-            SELECT pe.*, pr.patient_id, p.nome, p.cpf, p.rg
-            FROM prosthesis_etapas pe
-            JOIN prosthesis pr ON pr.id = pe.prosthesis_id
-            JOIN patients p ON p.id = pr.patient_id
-            WHERE pe.id = %s
-            """,
-            (etapa_id,),
-            one=True,
-        )
-        if not etapa:
-            flash('Etapa de prótese não encontrada.', 'danger')
-            return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
         patient = {'id': etapa['patient_id'], 'nome': etapa['nome'], 'cpf': etapa['cpf'], 'rg': etapa['rg']}
         evidence = _record_prosthesis_signature(
             'prosthesis_stage_patient_signature',
@@ -170,14 +218,21 @@ def sign_patient(etapa_id):
         )
         flash('Assinatura do paciente salva.', 'success')
     except Exception as e:
-        flash(f'Erro ao assinar: {str(e)}', 'danger')
+        flash_internal_error('Falha ao registrar assinatura da prótese')
         
     return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
 
 @prosthesis_bp.route('/etapa/sign_professor/<int:etapa_id>', methods=['POST'])
 @login_required
 def sign_professor(etapa_id):
-    patient_id = request.form.get('patient_id')
+    etapa = _get_prosthesis_stage(etapa_id)
+    if not etapa:
+        flash('Etapa de prótese não encontrada.', 'danger')
+        return redirect(url_for('patients.list_patients'))
+    patient_id = etapa['patient_id']
+    if not _patient_scope_matches(request.form.get('patient_id'), patient_id):
+        flash('Etapa não pertence ao paciente informado.', 'danger')
+        return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
     username = request.form.get('prof_username')
     password = request.form.get('prof_password')
     
@@ -190,14 +245,21 @@ def sign_professor(etapa_id):
         execute("UPDATE prosthesis_etapas SET professor_id = %s, status = 'Concluído' WHERE id = %s", (prof['id'], etapa_id))
         flash('Etapa validada pelo dentista responsável.', 'success')
     except Exception as e:
-        flash(f'Erro ao validar: {str(e)}', 'danger')
+        flash_internal_error('Falha ao validar etapa de prótese')
         
     return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
 
 @prosthesis_bp.route('/payment/add/<int:prosthesis_id>', methods=['POST'])
 @login_required
 def add_payment(prosthesis_id):
-    patient_id = request.form.get('patient_id')
+    prosthesis = _get_prosthesis(prosthesis_id)
+    if not prosthesis:
+        flash('Tratamento de prótese não encontrado.', 'danger')
+        return redirect(url_for('patients.list_patients'))
+    patient_id = prosthesis['patient_id']
+    if not _patient_scope_matches(request.form.get('patient_id'), patient_id):
+        flash('Tratamento não pertence ao paciente informado.', 'danger')
+        return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
     valor = request.form.get('valor')
     assinatura = request.form.get('assinatura_base64')
 
@@ -211,16 +273,6 @@ def add_payment(prosthesis_id):
             VALUES (%s, %s, %s, %s)
             RETURNING id
         ''', (prosthesis_id, valor, current_user.id, assinatura))
-        prosthesis = query(
-            """
-            SELECT pr.*, p.nome, p.cpf, p.rg
-            FROM prosthesis pr
-            JOIN patients p ON p.id = pr.patient_id
-            WHERE pr.id = %s
-            """,
-            (prosthesis_id,),
-            one=True,
-        )
         if prosthesis:
             patient = {'id': prosthesis['patient_id'], 'nome': prosthesis['nome'], 'cpf': prosthesis['cpf'], 'rg': prosthesis['rg']}
             evidence = _record_prosthesis_signature(
@@ -257,7 +309,7 @@ def add_payment(prosthesis_id):
             )
         flash('Pagamento registrado com sucesso.', 'success')
     except Exception as e:
-        flash(f'Erro ao registrar pagamento: {str(e)}', 'danger')
+        flash_internal_error('Falha ao registrar pagamento de prótese')
         
     return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
 
@@ -267,8 +319,25 @@ def delete_case(patient_id, prosthesis_id):
     username = request.form.get('prof_username')
     password = request.form.get('prof_password')
     
-    prof = query("SELECT password FROM users WHERE username = %s", (username,), one=True)
-    if not prof or not check_password_hash(prof['password'], password):
+    prosthesis = query(
+        """
+        SELECT id, patient_id
+        FROM prosthesis
+        WHERE id = %s AND patient_id = %s
+        """,
+        (prosthesis_id, patient_id),
+        one=True,
+    )
+    if not prosthesis:
+        flash('Tratamento de prótese não encontrado para este paciente.', 'danger')
+        return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
+
+    prof = query("SELECT password, role FROM users WHERE username = %s", (username,), one=True)
+    if (
+        not prof
+        or not check_password_hash(prof['password'], password)
+        or not can_sign_clinical_document(prof['role'])
+    ):
         flash('Credenciais inválidas para excluir o caso.', 'danger')
         return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
         
@@ -280,20 +349,27 @@ def delete_case(patient_id, prosthesis_id):
         ])
         flash('Tratamento de prótese removido.', 'success')
     except Exception as e:
-        flash(f'Erro ao remover: {str(e)}', 'danger')
+        flash_internal_error('Falha ao remover tratamento de prótese')
         
     return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
 
 @prosthesis_bp.route('/update_agreement/<int:prosthesis_id>', methods=['POST'])
 @login_required
 def update_agreement(prosthesis_id):
-    patient_id = request.form.get('patient_id')
+    prosthesis = _get_prosthesis(prosthesis_id)
+    if not prosthesis:
+        flash('Tratamento de prótese não encontrado.', 'danger')
+        return redirect(url_for('patients.list_patients'))
+    patient_id = prosthesis['patient_id']
+    if not _patient_scope_matches(request.form.get('patient_id'), patient_id):
+        flash('Tratamento não pertence ao paciente informado.', 'danger')
+        return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
     valor = request.form.get('valor_acordado')
     
     try:
         execute('UPDATE prosthesis SET valor_acordado = %s WHERE id = %s', (valor, prosthesis_id))
         flash('Valor acordado atualizado.', 'success')
     except Exception as e:
-        flash(f'Erro ao atualizar valor: {str(e)}', 'danger')
+        flash_internal_error('Falha ao atualizar valor da prótese')
         
     return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')

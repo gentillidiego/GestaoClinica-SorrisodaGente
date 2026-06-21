@@ -2,6 +2,7 @@
 
 import datetime as dt
 import json
+import logging
 import os
 import re
 import tempfile
@@ -16,6 +17,9 @@ from services.esus_xml_service import (
     xml_sha256,
 )
 from services.sigtap_service import get_sigtap_procedure, get_sigtap_summary
+
+
+logger = logging.getLogger(__name__)
 
 
 class EsusDuplicateRemessaError(ValueError):
@@ -777,7 +781,12 @@ def enviar_remessa_por_email(remessa_id, xml_path, periodo_label, email_destino,
         marcar_remessa_enviada(remessa_id, email_destino)
         return True, None
     except Exception as exc:
-        message = str(exc)
+        reference = uuid.uuid4().hex[:16].upper()
+        logger.exception(
+            'Falha ao enviar remessa e-SUS por e-mail [ref=%s]',
+            reference,
+        )
+        message = f'Falha no envio. Referência: {reference}.'
         marcar_remessa_erro(remessa_id, message)
         return False, message
 

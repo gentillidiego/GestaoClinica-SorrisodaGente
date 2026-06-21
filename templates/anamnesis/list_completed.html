@@ -21,9 +21,11 @@
                 Consulte e visualize as anamneses já realizadas.
             </p>
         </div>
+        {% if can('anamnesis:write') %}
         <a href="{{ url_for('anamnesis.search') }}" class="btn btn-primary">
             <span>➕</span> Nova Anamnese
         </a>
+        {% endif %}
     </div>
 
     <!-- Barra de Busca -->
@@ -78,10 +80,12 @@
                             style="padding: 0.5rem 1rem; font-size: 0.85rem; background: white; font-weight: 600;">
                             Abrir Ficha 📄
                         </a>
+                        {% if can('anamnesis:write') %}
                         <a href="{{ url_for('anamnesis.edit_anamnesis', id=item.id) }}" class="btn btn-outline"
                             style="padding: 0.5rem 1rem; font-size: 0.85rem; background: white; font-weight: 600;">
                             Editar ✏️
                         </a>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}

@@ -228,10 +228,18 @@ body {
     font-weight: 700;
     font-size: 0.9rem;
     transition: all 0.2s;
+    border: 0;
+    cursor: pointer;
+    font-family: inherit;
 }
 
 .logout-btn:hover {
     background: #fecdd3;
+}
+
+.logout-form {
+    width: 100%;
+    margin: 0;
 }
 
 /* Main Content */

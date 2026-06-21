@@ -136,8 +136,10 @@
             <span>⬅️</span> Lista de Pacientes
         </a>
         <div style="display: flex; gap: 0.75rem;">
+            {% if can('patients:write') %}
             <a href="{{ url_for('patients.edit_patient', id=patient.id) }}" class="btn btn-outline"
                 style="background: white;">✏️ Editar Dados</a>
+            {% endif %}
             <button class="btn btn-primary">🖨️ Imprimir Prontuário</button>
         </div>
     </div>
@@ -181,20 +183,24 @@
                 </div>
             </div>
             <div style="display: flex; flex-direction: column; gap: 0.8rem; align-items: flex-end;">
+                {% if can('patients:write') %}
                 <a href="{{ url_for('patients.edit_patient', id=patient.id) }}" class="btn btn-outline"
                     style="background: white; padding: 0.7rem 1.4rem; font-size: 0.85rem; border-width: 1.5px; width: 100%;">
                     Editar Cadastro ✏️
                 </a>
+                {% endif %}
+                {% if can('documents:generate') or can('documents:sign') %}
                 <a href="{{ url_for('patients.patient_tcle', id=patient.id) }}"
                     class="btn {{ 'btn-success' if tcle_signed else 'btn-primary' }}"
                     style="padding: 0.7rem 1.4rem; font-size: 0.85rem; width: 100%; font-weight: 800;">
                     {{ '✅ Termo Assinado' if tcle_signed else '📜 Termo Consentimento' }}
                 </a>
+                {% endif %}
             </div>
 	    </div>
 	</div>
 
-    {% if clinical_alerts and clinical_alerts.has_alerts %}
+    {% if can('clinical_timeline:view') and clinical_alerts and clinical_alerts.has_alerts %}
     <div class="card" style="margin-bottom:2rem; border-left:5px solid hsl(var(--warning)); padding:1.25rem 1.4rem;">
         <div style="display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
             <div>
@@ -220,46 +226,74 @@
         <div class="tabs-header"
             style="display: flex; gap: 0.5rem; margin-bottom: 2rem; border-bottom: 2px solid hsl(var(--border)); padding-bottom: 1px;">
             <button class="tab-btn active" onclick="switchTab(event, 'tab-paciente')">Paciente</button>
+            {% if can('anamnesis:view') %}
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-anamnese')">Anamnese</button>
+            {% endif %}
+            {% if can('exams:view') %}
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-exames')">Exames</button>
+            {% endif %}
+            {% if can('treatment:view') %}
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-tratamento')">Plano de Tratamento</button>
+            {% endif %}
+            {% if can('attendance:view') %}
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-atendimento')">Atendimento</button>
+            {% endif %}
+            {% if can('estomatologia:view') %}
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-estomatologia')">🚨 Estomatologia</button>
+            {% endif %}
+            {% if can('documents:generate') %}
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-receituario')">Receituário</button>
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-atestado')">Atestado</button>
+            {% endif %}
+            {% if can('exams:view') or can('estomatologia:view') or can('endodontia:view') %}
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-visual')">Visual</button>
+            {% endif %}
             {% if can('inventory:view') %}
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-materiais')">Materiais</button>
             {% endif %}
+            {% if can('clinical_timeline:view') %}
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-linha-tempo')">Linha do Tempo</button>
+            {% endif %}
         </div>
 
         <!-- Conteúdo das Abas (Lazy Loading) -->
         {% include 'patients/includes/_tab_paciente.html' %}
         
-        <div id="tab-anamnese" class="tab-content" data-loaded="false"></div>
+        {% if can('anamnesis:view') %}<div id="tab-anamnese" class="tab-content" data-loaded="false"></div>{% endif %}
+        {% if can('exams:view') %}
         <div id="tab-exames" class="tab-content" data-loaded="false"></div>
+        {% endif %}
+        {% if can('treatment:view') %}
         <div id="tab-tratamento" class="tab-content" data-loaded="false"></div>
+        {% endif %}
+        {% if can('attendance:view') %}
         <div id="tab-atendimento" class="tab-content" data-loaded="false"></div>
+        {% endif %}
         {# Endodontia e Prótese estão temporariamente ocultos da navegação do prontuário. #}
+        {% if can('estomatologia:view') %}
         <div id="tab-estomatologia" class="tab-content" data-loaded="false"></div>
+        {% endif %}
+        {% if can('documents:generate') %}
         <div id="tab-receituario" class="tab-content" data-loaded="false"></div>
         <div id="tab-atestado" class="tab-content" data-loaded="false"></div>
+        {% endif %}
+        {% if can('exams:view') or can('estomatologia:view') or can('endodontia:view') %}
         <div id="tab-visual" class="tab-content" data-loaded="false"></div>
+        {% endif %}
         {% if can('inventory:view') %}
         <div id="tab-materiais" class="tab-content" data-loaded="false"></div>
         {% endif %}
-        <div id="tab-linha-tempo" class="tab-content" data-loaded="false"></div>
+        {% if can('clinical_timeline:view') %}<div id="tab-linha-tempo" class="tab-content" data-loaded="false"></div>{% endif %}
     </div>
     </div>
 

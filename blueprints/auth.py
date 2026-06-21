@@ -18,6 +18,7 @@ from services.auth_flow_service import (
     verify_first_access_user,
 )
 from services.security_service import audit_log, get_client_ip
+from services.web_security_service import regenerate_session_after_authentication
 from utils import User
 
 
@@ -90,6 +91,7 @@ def login():
                 return render_template('login.html')
 
             user = _build_user(user_data)
+            regenerate_session_after_authentication()
             login_user(user)
             _mark_login(user_data['id'])
             audit_log(
@@ -181,9 +183,9 @@ def complete_first_access_page():
         complete_first_access_record(user_id, email, password)
         fresh_user_data = get_user_for_login(user_data.username)
         user = _build_user(fresh_user_data)
+        regenerate_session_after_authentication()
         login_user(user)
         _mark_login(user_id)
-        _clear_first_access_session()
         audit_log(
             action='first_access_completed',
             module='auth',
@@ -283,10 +285,10 @@ def reset_password():
     return render_template('auth/reset_password.html', token=token, user=user_data)
 
 
-@auth_bp.route('/logout')
+@auth_bp.route('/logout', methods=['POST'])
 @login_required
 def logout():
-    _clear_first_access_session()
     audit_log(action='logout', module='auth')
     logout_user()
+    session.clear()
     return redirect(url_for('auth.login'))

@@ -6,6 +6,7 @@ from services.signature_evidence_service import (
     build_generic_signature_payload,
     register_signature_event,
 )
+from services.web_security_service import flash_internal_error
 
 anamnesis_bp = Blueprint('anamnesis', __name__, url_prefix='/anamnesis')
 
@@ -119,7 +120,7 @@ def form(patient_id):
             flash('Anamnese salva com sucesso!', 'success')
             return redirect(url_for('main.dashboard'))
         except Exception as e:
-            flash(f'Erro ao salvar anamnese: {str(e)}', 'danger')
+            flash_internal_error('Falha ao salvar anamnese')
 
     from datetime import datetime
     return render_template('anamnesis/form.html', patient=patient, now=datetime.now())
@@ -211,6 +212,6 @@ def edit_anamnesis(id):
             flash('Anamnese atualizada com sucesso!', 'success')
             return redirect(url_for('anamnesis.view_anamnesis', id=id))
         except Exception as e:
-            flash(f'Erro ao atualizar: {str(e)}', 'danger')
+            flash_internal_error('Falha ao atualizar anamnese')
 
     return render_template('anamnesis/edit_anamnesis.html', a=anamnesis)

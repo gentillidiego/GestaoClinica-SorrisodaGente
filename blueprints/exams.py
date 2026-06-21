@@ -17,14 +17,12 @@ from flask import (
 from flask_login import login_required, current_user
 from database import execute, query
 from werkzeug.security import check_password_hash
-from werkzeug.utils import secure_filename
 from constants import can_sign_clinical_document
-from services.security_service import audit_log, permission_required
+from services.security_service import audit_log, deny_access, permission_required
 from services.visual_media_service import build_exam_image_metadata
 from services.clinical_lab_exam_service import (
     CLINICAL_LAB_EXAM_TYPES,
     CLINICAL_LAB_MAX_FILES,
-    CLINICAL_LAB_MAX_FILE_SIZE,
     build_clinical_lab_caption,
     get_clinical_lab_exam_label,
     is_clinical_lab_image,
@@ -42,6 +40,14 @@ from services.protected_file_delivery_service import (
     get_or_create_image_derivative,
     protected_local_file_response,
 )
+from services.upload_security_service import (
+    CLINICAL_UPLOAD_MAX_FILE_MB,
+    CLINICAL_UPLOAD_MAX_REQUEST_MB,
+    STANDARD_IMAGE_FORMATS,
+    UploadValidationError,
+    inspect_uploaded_file,
+    request_size_is_allowed,
+)
 
 exams_bp = Blueprint('exams', __name__, url_prefix='/exams')
 
@@ -57,9 +63,7 @@ IMAGE_EXAM_TYPE_RULES = {
     'Fotografia Clínica': {'scope': 'Outro', 'category': 'intraoral'},
     'Outro': {'scope': 'Outro', 'category': 'documento_complementar'},
 }
-IMAGE_UPLOAD_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}
 IMAGE_UPLOAD_MAX_FILES = 12
-IMAGE_UPLOAD_MAX_FILE_SIZE = 25 * 1024 * 1024
 
 
 def infer_image_exam_scope(tipo_imagem):
@@ -91,22 +95,8 @@ def _wants_json_response():
     )
 
 
-def _uploaded_file_size(file):
-    declared_size = getattr(file, 'content_length', None)
-    if declared_size:
-        return declared_size
-    try:
-        position = file.stream.tell()
-        file.stream.seek(0, os.SEEK_END)
-        size = file.stream.tell()
-        file.stream.seek(position)
-        return size
-    except (AttributeError, OSError):
-        return None
-
-
 def prepare_image_uploads(files):
-    """Valida o lote inteiro antes de iniciar qualquer gravação no Drive."""
+    """Inspeciona o lote inteiro antes de iniciar qualquer gravação."""
     valid_files = [file for file in files if file and file.filename]
     if not valid_files:
         raise ValueError('Selecione pelo menos uma imagem.')
@@ -114,25 +104,23 @@ def prepare_image_uploads(files):
         raise ValueError(f'Envie no máximo {IMAGE_UPLOAD_MAX_FILES} imagens por vez.')
 
     prepared_files = []
-    for index, file in enumerate(valid_files, start=1):
-        safe_name = secure_filename(file.filename)
-        ext = os.path.splitext(safe_name)[1].lower()
-        if ext not in IMAGE_UPLOAD_EXTENSIONS:
-            raise ValueError(
-                f'O arquivo “{file.filename}” não é compatível. Use JPG, PNG ou WEBP.'
+    for file in valid_files:
+        try:
+            inspection = inspect_uploaded_file(
+                file,
+                allowed_formats=STANDARD_IMAGE_FORMATS,
             )
-
-        mime_type = (file.mimetype or '').lower()
-        if mime_type and mime_type != 'application/octet-stream' and not mime_type.startswith('image/'):
-            raise ValueError(f'O arquivo “{file.filename}” não foi reconhecido como imagem.')
-
-        size = _uploaded_file_size(file)
-        if size is not None and size > IMAGE_UPLOAD_MAX_FILE_SIZE:
-            raise ValueError(f'O arquivo “{file.filename}” ultrapassa o limite de 25 MB.')
-
-        if not safe_name:
-            safe_name = f'imagem-{index}{ext}'
-        prepared_files.append((file, safe_name, ext, file.filename))
+        except UploadValidationError as exc:
+            raise ValueError(str(exc)) from exc
+        prepared_files.append(
+            (
+                file,
+                inspection.safe_filename,
+                inspection.extension,
+                file.filename,
+                inspection,
+            )
+        )
     return prepared_files
 
 
@@ -161,6 +149,29 @@ def _audit_exam_saved(exam_id, patient_id, exam_type, created):
         )
 
 
+def _get_scoped_exam(anamnesis_id, exam_id, expected_type):
+    if not exam_id:
+        return None
+    return query(
+        """
+        SELECT id, anamnesis_id, patient_id, tipo
+        FROM exams
+        WHERE id = %s
+          AND anamnesis_id = %s
+          AND tipo = %s
+        """,
+        (exam_id, anamnesis_id, expected_type),
+        one=True,
+    )
+
+
+def _reject_unscoped_exam(anamnesis_id, exam_id, expected_type, patient_id):
+    if exam_id and not _get_scoped_exam(anamnesis_id, exam_id, expected_type):
+        flash('Exame não encontrado para esta anamnese.', 'danger')
+        return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-exames')
+    return None
+
+
 @exams_bp.route('/<int:exam_id>/visualizar')
 @login_required
 @permission_required('patients:view')
@@ -177,6 +188,22 @@ def visualizar(exam_id):
     )
     if not exam:
         return 'Exame não encontrado', 404
+    if exam['tipo'] == 'clinico_laboratorial':
+        if not current_user.can('laboratorio:view'):
+            return deny_access(
+                permissions={
+                    'all_of': ['patients:view', 'laboratorio:view'],
+                    'any_of': [],
+                },
+                reason='clinical_lab_exam_view_denied',
+                patient_id=exam['patient_id'],
+            )
+    elif not current_user.can('exams:view'):
+        return deny_access(
+            permissions={'all_of': ['patients:view', 'exams:view'], 'any_of': []},
+            reason='exam_view_denied',
+            patient_id=exam['patient_id'],
+        )
 
     if exam['tipo'] in EXAM_EDIT_ENDPOINTS:
         return redirect(url_for(
@@ -364,6 +391,14 @@ def fisico(anamnesis_id, exam_id=None):
     if not anamnesis:
         flash('Anamnese não encontrada.', 'danger')
         return redirect(url_for('anamnesis.search'))
+    scoped_error = _reject_unscoped_exam(
+        anamnesis_id,
+        exam_id,
+        'fisico',
+        anamnesis['patient_id'],
+    )
+    if scoped_error:
+        return scoped_error
 
     exam_data = None
     if exam_id:
@@ -421,6 +456,14 @@ def odontograma(anamnesis_id, exam_id=None):
     if not anamnesis:
         flash('Anamnese não encontrada.', 'danger')
         return redirect(url_for('anamnesis.search'))
+    scoped_error = _reject_unscoped_exam(
+        anamnesis_id,
+        exam_id,
+        'odontograma',
+        anamnesis['patient_id'],
+    )
+    if scoped_error:
+        return scoped_error
 
     exam_data = None
     if exam_id:
@@ -471,6 +514,14 @@ def controle_placa(anamnesis_id, exam_id=None):
     if not anamnesis:
         flash('Anamnese não encontrada.', 'danger')
         return redirect(url_for('anamnesis.search'))
+    scoped_error = _reject_unscoped_exam(
+        anamnesis_id,
+        exam_id,
+        'controle_placa',
+        anamnesis['patient_id'],
+    )
+    if scoped_error:
+        return scoped_error
 
     exam_data = None
     if exam_id:
@@ -527,6 +578,14 @@ def periograma(anamnesis_id, exam_id=None):
     if not anamnesis:
         flash('Anamnese não encontrada.', 'danger')
         return redirect(url_for('anamnesis.search'))
+    scoped_error = _reject_unscoped_exam(
+        anamnesis_id,
+        exam_id,
+        'periograma',
+        anamnesis['patient_id'],
+    )
+    if scoped_error:
+        return scoped_error
 
     exam_data = None
     if exam_id:
@@ -591,6 +650,14 @@ def imagem(anamnesis_id, exam_id=None):
     if not anamnesis:
         flash('Anamnese não encontrada.', 'danger')
         return redirect(url_for('anamnesis.search'))
+    scoped_error = _reject_unscoped_exam(
+        anamnesis_id,
+        exam_id,
+        'imagem',
+        anamnesis['patient_id'],
+    )
+    if scoped_error:
+        return scoped_error
 
     exam_data = None
     imagens = []
@@ -655,18 +722,25 @@ def imagem(anamnesis_id, exam_id=None):
         # Redireciona para a própria página para possibilitar o upload de imediato
         return redirect(url_for('exams.imagem', anamnesis_id=anamnesis_id, exam_id=exam_id))
 
-    return render_template('exams/imagem.html', anamnesis=dict(anamnesis), exam_data=exam_data, imagens=imagens)
+    return render_template(
+        'exams/imagem.html',
+        anamnesis=dict(anamnesis),
+        exam_data=exam_data,
+        imagens=imagens,
+        upload_max_file_mb=CLINICAL_UPLOAD_MAX_FILE_MB,
+        upload_max_request_mb=CLINICAL_UPLOAD_MAX_REQUEST_MB,
+    )
 
 @exams_bp.route('/imagem/<int:exam_id>/upload', methods=['POST'])
 @login_required
 def upload_imagem(exam_id):
-    max_batch_size = (IMAGE_UPLOAD_MAX_FILES * IMAGE_UPLOAD_MAX_FILE_SIZE) + (2 * 1024 * 1024)
-    if request.content_length and request.content_length > max_batch_size:
+    if not request_size_is_allowed(request.content_length):
         return jsonify({
             'success': False,
             'error': (
-                f'O lote ultrapassa o limite permitido. Envie no máximo '
-                f'{IMAGE_UPLOAD_MAX_FILES} imagens de até 25 MB cada.'
+                f'O envio ultrapassa o limite operacional de '
+                f'{CLINICAL_UPLOAD_MAX_REQUEST_MB} MB por requisição. '
+                'Divida os arquivos em mais de um envio.'
             ),
         }), 413
 
@@ -698,12 +772,20 @@ def upload_imagem(exam_id):
     try:
         prepared_files = prepare_image_uploads(files)
     except ValueError as exc:
-        return jsonify({'success': False, 'error': str(exc)}), 400
+        current_app.logger.warning(
+            'Upload de imagem rejeitado no exame %s: %s',
+            exam_id,
+            exc,
+        )
+        return jsonify({
+            'success': False,
+            'error': str(exc),
+        }), 400
 
     saved_files = []
     failed_files = []
     
-    for file, original_filename, _ext, client_filename in prepared_files:
+    for file, original_filename, _ext, client_filename, inspection in prepared_files:
         staged_path = None
         try:
             staged_path = stage_uploaded_file(
@@ -764,7 +846,7 @@ def upload_imagem(exam_id):
                             storage_updated_at = NOW()
                         WHERE id = %s
                         """,
-                        (f'Aguardando reconciliação automática: {str(exc)[-500:]}', arquivo_id),
+                        ('Aguardando reconciliação automática.', arquivo_id),
                     )
                 except Exception:
                     current_app.logger.exception(
@@ -787,6 +869,11 @@ def upload_imagem(exam_id):
                 'caption': caption,
                 'visual_category': metadata['visual_category'],
                 'comparison_label': metadata['comparison_label'],
+                'detected_format': inspection.detected_format,
+                'size_bytes': inspection.size_bytes,
+                'width': inspection.width,
+                'height': inspection.height,
+                'total_pixels': inspection.total_pixels,
                 'storage_status': 'pending',
                 'storage_label': 'Salva no prontuário · sincronizando com o Drive',
                 'status_url': url_for(
@@ -825,6 +912,17 @@ def upload_imagem(exam_id):
                     'comparison_label': metadata['comparison_label'],
                     'comparison_group': metadata['comparison_group'],
                     'storage_status': 'pending',
+                    'validated_files': [
+                        {
+                            'id': file_data['id'],
+                            'format': file_data['detected_format'],
+                            'size_bytes': file_data['size_bytes'],
+                            'width': file_data['width'],
+                            'height': file_data['height'],
+                            'total_pixels': file_data['total_pixels'],
+                        }
+                        for file_data in saved_files
+                    ],
                 },
             )
         except Exception:
@@ -1150,21 +1248,21 @@ def clinico_laboratorial(anamnesis_id, exam_id=None):
         exam_data=exam_data,
         arquivos=arquivos,
         exam_types=CLINICAL_LAB_EXAM_TYPES,
+        upload_max_file_mb=CLINICAL_UPLOAD_MAX_FILE_MB,
+        upload_max_request_mb=CLINICAL_UPLOAD_MAX_REQUEST_MB,
     )
 
 
 @exams_bp.route('/clinico-laboratorial/<int:exam_id>/upload', methods=['POST'])
 @login_required
 def upload_clinico_laboratorial(exam_id):
-    max_batch_size = (
-        CLINICAL_LAB_MAX_FILES * CLINICAL_LAB_MAX_FILE_SIZE
-    ) + (2 * 1024 * 1024)
-    if request.content_length and request.content_length > max_batch_size:
+    if not request_size_is_allowed(request.content_length):
         return jsonify({
             'success': False,
             'error': (
-                f'O lote ultrapassa o limite permitido. Envie no máximo '
-                f'{CLINICAL_LAB_MAX_FILES} arquivos de até 25 MB cada.'
+                f'O envio ultrapassa o limite operacional de '
+                f'{CLINICAL_UPLOAD_MAX_REQUEST_MB} MB por requisição. '
+                'Divida os arquivos em mais de um envio.'
             ),
         }), 413
 
@@ -1189,19 +1287,24 @@ def upload_clinico_laboratorial(exam_id):
     try:
         prepared_files = prepare_clinical_lab_uploads(files)
     except ValueError as exc:
-        return jsonify({'success': False, 'error': str(exc)}), 400
+        current_app.logger.warning(
+            'Upload clínico/laboratorial rejeitado no exame %s: %s',
+            exam_id,
+            exc,
+        )
+        return jsonify({
+            'success': False,
+            'error': str(exc),
+        }), 400
 
     supplied_caption = (request.form.get('caption') or '').strip()
     saved_files = []
     failed_files = []
 
-    for file, filename, _extension, client_filename in prepared_files:
+    for file, filename, _extension, client_filename, inspection in prepared_files:
         staged_path = None
         try:
-            guessed_mime_type = mimetypes.guess_type(filename)[0]
-            mime_type = file.mimetype
-            if not mime_type or mime_type == 'application/octet-stream':
-                mime_type = guessed_mime_type or 'application/octet-stream'
+            mime_type = inspection.mime_type
             staged_path = stage_uploaded_file(
                 file,
                 'clinical_lab',
@@ -1250,7 +1353,7 @@ def upload_clinico_laboratorial(exam_id):
                             storage_updated_at = NOW()
                         WHERE id = %s
                         """,
-                        (f'Aguardando reconciliação automática: {str(exc)[-500:]}', arquivo_id),
+                        ('Aguardando reconciliação automática.', arquivo_id),
                     )
                 except Exception:
                     current_app.logger.exception(
@@ -1264,6 +1367,10 @@ def upload_clinico_laboratorial(exam_id):
                 'caption': caption,
                 'mime_type': mime_type,
                 'is_image': is_clinical_lab_image(filename, mime_type),
+                'detected_format': inspection.detected_format,
+                'size_bytes': inspection.size_bytes,
+                'pages': inspection.pages,
+                'encrypted': inspection.encrypted,
                 'url': url_for(
                     'exams.serve_clinico_laboratorial_arquivo',
                     arquivo_id=arquivo_id,

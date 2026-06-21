@@ -158,9 +158,10 @@
                 </span>
                 </div>
             </div>
-            <a href="{{ url_for('auth.logout') }}" class="logout-btn">
-                Sair 🚪
-            </a>
+            <form action="{{ url_for('auth.logout') }}" method="POST" class="logout-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="logout-btn">Sair 🚪</button>
+            </form>
         </div>
     </aside>
     <div class="sidebar-overlay" id="sidebar-overlay"></div>

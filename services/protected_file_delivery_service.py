@@ -36,6 +36,10 @@ DELIVERY_GID = int(os.getenv('X_ACCEL_FILE_GID', '33'))
 
 THUMBNAIL_SIZE = (560, 560)
 PREVIEW_SIZE = (1800, 1800)
+DERIVATIVE_LOSSLESS = os.getenv(
+    'CLINICAL_IMAGE_DERIVATIVE_LOSSLESS',
+    'true',
+).lower() in {'1', 'true', 'yes', 'on'}
 
 
 def _absolute(path):
@@ -178,12 +182,19 @@ def _save_webp_atomic(image, destination, quality):
     )
     temporary.unlink(missing_ok=True)
     try:
-        image.save(
-            temporary,
-            format='WEBP',
-            quality=quality,
-            method=4,
-        )
+        save_options = {
+            'format': 'WEBP',
+            'method': 4,
+        }
+        if DERIVATIVE_LOSSLESS:
+            save_options.update({
+                'lossless': True,
+                'quality': 100,
+                'exact': True,
+            })
+        else:
+            save_options['quality'] = quality
+        image.save(temporary, **save_options)
         os.replace(temporary, destination)
         set_delivery_permissions(destination)
     finally:

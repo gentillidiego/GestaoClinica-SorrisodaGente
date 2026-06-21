@@ -15,6 +15,8 @@
     data-upload-url="{{ url_for('exams.upload_imagem', exam_id=exam_data.exam_id) if exam_data else '' }}"
     data-view-url="{{ url_for('exams.imagem', anamnesis_id=anamnesis.id, exam_id=exam_data.exam_id) if exam_data else '' }}"
     data-return-url="{{ url_for('patients.view_patient', id=anamnesis.patient_id, _anchor='tab-exames') }}"
+    data-max-file-bytes="{{ upload_max_file_mb * 1024 * 1024 }}"
+    data-max-request-bytes="{{ upload_max_request_mb * 1024 * 1024 }}"
 >
     <a class="image-exam-back" href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}">
         <span aria-hidden="true">←</span>
@@ -141,7 +143,9 @@
                 <strong>Escolher imagens</strong>
                 <span>ou arraste os arquivos para cá</span>
             </span>
-            <span class="image-dropzone__rules">JPG, PNG ou WEBP · até 25 MB cada · máximo de 12</span>
+            <span class="image-dropzone__rules">
+                JPG, PNG ou WEBP · originais de até {{ upload_max_file_mb }} MB · máximo de 12 por envio
+            </span>
         </button>
         <span class="image-exam-field-error image-exam-file-error" id="fileError"></span>
 

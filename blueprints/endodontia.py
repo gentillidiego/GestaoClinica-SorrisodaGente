@@ -1,11 +1,10 @@
 import os
 import uuid
 
-from flask import Blueprint, render_template, redirect, url_for, request, flash
+from flask import Blueprint, current_app, render_template, redirect, url_for, request, flash
 from flask_login import login_required, current_user
 from database import execute, query
 from werkzeug.security import check_password_hash
-from werkzeug.utils import secure_filename
 from datetime import datetime
 from constants import can_sign_clinical_document
 from services.endodontia_service import (
@@ -42,20 +41,14 @@ from services.visual_media_service import (
     is_previewable_visual_file,
     normalize_visual_category,
 )
+from services.web_security_service import flash_internal_error, internal_error_response
+from services.upload_security_service import (
+    ENDODONTIA_IMAGE_FORMATS,
+    UploadValidationError,
+    inspect_uploaded_file,
+)
 
 endodontia_bp = Blueprint('endodontia', __name__, url_prefix='/endodontia')
-
-ENDODONTIA_IMAGE_ALLOWED_EXTENSIONS = {
-    '.jpg',
-    '.jpeg',
-    '.png',
-    '.webp',
-    '.tif',
-    '.tiff',
-    '.dcm',
-    '.dicom',
-}
-
 
 def _as_int_or_none(value):
     try:
@@ -139,6 +132,15 @@ def _get_endodontia_cost_references():
 @endodontia_bp.route('/<int:patient_id>/add_element', methods=['POST'])
 @login_required
 def add_element(patient_id):
+    patient = query(
+        "SELECT id FROM patients WHERE id = %s",
+        (patient_id,),
+        one=True,
+    )
+    if not patient:
+        flash('Paciente não encontrado.', 'danger')
+        return redirect(url_for('patients.list_patients'))
+
     elemento = request.form.get('elemento_dentario')
     if not elemento:
         flash('O elemento dentário é obrigatório.', 'danger')
@@ -170,7 +172,7 @@ def add_element(patient_id):
             status='failed',
             details={'elemento_dentario': elemento, 'error': str(e)},
         )
-        flash(f'Erro ao adicionar elemento: {str(e)}', 'danger')
+        flash_internal_error('Falha ao adicionar elemento endodôntico')
         
     return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-endodontia')
 
@@ -286,11 +288,21 @@ def upload_image(endo_id):
         flash('Selecione uma imagem endodôntica para enviar.', 'danger')
         return redirect(url_for('endodontia.followup', endo_id=endo_id))
 
-    original_filename = secure_filename(file.filename)
-    ext = os.path.splitext(original_filename)[1].lower()
-    if ext not in ENDODONTIA_IMAGE_ALLOWED_EXTENSIONS:
-        flash('Formato inválido. Use JPG, PNG, WEBP, TIFF ou DICOM.', 'danger')
+    try:
+        inspection = inspect_uploaded_file(
+            file,
+            allowed_formats=ENDODONTIA_IMAGE_FORMATS,
+        )
+    except UploadValidationError as exc:
+        current_app.logger.warning(
+            'Upload endodôntico rejeitado no caso %s: %s',
+            endo_id,
+            exc,
+        )
+        flash(str(exc), 'danger')
         return redirect(url_for('endodontia.followup', endo_id=endo_id))
+    original_filename = inspection.safe_filename
+    ext = inspection.extension
 
     metadata = build_endodontia_image_metadata(request.form)
     if not metadata['caption']:
@@ -323,7 +335,7 @@ def upload_image(endo_id):
             service=service,
             file_stream=file.stream,
             filename=original_filename or f"endodontia{ext}",
-            mime_type=file.mimetype,
+            mime_type=inspection.mime_type,
             parent_id=folder_id
         )
         file_path = f"gdrive://{drive_file['id']}"
@@ -370,6 +382,12 @@ def upload_image(endo_id):
                 'canal': metadata['canal'],
                 'filename': original_filename,
                 'formato': file_format,
+                'detected_format': inspection.detected_format,
+                'size_bytes': inspection.size_bytes,
+                'width': inspection.width,
+                'height': inspection.height,
+                'frames': inspection.frames,
+                'total_pixels': inspection.total_pixels,
             },
         )
         flash('Imagem endodôntica enviada e vinculada à Biblioteca Visual.', 'success')
@@ -383,7 +401,7 @@ def upload_image(endo_id):
             status='failed',
             details={'error': str(exc), 'filename': original_filename},
         )
-        flash(f'Erro ao enviar imagem endodôntica: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao enviar imagem endodôntica')
 
     return redirect(url_for('endodontia.followup', endo_id=endo_id))
 
@@ -430,7 +448,7 @@ def serve_image(image_id):
             mime_type, _ = mimetypes.guess_type(image['filename'])
             return Response(file_bytes, mimetype=mime_type or 'application/octet-stream')
         except Exception as e:
-            return f"Erro ao baixar arquivo do Drive: {str(e)}", 500
+            return internal_error_response('Falha ao baixar imagem endodôntica do Drive')
     else:
         if not os.path.exists(image['file_path']):
             return "Arquivo local não encontrado", 404
@@ -462,7 +480,7 @@ def evaluate_proservation(proservation_id):
     try:
         payload = build_proservation_evaluation_payload(request.form)
     except ValueError as exc:
-        flash(str(exc), 'danger')
+        flash('Revise os dados informados para a proservação.', 'danger')
         return redirect(url_for('endodontia.followup', endo_id=proservation['endodontia_id']))
 
     treatment_status = None
@@ -558,7 +576,7 @@ def evaluate_proservation(proservation_id):
             status='failed',
             details={'error': str(exc)},
         )
-        flash(f'Erro ao registrar proservação: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao registrar proservação endodôntica')
 
     return redirect(url_for('endodontia.followup', endo_id=proservation['endodontia_id']))
 
@@ -597,7 +615,7 @@ def generate_budget(endo_id):
     try:
         budget = build_endodontia_budget_items(endo, canais, _get_endodontia_cost_references())
     except ValueError as exc:
-        flash(str(exc), 'danger')
+        flash('Revise os dados informados para o orçamento endodôntico.', 'danger')
         return redirect(url_for('endodontia.followup', endo_id=endo_id))
 
     try:
@@ -666,7 +684,7 @@ def generate_budget(endo_id):
             status='failed',
             details={'error': str(exc)},
         )
-        flash(f'Erro ao gerar orçamento endodôntico: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao gerar orçamento endodôntico')
 
     return redirect(url_for('endodontia.followup', endo_id=endo_id))
 
@@ -682,7 +700,7 @@ def save_case_details(endo_id):
         payload = build_case_details_payload(request.form)
         channel_result = build_channel_payloads(request.form, payload.get('diagnostico_pulpar'))
     except ValueError as exc:
-        flash(str(exc), 'danger')
+        flash('Revise as informações técnicas do acompanhamento.', 'danger')
         return redirect(url_for('endodontia.followup', endo_id=endo_id))
     
     try:
@@ -803,7 +821,7 @@ def save_case_details(endo_id):
             status='failed',
             details={'error': str(e)},
         )
-        flash(f'Erro ao salvar informações técnicas: {str(e)}', 'danger')
+        flash_internal_error('Falha ao salvar informações endodônticas')
         
     return redirect(url_for('endodontia.followup', endo_id=endo_id))
 
@@ -852,7 +870,7 @@ def add_followup(endo_id):
     try:
         payload = build_session_payload(request.form, next_session_number + 1, anamnesis=linked_anamnesis)
     except ValueError as exc:
-        flash(str(exc), 'danger')
+        flash('Revise os dados clínicos da evolução endodôntica.', 'danger')
         return redirect(url_for('endodontia.followup', endo_id=endo_id))
         
     try:
@@ -1014,14 +1032,14 @@ def add_followup(endo_id):
             status='failed',
             details={'error': str(e)},
         )
-        flash(f'Erro ao registrar evolução: {str(e)}', 'danger')
+        flash_internal_error('Falha ao registrar evolução endodôntica')
         
     return redirect(url_for('endodontia.followup', endo_id=endo_id))
 
 @endodontia_bp.route('/followup/sign_patient/<int:followup_id>', methods=['POST'])
 @login_required
 def sign_patient(followup_id):
-    endo_id = request.form.get('endo_id')
+    endo_id = _as_int_or_none(request.form.get('endo_id'))
     assinatura = request.form.get('assinatura_base64')
     endo = _get_endodontia_case(endo_id)
     if _case_unavailable(endo):
@@ -1031,9 +1049,21 @@ def sign_patient(followup_id):
     if not assinatura:
         flash('Assinatura do paciente não capturada.', 'danger')
         return redirect(url_for('endodontia.followup', endo_id=endo_id))
+
+    followup = query(
+        """
+        SELECT *
+        FROM endodontia_followup
+        WHERE id = %s AND endodontia_id = %s
+        """,
+        (followup_id, endo_id),
+        one=True,
+    )
+    if not followup:
+        flash('Sessão não encontrada neste acompanhamento.', 'danger')
+        return redirect(url_for('endodontia.followup', endo_id=endo_id))
         
     try:
-        followup = query("SELECT * FROM endodontia_followup WHERE id = %s", (followup_id,), one=True)
         patient = query("SELECT id, nome, cpf, rg FROM patients WHERE id = %s", (endo['patient_id'],), one=True)
         evidence = None
         if followup and patient:
@@ -1072,7 +1102,7 @@ def sign_patient(followup_id):
                 assinatura_auth_method = %s,
                 assinatura_source_ip = %s,
                 assinatura_user_agent = %s
-            WHERE id = %s
+            WHERE id = %s AND endodontia_id = %s
             """,
             (
                 assinatura,
@@ -1083,6 +1113,7 @@ def sign_patient(followup_id):
                 evidence['source_ip'] if evidence else None,
                 evidence['user_agent'] if evidence else None,
                 followup_id,
+                endo_id,
             ),
         )
         audit_log(
@@ -1109,20 +1140,33 @@ def sign_patient(followup_id):
             status='failed',
             details={'error': str(e)},
         )
-        flash(f'Erro ao assinar: {str(e)}', 'danger')
+        flash_internal_error('Falha ao registrar assinatura endodôntica')
         
     return redirect(url_for('endodontia.followup', endo_id=endo_id))
 
 @endodontia_bp.route('/followup/sign_professor/<int:followup_id>', methods=['POST'])
 @login_required
 def sign_professor(followup_id):
-    endo_id = request.form.get('endo_id')
+    endo_id = _as_int_or_none(request.form.get('endo_id'))
     username = request.form.get('prof_username')
     password = request.form.get('prof_password')
     endo = _get_endodontia_case(endo_id)
     if _case_unavailable(endo):
         flash('Acompanhamento endodôntico indisponível para validação.', 'danger')
         return redirect(url_for('patients.list_patients'))
+
+    followup = query(
+        """
+        SELECT id
+        FROM endodontia_followup
+        WHERE id = %s AND endodontia_id = %s
+        """,
+        (followup_id, endo_id),
+        one=True,
+    )
+    if not followup:
+        flash('Sessão não encontrada neste acompanhamento.', 'danger')
+        return redirect(url_for('endodontia.followup', endo_id=endo_id))
     
     prof = query("SELECT id, password, role FROM users WHERE username = %s", (username,), one=True)
     if not prof or not check_password_hash(prof['password'], password) or not can_sign_clinical_document(prof['role']):
@@ -1133,8 +1177,8 @@ def sign_professor(followup_id):
         execute('''
             UPDATE endodontia_followup 
             SET professor_id = %s, status = 'Concluído' 
-            WHERE id = %s
-        ''', (prof['id'], followup_id))
+            WHERE id = %s AND endodontia_id = %s
+        ''', (prof['id'], followup_id, endo_id))
         audit_log(
             action='endodontia_followup_validated',
             module='endodontia',
@@ -1158,14 +1202,14 @@ def sign_professor(followup_id):
             status='failed',
             details={'error': str(e)},
         )
-        flash(f'Erro ao validar: {str(e)}', 'danger')
+        flash_internal_error('Falha ao validar evolução endodôntica')
         
     return redirect(url_for('endodontia.followup', endo_id=endo_id))
 
 @endodontia_bp.route('/delete/<int:endo_id>', methods=['POST'])
 @login_required
 def delete_element(endo_id):
-    patient_id = request.form.get('patient_id')
+    requested_patient_id = _as_int_or_none(request.form.get('patient_id'))
     username = request.form.get('prof_username')
     password = request.form.get('prof_password')
     reason = (request.form.get('motivo_cancelamento') or '').strip()
@@ -1173,6 +1217,19 @@ def delete_element(endo_id):
     endo = _get_endodontia_case(endo_id)
     if not endo:
         flash('Acompanhamento endodôntico não encontrado.', 'danger')
+        return redirect(url_for('patients.list_patients'))
+    patient_id = endo['patient_id']
+    if requested_patient_id and requested_patient_id != patient_id:
+        audit_log(
+            action='endodontia_case_cancel_denied',
+            module='endodontia',
+            entity_type='endodontia',
+            entity_id=endo_id,
+            patient_id=patient_id,
+            status='denied',
+            details={'reason': 'patient_scope_mismatch'},
+        )
+        flash('Acompanhamento não pertence ao paciente informado.', 'danger')
         return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-endodontia')
 
     prof = query("SELECT id, password, role FROM users WHERE username = %s", (username,), one=True)
@@ -1226,6 +1283,6 @@ def delete_element(endo_id):
             status='failed',
             details={'error': str(e)},
         )
-        flash(f'Erro ao cancelar: {str(e)}', 'danger')
+        flash_internal_error('Falha ao cancelar acompanhamento endodôntico')
         
     return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-endodontia')

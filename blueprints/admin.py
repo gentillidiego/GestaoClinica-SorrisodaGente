@@ -54,6 +54,7 @@ from services.professional_registration_service import (
 )
 from services.sigtap_service import build_sigtap_options, get_sigtap_summary
 from services.sensitive_file_service import SENSITIVE_CACHE_HEADERS
+from services.web_security_service import flash_internal_error, flash_recorded_error
 from tasks.pdf_tasks import generate_pdf_task
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -410,7 +411,7 @@ def add_user():
             flash(f'Usuário {full_name or username} criado com sucesso!', 'success')
             return redirect(url_for('admin.list_users'))
         except Exception as e:
-            flash(f'Erro ao criar usuário: {str(e)}', 'danger')
+            flash_internal_error('Falha ao criar usuário')
 
     return render_template('admin/add_user.html', role_choices=get_role_choices())
 
@@ -628,7 +629,7 @@ def edit_user(user_id):
             flash(f'Usuário {full_name or username} atualizado com sucesso!', 'success')
             return redirect(url_for('admin.list_users'))
         except Exception as e:
-            flash(f'Erro ao atualizar usuário: {str(e)}', 'danger')
+            flash_internal_error('Falha ao atualizar usuário')
 
     return render_template('admin/edit_user.html', user=user, role_choices=get_role_choices())
 
@@ -667,9 +668,9 @@ def create_execution_unit_route():
         )
         flash('Unidade criada com sucesso.', 'success')
     except ExecutionUnitError as exc:
-        flash(str(exc), 'danger')
+        flash('Não foi possível criar a unidade. Revise os dados informados.', 'danger')
     except Exception as exc:
-        flash(f'Erro ao criar unidade: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao criar unidade')
     return redirect(url_for('admin.execution_units'))
 
 
@@ -701,9 +702,9 @@ def edit_execution_unit(unit_id):
             flash('Unidade atualizada com sucesso.', 'success')
             return redirect(url_for('admin.execution_units'))
         except ExecutionUnitError as exc:
-            flash(str(exc), 'danger')
+            flash('Não foi possível atualizar a unidade. Revise os dados informados.', 'danger')
         except Exception as exc:
-            flash(f'Erro ao atualizar unidade: {str(exc)}', 'danger')
+            flash_internal_error('Falha ao atualizar unidade')
 
     return render_template('admin/edit_execution_unit.html', unit=unit)
 
@@ -764,11 +765,15 @@ def approve_professional_registration(registration_id):
             send_registration_approved_email(registration)
             flash('Pre-cadastro aprovado, usuario criado e e-mail de liberacao enviado.', 'success')
         except Exception as exc:
-            flash(f'Pre-cadastro aprovado, mas nao foi possivel enviar o e-mail: {str(exc)}', 'warning')
+            flash_internal_error(
+                'Falha ao enviar e-mail de aprovação do pré-cadastro',
+                'O pré-cadastro foi aprovado, mas o e-mail não pôde ser enviado.',
+                category='warning',
+            )
     except RegistrationApprovalError as exc:
-        flash(str(exc), 'danger')
+        flash('Não foi possível aprovar este pré-cadastro. Revise o estado da solicitação.', 'danger')
     except Exception as exc:
-        flash(f'Erro ao aprovar pre-cadastro: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao aprovar pré-cadastro')
     return redirect(url_for('admin.professional_registrations'))
 
 
@@ -802,11 +807,15 @@ def reject_professional_registration(registration_id):
             send_registration_rejected_email(registration)
             flash('Pre-cadastro recusado e e-mail com observacoes enviado.', 'success')
         except Exception as exc:
-            flash(f'Pre-cadastro recusado, mas nao foi possivel enviar o e-mail: {str(exc)}', 'warning')
+            flash_internal_error(
+                'Falha ao enviar e-mail de recusa do pré-cadastro',
+                'O pré-cadastro foi recusado, mas o e-mail não pôde ser enviado.',
+                category='warning',
+            )
     except RegistrationApprovalError as exc:
-        flash(str(exc), 'danger')
+        flash('Não foi possível recusar este pré-cadastro. Revise o estado da solicitação.', 'danger')
     except Exception as exc:
-        flash(f'Erro ao recusar pre-cadastro: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao recusar pré-cadastro')
     return redirect(url_for('admin.professional_registrations'))
 
 
@@ -856,7 +865,7 @@ def update_cost_reference(reference_id):
             status='failed',
             details={'error': str(exc)},
         )
-        flash(f'Erro ao atualizar referência de custo: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao atualizar referência de custo')
     return redirect(url_for('admin.cost_references'))
 
 
@@ -880,7 +889,7 @@ def import_cost_references():
             status='failed',
             details={'filename': uploaded.filename, 'error': str(exc)},
         )
-        flash(f'Erro ao importar CSV: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao importar referências de custo')
         return redirect(url_for('admin.cost_references'))
 
     if result['errors']:
@@ -964,7 +973,7 @@ def create_inventory_item_route():
             status='failed',
             details={'error': str(exc), 'name': request.form.get('name')},
         )
-        flash(f'Erro ao cadastrar material: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao cadastrar material')
     return redirect(url_for('admin.inventory'))
 
 
@@ -995,7 +1004,7 @@ def create_inventory_lot_route():
             status='failed',
             details={'error': str(exc), 'lot_number': request.form.get('lot_number')},
         )
-        flash(f'Erro ao registrar lote: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao registrar lote de estoque')
     return redirect(url_for('admin.inventory'))
 
 
@@ -1055,7 +1064,7 @@ def create_inventory_adjustment_route():
                 'adjustment_type': request.form.get('adjustment_type'),
             },
         )
-        flash(f'Erro ao registrar ajuste: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao registrar ajuste de estoque')
     return redirect(url_for('admin.inventory'))
 
 
@@ -1131,7 +1140,7 @@ def update_procedure_sigtap(procedure_id):
         )
         flash('Código SIGTAP vinculado ao procedimento.', 'success')
     except Exception as exc:
-        flash(f'Erro ao vincular SIGTAP: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao vincular código SIGTAP')
     return redirect(url_for('admin.esus_integration', month=request.form.get('month') or None))
 
 
@@ -1178,10 +1187,10 @@ def gerar_esus_remessa():
         )
         return redirect(url_for('admin.esus_remessa_detail', remessa_id=result['remessa_id']))
     except EsusDuplicateRemessaError as exc:
-        flash(str(exc), 'warning')
+        flash('Já existe uma remessa para este período e profissional.', 'warning')
         return redirect(url_for('admin.esus_remessa_detail', remessa_id=exc.remessa['id']))
     except Exception as exc:
-        flash(f'Erro ao gerar remessa: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao gerar remessa e-SUS')
         return redirect(url_for('admin.esus_integration'))
 
 
@@ -1266,7 +1275,10 @@ def reenviar_esus_remessa_email(remessa_id):
     if ok:
         flash(f'Remessa reenviada para {email_destino}.', 'success')
     else:
-        flash(f'Erro ao reenviar e-mail: {erro}', 'danger')
+        flash_recorded_error(
+            'Falha informada pelo serviço de envio da remessa e-SUS',
+            'Não foi possível reenviar a remessa por e-mail.',
+        )
     return redirect(url_for('admin.esus_remessa_detail', remessa_id=remessa_id))
 
 

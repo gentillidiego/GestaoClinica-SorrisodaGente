@@ -7,10 +7,18 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash,
 from flask_login import login_required, current_user
 from werkzeug.security import check_password_hash
 from database import execute, query, execute_transaction
-from constants import CLINICAL_EXECUTOR_ROLES
+from constants import CLINICAL_EXECUTOR_ROLES, can_sign_clinical_document
 from services.security_service import audit_log, permission_required
+from services.security_service import deny_access
+from services.authorization_service import TAB_ACCESS_RULES, describe_rule, rule_allows
 from services.sensitive_file_service import sensitive_file_response
+from services.web_security_service import flash_internal_error, internal_error_response
 from services.google_drive_service import get_drive_service, ensure_patient_drive_folder, upload_file_in_memory, download_file_in_memory
+from services.upload_security_service import (
+    STANDARD_IMAGE_FORMATS,
+    UploadValidationError,
+    inspect_uploaded_file,
+)
 from tasks.gdrive_tasks import create_patient_gdrive_folder_task
 import io
 from flask import Response
@@ -268,7 +276,7 @@ def register():
 
             return redirect(url_for('patients.view_patient', id=patient_id))
         except Exception as e:
-            flash(f'Erro ao cadastrar paciente: {str(e)}', 'danger')
+            flash_internal_error('Falha ao cadastrar paciente')
             return render_template('patients/register.html', patient=data, **_template_address_context(data))
             
     return render_template('patients/register.html', patient={}, **_template_address_context())
@@ -379,13 +387,19 @@ def list_patients():
         where_clause = ""
         params = ()
         
+    neoplasia_select = (
+        "COALESCE((SELECT suspeita_neoplasia FROM estomatologia "
+        "WHERE patient_id = p.id ORDER BY id DESC LIMIT 1), FALSE)"
+        if current_user.can('estomatologia:view')
+        else "FALSE"
+    )
     patients = query(f"""
         SELECT p.id, p.nome, p.cpf,
                triage.senha_triagem,
                triage.especialidade_nome,
                triage.municipio_codigo,
                COALESCE(triage.triage_count, 0) as triage_count,
-               COALESCE((SELECT suspeita_neoplasia FROM estomatologia WHERE patient_id = p.id ORDER BY id DESC LIMIT 1), FALSE) as suspeita_neoplasia
+               {neoplasia_select} as suspeita_neoplasia
         FROM patients p
         LEFT JOIN LATERAL (
             SELECT
@@ -453,7 +467,7 @@ def edit_patient(id):
             flash('Dados do paciente atualizados!', 'success')
             return redirect(url_for('patients.list_patients'))
         except Exception as e:
-            flash(f'Erro ao atualizar: {str(e)}', 'danger')
+            flash_internal_error('Falha ao atualizar paciente')
             
     return render_template('patients/edit.html', patient=patient, **_template_address_context(patient))
 
@@ -479,7 +493,10 @@ from services.inventory_service import (
 @patients_bp.route('/view/<int:id>')
 @login_required
 def view_patient(id):
-    data = PatientService.get_patient_basic_info(id)
+    data = PatientService.get_patient_basic_info(
+        id,
+        include_clinical_alerts=current_user.can('clinical_timeline:view'),
+    )
     if not data or not data.get('patient'):
         flash('Paciente não encontrado.', 'danger')
         return redirect(url_for('patients.list_patients'))
@@ -567,17 +584,35 @@ def get_tab_content(id, tab_name):
 
     if tab_name not in tab_mapping:
         return "Aba não encontrada.", 404
-    if tab_name == 'tab-materiais' and not current_user.can('inventory:view'):
-        return "Acesso negado.", 403
+    tab_rule = TAB_ACCESS_RULES.get(tab_name)
+    if tab_rule and not rule_allows(current_user, tab_rule):
+        return deny_access(
+            permissions=describe_rule(tab_rule),
+            reason='patient_tab_denied',
+            patient_id=id,
+        )
 
     config = tab_mapping[tab_name]
-    data = config['service'](id)
-    
-    # Criar o contexto para a renderização do template
-    context = PatientService.get_patient_basic_info(id)
+    context = PatientService.get_patient_basic_info(
+        id,
+        include_clinical_alerts=current_user.can('clinical_timeline:view'),
+    )
     if not context:
         return "Paciente não encontrado.", 404
-        
+
+    if tab_name == 'tab-visual':
+        allowed_sources = set()
+        if current_user.can('exams:view'):
+            allowed_sources.add('exam_image')
+        if current_user.can('estomatologia:view'):
+            allowed_sources.add('estomatologia_photo')
+        if current_user.can('endodontia:view'):
+            allowed_sources.add('endodontia_image')
+        data = config['service'](id, allowed_sources=allowed_sources)
+    else:
+        data = config['service'](id)
+
+    # Criar o contexto para a renderização do template
     if config.get('is_dict'):
         context.update(data)
     else:
@@ -652,7 +687,7 @@ def add_material_usage(id):
             status='failed',
             details={'error': str(exc), 'lot_id': request.form.get('lot_id')},
         )
-        flash(f'Erro ao registrar material: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao registrar material no prontuário')
     return redirect(url_for('patients.view_patient', id=id) + '#tab-materiais')
 
 
@@ -686,7 +721,7 @@ def complete_material_post_op(id, usage_id):
             status='failed',
             details={'error': str(exc)},
         )
-        flash(f'Erro ao registrar pós-operatório: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao registrar pós-operatório')
     return redirect(url_for('patients.view_patient', id=id) + '#tab-materiais')
 
 
@@ -726,7 +761,7 @@ def serve_estomatologia_photo(id, photo_id):
             mime_type, _ = mimetypes.guess_type(photo['filename'])
             return Response(file_bytes, mimetype=mime_type or 'application/octet-stream')
         except Exception as e:
-            return f"Erro ao baixar arquivo do Drive: {str(e)}", 500
+            return internal_error_response('Falha ao baixar arquivo do Drive')
     else:
         if not os.path.exists(photo['file_path']):
             return "Arquivo local não encontrado", 404
@@ -756,9 +791,9 @@ def update_exam_visual_metadata(id, arquivo_id):
         )
         flash('Metadados da imagem atualizados.', 'success')
     except ValueError as exc:
-        flash(str(exc), 'danger')
+        flash('Revise os metadados informados para a imagem.', 'danger')
     except Exception as exc:
-        flash(f'Erro ao atualizar imagem: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao atualizar metadados da imagem')
     return redirect(url_for('patients.view_patient', id=id) + '#tab-visual')
 
 
@@ -785,9 +820,9 @@ def update_estomatologia_visual_metadata(id, photo_id):
         )
         flash('Metadados da foto atualizados.', 'success')
     except ValueError as exc:
-        flash(str(exc), 'danger')
+        flash('Revise os metadados informados para a foto.', 'danger')
     except Exception as exc:
-        flash(f'Erro ao atualizar foto: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao atualizar metadados da foto')
     return redirect(url_for('patients.view_patient', id=id) + '#tab-visual')
 
 
@@ -815,9 +850,9 @@ def update_endodontia_visual_metadata(id, image_id):
         )
         flash('Metadados da imagem endodôntica atualizados.', 'success')
     except ValueError as exc:
-        flash(str(exc), 'danger')
+        flash('Revise os metadados informados para a imagem endodôntica.', 'danger')
     except Exception as exc:
-        flash(f'Erro ao atualizar imagem endodôntica: {str(exc)}', 'danger')
+        flash_internal_error('Falha ao atualizar metadados da imagem endodôntica')
     return redirect(url_for('patients.view_patient', id=id) + '#tab-visual')
 
 @patients_bp.route('/tcle/<int:id>', methods=['GET', 'POST'])
@@ -858,7 +893,7 @@ def patient_tcle(id):
                 assinatura = SIGNATURE_MARKER_A_ROGO
                 auth_method = 'login_senha_cd_a_rogo'
             except ValueError as exc:
-                flash(str(exc), 'danger')
+                flash('Credenciais inválidas ou profissional sem permissão para assinatura a rogo.', 'danger')
                 return render_template('patients/tcle.html', patient=patient)
         elif not assinatura:
             flash('A assinatura do paciente é obrigatória.', 'danger')
@@ -920,7 +955,7 @@ def patient_tcle(id):
             flash('Termo de Consentimento assinado com sucesso!', 'success')
             return redirect(url_for('patients.view_patient', id=id))
         except Exception as e:
-            flash(f'Erro ao salvar termo: {str(e)}', 'danger')
+            flash_internal_error('Falha ao salvar TCLE')
 
     return render_template('patients/tcle.html', patient=patient)
 
@@ -962,7 +997,7 @@ def add_treatment(id):
         ))
         flash('Procedimento adicionado ao plano de tratamento.', 'success')
     except Exception as e:
-        flash(f'Erro ao adicionar procedimento: {str(e)}', 'danger')
+        flash_internal_error('Falha ao adicionar procedimento')
         
     return redirect(url_for('patients.view_patient', id=id) + '#tab-tratamento')
 
@@ -1012,7 +1047,7 @@ def edit_treatment(id, proc_id):
         ))
         flash('Procedimento atualizado com sucesso!', 'success')
     except Exception as e:
-        flash(f'Erro ao atualizar procedimento: {str(e)}', 'danger')
+        flash_internal_error('Falha ao atualizar procedimento')
         
     return redirect(url_for('patients.view_patient', id=id) + '#tab-tratamento')
 
@@ -1023,7 +1058,7 @@ def delete_treatment(id, proc_id):
         execute('DELETE FROM tratamento_procedimentos WHERE id = %s AND patient_id = %s', (proc_id, id))
         flash('Procedimento excluído com sucesso!', 'success')
     except Exception as e:
-        flash(f'Erro ao excluir procedimento: {str(e)}', 'danger')
+        flash_internal_error('Falha ao excluir procedimento')
         
     return redirect(url_for('patients.view_patient', id=id) + '#tab-tratamento')
 @patients_bp.route('/<int:id>/treatment/<int:proc_id>/sign', methods=['POST'])
@@ -1036,10 +1071,27 @@ def sign_treatment(id, proc_id):
         flash('Usuário e senha são obrigatórios para assinar.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-tratamento')
         
+    proc = query(
+        """
+        SELECT id, patient_id, dente, descricao, sigtap_code, sigtap_name
+        FROM tratamento_procedimentos
+        WHERE id = %s AND patient_id = %s
+        """,
+        (proc_id, id),
+        one=True,
+    )
+    if not proc:
+        flash('Procedimento não encontrado para este paciente.', 'danger')
+        return redirect(url_for('patients.view_patient', id=id) + '#tab-tratamento')
+
     # Verifica credenciais do professor
     prof = query("SELECT id, password, role FROM users WHERE username = %s", (username,), one=True)
     
-    if not prof or not check_password_hash(prof['password'], password):
+    if (
+        not prof
+        or not check_password_hash(prof['password'], password)
+        or not can_sign_clinical_document(prof['role'])
+    ):
         flash('Credenciais inválidas. Assinatura não realizada.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-tratamento')
         
@@ -1058,12 +1110,6 @@ def sign_treatment(id, proc_id):
             WHERE id = %s AND patient_id = %s
         ''', (prof['id'], proc_id, id))
         
-        # Busca o procedimento para pegar os detalhes
-        proc = query(
-            "SELECT dente, descricao, sigtap_code, sigtap_name FROM tratamento_procedimentos WHERE id = %s",
-            (proc_id,),
-            one=True,
-        )
         obs = f"Dente {proc['dente']}: {proc['descricao']}" if proc['dente'] else proc['descricao']
         if proc.get('sigtap_code'):
             obs = f"{obs}\nSIGTAP {proc['sigtap_code']} - {proc.get('sigtap_name') or ''}".strip()
@@ -1077,7 +1123,7 @@ def sign_treatment(id, proc_id):
         
         flash('Procedimento assinado e importado para evolução!', 'success')
     except Exception as e:
-        flash(f'Erro ao assinar procedimento: {str(e)}', 'danger')
+        flash_internal_error('Falha ao assinar procedimento')
         
     return redirect(url_for('patients.view_patient', id=id) + '#tab-tratamento')
 
@@ -1098,7 +1144,7 @@ def add_atendimento(id):
         ''', (id, data_sessao, observacoes, current_user.id))
         flash('Evolução clínica registrada com sucesso.', 'success')
     except Exception as e:
-        flash(f'Erro ao registrar evolução: {str(e)}', 'danger')
+        flash_internal_error('Falha ao registrar evolução clínica')
         
     return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
 
@@ -1129,7 +1175,7 @@ def sign_patient_atendimento(id, appt_id):
             assinatura_base64 = SIGNATURE_MARKER_A_ROGO
             auth_method = 'login_senha_cd_a_rogo'
         except ValueError as exc:
-            flash(str(exc), 'danger')
+            flash('Credenciais inválidas ou profissional sem permissão para assinatura a rogo.', 'danger')
             return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
     elif not assinatura_base64:
         flash('Nenhuma assinatura fornecida.', 'danger')
@@ -1186,16 +1232,27 @@ def sign_patient_atendimento(id, appt_id):
         ))
         
         # Verifica se já tem assinatura do professor e do aluno executor para gerar a data
-        appt = query("SELECT data, professor_id, aluno_executor_id FROM atendimentos WHERE id = %s", (appt_id,), one=True)
+        appt = query(
+            """
+            SELECT data, professor_id, aluno_executor_id
+            FROM atendimentos
+            WHERE id = %s AND patient_id = %s
+            """,
+            (appt_id, id),
+            one=True,
+        )
         if appt['professor_id'] and appt['aluno_executor_id'] and (not appt['data'] or appt['data'] == ''):
-            execute("UPDATE atendimentos SET data = %s WHERE id = %s", (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), appt_id))
+            execute(
+                "UPDATE atendimentos SET data = %s WHERE id = %s AND patient_id = %s",
+                (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), appt_id, id),
+            )
             
         if signature_mode == SIGNATURE_MODE_A_ROGO:
             flash('Assinatura a rogo registrada com autenticação do CD e evidência de leitura e consentimento.', 'success')
         else:
             flash('Assinatura do paciente registrada com sucesso!', 'success')
     except Exception as e:
-        flash(f'Erro ao registrar assinatura: {str(e)}', 'danger')
+        flash_internal_error('Falha ao registrar assinatura do paciente')
         
     return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
 
@@ -1209,10 +1266,27 @@ def sign_student_atendimento(id, appt_id):
         flash('Usuário e senha são obrigatórios para assinar.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
         
+    appt = query(
+        """
+        SELECT id, data, professor_id, assinatura_paciente_base64
+        FROM atendimentos
+        WHERE id = %s AND patient_id = %s
+        """,
+        (appt_id, id),
+        one=True,
+    )
+    if not appt:
+        flash('Atendimento não encontrado para este paciente.', 'danger')
+        return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
+
     # Verifica credenciais do aluno
     user = query("SELECT id, password, role FROM users WHERE username = %s", (username,), one=True)
     
-    if not user or not check_password_hash(user['password'], password):
+    if (
+        not user
+        or not check_password_hash(user['password'], password)
+        or not can_sign_clinical_document(user['role'])
+    ):
         flash('Credenciais inválidas. Assinatura não realizada.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
         
@@ -1224,13 +1298,24 @@ def sign_student_atendimento(id, appt_id):
         ''', (user['id'], appt_id, id))
         
         # Verifica se já tem assinatura do professor e do paciente para gerar a data
-        appt = query("SELECT data, professor_id, assinatura_paciente_base64 FROM atendimentos WHERE id = %s", (appt_id,), one=True)
+        appt = query(
+            """
+            SELECT data, professor_id, assinatura_paciente_base64
+            FROM atendimentos
+            WHERE id = %s AND patient_id = %s
+            """,
+            (appt_id, id),
+            one=True,
+        )
         if appt['professor_id'] and appt['assinatura_paciente_base64'] and (not appt['data'] or appt['data'] == ''):
-            execute("UPDATE atendimentos SET data = %s WHERE id = %s", (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), appt_id))
+            execute(
+                "UPDATE atendimentos SET data = %s WHERE id = %s AND patient_id = %s",
+                (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), appt_id, id),
+            )
             
         flash('Assinatura do profissional executor registrada com sucesso!', 'success')
     except Exception as e:
-        flash(f'Erro ao registrar assinatura: {str(e)}', 'danger')
+        flash_internal_error('Falha ao registrar assinatura do profissional')
         
     return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
 
@@ -1245,7 +1330,15 @@ def edit_atendimento(id, appt_id):
         return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
         
     # Check permission
-    appt = query("SELECT created_by, professor_id FROM atendimentos WHERE id = %s", (appt_id,), one=True)
+    appt = query(
+        """
+        SELECT created_by, professor_id
+        FROM atendimentos
+        WHERE id = %s AND patient_id = %s
+        """,
+        (appt_id, id),
+        one=True,
+    )
     if not appt or (current_user.id != appt['created_by'] and current_user.id != appt['professor_id'] and not current_user.is_admin):
         flash('Sem permissão para editar este atendimento.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
@@ -1258,7 +1351,7 @@ def edit_atendimento(id, appt_id):
         ''', (data_sessao, observacoes, appt_id, id))
         flash('Evolução clínica atualizada com sucesso!', 'success')
     except Exception as e:
-        flash(f'Erro ao atualizar evolução: {str(e)}', 'danger')
+        flash_internal_error('Falha ao atualizar evolução clínica')
         
     return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
 
@@ -1266,7 +1359,15 @@ def edit_atendimento(id, appt_id):
 @login_required
 def delete_atendimento(id, appt_id):
     # Check permission
-    appt = query("SELECT created_by, professor_id FROM atendimentos WHERE id = %s", (appt_id,), one=True)
+    appt = query(
+        """
+        SELECT created_by, professor_id
+        FROM atendimentos
+        WHERE id = %s AND patient_id = %s
+        """,
+        (appt_id, id),
+        one=True,
+    )
     if not appt or (current_user.id != appt['created_by'] and current_user.id != appt['professor_id'] and not current_user.is_admin):
         flash('Sem permissão para excluir este atendimento.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
@@ -1275,7 +1376,7 @@ def delete_atendimento(id, appt_id):
         execute('DELETE FROM atendimentos WHERE id = %s AND patient_id = %s', (appt_id, id))
         flash('Evolução clínica excluída com sucesso!', 'success')
     except Exception as e:
-        flash(f'Erro ao excluir evolução: {str(e)}', 'danger')
+        flash_internal_error('Falha ao excluir evolução clínica')
         
     return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
 
@@ -1289,10 +1390,27 @@ def sign_atendimento(id, appt_id):
         flash('Usuário e senha são obrigatórios para assinar.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
         
+    appt = query(
+        """
+        SELECT id, data, assinatura_paciente_base64, aluno_executor_id
+        FROM atendimentos
+        WHERE id = %s AND patient_id = %s
+        """,
+        (appt_id, id),
+        one=True,
+    )
+    if not appt:
+        flash('Atendimento não encontrado para este paciente.', 'danger')
+        return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
+
     # Verifica credenciais do professor
     prof = query("SELECT id, password, role FROM users WHERE username = %s", (username,), one=True)
     
-    if not prof or not check_password_hash(prof['password'], password):
+    if (
+        not prof
+        or not check_password_hash(prof['password'], password)
+        or not can_sign_clinical_document(prof['role'])
+    ):
         flash('Credenciais inválidas. Assinatura não realizada.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
         
@@ -1304,13 +1422,24 @@ def sign_atendimento(id, appt_id):
         ''', (prof['id'], appt_id, id))
         
         # Verifica se já tem assinatura do paciente e do aluno executor para gerar a data
-        appt = query("SELECT data, assinatura_paciente_base64, aluno_executor_id FROM atendimentos WHERE id = %s", (appt_id,), one=True)
+        appt = query(
+            """
+            SELECT data, assinatura_paciente_base64, aluno_executor_id
+            FROM atendimentos
+            WHERE id = %s AND patient_id = %s
+            """,
+            (appt_id, id),
+            one=True,
+        )
         if appt['assinatura_paciente_base64'] and appt['aluno_executor_id'] and (not appt['data'] or appt['data'] == ''):
-            execute("UPDATE atendimentos SET data = %s WHERE id = %s", (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), appt_id))
+            execute(
+                "UPDATE atendimentos SET data = %s WHERE id = %s AND patient_id = %s",
+                (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), appt_id, id),
+            )
             
         flash('Evolução clínica validada pelo dentista com sucesso!', 'success')
     except Exception as e:
-        flash(f'Erro ao assinar evolução: {str(e)}', 'danger')
+        flash_internal_error('Falha ao validar evolução clínica')
         
     return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
 
@@ -1354,7 +1483,7 @@ def delete_patient(id):
         ])
         flash('Paciente excluído com sucesso.', 'success')
     except Exception as e:
-        flash(f'Erro ao excluir: {str(e)}', 'danger')
+        flash_internal_error('Falha ao excluir paciente')
         
     return redirect(url_for('patients.list_patients'))
 
@@ -1453,16 +1582,13 @@ def save_estomatologia(id):
             flash('Ficha de Estomatologia registrada com sucesso!', 'success')
 
     except Exception as e:
-        flash(f'Erro ao salvar ficha de estomatologia: {str(e)}', 'danger')
+        flash_internal_error('Falha ao salvar ficha de estomatologia')
 
     return redirect(url_for('patients.view_patient', id=id) + '#tab-estomatologia')
 
 @patients_bp.route('/<int:id>/estomatologia/photo/upload', methods=['POST'])
 @login_required
 def upload_estomatologia_photo(id):
-    import uuid
-    from werkzeug.utils import secure_filename
-
     file = request.files.get('foto')
     metadata = build_estomatologia_photo_metadata(request.form)
 
@@ -1473,12 +1599,21 @@ def upload_estomatologia_photo(id):
         flash('A legenda da foto é obrigatória para rastreamento visual.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-estomatologia')
 
-    # Validação simples de tipo de arquivo
-    original_filename = secure_filename(file.filename)
-    ext = os.path.splitext(original_filename)[1].lower()
-    if ext not in ['.jpg', '.jpeg', '.png', '.webp']:
-        flash('Formato de imagem inválido. Use JPG, PNG ou WEBP.', 'danger')
+    try:
+        inspection = inspect_uploaded_file(
+            file,
+            allowed_formats=STANDARD_IMAGE_FORMATS,
+        )
+    except UploadValidationError as exc:
+        current_app.logger.warning(
+            'Upload de estomatologia rejeitado para o paciente %s: %s',
+            id,
+            exc,
+        )
+        flash(str(exc), 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-estomatologia')
+    original_filename = inspection.safe_filename
+    ext = inspection.extension
 
     try:
         # Busca a estomatologia correspondente do paciente
@@ -1496,7 +1631,7 @@ def upload_estomatologia_photo(id):
             service=service,
             file_stream=file.stream,
             filename=original_filename or f"foto_lesao{ext}",
-            mime_type=file.mimetype,
+            mime_type=inspection.mime_type,
             parent_id=folder_id
         )
         filepath = f"gdrive://{drive_file['id']}"
@@ -1535,12 +1670,17 @@ def upload_estomatologia_photo(id):
                 'visual_category': metadata['visual_category'],
                 'comparison_label': metadata['comparison_label'],
                 'comparison_group': metadata['comparison_group'],
+                'detected_format': inspection.detected_format,
+                'size_bytes': inspection.size_bytes,
+                'width': inspection.width,
+                'height': inspection.height,
+                'total_pixels': inspection.total_pixels,
             },
         )
 
         flash('Foto da lesão enviada com sucesso!', 'success')
     except Exception as e:
-        flash(f'Erro ao fazer upload da foto: {str(e)}', 'danger')
+        flash_internal_error('Falha ao enviar foto de estomatologia')
 
     return redirect(url_for('patients.view_patient', id=id) + '#tab-estomatologia')
 
@@ -1583,7 +1723,7 @@ def delete_estomatologia_photo(id, photo_id):
 
         flash('Foto removida da evolução com sucesso.', 'success')
     except Exception as e:
-        flash(f'Erro ao excluir foto: {str(e)}', 'danger')
+        flash_internal_error('Falha ao excluir foto de estomatologia')
 
     return redirect(url_for('patients.view_patient', id=id) + '#tab-estomatologia')
 

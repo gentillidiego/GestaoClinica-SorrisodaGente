@@ -11,14 +11,18 @@ Decisão operacional registrada em 17/06/2026: o escopo de Endodontia, Prótese,
 O sistema opera com 9 perfis unificados. Cada perfil enxerga apenas os módulos pertinentes ao seu trabalho.
 
 1. **Administrador** (`admin`): Acesso total. Gestão de usuários, senhas, acessos a logs de auditoria e configurações de integrações (SIGTAP/e-SUS).
-2. **Coordenação** (`coordenacao`): Foco em gestão clínica e fila. Acesso à Central de Comando, BI, Epidemiologia, Agenda completa com edição, Pacientes e Custos SIGTAP.
-3. **Clínicos** (`clinicos`): Odontólogos e auxiliares. Acesso ao Prontuário, à própria Agenda, Fila, Estomatologia, Evoluções, Assinaturas e Consumo de Estoque.
+2. **Coordenação** (`coordenacao`): Foco em gestão clínica e fila. Acesso à Central de Comando, BI, Epidemiologia, Agenda completa com edição, Pacientes, leitura de Anamnese/Plano de Tratamento/Atendimento/Linha do Tempo e Custos SIGTAP. Não altera atos clínicos.
+3. **Clínicos** (`clinicos`): Odontólogos e auxiliares. Acesso de leitura e escrita ao Prontuário, Anamnese, Exames odontológicos e clínico/laboratoriais, Plano de Tratamento, Evoluções, Estomatologia, assinaturas, própria Agenda e Consumo de Estoque.
 4. **Recepção** (`recepcao`): Acesso a Pacientes (cadastro e edição), Triagem, Agenda (marcação, confirmação, faltas) e geração de documentos.
-5. **CME / Estoque** (`cme`): Foco no cadastro de materiais, lotes, fornecedores, ajustes administrativos e laudos de laboratório.
-6. **Radiologia** (`radiologia`): Acesso a Pacientes e Exames (upload de radiografias, lote de imagens).
+5. **CME / Estoque** (`cme`): Foco no cadastro de materiais, lotes, fornecedores, ajustes administrativos e exames/laudos clínico-laboratoriais. Não acessa Anamnese, Atendimento ou exames radiológicos.
+6. **Radiologia** (`radiologia`): Acesso a Pacientes e Exames odontológicos/de imagem (upload de radiografias e lote de imagens). Não acessa exames clínico-laboratoriais.
 7. **Comunicação** (`comunicacao`): Acesso aos relatórios institucionais e painel BI para métricas sociais e marketing.
 8. **SSA/SMS** (`ssa_sms`): Visão governamental restrita (BI Executivo e Mapa Epidemiológico).
-9. **Auditoria** (`auditoria`): Acesso aos relatórios, logs do sistema e configuração de integrações (apenas visualização).
+9. **Auditoria** (`auditoria`): Acesso somente de leitura a Pacientes, Anamnese, Plano de Tratamento, Atendimento, Linha do Tempo, relatórios, logs do sistema e integrações.
+
+A matriz técnica completa de rotas está em
+`docs/matriz_rbac_rotas_2026-06-20.md`. Tentativas diretas por URL não ampliam
+o acesso: o backend responde `403` e registra a negação na auditoria.
 
 ---
 
@@ -29,6 +33,9 @@ O sistema organiza o menu lateral em blocos lógicos:
 *   **Gestão e Indicadores:** Mapa Epidemiológico, BI Executivo, Relatórios.
 *   **Financeiro e SUS:** Custos SIGTAP, Integração SIGTAP/e-SUS.
 *   **Administração:** Usuários, Pré-cadastros, Unidades, Estoque, Auditoria.
+*   **Encerrar sessão:** usar sempre o botão `Sair` do menu lateral. O logout
+    envia uma confirmação protegida pelo sistema; links antigos ou acesso
+    direto a `/logout` não encerram mais a sessão.
 
 ---
 
@@ -171,6 +178,10 @@ Nesta etapa, o BI está em modo de validação do que já existe. Não entram no
 ## 6. Procedimentos de Segurança e Auditoria
 
 *   **Auditoria Plena:** Criação de consultas, edição de pacientes, exclusão de fotos, visualização de exames, ajustes de estoque e login são rastreados (IP, Data, Usuário, Módulo).
+*   **Sessão e erros:** o acesso oficial deve ocorrer por HTTPS. Ao terminar o
+    uso, o profissional deve clicar em `Sair`, especialmente em equipamento
+    compartilhado. Se a tela apresentar um código de referência, informe esse
+    código à equipe responsável; detalhes técnicos não são exibidos ao usuário.
 *   **Assinatura a rogo:** Usada somente quando o paciente for não alfabetizado. O CD responsável deve ler e explicar o termo ou procedimento em linguagem acessível, esclarecer dúvidas, colher o consentimento verbal do paciente e autenticar o registro com seu login e senha. Não são exigidas testemunhas. O sistema grava evento probatório com modo `a_rogo`, login do CD, CPF do paciente, hash SHA-256 do conteúdo, IP, user-agent, timestamp e auditoria.
 *   **Pacote probatório de assinatura:** TCLE, confirmação do atendimento, Anamnese, Prótese, Pagamentos e Endodontia geram evento técnico em `signature_events` e registro em `digital_signatures` quando há assinatura. O comprovante consolidado fica disponível pela Linha do Tempo ou por `/documents/signatures/<event_id>`.
 *   **LGPD:** Visualização de imagens só carrega se logado. Relatórios e eventos probatórios de assinatura geram Hash (SHA-256) para demonstrar integridade do conteúdo registrado.

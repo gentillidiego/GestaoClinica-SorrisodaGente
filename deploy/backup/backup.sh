@@ -9,7 +9,7 @@ BACKUP_OFFSITE_ENABLED="${BACKUP_OFFSITE_ENABLED:-false}"
 BACKUP_SCHEDULE_HOUR="${BACKUP_SCHEDULE_HOUR:-2}"
 BACKUP_SCHEDULE_MINUTE="${BACKUP_SCHEDULE_MINUTE:-30}"
 BACKUP_RUN_ON_START="${BACKUP_RUN_ON_START:-true}"
-RCLONE_CONFIG="${RCLONE_CONFIG:-/config/rclone/rclone.conf}"
+RCLONE_CONFIG="${RCLONE_CONFIG:-/run/secrets/rclone/rclone.conf}"
 
 log() {
     printf '[backup] %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S%z')" "$*"

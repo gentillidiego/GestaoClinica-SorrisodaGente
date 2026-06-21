@@ -39,6 +39,9 @@
     let uploadUrl = app.dataset.uploadUrl || '';
     let viewUrl = app.dataset.viewUrl || '';
     const returnUrl = app.dataset.returnUrl || '';
+    const maxFileBytes = Number(app.dataset.maxFileBytes) || 300 * 1024 * 1024;
+    const maxRequestBytes = Number(app.dataset.maxRequestBytes) || 320 * 1024 * 1024;
+    const multipartReserveBytes = 2 * 1024 * 1024;
     let selectedFiles = [];
     let isBusy = false;
     let allowNavigation = false;
@@ -148,17 +151,24 @@
         const accepted = [];
         const errors = [];
         const existingKeys = new Set(selectedFiles.map((entry) => fileKey(entry.file)));
+        let selectedBytes = selectedFiles.reduce((total, entry) => total + entry.file.size, 0);
 
         for (const file of files) {
             const extensionIsValid = /\.(jpe?g|png|webp)$/i.test(file.name);
             const mimeIsValid = !file.type || file.type.startsWith('image/');
 
-            if (!extensionIsValid || !mimeIsValid) {
+            if (!extensionIsValid && !mimeIsValid) {
                 errors.push(`${file.name}: formato não compatível`);
                 continue;
             }
-            if (file.size > 25 * 1024 * 1024) {
-                errors.push(`${file.name}: ultrapassa 25 MB`);
+            if (file.size > maxFileBytes) {
+                errors.push(`${file.name}: ultrapassa ${Math.round(maxFileBytes / 1024 / 1024)} MB`);
+                continue;
+            }
+            if (selectedBytes + file.size > maxRequestBytes - multipartReserveBytes) {
+                errors.push(
+                    'O conjunto ultrapassa o limite deste envio; envie os arquivos maiores separadamente',
+                );
                 continue;
             }
             if (existingKeys.has(fileKey(file))) continue;
@@ -167,6 +177,7 @@
                 break;
             }
             accepted.push(file);
+            selectedBytes += file.size;
             existingKeys.add(fileKey(file));
         }
         return { accepted, errors };

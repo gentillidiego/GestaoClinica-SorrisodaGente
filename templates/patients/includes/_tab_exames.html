@@ -4,8 +4,10 @@
 	            <h3
 	                style="font-family: var(--font-heading); font-size: 1.4rem; font-weight: 700; color: hsl(var(--primary));">
 	                Exames Complementares</h3>
+	            {% if can('exams:write') %}
 	            <a href="{{ url_for('exams.check_anamnesis', patient_id=patient.id) }}" class="btn btn-primary"
 	                style="padding: 0.8rem 1.5rem; font-weight: 700;">Novo Exame ➕</a>
+                {% endif %}
 	        </div>
 
 	        <div data-paginate="true" data-per-page="6" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2rem;">
@@ -38,6 +40,7 @@
                             style="font-size: 0.65rem; font-weight: 800; color: hsl(var(--primary)); text-transform: uppercase; letter-spacing: 0.05em; background: hsl(var(--bg-main)); padding: 0.3rem 0.6rem; border-radius: 4px; border: 1px solid hsl(var(--border)/0.5); white-space: nowrap;">
                             {{ exam_type_labels.get(exam.tipo, exam.tipo|upper) }}
                         </span>
+                        {% if can('exams:delete') %}
                         <button onclick="openDeleteExamModal('{{ url_for('exams.delete_exam', exam_id=exam.id) }}')" 
                                 style="background: hsl(var(--danger)/0.1); border: none; border-radius: 4px; padding: 0.4rem; cursor: pointer; color: hsl(var(--danger)); display: flex; align-items: center; justify-content: center; transition: all 0.2s;"
                                 onmouseover="this.style.background='hsl(var(--danger)/0.2)'"
@@ -45,6 +48,7 @@
                                 title="Excluir Exame">
                             🗑️
                         </button>
+                        {% endif %}
                     </div>
                 </div>
 

@@ -4,6 +4,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from database import execute, query
+from services.web_security_service import flash_internal_error
 
 triage_bp = Blueprint('triage', __name__, url_prefix='/triagem')
 
@@ -74,7 +75,7 @@ def create_action():
         except ValueError:
             flash('Data da ação inválida.', 'danger')
         except Exception as e:
-            flash(f'Erro ao criar ação de triagem: {str(e)}', 'danger')
+            flash_internal_error('Falha ao criar ação de triagem')
 
     return render_template(
         'triage/action_form.html',
@@ -225,7 +226,7 @@ def generate_tickets(action_id):
             paciente_id=patient_id,
         ))
     except Exception as e:
-        flash(f'Erro ao gerar senhas: {str(e)}', 'danger')
+        flash_internal_error('Falha ao gerar senha de triagem')
 
     return redirect(url_for('triage.view_action', action_id=action_id))
 

@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 
 from flask import Flask
-from PIL import Image
+from PIL import Image, ImageChops
 
 import services.protected_file_delivery_service as delivery
 
@@ -50,6 +50,26 @@ def test_image_derivatives_create_small_permanent_webp_files(tmp_path, monkeypat
         assert preview.width <= 1800
         assert preview.height <= 1800
     assert Path(paths['thumbnail']).stat().st_size < original.stat().st_size
+
+
+def test_image_preview_uses_lossless_webp_without_changing_resized_pixels(
+    tmp_path,
+    monkeypatch,
+):
+    uploads = configure_roots(monkeypatch, tmp_path)
+    monkeypatch.setattr(delivery, 'DERIVATIVE_LOSSLESS', True)
+    original = uploads / 'staging' / 'radiografia.png'
+    original.parent.mkdir(parents=True)
+    source = Image.effect_noise((2400, 1600), 80).convert('RGB')
+    source.save(original, 'PNG')
+
+    paths = delivery.ensure_image_derivatives('exam_image', 102, original)
+
+    expected = source.copy()
+    expected.thumbnail(delivery.PREVIEW_SIZE, Image.Resampling.LANCZOS)
+    with Image.open(paths['preview']) as preview:
+        actual = preview.convert('RGB')
+        assert ImageChops.difference(actual, expected).getbbox() is None
 
 
 def test_atomic_drive_cache_download_is_shared_between_concurrent_requests(
