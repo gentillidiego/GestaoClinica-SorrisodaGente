@@ -60,8 +60,21 @@
         <button type="button" class="image-exam-status__close" id="closeLabStatus" aria-label="Fechar aviso">×</button>
     </section>
 
+    {% if request_prefill %}
+    <div class="image-exam-status" data-state="success">
+        <div class="image-exam-status__icon" aria-hidden="true">i</div>
+        <div class="image-exam-status__content">
+            <strong>Atendendo solicitação de exame</strong>
+            <span>Os campos abaixo foram pré-preenchidos a partir da solicitação enviada para a Radiologia.</span>
+        </div>
+    </div>
+    {% endif %}
+
     <form class="image-exam-card" id="labExamForm" method="post" enctype="multipart/form-data" data-async-submit="true" novalidate>
         <input type="hidden" name="csrf_token" id="labCsrfToken" value="{{ csrf_token() }}">
+        {% if request_prefill %}
+        <input type="hidden" name="request_id" value="{{ request_prefill.id }}">
+        {% endif %}
 
         <div class="image-exam-section-heading">
             <div class="image-exam-section-number">1</div>
@@ -71,6 +84,7 @@
             </div>
         </div>
 
+        {% set selected_categoria = exam_data.categoria if exam_data else (request_prefill.categoria if request_prefill else '') %}
         <div class="image-exam-fields lab-exam-identification">
             <div class="image-exam-field">
                 <label for="categoria">Tipo do exame <span aria-label="obrigatório">*</span></label>
@@ -80,7 +94,7 @@
                     <option
                         value="{{ value }}"
                         data-tests="{{ config.tests }}"
-                        {% if exam_data and exam_data.categoria == value %}selected{% endif %}
+                        {% if selected_categoria == value %}selected{% endif %}
                     >{{ config.label }}</option>
                     {% endfor %}
                 </select>
@@ -157,7 +171,7 @@
                             type="text"
                             id="laboratorio"
                             name="laboratorio"
-                            value="{{ exam_data.laboratorio if exam_data else '' }}"
+                            value="{{ exam_data.laboratorio if exam_data else (request_prefill.laboratorio if request_prefill else '') }}"
                             placeholder="Ex.: Laboratório Central"
                         >
                     </div>
@@ -167,7 +181,7 @@
                             type="date"
                             id="data_coleta"
                             name="data_coleta"
-                            value="{{ exam_data.data_coleta if exam_data and exam_data.data_coleta else '' }}"
+                            value="{{ exam_data.data_coleta if exam_data and exam_data.data_coleta else (request_prefill.data_coleta if request_prefill and request_prefill.data_coleta else '') }}"
                         >
                     </div>
                     <div class="image-exam-field image-exam-field--wide">
@@ -177,7 +191,7 @@
                             name="observacoes"
                             rows="3"
                             placeholder="Registre apenas uma informação relevante para a conduta odontológica"
-                        >{{ exam_data.observacoes if exam_data else '' }}</textarea>
+                        >{{ exam_data.observacoes if exam_data else (request_prefill.observacoes if request_prefill else '') }}</textarea>
                     </div>
                     <div class="image-exam-field image-exam-field--wide">
                         <label for="labCaption">Legenda dos arquivos <span>(opcional)</span></label>

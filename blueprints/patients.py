@@ -479,6 +479,7 @@ from services.sigtap_service import (
     is_sigtap_code_allowed_for_specialty,
     normalize_sigtap_code,
 )
+from services.dental_cid_service import get_dental_cid_groups
 from services.visual_media_service import (
     build_estomatologia_photo_metadata,
     update_endodontia_image_metadata,
@@ -502,12 +503,13 @@ def view_patient(id):
         return redirect(url_for('patients.list_patients'))
     data['sigtap_procedures'] = build_sigtap_options()
     data['sigtap_specialty_groups'] = build_sigtap_specialty_groups()
+    data['dental_cid_groups'] = get_dental_cid_groups()
     return render_template('patients/view.html', **data)
 
 from extensions import cache
 
-@cache.cached(timeout=600, key_prefix='students_list')
-def get_students_cached():
+@cache.cached(timeout=600, key_prefix='clinical_users_list')
+def get_clinical_users_cached():
     roles = tuple(sorted(CLINICAL_EXECUTOR_ROLES))
     placeholders = ', '.join(['%s'] * len(roles))
     return query(
@@ -620,12 +622,14 @@ def get_tab_content(id, tab_name):
         
     # Adicionar profissionais clínicos quando a aba precisa de responsáveis/validadores.
     if tab_name in ['tab-atendimento', 'tab-tratamento', 'tab-endodontia', 'tab-protese', 'tab-materiais']:
-        clinical_users = get_students_cached()
+        clinical_users = get_clinical_users_cached()
         context['clinical_users'] = clinical_users
-        context['students'] = clinical_users  # Alias legado para templates ainda não migrados.
 
     if tab_name == 'tab-endodontia':
         context['linked_anamnesis'] = PatientService.get_patient_anamnesis(id)
+
+    if tab_name == 'tab-exames':
+        context['exam_requests'] = PatientService.get_patient_exam_requests(id)
 
     if tab_name == 'tab-tratamento':
         context['sigtap_procedures'] = data.get('sigtap_procedures', build_sigtap_options())
@@ -867,7 +871,7 @@ def patient_tcle(id):
     existing_tcle = query('''
         SELECT t.*, u.username, u.full_name, u.cro, u.cro_uf 
         FROM patient_tcle t 
-        JOIN users u ON t.aluno_id = u.id 
+        JOIN users u ON t.operator_id = u.id
         WHERE t.patient_id = %s 
         ORDER BY t.data_assinatura DESC LIMIT 1
     ''', (id,), one=True)
@@ -886,8 +890,8 @@ def patient_tcle(id):
         if signature_mode == SIGNATURE_MODE_A_ROGO:
             try:
                 signer = validate_a_rogo_signer(
-                    request.form.get('rogo_prof_username'),
-                    request.form.get('rogo_prof_password'),
+                    request.form.get('rogo_validator_username'),
+                    request.form.get('rogo_validator_password'),
                 )
                 declaration_text = A_ROGO_DECLARATION
                 assinatura = SIGNATURE_MARKER_A_ROGO
@@ -903,7 +907,7 @@ def patient_tcle(id):
             signer_id = signer['id'] if isinstance(signer, dict) else signer.id
             tcle_id = execute('''
                 INSERT INTO patient_tcle (
-                    patient_id, aluno_id, assinatura_base64, assinatura_modo,
+                    patient_id, operator_id, assinatura_base64, assinatura_modo,
                     assinatura_a_rogo_por, assinatura_a_rogo_declaracao,
                     assinatura_a_rogo_testemunhas, assinatura_auth_method
                 )
@@ -1064,8 +1068,8 @@ def delete_treatment(id, proc_id):
 @patients_bp.route('/<int:id>/treatment/<int:proc_id>/sign', methods=['POST'])
 @login_required
 def sign_treatment(id, proc_id):
-    username = request.form.get('prof_username')
-    password = request.form.get('prof_password')
+    username = request.form.get('validator_username')
+    password = request.form.get('validator_password')
     
     if not username or not password:
         flash('Usuário e senha são obrigatórios para assinar.', 'danger')
@@ -1084,7 +1088,7 @@ def sign_treatment(id, proc_id):
         flash('Procedimento não encontrado para este paciente.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-tratamento')
 
-    # Verifica credenciais do professor
+    # Verifica as credenciais do profissional validador.
     prof = query("SELECT id, password, role FROM users WHERE username = %s", (username,), one=True)
     
     if (
@@ -1101,7 +1105,7 @@ def sign_treatment(id, proc_id):
     try:
         execute('''
             UPDATE tratamento_procedimentos 
-            SET professor_id = %s,
+            SET validator_id = %s,
                 status = 'Concluído',
                 esus_export_status = CASE
                     WHEN sigtap_code IS NULL THEN 'missing_sigtap'
@@ -1117,7 +1121,7 @@ def sign_treatment(id, proc_id):
         # Importa automaticamente para a aba Atendimento (Evolução)
         # Data fica em branco até que paciente também assine
         execute('''
-            INSERT INTO atendimentos (patient_id, data, observacoes, created_by, professor_id, status)
+            INSERT INTO atendimentos (patient_id, data, observacoes, created_by, validator_id, status)
             VALUES (%s, NULL, %s, %s, %s, 'Concluído')
         ''', (id, obs, current_user.id, prof['id']))
         
@@ -1168,8 +1172,8 @@ def sign_patient_atendimento(id, appt_id):
     if signature_mode == SIGNATURE_MODE_A_ROGO:
         try:
             signer = validate_a_rogo_signer(
-                request.form.get('rogo_prof_username'),
-                request.form.get('rogo_prof_password'),
+                request.form.get('rogo_validator_username'),
+                request.form.get('rogo_validator_password'),
             )
             declaration_text = A_ROGO_DECLARATION
             assinatura_base64 = SIGNATURE_MARKER_A_ROGO
@@ -1231,17 +1235,17 @@ def sign_patient_atendimento(id, appt_id):
             id,
         ))
         
-        # Verifica se já tem assinatura do professor e do aluno executor para gerar a data
+        # Gera a data quando paciente, executor e validador já confirmaram.
         appt = query(
             """
-            SELECT data, professor_id, aluno_executor_id
+            SELECT data, validator_id, executor_id
             FROM atendimentos
             WHERE id = %s AND patient_id = %s
             """,
             (appt_id, id),
             one=True,
         )
-        if appt['professor_id'] and appt['aluno_executor_id'] and (not appt['data'] or appt['data'] == ''):
+        if appt['validator_id'] and appt['executor_id'] and (not appt['data'] or appt['data'] == ''):
             execute(
                 "UPDATE atendimentos SET data = %s WHERE id = %s AND patient_id = %s",
                 (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), appt_id, id),
@@ -1256,11 +1260,11 @@ def sign_patient_atendimento(id, appt_id):
         
     return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
 
-@patients_bp.route('/<int:id>/atendimento/<int:appt_id>/sign_student', methods=['POST'])
+@patients_bp.route('/<int:id>/atendimento/<int:appt_id>/sign_executor', methods=['POST'])
 @login_required
-def sign_student_atendimento(id, appt_id):
-    username = request.form.get('student_username')
-    password = request.form.get('student_password')
+def sign_executor_atendimento(id, appt_id):
+    username = request.form.get('executor_username')
+    password = request.form.get('executor_password')
     
     if not username or not password:
         flash('Usuário e senha são obrigatórios para assinar.', 'danger')
@@ -1268,7 +1272,7 @@ def sign_student_atendimento(id, appt_id):
         
     appt = query(
         """
-        SELECT id, data, professor_id, assinatura_paciente_base64
+        SELECT id, data, validator_id, assinatura_paciente_base64
         FROM atendimentos
         WHERE id = %s AND patient_id = %s
         """,
@@ -1279,7 +1283,7 @@ def sign_student_atendimento(id, appt_id):
         flash('Atendimento não encontrado para este paciente.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
 
-    # Verifica credenciais do aluno
+    # Verifica as credenciais do profissional executor.
     user = query("SELECT id, password, role FROM users WHERE username = %s", (username,), one=True)
     
     if (
@@ -1293,21 +1297,21 @@ def sign_student_atendimento(id, appt_id):
     try:
         execute('''
             UPDATE atendimentos 
-            SET aluno_executor_id = %s
+            SET executor_id = %s
             WHERE id = %s AND patient_id = %s
         ''', (user['id'], appt_id, id))
         
-        # Verifica se já tem assinatura do professor e do paciente para gerar a data
+        # Gera a data quando paciente e validador já confirmaram.
         appt = query(
             """
-            SELECT data, professor_id, assinatura_paciente_base64
+            SELECT data, validator_id, assinatura_paciente_base64
             FROM atendimentos
             WHERE id = %s AND patient_id = %s
             """,
             (appt_id, id),
             one=True,
         )
-        if appt['professor_id'] and appt['assinatura_paciente_base64'] and (not appt['data'] or appt['data'] == ''):
+        if appt['validator_id'] and appt['assinatura_paciente_base64'] and (not appt['data'] or appt['data'] == ''):
             execute(
                 "UPDATE atendimentos SET data = %s WHERE id = %s AND patient_id = %s",
                 (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), appt_id, id),
@@ -1332,14 +1336,14 @@ def edit_atendimento(id, appt_id):
     # Check permission
     appt = query(
         """
-        SELECT created_by, professor_id
+        SELECT created_by, validator_id
         FROM atendimentos
         WHERE id = %s AND patient_id = %s
         """,
         (appt_id, id),
         one=True,
     )
-    if not appt or (current_user.id != appt['created_by'] and current_user.id != appt['professor_id'] and not current_user.is_admin):
+    if not appt or (current_user.id != appt['created_by'] and current_user.id != appt['validator_id'] and not current_user.is_admin):
         flash('Sem permissão para editar este atendimento.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
         
@@ -1361,14 +1365,14 @@ def delete_atendimento(id, appt_id):
     # Check permission
     appt = query(
         """
-        SELECT created_by, professor_id
+        SELECT created_by, validator_id
         FROM atendimentos
         WHERE id = %s AND patient_id = %s
         """,
         (appt_id, id),
         one=True,
     )
-    if not appt or (current_user.id != appt['created_by'] and current_user.id != appt['professor_id'] and not current_user.is_admin):
+    if not appt or (current_user.id != appt['created_by'] and current_user.id != appt['validator_id'] and not current_user.is_admin):
         flash('Sem permissão para excluir este atendimento.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
         
@@ -1383,8 +1387,8 @@ def delete_atendimento(id, appt_id):
 @patients_bp.route('/<int:id>/atendimento/<int:appt_id>/sign', methods=['POST'])
 @login_required
 def sign_atendimento(id, appt_id):
-    username = request.form.get('prof_username')
-    password = request.form.get('prof_password')
+    username = request.form.get('validator_username')
+    password = request.form.get('validator_password')
     
     if not username or not password:
         flash('Usuário e senha são obrigatórios para assinar.', 'danger')
@@ -1392,7 +1396,7 @@ def sign_atendimento(id, appt_id):
         
     appt = query(
         """
-        SELECT id, data, assinatura_paciente_base64, aluno_executor_id
+        SELECT id, data, assinatura_paciente_base64, executor_id
         FROM atendimentos
         WHERE id = %s AND patient_id = %s
         """,
@@ -1403,7 +1407,7 @@ def sign_atendimento(id, appt_id):
         flash('Atendimento não encontrado para este paciente.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
 
-    # Verifica credenciais do professor
+    # Verifica as credenciais do dentista responsável.
     prof = query("SELECT id, password, role FROM users WHERE username = %s", (username,), one=True)
     
     if (
@@ -1417,21 +1421,21 @@ def sign_atendimento(id, appt_id):
     try:
         execute('''
             UPDATE atendimentos 
-            SET professor_id = %s, status = 'Concluído'
+            SET validator_id = %s, status = 'Concluído'
             WHERE id = %s AND patient_id = %s
         ''', (prof['id'], appt_id, id))
         
-        # Verifica se já tem assinatura do paciente e do aluno executor para gerar a data
+        # Gera a data quando paciente e executor já confirmaram.
         appt = query(
             """
-            SELECT data, assinatura_paciente_base64, aluno_executor_id
+            SELECT data, assinatura_paciente_base64, executor_id
             FROM atendimentos
             WHERE id = %s AND patient_id = %s
             """,
             (appt_id, id),
             one=True,
         )
-        if appt['assinatura_paciente_base64'] and appt['aluno_executor_id'] and (not appt['data'] or appt['data'] == ''):
+        if appt['assinatura_paciente_base64'] and appt['executor_id'] and (not appt['data'] or appt['data'] == ''):
             execute(
                 "UPDATE atendimentos SET data = %s WHERE id = %s AND patient_id = %s",
                 (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), appt_id, id),
@@ -1463,6 +1467,7 @@ def delete_patient(id):
             ('DELETE FROM exam_odontograma WHERE exam_id IN (SELECT id FROM exams WHERE patient_id = %s)', (id,)),
             ('DELETE FROM exam_controle_placa WHERE exam_id IN (SELECT id FROM exams WHERE patient_id = %s)', (id,)),
             ('DELETE FROM exam_periograma WHERE exam_id IN (SELECT id FROM exams WHERE patient_id = %s)', (id,)),
+            ('DELETE FROM exam_requests WHERE patient_id = %s', (id,)),
             ('DELETE FROM exams WHERE patient_id = %s', (id,)),
             ('DELETE FROM anamnesis WHERE patient_id = %s', (id,)),
             ('DELETE FROM atendimentos WHERE patient_id = %s', (id,)),

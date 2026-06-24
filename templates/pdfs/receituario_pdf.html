@@ -1,161 +1,160 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
     <meta charset="UTF-8">
     <title>Receituário - {{ patient.nome }}</title>
     <style>
         @page {
             size: A4;
-            margin: 20mm 20mm 20mm 20mm;
+            margin: 18mm 20mm 22mm;
+            @bottom-left {
+                content: "Programa Sorriso da Gente • Gestão Saúde Oral";
+                font-family: Arial, sans-serif;
+                font-size: 7.5pt;
+                color: #64748b;
+            }
+            @bottom-right {
+                content: "Documento emitido pelo prontuário odontológico";
+                font-family: Arial, sans-serif;
+                font-size: 7.5pt;
+                color: #64748b;
+            }
         }
-
+        * { box-sizing: border-box; }
         body {
+            margin: 0;
+            color: #172033;
             font-family: Arial, Helvetica, sans-serif;
-            color: #000;
-            line-height: 1.5;
-            margin: 0;
-            padding: 0;
-            font-size: 12pt;
+            font-size: 11.5pt;
+            line-height: 1.65;
         }
-
         .header {
-            border-bottom: 2px solid #000;
-            padding-bottom: 8px;
-            margin-bottom: 15px;
+            display: table;
+            width: 100%;
+            padding-bottom: 6mm;
+            border-bottom: 2px solid #dbe7f6;
         }
-
-        .header h1 {
-            margin: 0;
-            font-size: 44pt;
-            font-weight: bold;
-            letter-spacing: 1px;
-            line-height: 1;
+        .header > div {
+            display: table-cell;
+            vertical-align: middle;
         }
-
-        .header p {
-            margin: 5px 0 0 0;
-            font-size: 11pt;
-            font-weight: bold;
+        .header img {
+            width: 55mm;
+            display: block;
+        }
+        .header-label {
+            text-align: right;
+            color: #0d47a1;
+            font-size: 8pt;
+            font-weight: 800;
+            letter-spacing: .1em;
             text-transform: uppercase;
         }
-
-        .subtitle {
+        h1 {
+            margin: 23mm 0 12mm;
+            color: #0d47a1;
+            font-size: 23pt;
             text-align: center;
-            font-size: 16pt;
-            font-weight: bold;
-            text-transform: uppercase;
-            margin: 0 0 35px 0;
+            letter-spacing: .03em;
         }
-
-        .patient-info {
-            margin-bottom: 35px;
-            border: 1px solid #ccc;
-            padding: 12px;
-            border-radius: 4px;
+        .patient-box {
+            margin-bottom: 8mm;
+            padding: 5mm 6mm;
+            border: 1px solid #dbe7f6;
+            border-left: 5px solid #f7941e;
+            border-radius: 9px;
+            background: #f8fbff;
         }
-
-        .patient-name {
-            font-size: 13pt;
-            font-weight: bold;
+        .patient-box strong {
+            color: #0d47a1;
         }
-
         .uso-tipo {
             text-align: center;
-            font-size: 14pt;
-            font-weight: bold;
-            margin: 0 0 35px 0;
-            text-transform: uppercase;
-            text-decoration: underline;
-        }
-
-        .prescricao {
-            min-height: 350px;
+            margin: 0 0 10mm;
+            padding: 2.5mm 0;
+            border-top: 1px solid #dbe7f6;
+            border-bottom: 1px solid #dbe7f6;
+            color: #0d47a1;
             font-size: 12pt;
+            font-weight: 800;
+            letter-spacing: .05em;
+            text-transform: uppercase;
         }
-
+        .prescricao {
+            min-height: 58mm;
+        }
         .med-item {
-            margin-bottom: 25px;
-            padding-left: 20px;
+            margin-bottom: 7mm;
+            padding-left: 4mm;
         }
-
         table.med-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 5px;
+            margin-bottom: 1mm;
         }
-
         td.med-name {
-            font-weight: bold;
-            font-size: 12pt;
+            font-weight: 800;
+            color: #172033;
             white-space: nowrap;
         }
-
         td.med-dots {
             width: 100%;
-            border-bottom: 1px dashed #999;
+            border-bottom: 1px dashed #9fb6d6;
             position: relative;
-            top: -6px;
+            top: -2mm;
         }
-
         td.med-qtd {
-            font-weight: bold;
-            font-size: 12pt;
+            font-weight: 800;
+            color: #0d47a1;
             white-space: nowrap;
             text-align: right;
-            padding-left: 10px;
+            padding-left: 3mm;
         }
-
         .med-item-uso {
-            padding-left: 30px;
-            margin-top: 5px;
+            padding-left: 6mm;
+            margin-top: 1mm;
+            color: #526279;
+            font-size: 10pt;
         }
-
-        .footer {
-            margin-top: 40px;
-            text-align: center;
-            padding-top: 10px;
-            page-break-inside: avoid;
-        }
-
-        .signature-box {
-            text-align: center;
-            width: 350px;
-            margin: 0 auto;
-        }
-
-        .signature-line {
-            border-top: 1px solid #000;
-            margin-bottom: 5px;
-        }
-
         .date {
-            margin-top: 40px;
-            margin-bottom: 20px;
-            font-size: 12pt;
+            margin-top: 12mm;
+            text-align: right;
+        }
+        .signature {
+            margin-top: 20mm;
+            text-align: center;
+        }
+        .signature-line {
+            width: 85mm;
+            margin: 0 auto 3mm;
+            border-top: 1px solid #172033;
+        }
+        .professional-name {
+            color: #0d47a1;
+            font-weight: 800;
+        }
+        .professional-data {
+            color: #526279;
+            font-size: 9.5pt;
         }
     </style>
 </head>
-
 <body>
+    <header class="header">
+        <div><img src="{{ logo_uri }}" alt="Sorriso da Gente"></div>
+        <div class="header-label">Documento clínico institucional</div>
+    </header>
 
+    <h1>RECEITUÁRIO ODONTOLÓGICO</h1>
 
-    <div class="subtitle">
-        Receituário Odontológico
-    </div>
+    <section class="patient-box">
+        <strong>Paciente:</strong> {{ patient.nome }}
+        {% if patient.endereco %}<br><strong>Endereço:</strong> {{ patient.endereco }}{% endif %}
+    </section>
 
-    <div class="patient-info">
-        <div class="patient-name">Paciente: {{ patient.nome }}</div>
-        {% if patient.endereco %}
-        <div style="margin-top: 5px; font-weight: bold; color: #333;">Endereço: {{ patient.endereco }}</div>
-        {% endif %}
-    </div>
+    <div class="uso-tipo">Uso {{ doc.uso }}</div>
 
-    <div class="uso-tipo">
-        USO {{ doc.uso }}
-    </div>
-
-    <div class="prescricao">
+    <section class="prescricao">
         {% if doc.prescricao_parsed %}
         {% for item in doc.prescricao_parsed %}
         <div class="med-item">
@@ -166,34 +165,27 @@
                     <td class="med-qtd">{{ item.quantidade }}</td>
                 </tr>
             </table>
-            <div class="med-item-uso">
-                {{ item.uso }}
-            </div>
+            <div class="med-item-uso">{{ item.uso }}</div>
         </div>
         {% endfor %}
         {% else %}
-        <div style="white-space: pre-wrap; padding-left: 20px;">{{ doc.prescricao }}</div>
+        <div style="white-space: pre-wrap; padding-left: 4mm;">{{ doc.prescricao }}</div>
         {% endif %}
-    </div>
+    </section>
 
-    <div class="date">
-        Maceió, {{ (doc.data|string).split('-')[2][:2] if doc.data else '' }} de
-        {% set meses = ['aneiro', 'evereiro', 'arço', 'bril', 'aio', 'unho', 'ulho', 'gosto', 'etembro', 'utubro',
-        'ovembro', 'ezembro'] %}
-        {% if doc.data %}
-        {{ ['j', 'f', 'm', 'a', 'm', 'j', 'j', 'a', 's', 'o', 'n', 'd'][(doc.data|string).split('-')[1]|int - 1] }}{{
-        meses[(doc.data|string).split('-')[1]|int - 1] }}
-        {% endif %}
-        de {{ (doc.data|string).split('-')[0] if doc.data else '' }}.
-    </div>
+    <div class="date">Maceió, {{ attendance_date }}.</div>
 
-    <div class="footer">
-        <div class="signature-box">
-            <div class="signature-line"></div>
-            <strong>Assinatura e Carimbo</strong>
+    <footer class="signature">
+        <div class="signature-line"></div>
+        <div class="professional-name">
+            {{ prof.full_name or prof.username }}
         </div>
-
-    </div>
+        <div class="professional-data">
+            Cirurgião-dentista
+            {% if prof.cro %}
+                • CRO-{{ prof.cro_uf or 'AL' }} {{ prof.cro }}
+            {% endif %}
+        </div>
+    </footer>
 </body>
-
 </html>

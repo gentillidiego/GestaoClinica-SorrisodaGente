@@ -124,7 +124,7 @@ class TraceabilityService:
         rows = query("""
             SELECT t.data_assinatura, t.texto_opcional, u.username, u.full_name
             FROM patient_tcle t
-            LEFT JOIN users u ON t.aluno_id = u.id
+            LEFT JOIN users u ON t.operator_id = u.id
             WHERE t.patient_id = %s
             ORDER BY t.data_assinatura DESC
         """, (patient_id,))
@@ -169,17 +169,17 @@ class TraceabilityService:
     def _appointment_events(patient_id):
         rows = query("""
             SELECT a.id, a.data, a.status, a.observacoes,
-                   up.full_name as professor_nome, up.username as professor_username,
+                   up.full_name as validator_name, up.username as validator_username,
                    ua.full_name as executor_nome, ua.username as executor_username
             FROM atendimentos a
-            LEFT JOIN users up ON a.professor_id = up.id
-            LEFT JOIN users ua ON a.aluno_executor_id = ua.id
+            LEFT JOIN users up ON a.validator_id = up.id
+            LEFT JOIN users ua ON a.executor_id = ua.id
             WHERE a.patient_id = %s
         """, (patient_id,))
 
         events = []
         for row in rows or []:
-            actor = row['executor_nome'] or row['executor_username'] or row['professor_nome'] or row['professor_username']
+            actor = row['executor_nome'] or row['executor_username'] or row['validator_name'] or row['validator_username']
             events.append(_event(
                 row['data'],
                 'Atendimento',
@@ -227,7 +227,7 @@ class TraceabilityService:
             SELECT tp.id, tp.data_sessao, tp.dente, tp.descricao, tp.status, tp.criado_em,
                    u.full_name, u.username
             FROM tratamento_procedimentos tp
-            LEFT JOIN users u ON tp.professor_id = u.id
+            LEFT JOIN users u ON tp.validator_id = u.id
             WHERE tp.patient_id = %s
         """, (patient_id,))
 
@@ -250,7 +250,7 @@ class TraceabilityService:
             SELECT p.id, p.data, p.descricao, p.tipo, p.status,
                    u.full_name, u.username
             FROM prosthesis p
-            LEFT JOIN users u ON p.aluno_responsavel_id = u.id
+            LEFT JOIN users u ON p.responsible_professional_id = u.id
             WHERE p.patient_id = %s
         """, (patient_id,))
 
@@ -271,7 +271,7 @@ class TraceabilityService:
                    u.full_name, u.username
             FROM prosthesis_etapas e
             JOIN prosthesis p ON e.prosthesis_id = p.id
-            LEFT JOIN users u ON e.professor_id = u.id
+            LEFT JOIN users u ON e.validator_id = u.id
             WHERE p.patient_id = %s
         """, (patient_id,))
         for row in etapas or []:
@@ -293,7 +293,7 @@ class TraceabilityService:
                    u.full_name, u.username,
                    uc.full_name as cancelado_por_nome, uc.username as cancelado_por_username
             FROM endodontia e
-            LEFT JOIN users u ON e.aluno_id = u.id
+            LEFT JOIN users u ON e.operator_id = u.id
             LEFT JOIN users uc ON e.cancelado_por = uc.id
             WHERE e.patient_id = %s
         """, (patient_id,))

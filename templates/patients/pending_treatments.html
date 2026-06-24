@@ -12,7 +12,7 @@
                 📝 Planos Pendentes
             </h1>
             <p style="color: hsl(var(--text-muted)); font-size: 1rem;">
-                Acompanhamento de procedimentos aguardando assinatura do professor.
+                Acompanhamento de procedimentos aguardando validação do dentista responsável.
             </p>
         </div>
 
@@ -100,7 +100,7 @@
                 style="font-family: var(--font-heading); color: hsl(var(--text-main)); margin-bottom: 0.5rem; font-size: 1.4rem;">
                 Tudo em dia!</h3>
             <p style="color: hsl(var(--text-muted)); font-size: 1.05rem;">
-                Nenhum paciente possui planos de tratamento com assinatura pendente do professor.
+                Nenhum paciente possui planos de tratamento com validação pendente.
             </p>
             {% if query %}
             <a href="{{ url_for('patients.pending_treatments') }}" class="btn btn-outline"

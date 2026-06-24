@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Manual 02 — Novo usuário</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 15mm 15mm 17mm;
+      @bottom-left {
+        content: "Gestão Saúde Oral • Manual 02";
+        font-family: Arial, sans-serif;
+        font-size: 7.5pt;
+        color: #64748b;
+      }
+      @bottom-right {
+        content: counter(page) " / " counter(pages);
+        font-family: Arial, sans-serif;
+        font-size: 7.5pt;
+        color: #64748b;
+      }
+    }
+    @page cover { margin: 0; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #172033;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9.6pt;
+      line-height: 1.48;
+    }
+    .cover {
+      page: cover;
+      height: 297mm;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(145deg, #0b367c 0%, #0d47a1 58%, #0879bd 100%);
+      color: white;
+      padding: 24mm 20mm;
+    }
+    .cover:before {
+      content: "";
+      position: absolute;
+      width: 170mm;
+      height: 170mm;
+      right: -78mm;
+      top: -55mm;
+      border: 22mm solid rgba(255,255,255,.07);
+      border-radius: 50%;
+    }
+    .cover:after {
+      content: "";
+      position: absolute;
+      width: 120mm;
+      height: 120mm;
+      left: -72mm;
+      bottom: -65mm;
+      border: 16mm solid rgba(247,148,30,.28);
+      border-radius: 50%;
+    }
+    .cover-logo {
+      display: inline-block;
+      background: white;
+      border-radius: 16px;
+      padding: 10px 18px;
+      box-shadow: 0 16px 38px rgba(0,0,0,.18);
+    }
+    .cover-logo img { width: 61mm; display: block; }
+    .cover-kicker {
+      margin-top: 44mm;
+      color: #f7941e;
+      font-size: 10pt;
+      font-weight: 800;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+    .cover h1 {
+      margin: 6mm 0 4mm;
+      max-width: 145mm;
+      font-size: 34pt;
+      line-height: 1.02;
+      letter-spacing: -.035em;
+    }
+    .cover-subtitle {
+      max-width: 130mm;
+      color: #dbeafe;
+      font-size: 13pt;
+      line-height: 1.45;
+    }
+    .cover-meta {
+      position: absolute;
+      left: 20mm;
+      right: 20mm;
+      bottom: 20mm;
+      display: table;
+      width: calc(100% - 40mm);
+      border-top: 1px solid rgba(255,255,255,.3);
+      padding-top: 7mm;
+      font-size: 9pt;
+      color: #dbeafe;
+    }
+    .cover-meta > div { display: table-cell; width: 33.333%; }
+    .cover-meta strong { display: block; color: white; margin-bottom: 1mm; }
+    .page { page-break-before: always; }
+    .page-header {
+      display: table;
+      width: 100%;
+      border-bottom: 2px solid #dbe7f6;
+      padding-bottom: 4mm;
+      margin-bottom: 7mm;
+    }
+    .page-header > div { display: table-cell; vertical-align: middle; }
+    .page-header img { width: 43mm; }
+    .page-label {
+      text-align: right;
+      color: #0d47a1;
+      font-weight: 800;
+      font-size: 8pt;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    h2 {
+      margin: 0 0 2.5mm;
+      color: #0d47a1;
+      font-size: 22pt;
+      line-height: 1.12;
+      letter-spacing: -.025em;
+    }
+    .lead {
+      margin: 0 0 7mm;
+      color: #526279;
+      font-size: 11pt;
+      line-height: 1.55;
+    }
+    .flow {
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+      margin: 6mm 0 8mm;
+    }
+    .flow-step {
+      display: table-cell;
+      position: relative;
+      padding-right: 4mm;
+      vertical-align: top;
+    }
+    .flow-step:last-child { padding-right: 0; }
+    .flow-number {
+      width: 9mm;
+      height: 9mm;
+      border-radius: 50%;
+      background: #0d47a1;
+      color: white;
+      text-align: center;
+      line-height: 9mm;
+      font-weight: 800;
+      margin-bottom: 2mm;
+    }
+    .flow-step strong { color: #163f75; font-size: 9.2pt; }
+    .flow-step span { display: block; color: #64748b; font-size: 8.2pt; margin-top: 1mm; }
+    .check-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4mm;
+      margin: 5mm 0 8mm;
+    }
+    .check-card {
+      border: 1px solid #dbe7f6;
+      border-radius: 10px;
+      padding: 4mm;
+      background: #f8fbff;
+    }
+    .check-card strong { display: block; color: #0d47a1; margin-bottom: 1.2mm; }
+    .check-card span { color: #526279; font-size: 8.6pt; }
+    .step-banner {
+      display: table;
+      width: 100%;
+      margin-bottom: 6mm;
+    }
+    .step-badge, .step-title { display: table-cell; vertical-align: middle; }
+    .step-badge {
+      width: 15mm;
+      height: 15mm;
+      border-radius: 50%;
+      text-align: center;
+      background: #f7941e;
+      color: white;
+      font-size: 17pt;
+      line-height: 15mm;
+      font-weight: 800;
+    }
+    .step-title { padding-left: 4mm; }
+    .step-title h2 { margin: 0; }
+    .step-title p { margin: 1mm 0 0; color: #64748b; }
+    .screen {
+      border: 1px solid #cdd9e8;
+      border-radius: 11px;
+      background: #eaf0f7;
+      padding: 3mm;
+      box-shadow: 0 9px 24px rgba(15, 52, 96, .12);
+      margin: 4mm 0 6mm;
+      page-break-inside: avoid;
+    }
+    .screen-bar {
+      height: 6mm;
+      padding: 0 1mm 2mm;
+      color: #7b8798;
+      font-size: 8pt;
+    }
+    .screen-dot {
+      display: inline-block;
+      width: 2.5mm;
+      height: 2.5mm;
+      border-radius: 50%;
+      margin-right: 1.2mm;
+      background: #f87171;
+    }
+    .screen-dot:nth-child(2) { background: #fbbf24; }
+    .screen-dot:nth-child(3) { background: #34d399; }
+    .screen img {
+      display: block;
+      width: 100%;
+      border-radius: 7px;
+      background: white;
+    }
+    .screen-compact {
+      width: 74%;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .columns {
+      display: grid;
+      grid-template-columns: 1.25fr .75fr;
+      gap: 6mm;
+      align-items: start;
+    }
+    .instruction {
+      border-left: 4px solid #0d47a1;
+      padding: 3mm 4mm;
+      margin-bottom: 3mm;
+      background: #f3f7fd;
+      border-radius: 0 8px 8px 0;
+    }
+    .instruction strong { color: #0d47a1; }
+    .instruction p { margin: 1.4mm 0 0; color: #475569; }
+    .tip, .warning, .success {
+      border-radius: 10px;
+      padding: 4mm;
+      margin: 4mm 0;
+      page-break-inside: avoid;
+    }
+    .tip { background: #eef7ff; border: 1px solid #cfe7fb; }
+    .warning { background: #fff7e8; border: 1px solid #fed7a0; }
+    .success { background: #edfdf5; border: 1px solid #b7efd1; }
+    .tip strong, .warning strong, .success strong { display: block; margin-bottom: 1mm; }
+    .tip strong { color: #075985; }
+    .warning strong { color: #a65300; }
+    .success strong { color: #087443; }
+    .bullet-list { margin: 2mm 0 0; padding-left: 5mm; }
+    .bullet-list li { margin: 1.5mm 0; color: #475569; }
+    .password-rules {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3mm;
+      margin: 5mm 0;
+    }
+    .rule {
+      text-align: center;
+      padding: 4mm 2mm;
+      border-radius: 9px;
+      background: #f5f8fc;
+      border: 1px solid #dbe5f0;
+    }
+    .rule b { display: block; color: #0d47a1; font-size: 15pt; margin-bottom: 1mm; }
+    .rule span { color: #64748b; font-size: 8pt; }
+    .closing {
+      margin-top: 3mm;
+      padding: 4mm;
+      background: linear-gradient(135deg, #0d47a1, #0879bd);
+      color: white;
+      border-radius: 12px;
+    }
+    .closing h3 { margin: 0 0 2mm; font-size: 15pt; }
+    .closing p { margin: 0; color: #dbeafe; }
+    .mini-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 3mm;
+      font-size: 8.2pt;
+    }
+    .mini-table th {
+      text-align: left;
+      background: #0d47a1;
+      color: white;
+      padding: 2mm 3mm;
+    }
+    .mini-table td {
+      border-bottom: 1px solid #e2e8f0;
+      padding: 1.8mm 3mm;
+      vertical-align: top;
+    }
+    .mini-table td:first-child { color: #0d47a1; font-weight: 700; width: 34%; }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div class="cover-logo"><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png" alt="Sorriso da Gente"></div>
+    <div class="cover-kicker">Manual de operação • 02</div>
+    <h1>Novo usuário</h1>
+    <div class="cover-subtitle">Cadastre a equipe, aplique o perfil correto e encaminhe cada profissional ao primeiro acesso com segurança.</div>
+    <div class="cover-meta">
+      <div><strong>Público</strong>Administrador</div>
+      <div><strong>Versão</strong>4.0.0-rc.1</div>
+      <div><strong>Revisão</strong>22 de junho de 2026</div>
+    </div>
+  </section>
+
+  <section class="page">
+    <header class="page-header"><div><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png" alt="Sorriso da Gente"></div><div class="page-label">Manual 02 • Novo usuário</div></header>
+    <h2>Antes de começar</h2>
+    <p class="lead">O perfil selecionado define os menus, informações e operações disponíveis. Confirme a função real antes de criar a credencial.</p>
+    <div class="flow">
+      <div class="flow-step"><div class="flow-number">1</div><strong>Abrir</strong><span>Acesse Usuários.</span></div>
+      <div class="flow-step"><div class="flow-number">2</div><strong>Identificar</strong><span>Preencha dados pessoais.</span></div>
+      <div class="flow-step"><div class="flow-number">3</div><strong>Autorizar</strong><span>Escolha perfil e status.</span></div>
+      <div class="flow-step"><div class="flow-number">4</div><strong>Conferir</strong><span>Revise o registro criado.</span></div>
+    </div>
+    <div class="check-grid">
+      <div class="check-card"><strong>Função confirmada</strong><span>O perfil deve corresponder ao trabalho realizado.</span></div>
+      <div class="check-card"><strong>Login único</strong><span>Prefira um padrão institucional fácil de identificar.</span></div>
+      <div class="check-card"><strong>Nascimento conferido</strong><span>Esse dado valida o primeiro acesso.</span></div>
+      <div class="check-card"><strong>Registro profissional</strong><span>Separe CNS, CBO e CRO quando exigidos.</span></div>
+    </div>
+    <table class="mini-table">
+      <tr><th>Perfil</th><th>Uso principal</th></tr>
+      <tr><td>Administrador</td><td>Configuração, usuários, auditoria e gestão completa.</td></tr>
+      <tr><td>Coordenação</td><td>Central de Comando, indicadores e acompanhamento clínico.</td></tr>
+      <tr><td>Clínicos</td><td>Prontuário, exames, plano, evolução e assinaturas.</td></tr>
+      <tr><td>Recepção</td><td>Cadastro de pacientes, triagem e agenda.</td></tr>
+      <tr><td>Demais perfis</td><td>CME, Radiologia, Comunicação, SSA/SMS e Auditoria têm escopos próprios.</td></tr>
+    </table>
+  </section>
+
+  <section class="page">
+    <header class="page-header"><div><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png" alt="Sorriso da Gente"></div><div class="page-label">Manual 02 • Gestão da equipe</div></header>
+    <div class="step-banner"><div class="step-badge">1</div><div class="step-title"><h2>Abrir a gestão da equipe</h2><p>No menu Administração, escolha Usuários.</p></div></div>
+    <div class="screen">
+      <div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span> Gestão de Equipe • ambiente de treinamento</div>
+      <img src="file:///home/diego/projetos/GestaoSaudeOral/docs/manuais_e_treinamentos/capturas/02_novo_usuario_01_gestao_equipe.png" alt="Lista de usuários">
+    </div>
+    <div class="columns">
+      <div>
+        <div class="instruction"><strong>Observe os acessos</strong><p>A lista informa perfil, situação, primeiro acesso e último login.</p></div>
+        <div class="instruction"><strong>Inicie o cadastro</strong><p>Clique em <b>Novo Usuário</b>, no canto superior direito.</p></div>
+      </div>
+      <div class="tip"><strong>Acesso restrito</strong>A criação e alteração de credenciais exige perfil Administrador.</div>
+    </div>
+  </section>
+
+  <section class="page">
+    <header class="page-header"><div><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png" alt="Sorriso da Gente"></div><div class="page-label">Manual 02 • Identificação</div></header>
+    <div class="step-banner"><div class="step-badge">2</div><div class="step-title"><h2>Identificar e preparar o acesso</h2><p>Use somente informações conferidas e autorizadas.</p></div></div>
+    <div class="screen">
+      <div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span> Exemplo fictício • nenhuma senha exibida</div>
+      <img src="file:///home/diego/projetos/GestaoSaudeOral/docs/manuais_e_treinamentos/capturas/02_novo_usuario_02_identificacao_acesso.png" alt="Identificação do novo usuário">
+    </div>
+    <div class="columns">
+      <div>
+        <div class="instruction"><strong>Nome, login e contatos</strong><p>O login deve ser único. E-mail e celular apoiam comunicação e recuperação.</p></div>
+        <div class="instruction"><strong>Data de nascimento</strong><p>É obrigatória quando o primeiro acesso estiver pendente.</p></div>
+      </div>
+      <div class="warning"><strong>Não crie senha para o usuário</strong>Mantenha <b>Primeiro acesso pendente</b> e deixe a senha inicial em branco. O profissional criará a própria senha.</div>
+    </div>
+  </section>
+
+  <section class="page">
+    <header class="page-header"><div><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png" alt="Sorriso da Gente"></div><div class="page-label">Manual 02 • Perfil profissional</div></header>
+    <div class="step-banner"><div class="step-badge">3</div><div class="step-title"><h2>Definir perfil e registros</h2><p>O exemplo usa o perfil Clínicos para mostrar todos os campos.</p></div></div>
+    <div class="screen">
+      <div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span> Dados profissionais fictícios</div>
+      <img src="file:///home/diego/projetos/GestaoSaudeOral/docs/manuais_e_treinamentos/capturas/02_novo_usuario_03_perfil_profissional.png" alt="Perfil e dados profissionais">
+    </div>
+    <div class="password-rules">
+      <div class="rule"><b>CNS</b><span>identificação nacional do profissional</span></div>
+      <div class="rule"><b>CBO</b><span>ocupação exercida no serviço</span></div>
+      <div class="rule"><b>CRO</b><span>obrigatório para o perfil Clínicos</span></div>
+    </div>
+    <div class="columns">
+      <div class="instruction"><strong>CNES e INE</strong><p>Identificam estabelecimento e equipe quando aplicáveis às integrações assistenciais.</p></div>
+      <div class="warning"><strong>Princípio do menor acesso</strong>Conceda somente as permissões necessárias para a função real.</div>
+    </div>
+  </section>
+
+  <section class="page">
+    <header class="page-header"><div><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png" alt="Sorriso da Gente"></div><div class="page-label">Manual 02 • Conferência e ciclo de vida</div></header>
+    <div class="step-banner"><div class="step-badge">4</div><div class="step-title"><h2>Salvar, conferir e administrar</h2><p>O cadastro deve aparecer ativo e aguardando primeiro acesso.</p></div></div>
+    <div class="screen screen-compact">
+      <div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span> Resultado ilustrativo • registro não gravado</div>
+      <img src="file:///home/diego/projetos/GestaoSaudeOral/docs/manuais_e_treinamentos/capturas/02_novo_usuario_04_resultado_acoes.png" alt="Resultado do cadastro">
+    </div>
+    <div class="columns">
+      <div class="success"><strong>Resultado esperado</strong>Usuário ativo, perfil correto, último login como “Nunca acessou” e indicação “Primeiro acesso pendente”.</div>
+      <div class="warning"><strong>Excluir ou inativar?</strong>Exclua somente quem não possui histórico. Havendo acesso ou vínculo operacional, use <b>Inativar acesso</b>.</div>
+    </div>
+    <table class="mini-table">
+      <tr><th>Se acontecer</th><th>O que fazer</th></tr>
+      <tr><td>Login já utilizado</td><td>Escolha outro login no padrão institucional.</td></tr>
+      <tr><td>Nascimento ausente</td><td>Preencha-o para liberar o primeiro acesso.</td></tr>
+      <tr><td>Dados profissionais incompletos</td><td>Confira CNS, CBO e, para Clínicos, CRO e UF.</td></tr>
+      <tr><td>Usuário saiu da equipe</td><td>Inative o acesso para preservar o histórico.</td></tr>
+    </table>
+    <div class="closing"><h3>Credencial pronta</h3><p>Oriente o profissional a usar o fluxo <b>Primeiro acesso</b> com seu login e data de nascimento cadastrada.</p></div>
+  </section>
+</body>
+</html>

@@ -17,7 +17,7 @@
         <h2>EDITAR ANAMNESE - {{ a.patient_name }}</h2>
     </div>
 
-    <form method="POST">
+    <form method="POST" id="anamnesis-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <!-- 1. Identificação Inicial e Queixa -->
@@ -305,7 +305,40 @@
         <div
             style="background: hsl(var(--bg-main)); padding: 2.5rem; border-radius: var(--radius-lg); border: 2px dashed hsl(var(--border)); text-align: center;">
             <div style="display: flex; flex-direction: column; align-items: center; gap: 1.5rem;">
-                <div class="signature-container"
+                <div style="width: min(100%, 680px); border: 1px solid hsl(var(--border)); border-radius: var(--radius-md); padding: 1rem 1.25rem; background: white; text-align: left;">
+                    <label style="display: flex; gap: 0.7rem; align-items: flex-start; font-weight: 800; color: hsl(var(--text-main)); cursor: pointer;">
+                        <input type="checkbox" name="patient_not_literate" id="patient_not_literate" value="1"
+                            {% if (request.method == 'POST' and request.form.get('patient_not_literate')) or (request.method != 'POST' and a.assinatura_modo == 'a_rogo') %}checked{% endif %}
+                            style="margin-top: 0.2rem; width: 18px; height: 18px;">
+                        <span>Paciente não alfabetizado</span>
+                    </label>
+                    <p style="margin: 0.5rem 0 0; color: hsl(var(--text-muted)); font-size: 0.88rem;">
+                        Para manter a assinatura a rogo nesta atualização, o CD responsável deve autenticar
+                        novamente e confirmar que leu e explicou a Anamnese ao paciente.
+                    </p>
+
+                    <div id="a-rogo-fields" style="display: none; margin-top: 1rem; border-top: 1px solid hsl(var(--border)); padding-top: 1rem;">
+                        <p style="margin: 0 0 1rem; font-size: 0.9rem; color: hsl(var(--text-main)); font-weight: 700;">
+                            Declaração registrada: li em voz alta, expliquei este documento em linguagem acessível,
+                            esclareci dúvidas e o paciente manifestou consentimento livre e informado para este ato.
+                        </p>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+                            <div>
+                                <label class="form-label">Usuário do CD responsável</label>
+                                <input type="text" name="rogo_validator_username"
+                                    value="{{ request.form.get('rogo_validator_username', '') }}"
+                                    class="form-control a-rogo-required" autocomplete="username">
+                            </div>
+                            <div>
+                                <label class="form-label">Senha do CD responsável</label>
+                                <input type="password" name="rogo_validator_password"
+                                    class="form-control a-rogo-required" autocomplete="current-password">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="signature-container" id="signature-canvas-section"
                     style="background: white; border: 1px solid hsl(var(--border)); border-radius: var(--radius-md); position: relative; width: fit-content; box-shadow: var(--shadow-md);">
                     <canvas id="signature-pad" width="500" height="200"
                         style="touch-action: none; cursor: crosshair; max-width: 100%;"></canvas>
@@ -353,24 +386,58 @@
             backgroundColor: 'rgb(255, 255, 255)'
         });
 
-        // Carregar assinatura existente se houver
-        const initialSignature = document.getElementById('assinatura_base64').value;
-        if (initialSignature) {
-            signaturePad.fromDataURL(initialSignature);
-        }
-
         const clearButton = document.getElementById('clear-signature');
-        const form = document.querySelector('form');
+        const form = document.getElementById('anamnesis-form');
         const hiddenInput = document.getElementById('assinatura_base64');
+        const initialSignature = hiddenInput.value;
+        const initialCanvasSignature = initialSignature.startsWith('data:image/') ? initialSignature : '';
+        const patientNotLiterate = document.getElementById('patient_not_literate');
+        const aRogoFields = document.getElementById('a-rogo-fields');
+        const aRogoRequiredFields = document.querySelectorAll('.a-rogo-required');
+        const signatureCanvasSection = document.getElementById('signature-canvas-section');
 
         clearButton.addEventListener('click', function () {
             signaturePad.clear();
+            hiddenInput.value = '';
         });
 
-        form.addEventListener('submit', function (e) {
-            if (!signaturePad.isEmpty()) {
-                hiddenInput.value = signaturePad.toDataURL();
+        function loadInitialCanvasSignature() {
+            if (initialCanvasSignature && signaturePad.isEmpty()) {
+                signaturePad.fromDataURL(initialCanvasSignature);
             }
+        }
+
+        function syncARogoFields() {
+            const enabled = patientNotLiterate.checked;
+            aRogoFields.style.display = enabled ? 'block' : 'none';
+            signatureCanvasSection.style.display = enabled ? 'none' : 'block';
+            aRogoRequiredFields.forEach((field) => {
+                field.required = enabled;
+                if (!enabled && field.type === 'password') {
+                    field.value = '';
+                }
+            });
+            if (enabled) {
+                signaturePad.clear();
+                hiddenInput.value = '';
+            } else {
+                loadInitialCanvasSignature();
+            }
+        }
+
+        patientNotLiterate.addEventListener('change', syncARogoFields);
+
+        form.addEventListener('submit', function (e) {
+            if (patientNotLiterate.checked) {
+                hiddenInput.value = '';
+                return;
+            }
+            if (signaturePad.isEmpty()) {
+                alert('A assinatura do paciente é obrigatória para prosseguir.');
+                e.preventDefault();
+                return;
+            }
+            hiddenInput.value = signaturePad.toDataURL();
         });
 
         function resizeCanvas() {
@@ -378,13 +445,12 @@
             canvas.width = canvas.offsetWidth * ratio;
             canvas.height = canvas.offsetHeight * ratio;
             canvas.getContext("2d").scale(ratio, ratio);
-            if (initialSignature && signaturePad.isEmpty()) {
-                signaturePad.fromDataURL(initialSignature);
-            }
+            loadInitialCanvasSignature();
         }
 
         window.onresize = resizeCanvas;
         resizeCanvas();
+        syncARogoFields();
     });
 </script>
 {% endblock %}

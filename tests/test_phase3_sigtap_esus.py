@@ -33,7 +33,10 @@ from services.esus_xml_service import (
     validate_xml_against_xsd,
 )
 from services.sigtap_service import (
+    SIGTAP_PROCEDURE_INDEX,
+    SIGTAP_SPECIALTY_GROUPS,
     build_sigtap_specialty_groups,
+    format_sigtap_code,
     is_sigtap_code_allowed_for_specialty,
     normalize_sigtap_code,
     parse_tb_procedimento_line,
@@ -80,7 +83,7 @@ def ready_rows():
         'necessidades_especiais': None,
         'quantidade': 1,
         'service_datetime': dt.datetime(2026, 6, 2, 9, 30),
-        'professor_id': 7,
+        'validator_id': 7,
         'professional_cns': '972733454440007',
         'professional_cbo': '223293',
         'cro': '1234',
@@ -100,6 +103,7 @@ def canonical(xml_bytes):
 
 def test_sigtap_code_normalization_and_split():
     assert normalize_sigtap_code('03.070.300-40') == '0307030040'
+    assert format_sigtap_code('0307030040') == '03.07.03.004-0'
     assert normalize_sigtap_code('123') == ''
     parts = split_sigtap_code('0307030040')
     assert parts['group_code'] == '03'
@@ -119,8 +123,29 @@ def test_sigtap_specialty_groups_filter_treatment_codes(monkeypatch):
     groups = build_sigtap_specialty_groups()
     endodontia = next(group for group in groups if group['value'] == 'endodontia')
     assert any(item['code'] == '0307020061' for item in endodontia['procedures'])
+    assert any(
+        item['label'] == '03.07.02.006-1 — Tratamento Endodôntico de Dente Permanente Unirradicular'
+        for item in endodontia['procedures']
+    )
     assert is_sigtap_code_allowed_for_specialty('endodontia', '0307020061')
     assert not is_sigtap_code_allowed_for_specialty('endodontia', '0414020138')
+
+
+def test_sigtap_specialty_catalog_matches_the_approved_table():
+    assert [group['label'] for group in SIGTAP_SPECIALTY_GROUPS] == [
+        'Atenção Primária / Clínico Geral',
+        'Endodontia',
+        'Periodontia',
+        'Cirurgia Bucomaxilofacial',
+        'Prótese Dentária',
+        'Alta Complexidade / Hospitalar / Implantodontia',
+        'Diagnóstico / Estomatologia / Radiologia',
+        'Urgências Odontológicas',
+    ]
+    assert len(SIGTAP_PROCEDURE_INDEX) == 133
+    assert sum(len(group['procedures']) for group in SIGTAP_SPECIALTY_GROUPS) == 133
+    assert SIGTAP_PROCEDURE_INDEX['0414020421']['name'] == 'Implante Dentário Osteointegrado'
+    assert SIGTAP_PROCEDURE_INDEX['0301060061']['specialty'] == 'urgencias_odontologicas'
 
 
 def test_upsert_sigtap_procedure_persists_group_fields(monkeypatch):
@@ -297,7 +322,7 @@ def test_classify_esus_missing_fields_flags_invalid_clinical_record():
         'sigtap_competence': None,
         'cns': '123',
         'cpf': '',
-        'professor_id': None,
+        'validator_id': None,
         'professional_cns': '700',
         'professional_cbo': '223',
         'cro': None,

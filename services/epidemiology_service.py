@@ -224,7 +224,7 @@ def _patient_filter_clause(alias='p', filters=None, today=None, prefix='AND'):
                 EXISTS (
                     SELECT 1 FROM tratamento_procedimentos tp_prof
                     WHERE tp_prof.patient_id = {alias}.id
-                      AND tp_prof.professor_id::text = %s
+                      AND tp_prof.validator_id::text = %s
                 )
                 OR EXISTS (
                     SELECT 1 FROM consultas c_prof
@@ -234,12 +234,12 @@ def _patient_filter_clause(alias='p', filters=None, today=None, prefix='AND'):
                 OR EXISTS (
                     SELECT 1 FROM atendimentos a_prof
                     WHERE a_prof.patient_id = {alias}.id
-                      AND a_prof.professor_id::text = %s
+                      AND a_prof.validator_id::text = %s
                 )
                 OR EXISTS (
                     SELECT 1 FROM exams ex_prof
                     WHERE ex_prof.patient_id = {alias}.id
-                      AND ex_prof.professor_id::text = %s
+                      AND ex_prof.validator_id::text = %s
                 )
             )"""
         )

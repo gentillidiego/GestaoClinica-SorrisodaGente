@@ -137,7 +137,7 @@ Para estruturas transientes (lista de remédios, Odontograma de 32 dentes), camp
 | `patients.py` | Rota principal `/view/<id>` — carrega todos os dados do paciente |
 | `exams.py` | Sub-exames (Físico, Placa, Odontograma, Periograma) |
 | `prosthesis.py` | Fluxo de próteses (etapas, pagamentos) |
-| `documents.py` | Exportação PDF (WeasyPrint + Celery) |
+| `documents.py` | Receituários, atestados, declarações de comparecimento e exportação PDF (WeasyPrint + Celery) |
 | `agenda.py` | Agenda semanal de consultas |
 
 ---
@@ -145,15 +145,20 @@ Para estruturas transientes (lista de remédios, Odontograma de 32 dentes), camp
 ## 6. Motores Lógicos e Regras de Negócio Cruciais
 
 ### 6.1. Bloqueio Obrigatório de TCLE
-Nenhum aluno ou professor pode iniciar triagem sem que a tabela `patient_tcle` esteja preenchida para o paciente. A `/view/<id>` verifica isso e desabilita funcionalidades no DOM caso o TCLE esteja ausente.
+O fluxo clínico do prontuário só pode avançar depois que a tabela
+`patient_tcle` possuir um termo válido para o paciente. A rota `/view/<id>`
+verifica essa condição e mantém as abas clínicas bloqueadas enquanto o TCLE
+estiver pendente.
 
-### 6.2. Autorização de Nível de Professor (Trancamento de Laudo)
-Operações de peso pericial ficam como rascunho até um `professor` ou `admin` clicar em **"Validar"**, confirmando com senha. O `timestamp` de `data_validacao` bloqueia edições posteriores.
+### 6.2. Validação pelo Dentista Responsável
+Atos clínicos que exigem validação permanecem pendentes até que um usuário dos
+perfis `clinicos` ou `admin` confirme suas credenciais. A validação registra o
+profissional responsável e integra a trilha de auditoria.
 
 ### 6.3. Regras do Plano de Tratamento e Evolução Clínica
 1. Sessões numeradas sequencialmente por `criado_em`.
-2. Ao assinar, professor importa o procedimento para Evolução Clínica com status `Concluído`.
-3. **Tríplice Assinatura** na Evolução: Aluno + Paciente (signature_pad) + Professor.
+2. Ao validar, o dentista responsável importa o procedimento para a Evolução Clínica com status `Concluído`.
+3. **Confirmação clínica completa:** profissional executor, paciente e dentista responsável.
 4. Data do atendimento só é gerada na última assinatura.
 
 ### 6.4. Motor de Diagnóstico Periodontal (AAP 2018)
@@ -167,16 +172,31 @@ Operações de peso pericial ficam como rascunho até um `professor` ou `admin` 
 *   **Exceção Periograma:** Usa `html2pdf.js` client-side para preservar os CSS Sprites do diagrama periodontal.
 *   **Geração Assíncrona:** `tasks.pdf_tasks.generate_pdf_task` gera PDF via Celery e salva em `/app/pdf_temp/`.
 
+### 6.6. CID-10 em atestados
+
+- o seletor clínico usa o núcleo odontológico `K00–K14` da CID-10 e códigos
+  complementares diretamente relacionados a trauma e exame odontológico;
+- cada opção apresenta código e descrição curta;
+- o backend rejeita códigos fora do catálogo;
+- a inclusão no atestado exige confirmação expressa de solicitação e
+  autorização do paciente;
+- declarações de comparecimento não recebem CID.
+
 ---
 
-## 7. RBAC — Hierarquia de Papéis
+## 7. RBAC — Perfis Ativos
 
-| Role | Capacidades |
-|------|------------|
-| `admin` | Acesso total, cadastros, remoções, validações |
-| `professor` | Valida laudos, fecha diagnósticos, autoriza procedimentos |
-| `aluno` | Inserção clínica operacional, sem encerramento |
-| `atendimento` | Edição cadastral parcial, sem histórico restrito |
+| Perfil | Capacidades principais |
+|---|---|
+| `admin` | Administração, usuários, unidades, integrações e acesso total |
+| `coordenacao` | Gestão operacional, agenda, indicadores, estoque e integrações |
+| `clinicos` | Prontuário, atos clínicos, exames, documentos e assinaturas |
+| `recepcao` | Cadastro de pacientes, triagem, agenda e documentos |
+| `cme` | Estoque e exames clínico-laboratoriais |
+| `radiologia` | Exames odontológicos e de imagem |
+| `comunicacao` | BI e relatórios institucionais |
+| `ssa_sms` | BI, epidemiologia e relatórios governamentais |
+| `auditoria` | Consulta clínica, integrações, relatórios e logs |
 
 ---
 

@@ -36,7 +36,7 @@ O módulo endodôntico gerencia o ciclo completo de tratamento de canais radicul
 **Arquitetura de dados:**
 - Um paciente pode ter múltiplos dentes em tratamento simultaneamente.
 - Cada dente em tratamento gera N `Sessões` sequenciais.
-- Cada sessão pertence a um `Operador` (aluno ou CD) e pode ter um `Supervisor` (professor).
+- Cada sessão pertence a um profissional operador e pode ser validada pelo dentista responsável.
 - Nenhum registro é deletado fisicamente — apenas `soft delete` com versionamento.
 
 ---
@@ -56,17 +56,11 @@ O módulo endodôntico gerencia o ciclo completo de tratamento de canais radicul
 ### 2.2 Assinatura Digital
 
 ```
-Fluxo Clínica-Escola:
-  1. Aluno preenche evolução da sessão
-  2. Submete para aprovação do professor
-  3. Professor revisa e assina com certificado ICP-Brasil
+Fluxo Clínico:
+  1. O profissional executor preenche a evolução da sessão
+  2. Submete para validação do dentista responsável
+  3. O dentista responsável revisa e assina conforme a política institucional
   4. Registro travado — nenhuma edição posterior sem novo fluxo de retificação
-```
-
-```
-Fluxo Clínica Privada:
-  1. CD preenche e assina diretamente com certificado ICP-Brasil
-  2. Registro travado imediatamente após assinatura
 ```
 
 ### 2.3 TCLE Endodôntico
@@ -756,7 +750,7 @@ audit_log: {
   id: uuid,
   timestamp: datetime (NTP sincronizado),
   usuario_id: uuid,
-  perfil_usuario: enum [aluno, cd, professor, admin, recepcao],
+  perfil_usuario: enum [admin, coordenacao, clinicos, recepcao, cme, radiologia, comunicacao, ssa_sms, auditoria],
   acao: enum [CREATE, READ, UPDATE, DELETE_LOGICO],
   tabela_afetada: string,
   registro_id: uuid,

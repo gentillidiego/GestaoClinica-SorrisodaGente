@@ -27,7 +27,7 @@ LAST_NAMES = [
     'Ferreira', 'Almeida', 'Nascimento', 'Melo', 'Barbosa', 'Cavalcante',
 ]
 OCCUPATIONS = [
-    'Agricultor', 'Professora', 'Autonomo', 'Aposentado', 'Comerciante',
+    'Agricultor', 'Costureira', 'Autonomo', 'Aposentado', 'Comerciante',
     'Estudante', 'Pescador', 'Cuidadora', 'Motorista', 'Auxiliar de Servicos',
 ]
 DEMO_TERRITORIES = {
@@ -454,7 +454,7 @@ def _create_treatments(patient_id, profile, professional_id, created_at):
             """
             INSERT INTO tratamento_procedimentos (
                 patient_id, data_sessao, dente, descricao, sigtap_code, sigtap_competence,
-                sigtap_name, professor_id, status, esus_export_status, criado_em
+                sigtap_name, validator_id, status, esus_export_status, criado_em
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
@@ -475,7 +475,7 @@ def _create_treatments(patient_id, profile, professional_id, created_at):
 
     execute(
         """
-        INSERT INTO atendimentos (patient_id, data, observacoes, assinatura_paciente_base64, professor_id, status, created_by)
+        INSERT INTO atendimentos (patient_id, data, observacoes, assinatura_paciente_base64, validator_id, status, created_by)
         VALUES (%s, %s, %s, %s, %s, 'Concluído', %s)
         """,
         (
@@ -555,7 +555,7 @@ def _create_prosthesis(patient_id, profile, professional_id, created_at):
         return
     prosthesis_id = execute(
         """
-        INSERT INTO prosthesis (patient_id, created_by, aluno_responsavel_id, data, descricao, tipo, valor_acordado, status)
+        INSERT INTO prosthesis (patient_id, created_by, responsible_professional_id, data, descricao, tipo, valor_acordado, status)
         VALUES (%s, %s, %s, %s, %s, %s, %s, 'Ativo')
         RETURNING id
         """,
@@ -565,7 +565,7 @@ def _create_prosthesis(patient_id, profile, professional_id, created_at):
         """
         INSERT INTO prosthesis_etapas (
             prosthesis_id, numero_etapa, nome_etapa, data_etapa, data_envio_lab,
-            servico_solicitado, assinatura_paciente_base64, professor_id, status
+            servico_solicitado, assinatura_paciente_base64, validator_id, status
         )
         VALUES (%s, 1, 'Moldagem inicial', %s, %s, 'Modelo de estudo demo', %s, %s, 'Concluído')
         """,
@@ -673,7 +673,7 @@ def create_demo_patient(index, run_id, created_by=None):
 
     execute(
         """
-        INSERT INTO patient_tcle (patient_id, aluno_id, assinatura_base64, data_assinatura, texto_opcional)
+        INSERT INTO patient_tcle (patient_id, operator_id, assinatura_base64, data_assinatura, texto_opcional)
         VALUES (%s, %s, %s, %s, %s)
         """,
         (patient_id, professional_id, DEMO_SIGNATURE, created_at, 'TCLE ficticio para demonstracao do fluxo.')

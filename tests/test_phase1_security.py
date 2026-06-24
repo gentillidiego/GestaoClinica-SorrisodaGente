@@ -18,7 +18,7 @@ import pytest
 def test_role_choices_expose_simplified_active_profiles_only():
     choices = dict(get_role_choices())
 
-    assert len(choices) == 9
+    assert len(choices) == 10
     assert Role.ATENDIMENTO_LEGACY not in choices
     assert Role.DENTISTA not in choices
     assert Role.TRIAGEM not in choices
@@ -38,6 +38,13 @@ def test_role_permissions_cover_admin_and_limit_auditoria():
     assert role_has_permission(Role.ATENDENTE, 'triage:write')
     assert role_has_permission(Role.DENTISTA, 'patients:write')
     assert not role_has_permission('perfil_inexistente', 'dashboard:view')
+
+
+def test_clinical_profile_manages_triage_without_inventory_access():
+    assert role_has_permission(Role.CLINICOS, 'triage:view')
+    assert role_has_permission(Role.CLINICOS, 'triage:write')
+    assert not role_has_permission(Role.CLINICOS, 'inventory:view')
+    assert not role_has_permission(Role.CLINICOS, 'inventory:write')
 
 
 def test_role_label_falls_back_to_original_value():

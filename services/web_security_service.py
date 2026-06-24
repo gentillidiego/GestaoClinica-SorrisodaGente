@@ -1,3 +1,4 @@
+import os
 import secrets
 
 from flask import current_app, flash, g, jsonify, render_template, request, session
@@ -36,14 +37,18 @@ DEFAULT_PUBLIC_ERROR = (
 
 def configure_session_security(app):
     """Aplica os atributos de cookie exigidos para a publicação HTTPS."""
+    secure_cookies = os.getenv(
+        'SESSION_COOKIE_SECURE',
+        'true',
+    ).strip().lower() in {'1', 'true', 'yes', 'on'}
     app.config.update(
-        SESSION_COOKIE_SECURE=True,
+        SESSION_COOKIE_SECURE=secure_cookies,
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE='Lax',
-        REMEMBER_COOKIE_SECURE=True,
+        REMEMBER_COOKIE_SECURE=secure_cookies,
         REMEMBER_COOKIE_HTTPONLY=True,
         REMEMBER_COOKIE_SAMESITE='Lax',
-        PREFERRED_URL_SCHEME='https',
+        PREFERRED_URL_SCHEME='https' if secure_cookies else 'http',
     )
 
 
@@ -209,6 +214,17 @@ def register_web_security(app):
                 'não precisam ser reduzidos.'
             ),
             reference=get_request_reference(),
+        )
+
+    @app.errorhandler(429)
+    def handle_rate_limit(error):
+        return _safe_error_response(
+            429,
+            'Muitas tentativas em pouco tempo',
+            (
+                'A proteção de acesso bloqueou temporariamente novas tentativas. '
+                'Aguarde alguns instantes e tente novamente.'
+            ),
         )
 
     @app.errorhandler(500)

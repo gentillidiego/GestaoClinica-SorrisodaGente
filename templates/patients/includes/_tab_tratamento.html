@@ -34,7 +34,7 @@
                         <option value="">Selecionar código</option>
                         {% for group in sigtap_specialty_groups or [] %}
                         {% for item in group.procedures %}
-                        <option value="{{ item.code }}" data-specialty="{{ group.value }}" data-name="{{ item.name }}">{{ item.code }} - {{ item.name }}</option>
+                        <option value="{{ item.code }}" data-specialty="{{ group.value }}" data-name="{{ item.name }}">{{ item.display_code }} — {{ item.name }}</option>
                         {% endfor %}
                         {% endfor %}
                     </select>
@@ -99,7 +99,7 @@
                         <td style="padding: 1rem;">{{ proc.descricao }}</td>
                         <td style="padding: 1rem;">
                             {% if proc.sigtap_code %}
-                            <div style="font-weight:700;">{{ proc.sigtap_code }}</div>
+                            <div style="font-weight:700;">{{ format_sigtap_code(proc.sigtap_code) }}</div>
                             <small style="color:hsl(var(--text-muted));">{{ proc.sigtap_name }}</small>
                             {% else %}
                             <span style="color:hsl(var(--warning)); font-weight:700;">Pendente</span>
@@ -121,12 +121,12 @@
                             <span
                                 style="display: inline-flex; align-items: center; gap: 0.4rem; color: hsl(var(--success)); font-weight: 600; font-size: 0.9rem; background: hsl(var(--success)/0.1); padding: 0.4rem 0.8rem; border-radius: var(--radius-sm);">
                                 ✅ 
-                                {% if proc.professor_role == 'admin' %}Adm.
-                                {% elif proc.professor_role == 'clinicos' %}Clín.
-                                {% elif proc.professor_role == 'dentista' %}Dent.
-                                {% elif proc.professor_role == 'tsb' %}TSB
+                                {% if proc.validator_role == 'admin' %}Adm.
+                                {% elif proc.validator_role == 'clinicos' %}Clín.
+                                {% elif proc.validator_role == 'dentista' %}Dent.
+                                {% elif proc.validator_role == 'tsb' %}TSB
                                 {% else %}Prof.{% endif %}
-                                {{ proc.professor_full_name or proc.professor_nome }}
+                                {{ proc.validator_full_name or proc.validator_name }}
                             </span>
                             {% endif %}
                         </td>

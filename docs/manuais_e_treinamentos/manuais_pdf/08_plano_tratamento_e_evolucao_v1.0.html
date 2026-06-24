@@ -1,0 +1,331 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Manual 08 — Plano de Tratamento e Evolução</title><style>
+    @page {
+      size: A4 portrait;
+      margin: 15mm 15mm 17mm;
+      @bottom-left {
+        content: "Gestão Saúde Oral • Manual 08";
+        font-family: Arial, sans-serif;
+        font-size: 7.5pt;
+        color: #64748b;
+      }
+      @bottom-right {
+        content: counter(page) " / " counter(pages);
+        font-family: Arial, sans-serif;
+        font-size: 7.5pt;
+        color: #64748b;
+      }
+    }
+    @page cover { margin: 0; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #172033;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9.6pt;
+      line-height: 1.48;
+    }
+    .cover {
+      page: cover;
+      height: 297mm;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(145deg, #0b367c 0%, #0d47a1 58%, #0879bd 100%);
+      color: white;
+      padding: 24mm 20mm;
+    }
+    .cover:before {
+      content: "";
+      position: absolute;
+      width: 170mm;
+      height: 170mm;
+      right: -78mm;
+      top: -55mm;
+      border: 22mm solid rgba(255,255,255,.07);
+      border-radius: 50%;
+    }
+    .cover:after {
+      content: "";
+      position: absolute;
+      width: 120mm;
+      height: 120mm;
+      left: -72mm;
+      bottom: -65mm;
+      border: 16mm solid rgba(247,148,30,.28);
+      border-radius: 50%;
+    }
+    .cover-logo {
+      display: inline-block;
+      background: white;
+      border-radius: 16px;
+      padding: 10px 18px;
+      box-shadow: 0 16px 38px rgba(0,0,0,.18);
+    }
+    .cover-logo img { width: 61mm; display: block; }
+    .cover-kicker {
+      margin-top: 44mm;
+      color: #f7941e;
+      font-size: 10pt;
+      font-weight: 800;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+    .cover h1 {
+      margin: 6mm 0 4mm;
+      max-width: 145mm;
+      font-size: 34pt;
+      line-height: 1.02;
+      letter-spacing: -.035em;
+    }
+    .cover-subtitle {
+      max-width: 130mm;
+      color: #dbeafe;
+      font-size: 13pt;
+      line-height: 1.45;
+    }
+    .cover-meta {
+      position: absolute;
+      left: 20mm;
+      right: 20mm;
+      bottom: 20mm;
+      display: table;
+      width: calc(100% - 40mm);
+      border-top: 1px solid rgba(255,255,255,.3);
+      padding-top: 7mm;
+      font-size: 9pt;
+      color: #dbeafe;
+    }
+    .cover-meta > div { display: table-cell; width: 33.333%; }
+    .cover-meta strong { display: block; color: white; margin-bottom: 1mm; }
+    .page { page-break-before: always; }
+    .page-header {
+      display: table;
+      width: 100%;
+      border-bottom: 2px solid #dbe7f6;
+      padding-bottom: 4mm;
+      margin-bottom: 7mm;
+    }
+    .page-header > div { display: table-cell; vertical-align: middle; }
+    .page-header img { width: 43mm; }
+    .page-label {
+      text-align: right;
+      color: #0d47a1;
+      font-weight: 800;
+      font-size: 8pt;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    h2 {
+      margin: 0 0 2.5mm;
+      color: #0d47a1;
+      font-size: 22pt;
+      line-height: 1.12;
+      letter-spacing: -.025em;
+    }
+    .lead {
+      margin: 0 0 7mm;
+      color: #526279;
+      font-size: 11pt;
+      line-height: 1.55;
+    }
+    .flow {
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+      margin: 6mm 0 8mm;
+    }
+    .flow-step {
+      display: table-cell;
+      position: relative;
+      padding-right: 4mm;
+      vertical-align: top;
+    }
+    .flow-step:last-child { padding-right: 0; }
+    .flow-number {
+      width: 9mm;
+      height: 9mm;
+      border-radius: 50%;
+      background: #0d47a1;
+      color: white;
+      text-align: center;
+      line-height: 9mm;
+      font-weight: 800;
+      margin-bottom: 2mm;
+    }
+    .flow-step strong { color: #163f75; font-size: 9.2pt; }
+    .flow-step span { display: block; color: #64748b; font-size: 8.2pt; margin-top: 1mm; }
+    .check-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4mm;
+      margin: 5mm 0 8mm;
+    }
+    .check-card {
+      border: 1px solid #dbe7f6;
+      border-radius: 10px;
+      padding: 4mm;
+      background: #f8fbff;
+    }
+    .check-card strong { display: block; color: #0d47a1; margin-bottom: 1.2mm; }
+    .check-card span { color: #526279; font-size: 8.6pt; }
+    .step-banner {
+      display: table;
+      width: 100%;
+      margin-bottom: 6mm;
+    }
+    .step-badge, .step-title { display: table-cell; vertical-align: middle; }
+    .step-badge {
+      width: 15mm;
+      height: 15mm;
+      border-radius: 50%;
+      text-align: center;
+      background: #f7941e;
+      color: white;
+      font-size: 17pt;
+      line-height: 15mm;
+      font-weight: 800;
+    }
+    .step-title { padding-left: 4mm; }
+    .step-title h2 { margin: 0; }
+    .step-title p { margin: 1mm 0 0; color: #64748b; }
+    .screen {
+      border: 1px solid #cdd9e8;
+      border-radius: 11px;
+      background: #eaf0f7;
+      padding: 3mm;
+      box-shadow: 0 9px 24px rgba(15, 52, 96, .12);
+      margin: 4mm 0 6mm;
+      page-break-inside: avoid;
+    }
+    .screen-bar {
+      height: 6mm;
+      padding: 0 1mm 2mm;
+      color: #7b8798;
+      font-size: 8pt;
+    }
+    .screen-dot {
+      display: inline-block;
+      width: 2.5mm;
+      height: 2.5mm;
+      border-radius: 50%;
+      margin-right: 1.2mm;
+      background: #f87171;
+    }
+    .screen-dot:nth-child(2) { background: #fbbf24; }
+    .screen-dot:nth-child(3) { background: #34d399; }
+    .screen img {
+      display: block;
+      width: 100%;
+      border-radius: 7px;
+      background: white;
+    }
+    .screen-compact {
+      width: 74%;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .columns {
+      display: grid;
+      grid-template-columns: 1.25fr .75fr;
+      gap: 6mm;
+      align-items: start;
+    }
+    .instruction {
+      border-left: 4px solid #0d47a1;
+      padding: 3mm 4mm;
+      margin-bottom: 3mm;
+      background: #f3f7fd;
+      border-radius: 0 8px 8px 0;
+    }
+    .instruction strong { color: #0d47a1; }
+    .instruction p { margin: 1.4mm 0 0; color: #475569; }
+    .tip, .warning, .success {
+      border-radius: 10px;
+      padding: 4mm;
+      margin: 4mm 0;
+      page-break-inside: avoid;
+    }
+    .tip { background: #eef7ff; border: 1px solid #cfe7fb; }
+    .warning { background: #fff7e8; border: 1px solid #fed7a0; }
+    .success { background: #edfdf5; border: 1px solid #b7efd1; }
+    .tip strong, .warning strong, .success strong { display: block; margin-bottom: 1mm; }
+    .tip strong { color: #075985; }
+    .warning strong { color: #a65300; }
+    .success strong { color: #087443; }
+    .bullet-list { margin: 2mm 0 0; padding-left: 5mm; }
+    .bullet-list li { margin: 1.5mm 0; color: #475569; }
+    .password-rules {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3mm;
+      margin: 5mm 0;
+    }
+    .rule {
+      text-align: center;
+      padding: 4mm 2mm;
+      border-radius: 9px;
+      background: #f5f8fc;
+      border: 1px solid #dbe5f0;
+    }
+    .rule b { display: block; color: #0d47a1; font-size: 15pt; margin-bottom: 1mm; }
+    .rule span { color: #64748b; font-size: 8pt; }
+    .closing {
+      margin-top: 3mm;
+      padding: 4mm;
+      background: linear-gradient(135deg, #0d47a1, #0879bd);
+      color: white;
+      border-radius: 12px;
+    }
+    .closing h3 { margin: 0 0 2mm; font-size: 15pt; }
+    .closing p { margin: 0; color: #dbeafe; }
+    .mini-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 3mm;
+      font-size: 8.2pt;
+    }
+    .mini-table th {
+      text-align: left;
+      background: #0d47a1;
+      color: white;
+      padding: 2mm 3mm;
+    }
+    .mini-table td {
+      border-bottom: 1px solid #e2e8f0;
+      padding: 1.8mm 3mm;
+      vertical-align: top;
+    }
+    .mini-table td:first-child { color: #0d47a1; font-weight: 700; width: 34%; }
+  
+    .screen-short img { height:54mm; object-fit:cover; object-position:top; }
+    .screen-pair { display:grid; grid-template-columns:1fr 1fr; gap:4mm; margin:3mm 0 4mm; }
+    .screen-pair .screen { margin:0; }
+    .screen-pair .screen img { height:42mm; object-fit:cover; object-position:top; }
+    .screen-pair .screen-bar { font-size:6.5pt; }
+    </style></head><body>
+<section class="cover"><div class="cover-logo"><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png"></div><div class="cover-kicker">Manual de operação • 08</div><h1>Plano de Tratamento e Evolução</h1><div class="cover-subtitle">Planeje procedimentos, associe o código SUS/SIGTAP e registre a execução com confirmações rastreáveis.</div><div class="cover-meta"><div><strong>Público</strong>Clínicos</div><div><strong>Versão</strong>4.0.0-rc.1</div><div><strong>Revisão</strong>22 de junho de 2026</div></div></section>
+
+<section class="page"><header class="page-header"><div><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png"></div><div class="page-label">Manual 08 • Plano e evolução</div></header><h2>Antes de começar</h2><p class="lead">O plano descreve o cuidado proposto; a evolução registra o que efetivamente ocorreu em cada atendimento.</p>
+<div class="flow"><div class="flow-step"><div class="flow-number">1</div><strong>Planejar</strong><span>Dente, especialidade e SIGTAP.</span></div><div class="flow-step"><div class="flow-number">2</div><strong>Validar</strong><span>Responsável confirma a conclusão.</span></div><div class="flow-step"><div class="flow-number">3</div><strong>Evoluir</strong><span>Registre conduta e resultado.</span></div><div class="flow-step"><div class="flow-number">4</div><strong>Confirmar</strong><span>Executor, paciente e dentista.</span></div></div>
+<div class="check-grid"><div class="check-card"><strong>TCLE e Anamnese</strong><span>Confira os pré-requisitos clínicos.</span></div><div class="check-card"><strong>Dente correto</strong><span>Valide elemento e indicação.</span></div><div class="check-card"><strong>Código compatível</strong><span>Selecione especialidade antes do SIGTAP.</span></div><div class="check-card"><strong>Credenciais pessoais</strong><span>Nunca compartilhe usuário ou senha.</span></div></div>
+<div class="warning"><strong>Planejado não significa realizado</strong>O item permanece pendente até a validação profissional. A evolução deve refletir o atendimento efetivamente executado.</div>
+<table class="mini-table"><tr><th>Registro</th><th>Finalidade</th></tr><tr><td>Plano</td><td>Define procedimento proposto, dente, especialidade e código.</td></tr><tr><td>Evolução</td><td>Documenta conduta, intercorrências, orientações e resultado.</td></tr><tr><td>Confirmações</td><td>Identificam executor, paciente e dentista responsável.</td></tr></table></section>
+
+<section class="page"><header class="page-header"><div><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png"></div><div class="page-label">Manual 08 • Planejamento</div></header><div class="step-banner"><div class="step-badge">1</div><div class="step-title"><h2>Criar o plano de tratamento</h2><p>Preencha os campos na ordem e revise antes de adicionar.</p></div></div>
+<div class="screen screen-short"><div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span> Exemplo fictício • procedimento não gravado</div><img src="file:///home/diego/projetos/GestaoSaudeOral/docs/manuais_e_treinamentos/capturas/08_plano_01_novo_procedimento.png"></div>
+<div class="password-rules"><div class="rule"><b>Dente</b><span>elemento ou região</span></div><div class="rule"><b>Especialidade</b><span>filtra o catálogo</span></div><div class="rule"><b>SIGTAP</b><span>código correspondente</span></div></div>
+<div class="tip"><strong>Enquanto estiver pendente</strong>É possível editar dados ou excluir um lançamento indevido antes da conclusão.</div></section>
+
+<section class="page"><header class="page-header"><div><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png"></div><div class="page-label">Manual 08 • Validação</div></header><div class="step-banner"><div class="step-badge">2</div><div class="step-title"><h2>Validar o procedimento</h2><p>Após a execução, clique em Assinar e confirme as credenciais do responsável.</p></div></div>
+<div class="screen screen-short"><div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span> Validação ilustrativa • senha protegida</div><img src="file:///home/diego/projetos/GestaoSaudeOral/docs/manuais_e_treinamentos/capturas/08_plano_02_validacao_procedimento.png"></div>
+<div class="columns"><div><div class="instruction"><strong>Confirme antes de assinar</strong><p>Revise dente, descrição e código SUS/SIGTAP.</p></div><div class="instruction"><strong>Importação automática</strong><p>O procedimento concluído é levado para a Evolução Clínica.</p></div></div><div class="warning"><strong>Assinatura profissional</strong>Use somente suas próprias credenciais e mantenha a senha oculta durante treinamentos.</div></div></section>
+
+<section class="page"><header class="page-header"><div><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png"></div><div class="page-label">Manual 08 • Evolução clínica</div></header><div class="step-banner"><div class="step-badge">3</div><div class="step-title"><h2>Registrar a evolução</h2><p>Descreva de forma suficiente o atendimento efetivamente realizado.</p></div></div>
+<div class="screen screen-short"><div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span> Evolução fictícia • registro não salvo</div><img src="file:///home/diego/projetos/GestaoSaudeOral/docs/manuais_e_treinamentos/capturas/08_plano_03_nova_evolucao.png"></div>
+<div class="columns"><div><div class="instruction"><strong>Conteúdo mínimo</strong><p>Conduta, elemento, intercorrências, orientações e resultado.</p></div><div class="instruction"><strong>Linguagem clínica</strong><p>Seja objetivo e permita a continuidade segura do cuidado.</p></div></div><div class="tip"><strong>Data e autoria</strong>Confira a data do atendimento e quem está registrando a evolução.</div></div></section>
+
+<section class="page"><header class="page-header"><div><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png"></div><div class="page-label">Manual 08 • Confirmações e rastreabilidade</div></header><div class="step-banner"><div class="step-badge">4</div><div class="step-title"><h2>Concluir e conferir</h2><p>A evolução exige três confirmações e permanece destacada enquanto houver pendência.</p></div></div>
+<div class="screen-pair"><div class="screen"><div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span> Executor, paciente e responsável</div><img src="file:///home/diego/projetos/GestaoSaudeOral/docs/manuais_e_treinamentos/capturas/08_plano_04_tres_confirmacoes.png"></div><div class="screen"><div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span> Linha do Tempo</div><img src="file:///home/diego/projetos/GestaoSaudeOral/docs/manuais_e_treinamentos/capturas/08_plano_05_linha_do_tempo.png"></div></div>
+<table class="mini-table"><tr><th>Confirmação</th><th>Como é registrada</th></tr><tr><td>Executor</td><td>Profissional autentica sua participação com credenciais.</td></tr><tr><td>Paciente</td><td>Assina em tela ou a rogo quando não alfabetizado.</td></tr><tr><td>Responsável</td><td>Dentista valida clinicamente com suas credenciais.</td></tr></table>
+<div class="columns"><div class="success"><strong>Resultado esperado</strong>Procedimento concluído, evolução completa e confirmações vinculadas.</div><div class="tip"><strong>Rastreabilidade</strong>Consulte os eventos na Linha do Tempo do paciente.</div></div>
+<div class="closing"><h3>Ciclo clínico documentado</h3><p>Com plano e evolução registrados, o acompanhamento também fica disponível para a <b>Central de Comando</b>.</p></div></section>
+</body></html>

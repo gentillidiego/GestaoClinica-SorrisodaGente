@@ -143,9 +143,9 @@ docker logs gestaoclinica-docker 2>&1 | grep "Booting worker"
   - Configurar `CACHE_TYPE = 'RedisCache'`
   - Inicializar `cache.init_app(app)`
 
-- [x] **S3.5** — Cachear query de lista de alunos em `patients.py`
-  - Criar função `get_students_cached()` com `@cache.cached(timeout=600)`
-  - Criar `services/cache_service.py` com `CacheService.invalidate_students()`
+- [x] **S3.5** — Cachear query de profissionais clínicos em `patients.py`
+  - Criar função `get_clinical_users_cached()` com `@cache.cached(timeout=600)`
+  - Criar `services/cache_service.py` com `CacheService.invalidate_clinical_users()`
 
 - [x] **S3.6** — Adicionar `REDIS_URL` ao `.env` e `.env.example`
   ```
@@ -170,8 +170,8 @@ docker exec gestaoclinica-redis redis-cli ping
 docker exec gestaoclinica-redis redis-cli keys "LIMITS:*"
 # Após 1 request de login, deve listar chaves do limiter
 
-# Verificar cache de alunos (após primeira requisição):
-docker exec gestaoclinica-redis redis-cli get "flask_cache_students_list"
+# Verificar cache de profissionais clínicos (após primeira requisição):
+docker exec gestaoclinica-redis redis-cli get "flask_cache_clinical_users_list"
 # Deve retornar dados (não nil)
 ```
 

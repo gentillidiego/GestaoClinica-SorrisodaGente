@@ -103,22 +103,22 @@ def create_case(patient_id):
 
     tipo = request.form.get('tipo')
     valor_acordado = request.form.get('valor_acordado', 0)
-    aluno_id = request.form.get('aluno_id')
+    operator_id = request.form.get('operator_id')
     
     if tipo not in ['PPR', 'Total']:
         flash('Tipo de prótese inválido.', 'danger')
         return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
         
     try:
-        # Aluno é o usuário logado por padrão se não vier do form
-        aluno_id = aluno_id or current_user.id
+        # O profissional logado é o responsável padrão quando o formulário não informa outro.
+        operator_id = operator_id or current_user.id
         
         # Cria o caso com valor default 0 se não especificado
         prosthesis_id = execute('''
-            INSERT INTO prosthesis (patient_id, created_by, aluno_responsavel_id, tipo, valor_acordado, status)
+            INSERT INTO prosthesis (patient_id, created_by, responsible_professional_id, tipo, valor_acordado, status)
             VALUES (%s, %s, %s, %s, %s, 'Ativo')
             RETURNING id
-        ''', (patient_id, current_user.id, aluno_id, tipo, valor_acordado or 0.0))
+        ''', (patient_id, current_user.id, operator_id, tipo, valor_acordado or 0.0))
         
         # Cria as etapas base
         etapas = ETAPAS_PPR if tipo == 'PPR' else ETAPAS_TOTAL
@@ -222,9 +222,9 @@ def sign_patient(etapa_id):
         
     return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
 
-@prosthesis_bp.route('/etapa/sign_professor/<int:etapa_id>', methods=['POST'])
+@prosthesis_bp.route('/etapa/sign_validator/<int:etapa_id>', methods=['POST'])
 @login_required
-def sign_professor(etapa_id):
+def sign_validator(etapa_id):
     etapa = _get_prosthesis_stage(etapa_id)
     if not etapa:
         flash('Etapa de prótese não encontrada.', 'danger')
@@ -233,8 +233,8 @@ def sign_professor(etapa_id):
     if not _patient_scope_matches(request.form.get('patient_id'), patient_id):
         flash('Etapa não pertence ao paciente informado.', 'danger')
         return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
-    username = request.form.get('prof_username')
-    password = request.form.get('prof_password')
+    username = request.form.get('validator_username')
+    password = request.form.get('validator_password')
     
     prof = query("SELECT id, password, role FROM users WHERE username = %s", (username,), one=True)
     if not prof or not check_password_hash(prof['password'], password) or not can_sign_clinical_document(prof['role']):
@@ -242,7 +242,7 @@ def sign_professor(etapa_id):
         return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-protese')
         
     try:
-        execute("UPDATE prosthesis_etapas SET professor_id = %s, status = 'Concluído' WHERE id = %s", (prof['id'], etapa_id))
+        execute("UPDATE prosthesis_etapas SET validator_id = %s, status = 'Concluído' WHERE id = %s", (prof['id'], etapa_id))
         flash('Etapa validada pelo dentista responsável.', 'success')
     except Exception as e:
         flash_internal_error('Falha ao validar etapa de prótese')
@@ -316,8 +316,8 @@ def add_payment(prosthesis_id):
 @prosthesis_bp.route('/delete_case/<int:patient_id>/<int:prosthesis_id>', methods=['POST'])
 @login_required
 def delete_case(patient_id, prosthesis_id):
-    username = request.form.get('prof_username')
-    password = request.form.get('prof_password')
+    username = request.form.get('validator_username')
+    password = request.form.get('validator_password')
     
     prosthesis = query(
         """

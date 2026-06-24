@@ -11,6 +11,7 @@ Perfis:
 - `REC`: Recepção
 - `CME`: CME / Estoque
 - `RAD`: Radiologia
+- `ANC`: Análises Clínicas
 - `COM`: Comunicação
 - `SSA`: SSA/SMS
 - `AUD`: Auditoria
@@ -19,8 +20,8 @@ Perfis:
 
 | Grupo / operação | Permissão exigida | Perfis autorizados |
 |---|---|---|
-| Dashboard e Central de Comando | `dashboard:view`, `command_center:view` | Todos os nove perfis |
-| Paciente — listar e abrir cadastro básico | `patients:view` | ADM, COO, CLI, REC, CME, RAD, AUD |
+| Dashboard e Central de Comando | `dashboard:view`, `command_center:view` | Todos os dez perfis |
+| Paciente — listar e abrir cadastro básico | `patients:view` | ADM, COO, CLI, REC, CME, RAD, ANC, AUD |
 | Paciente — criar e editar | `patients:write` | ADM, CLI, REC |
 | Paciente — excluir | `patients:delete` | ADM |
 | Anamnese — consultar | `patients:view` + `anamnesis:view` | ADM, COO, CLI, AUD |
@@ -34,8 +35,12 @@ Perfis:
 | Exames odontológicos e de imagem — consultar | `patients:view` + `exams:view` | ADM, CLI, RAD |
 | Exames odontológicos e de imagem — criar/alterar/upload | `patients:view` + `exams:write` | ADM, CLI, RAD |
 | Exames — excluir | `patients:view` + `exams:delete` | ADM, CLI |
-| Exames clínico/laboratoriais — consultar | `patients:view` + `laboratorio:view` | ADM, CLI, CME |
-| Exames clínico/laboratoriais — criar/alterar/upload | `patients:view` + `laboratorio:write` | ADM, CLI, CME |
+| Exames clínico/laboratoriais — consultar | `patients:view` + `laboratorio:view` | ADM, CLI, CME, ANC |
+| Exames clínico/laboratoriais — criar/alterar/upload | `patients:view` + `laboratorio:write` | ADM, CLI, CME, ANC |
+| Solicitação de exame de imagem | `patients:view` + `exams:write` | ADM, CLI, RAD |
+| Solicitação de exame clínico/laboratorial | `patients:view` + `laboratorio:write` | ADM, CLI, CME, ANC |
+| Fila de solicitações de exame de Imagem (Radiologia) | `radiologia:view`/`radiologia:write` | ADM, RAD |
+| Fila de solicitações de exame Clínico/Laboratorial (Análises Clínicas) | `analises_clinicas:view`/`analises_clinicas:write` | ADM, ANC |
 | Estomatologia — consultar | `patients:view` + `estomatologia:view` | ADM, CLI |
 | Estomatologia — alterar e anexar fotos | `patients:view` + `estomatologia:write` | ADM, CLI |
 | Receituário e atestado — gerar/excluir/baixar | `patients:view` + `documents:generate` | ADM, CLI, REC |
@@ -43,13 +48,13 @@ Perfis:
 | Comprovante de assinatura | `patients:view` + `documents:sign` | ADM, CLI |
 | Biblioteca Visual | filtrada por `exams:view`, `estomatologia:view` e `endodontia:view` | ADM e CLI veem todas as origens; RAD vê somente exames |
 | Linha do Tempo clínica | `clinical_timeline:view` | ADM, COO, CLI, AUD |
-| Materiais no prontuário | `patients:view` + `inventory:view/write` | ADM, COO, CLI, CME |
+| Materiais no prontuário | `patients:view` + `inventory:view/write` | ADM, COO, CME |
 | Endodontia — leitura e escrita | `patients:view` + `endodontia:view/write` | ADM, CLI |
 | Prótese — leitura e escrita | `patients:view` + `prosthesis:view/write` | ADM, CLI |
 | Endodontia/Prótese — assinaturas e pagamentos | permissão de escrita + `documents:sign` | ADM, CLI |
 | Agenda | `agenda:view/write` | ADM, COO, CLI, REC; CLI limitado à própria agenda |
-| Triagem | `triage:write` | ADM, REC |
-| Estoque administrativo | `inventory:view/write` | ADM, COO, CLI, CME |
+| Triagem | `triage:write` | ADM, CLI, REC |
+| Estoque administrativo | `inventory:view/write` | ADM, COO, CME |
 | Relatórios institucionais | `reports:view` + tipo permitido | ADM, COO, COM, SSA, AUD |
 | BI | `bi:view` | ADM, COO, COM, SSA |
 | Epidemiologia | `epidemiologia:view` | ADM, COO, SSA |
@@ -90,7 +95,7 @@ Usuário não autenticado continua sendo encaminhado ao login.
 
 `tests/test_rbac_idor.py`:
 
-- verifica acessos permitidos e negados para os nove perfis ativos;
+- verifica acessos permitidos e negados para os dez perfis ativos;
 - garante que todas as rotas dos blueprints clínicos possuem política backend;
 - valida as regras das abas do prontuário;
 - testa escopo de exame, PDF e Prótese;

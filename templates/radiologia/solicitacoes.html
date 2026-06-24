@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Solicitações de Exame - Radiologia{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="margin-bottom: 2.5rem;">
+        <h1
+            style="font-family: var(--font-heading); font-size: 2.2rem; font-weight: 800; color: hsl(var(--primary)); letter-spacing: -0.02em; margin-bottom: 0.5rem;">
+            🧾 Solicitações de Exame de Imagem
+        </h1>
+        <p style="color: hsl(var(--text-muted)); font-size: 1rem;">
+            Fila de exames de Imagem solicitados pelos clínicos, ordenada da solicitação mais antiga
+            para a mais recente.
+        </p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+        {% if items %}
+        {% for item in items %}
+        <div class="card"
+            style="margin-bottom: 0; padding: 1.5rem; border-left: 5px solid hsl(280, 70%, 50%); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem;">
+            <div style="flex: 1; min-width: 240px;">
+                <span style="font-size: 0.7rem; font-weight: 800; color: hsl(280, 70%, 50%); text-transform: uppercase; letter-spacing: 0.05em;">
+                    Imagem
+                </span>
+                <h2 style="font-family: var(--font-heading); font-size: 1.3rem; color: hsl(var(--text-main)); margin: 0.25rem 0;">
+                    {{ item.patient_name }}
+                </h2>
+                <p style="color: hsl(var(--text-muted)); font-size: 0.9rem; margin: 0;">
+                    {{ item.resumo }}
+                </p>
+                {% if item.observacoes %}
+                <p style="color: hsl(var(--text-muted)); font-size: 0.85rem; margin: 0.4rem 0 0;">
+                    <strong>Observação:</strong> {{ item.observacoes }}
+                </p>
+                {% endif %}
+            </div>
+
+            <div style="text-align: right; min-width: 180px;">
+                <div style="font-size: 0.85rem; color: hsl(var(--text-muted)); font-weight: 600; margin-bottom: 0.25rem;">
+                    Solicitado por {{ item.requested_by_name or item.requested_by_username }}
+                </div>
+                <div style="font-size: 0.8rem; color: hsl(var(--text-muted)); margin-bottom: 0.75rem;">
+                    {{ (item.requested_at|string).replace('T', ' ').split('.')[0] if item.requested_at else '' }}
+                </div>
+                <a href="{{ url_for(item.attend_endpoint, anamnesis_id=item.anamnesis_id, request_id=item.id) }}"
+                    class="btn btn-primary" style="padding: 0.6rem 1.2rem; font-weight: 700;">
+                    Atender
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div
+            style="text-align: center; padding: 4rem 2rem; background: var(--surface); border-radius: var(--radius-lg); border: 1px dashed hsl(var(--border));">
+            <span style="font-size: 3rem; display: block; margin-bottom: 1rem;">🎉</span>
+            <h3 style="font-family: var(--font-heading); color: hsl(var(--text-main)); margin-bottom: 0.5rem; font-size: 1.4rem;">
+                Nenhuma solicitação pendente
+            </h3>
+            <p style="color: hsl(var(--text-muted)); font-size: 1.05rem;">
+                As solicitações de exame de Imagem aparecerão aqui.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

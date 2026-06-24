@@ -53,7 +53,7 @@ def execute(sql, params=()):
 - SQLite usa lock por arquivo. Qualquer operação de **escrita** (INSERT/UPDATE/DELETE) trava o arquivo inteiro para TODOS os outros processos.
 - Com WAL mode, leituras concorrentes funcionam bem, mas escritas ainda serializam.
 - Com 3 workers Gunicorn + 100 usuários, cada worker abre/fecha conexão a cada request. Não há pool.
-- Em pico de acesso (ex: 30 alunos abrindo prontuários ao mesmo tempo + 5 assinando atendimentos), o SQLite entra em contenção e começa a retornar `OperationalError: database is locked`.
+- Em pico de acesso (ex: 30 profissionais abrindo prontuários ao mesmo tempo + 5 assinando atendimentos), o SQLite entra em contenção e começa a retornar `OperationalError: database is locked`.
 
 **Solução:** Migrar para **PostgreSQL** com pool de conexões (`psycopg2` + `psycopg2-pool` ou SQLAlchemy).
 
@@ -174,13 +174,13 @@ Flask-Login usa cookies assinados client-side por padrão. Cada request precisa 
 **Arquivo:** Todo o código de views
 
 **Problema Técnico:**
-Cada request a qualquer página re-executa todas as queries ao banco, mesmo para dados que raramente mudam (ex: lista de alunos, lista de professores).
+Cada request a qualquer página re-executa todas as queries ao banco, mesmo para dados que raramente mudam, como a lista de profissionais clínicos.
 
 **Exemplo em `patients.py` linha 219:**
 ```python
-context['students'] = query(
+context['clinical_users'] = query(
     "SELECT id, username FROM users WHERE role = ? ORDER BY username ASC", 
-    (Role.ALUNO,)
+    (Role.CLINICOS,)
 )
 ```
 Essa query é executada toda vez que qualquer aba de paciente é carregada, por qualquer usuário. Com 100 usuários, são centenas de queries idênticas por minuto.
@@ -246,7 +246,7 @@ indexes = [
     "CREATE INDEX IF NOT EXISTS idx_anamnesis_patient_id ON anamnesis(patient_id)",
     "CREATE INDEX IF NOT EXISTS idx_exams_patient_id ON exams(patient_id)",
     "CREATE INDEX IF NOT EXISTS idx_atendimentos_patient_id ON atendimentos(patient_id)",
-    "CREATE INDEX IF NOT EXISTS idx_atendimentos_professor_id ON atendimentos(professor_id)",
+    "CREATE INDEX IF NOT EXISTS idx_atendimentos_validator_id ON atendimentos(validator_id)",
     "CREATE INDEX IF NOT EXISTS idx_tratamento_patient_id ON tratamento_procedimentos(patient_id)",
     "CREATE INDEX IF NOT EXISTS idx_tratamento_status ON tratamento_procedimentos(status)",
     "CREATE INDEX IF NOT EXISTS idx_prosthesis_patient_id ON prosthesis(patient_id)",
@@ -504,20 +504,20 @@ def create_app():
 
 **Arquivo a modificar:** `blueprints/patients.py`
 
-A query de alunos é chamada em toda abertura de aba e nunca muda durante o turno:
+A query de profissionais clínicos é chamada em toda abertura de aba e raramente muda durante o turno:
 
 ```python
 from extensions import cache
 
 # Dentro de get_tab_content, substituir:
-# context['students'] = query("SELECT id, username FROM users WHERE role = ? ORDER BY username ASC", (Role.ALUNO,))
+# context['clinical_users'] = query("SELECT id, username FROM users WHERE role = ? ORDER BY username ASC", (Role.CLINICOS,))
 
 # Por:
-@cache.cached(timeout=600, key_prefix='students_list')
-def get_students_cached():
-    return query("SELECT id, username FROM users WHERE role = ? ORDER BY username ASC", (Role.ALUNO,))
+@cache.cached(timeout=600, key_prefix='clinical_users_list')
+def get_clinical_users_cached():
+    return query("SELECT id, username FROM users WHERE role = ? ORDER BY username ASC", (Role.CLINICOS,))
 
-context['students'] = get_students_cached()
+context['clinical_users'] = get_clinical_users_cached()
 ```
 
 **Arquivo a criar:** `services/cache_service.py`
@@ -525,17 +525,17 @@ context['students'] = get_students_cached()
 ```python
 """
 Serviço centralizado para invalidação de cache.
-Sempre que um aluno for adicionado/removido, chamar:
-    CacheService.invalidate_students()
+Sempre que um profissional clínico for adicionado ou removido, chamar:
+    CacheService.invalidate_clinical_users()
 """
 from extensions import cache
 
 class CacheService:
-    STUDENTS_KEY = 'students_list'
+    CLINICAL_USERS_KEY = 'clinical_users_list'
     
     @staticmethod
-    def invalidate_students():
-        cache.delete(CacheService.STUDENTS_KEY)
+    def invalidate_clinical_users():
+        cache.delete(CacheService.CLINICAL_USERS_KEY)
     
     @staticmethod
     def invalidate_patient(patient_id):
@@ -1058,7 +1058,7 @@ locust -f tests/locustfile.py --host=http://localhost:5002
 |--------|-----------------------------------------|------------|-------------|
 | S1     | Tempo de query em `atendimentos`         | ~50ms      | < 5ms       |
 | S2     | Requests simultâneos suportados          | 3          | 500+        |
-| S3     | Queries redundantes (alunos)             | 100/min    | 1/10min     |
+| S3     | Queries redundantes (profissionais)       | 100/min    | 1/10min     |
 | S4     | Sessões válidas após restart             | 0%         | 100%        |
 | S5     | Tempo de bloqueio durante PDF            | 2-5s       | 0s          |
 | S6     | Write throughput                         | ~50 ops/s  | ~5000 ops/s |

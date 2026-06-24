@@ -25,7 +25,7 @@ PASSWORD = "admin"   # ← Trocar pela senha de teste
 
 
 class ClinicaUser(HttpUser):
-    """Usuário típico: aluno navegando entre pacientes e abas."""
+    """Usuário clínico típico navegando entre pacientes e abas."""
     wait_time = between(1, 3)  # Espera realista entre ações
 
     def on_start(self):

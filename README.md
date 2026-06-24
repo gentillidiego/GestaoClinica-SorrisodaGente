@@ -58,6 +58,9 @@ Incluído:
 - Estomatologia e alerta de suspeita de neoplasia;
 - exames odontológicos, de imagem e clínico-laboratoriais;
 - documentos clínicos, consentimentos e assinatura probatória;
+- atestados odontológicos e declarações de comparecimento em PDF;
+- catálogo selecionável de CID-10 odontológico, com descrição e autorização
+  obrigatória do paciente antes da inclusão no atestado;
 - estoque e materiais;
 - Central de Comando, Epidemiologia, BI e relatórios institucionais;
 - SIGTAP e exportação XML LEDI e-SUS em modo controlado;
@@ -236,6 +239,7 @@ Perfis ativos:
 - Clínicos;
 - CME;
 - Radiologia;
+- Análises Clínicas;
 - Comunicação;
 - SSA/SMS;
 - Auditoria.
@@ -277,8 +281,9 @@ Regras permanentes:
 - economia no BI permanece estimativa até homologação;
 - XML e-SUS não pode ser anunciado como homologado antes de importação aceita
   no PEC municipal;
-- TCLE e confirmação a rogo são exclusivos para paciente não alfabetizado e
-  exigem autenticação do CD responsável.
+- TCLE, Anamnese e confirmação do atendimento aceitam assinatura a rogo
+  exclusivamente para paciente não alfabetizado e exigem autenticação do CD
+  responsável.
 
 ## Módulos
 
@@ -598,11 +603,51 @@ Evidências e políticas atuais:
 - [primeiro acesso e recuperação](docs/auth_primeiro_acesso_postfix_2026-06-16.md);
 - [e-SUS XML LEDI](docs/esus_xml_ledi_2026-06-18.md);
 - [preparação SIGTAP/e-SUS](docs/esus_sigtap_preparacao_2026-06-08.md);
+- [referência clínica de especialidades e procedimentos SUS/SIGTAP](docs/referencia_clinica_especialidades_procedimentos_sigtap.pdf);
 - [manual base por perfil](docs/base_documentacao_manuais_usuarios.md);
+- [plano mestre de manuais e treinamentos](docs/manuais_e_treinamentos/plano_mestre.md);
+- [roteiros de videoaulas](docs/manuais_e_treinamentos/roteiros/README.md);
+- [ambiente isolado de treinamento](docs/manuais_e_treinamentos/ambiente_treinamento.md);
 - [arquitetura e regras](docs/system_architecture_and_rules.md).
 
 Os documentos históricos continuam como evidência. Em caso de divergência de
 status, prioridade ou versão, este README prevalece.
+
+### Manuais, roteiros e videoaulas
+
+Os materiais de treinamento ficam em `docs/manuais_e_treinamentos/`. O
+andamento oficial é controlado no
+[`plano_mestre.md`](docs/manuais_e_treinamentos/plano_mestre.md).
+
+Regra obrigatória de acompanhamento:
+
+1. ao iniciar ou concluir qualquer etapa, atualizar o quadro da atividade no
+   plano mestre;
+2. registrar data, responsável, resultado, pendência e próximo passo no
+   histórico de avanços;
+3. marcar uma etapa como concluída somente depois de verificar seu critério de
+   aceite;
+4. quando a mudança afetar escopo, prioridade ou prontidão da entrada
+   assistida, atualizar também este README;
+5. cada roteiro e manual deve informar a versão da aplicação usada na
+   gravação e na captura das telas.
+
+Primeiro pacote priorizado:
+
+1. primeiro acesso;
+2. novo usuário;
+3. novo paciente;
+4. triagem;
+5. agenda;
+6. TCLE;
+7. anamnese;
+8. plano de tratamento e evolução;
+9. Central de Comando.
+
+As gravações devem usar exclusivamente o ambiente local isolado em
+`http://127.0.0.1:5103`. A base candidata de produção não deve receber usuários
+ou pacientes fictícios. O ambiente pode ser recriado com
+`scripts/training_environment.sh reset`.
 
 ## Registro consolidado
 
@@ -617,6 +662,10 @@ status, prioridade ou versão, este README prevalece.
 | 21/06/2026 | Drive | OAuth atômico, backup, restore e restart aprovados |
 | 21/06/2026 | governança | política v1.0 concluída; aceite formal pendente |
 | 21/06/2026 | release candidata | QA técnico aprovado; candidata `4.0.0-rc.1` |
+| 22/06/2026 | treinamento | plano mestre, estrutura documental e nove roteiros iniciais criados |
+| 22/06/2026 | ambiente de treinamento | Docker isolado, usuários fictícios e cenários de gravação validados |
+| 22/06/2026 | assinatura da Anamnese | assinatura a rogo incorporada ao fluxo de produção com autenticação do CD, hash e comprovante probatório; ambiente de treinamento preservado |
+| 24/06/2026 | exames e novo perfil | design do atestado e receituário unificado ao padrão da declaração de comparecimento; criado fluxo de solicitação de exame (Imagem e Clínico/Laboratorial) com filas dedicadas para Radiologia e para o novo perfil Análises Clínicas; simplificado o Exame Físico removendo a seção de Exames Complementares duplicada; **commit e push pendentes para a próxima sessão** |
 
 ## Git e publicação
 
@@ -640,6 +689,11 @@ git push
 
 Tags de produção devem ser criadas somente depois de decisão **GO**. A tag
 `v4.0.0-rc.1`, quando publicada, identifica apenas esta candidata técnica.
+
+Pendência aberta em 24/06/2026: as mudanças de exames/RBAC descritas no
+registro consolidado estão validadas localmente (testes e rebuild Docker),
+mas o commit e o push para o remoto oficial ficaram para a próxima sessão de
+trabalho.
 
 ---
 

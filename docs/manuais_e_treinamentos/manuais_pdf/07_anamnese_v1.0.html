@@ -1,0 +1,329 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Manual 07 — Anamnese</title><style>
+    @page {
+      size: A4 portrait;
+      margin: 15mm 15mm 17mm;
+      @bottom-left {
+        content: "Gestão Saúde Oral • Manual 07";
+        font-family: Arial, sans-serif;
+        font-size: 7.5pt;
+        color: #64748b;
+      }
+      @bottom-right {
+        content: counter(page) " / " counter(pages);
+        font-family: Arial, sans-serif;
+        font-size: 7.5pt;
+        color: #64748b;
+      }
+    }
+    @page cover { margin: 0; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #172033;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9.6pt;
+      line-height: 1.48;
+    }
+    .cover {
+      page: cover;
+      height: 297mm;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(145deg, #0b367c 0%, #0d47a1 58%, #0879bd 100%);
+      color: white;
+      padding: 24mm 20mm;
+    }
+    .cover:before {
+      content: "";
+      position: absolute;
+      width: 170mm;
+      height: 170mm;
+      right: -78mm;
+      top: -55mm;
+      border: 22mm solid rgba(255,255,255,.07);
+      border-radius: 50%;
+    }
+    .cover:after {
+      content: "";
+      position: absolute;
+      width: 120mm;
+      height: 120mm;
+      left: -72mm;
+      bottom: -65mm;
+      border: 16mm solid rgba(247,148,30,.28);
+      border-radius: 50%;
+    }
+    .cover-logo {
+      display: inline-block;
+      background: white;
+      border-radius: 16px;
+      padding: 10px 18px;
+      box-shadow: 0 16px 38px rgba(0,0,0,.18);
+    }
+    .cover-logo img { width: 61mm; display: block; }
+    .cover-kicker {
+      margin-top: 44mm;
+      color: #f7941e;
+      font-size: 10pt;
+      font-weight: 800;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+    .cover h1 {
+      margin: 6mm 0 4mm;
+      max-width: 145mm;
+      font-size: 34pt;
+      line-height: 1.02;
+      letter-spacing: -.035em;
+    }
+    .cover-subtitle {
+      max-width: 130mm;
+      color: #dbeafe;
+      font-size: 13pt;
+      line-height: 1.45;
+    }
+    .cover-meta {
+      position: absolute;
+      left: 20mm;
+      right: 20mm;
+      bottom: 20mm;
+      display: table;
+      width: calc(100% - 40mm);
+      border-top: 1px solid rgba(255,255,255,.3);
+      padding-top: 7mm;
+      font-size: 9pt;
+      color: #dbeafe;
+    }
+    .cover-meta > div { display: table-cell; width: 33.333%; }
+    .cover-meta strong { display: block; color: white; margin-bottom: 1mm; }
+    .page { page-break-before: always; }
+    .page-header {
+      display: table;
+      width: 100%;
+      border-bottom: 2px solid #dbe7f6;
+      padding-bottom: 4mm;
+      margin-bottom: 7mm;
+    }
+    .page-header > div { display: table-cell; vertical-align: middle; }
+    .page-header img { width: 43mm; }
+    .page-label {
+      text-align: right;
+      color: #0d47a1;
+      font-weight: 800;
+      font-size: 8pt;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    h2 {
+      margin: 0 0 2.5mm;
+      color: #0d47a1;
+      font-size: 22pt;
+      line-height: 1.12;
+      letter-spacing: -.025em;
+    }
+    .lead {
+      margin: 0 0 7mm;
+      color: #526279;
+      font-size: 11pt;
+      line-height: 1.55;
+    }
+    .flow {
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+      margin: 6mm 0 8mm;
+    }
+    .flow-step {
+      display: table-cell;
+      position: relative;
+      padding-right: 4mm;
+      vertical-align: top;
+    }
+    .flow-step:last-child { padding-right: 0; }
+    .flow-number {
+      width: 9mm;
+      height: 9mm;
+      border-radius: 50%;
+      background: #0d47a1;
+      color: white;
+      text-align: center;
+      line-height: 9mm;
+      font-weight: 800;
+      margin-bottom: 2mm;
+    }
+    .flow-step strong { color: #163f75; font-size: 9.2pt; }
+    .flow-step span { display: block; color: #64748b; font-size: 8.2pt; margin-top: 1mm; }
+    .check-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4mm;
+      margin: 5mm 0 8mm;
+    }
+    .check-card {
+      border: 1px solid #dbe7f6;
+      border-radius: 10px;
+      padding: 4mm;
+      background: #f8fbff;
+    }
+    .check-card strong { display: block; color: #0d47a1; margin-bottom: 1.2mm; }
+    .check-card span { color: #526279; font-size: 8.6pt; }
+    .step-banner {
+      display: table;
+      width: 100%;
+      margin-bottom: 6mm;
+    }
+    .step-badge, .step-title { display: table-cell; vertical-align: middle; }
+    .step-badge {
+      width: 15mm;
+      height: 15mm;
+      border-radius: 50%;
+      text-align: center;
+      background: #f7941e;
+      color: white;
+      font-size: 17pt;
+      line-height: 15mm;
+      font-weight: 800;
+    }
+    .step-title { padding-left: 4mm; }
+    .step-title h2 { margin: 0; }
+    .step-title p { margin: 1mm 0 0; color: #64748b; }
+    .screen {
+      border: 1px solid #cdd9e8;
+      border-radius: 11px;
+      background: #eaf0f7;
+      padding: 3mm;
+      box-shadow: 0 9px 24px rgba(15, 52, 96, .12);
+      margin: 4mm 0 6mm;
+      page-break-inside: avoid;
+    }
+    .screen-bar {
+      height: 6mm;
+      padding: 0 1mm 2mm;
+      color: #7b8798;
+      font-size: 8pt;
+    }
+    .screen-dot {
+      display: inline-block;
+      width: 2.5mm;
+      height: 2.5mm;
+      border-radius: 50%;
+      margin-right: 1.2mm;
+      background: #f87171;
+    }
+    .screen-dot:nth-child(2) { background: #fbbf24; }
+    .screen-dot:nth-child(3) { background: #34d399; }
+    .screen img {
+      display: block;
+      width: 100%;
+      border-radius: 7px;
+      background: white;
+    }
+    .screen-compact {
+      width: 74%;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .columns {
+      display: grid;
+      grid-template-columns: 1.25fr .75fr;
+      gap: 6mm;
+      align-items: start;
+    }
+    .instruction {
+      border-left: 4px solid #0d47a1;
+      padding: 3mm 4mm;
+      margin-bottom: 3mm;
+      background: #f3f7fd;
+      border-radius: 0 8px 8px 0;
+    }
+    .instruction strong { color: #0d47a1; }
+    .instruction p { margin: 1.4mm 0 0; color: #475569; }
+    .tip, .warning, .success {
+      border-radius: 10px;
+      padding: 4mm;
+      margin: 4mm 0;
+      page-break-inside: avoid;
+    }
+    .tip { background: #eef7ff; border: 1px solid #cfe7fb; }
+    .warning { background: #fff7e8; border: 1px solid #fed7a0; }
+    .success { background: #edfdf5; border: 1px solid #b7efd1; }
+    .tip strong, .warning strong, .success strong { display: block; margin-bottom: 1mm; }
+    .tip strong { color: #075985; }
+    .warning strong { color: #a65300; }
+    .success strong { color: #087443; }
+    .bullet-list { margin: 2mm 0 0; padding-left: 5mm; }
+    .bullet-list li { margin: 1.5mm 0; color: #475569; }
+    .password-rules {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3mm;
+      margin: 5mm 0;
+    }
+    .rule {
+      text-align: center;
+      padding: 4mm 2mm;
+      border-radius: 9px;
+      background: #f5f8fc;
+      border: 1px solid #dbe5f0;
+    }
+    .rule b { display: block; color: #0d47a1; font-size: 15pt; margin-bottom: 1mm; }
+    .rule span { color: #64748b; font-size: 8pt; }
+    .closing {
+      margin-top: 3mm;
+      padding: 4mm;
+      background: linear-gradient(135deg, #0d47a1, #0879bd);
+      color: white;
+      border-radius: 12px;
+    }
+    .closing h3 { margin: 0 0 2mm; font-size: 15pt; }
+    .closing p { margin: 0; color: #dbeafe; }
+    .mini-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 3mm;
+      font-size: 8.2pt;
+    }
+    .mini-table th {
+      text-align: left;
+      background: #0d47a1;
+      color: white;
+      padding: 2mm 3mm;
+    }
+    .mini-table td {
+      border-bottom: 1px solid #e2e8f0;
+      padding: 1.8mm 3mm;
+      vertical-align: top;
+    }
+    .mini-table td:first-child { color: #0d47a1; font-weight: 700; width: 34%; }
+  
+    .screen-short img { height:55mm; object-fit:cover; object-position:top; }
+    .screen-pair { display:grid; grid-template-columns:1fr 1fr; gap:4mm; margin:3mm 0 4mm; }
+    .screen-pair .screen { margin:0; }
+    .screen-pair .screen img { height:43mm; object-fit:cover; object-position:top; }
+    .screen-pair .screen-bar { font-size:6.6pt; }
+    </style></head><body>
+<section class="cover"><div class="cover-logo"><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png" alt="Sorriso da Gente"></div><div class="cover-kicker">Manual de operação • 07</div><h1>Anamnese</h1><div class="cover-subtitle">Registre riscos médicos, histórico odontológico e hábitos com clareza, revisão e evidência de assinatura.</div><div class="cover-meta"><div><strong>Público</strong>Clínicos</div><div><strong>Versão</strong>4.0.0-rc.1</div><div><strong>Revisão</strong>22 de junho de 2026</div></div></section>
+
+<section class="page"><header class="page-header"><div><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png"></div><div class="page-label">Manual 07 • Anamnese</div></header><h2>Antes de começar</h2><p class="lead">A Anamnese reúne informações que orientam decisões e alertas de segurança durante todo o cuidado odontológico.</p>
+<div class="flow"><div class="flow-step"><div class="flow-number">1</div><strong>Entrevistar</strong><span>Ouça paciente ou responsável.</span></div><div class="flow-step"><div class="flow-number">2</div><strong>Detalhar</strong><span>Explique respostas positivas.</span></div><div class="flow-step"><div class="flow-number">3</div><strong>Revisar</strong><span>Confirme todas as respostas.</span></div><div class="flow-step"><div class="flow-number">4</div><strong>Assinar</strong><span>Em tela ou a rogo.</span></div></div>
+<div class="check-grid"><div class="check-card"><strong>TCLE assinado</strong><span>É pré-requisito para abrir o fluxo clínico.</span></div><div class="check-card"><strong>Entrevista direta</strong><span>Não presuma respostas clínicas.</span></div><div class="check-card"><strong>Alergias e medicamentos</strong><span>Confirme nomes e detalhes relatados.</span></div><div class="check-card"><strong>Atualização contínua</strong><span>Revise quando a condição clínica mudar.</span></div></div>
+<div class="warning"><strong>Informação positiva exige contexto</strong>Use o campo explicativo para registrar doença, medicamento, alergia, cirurgia ou hospitalização relatada.</div>
+<table class="mini-table"><tr><th>Etapa</th><th>Conteúdo</th></tr><tr><td>Saúde geral</td><td>Doenças, tratamentos, medicamentos, alergias e condições sistêmicas.</td></tr><tr><td>Odontologia</td><td>Dor, anestesia, gengiva, higiene e hábitos parafuncionais.</td></tr><tr><td>Hábitos</td><td>Tabagismo, álcool, exercícios e antecedentes familiares.</td></tr></table></section>
+
+<section class="page"><header class="page-header"><div><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png"></div><div class="page-label">Manual 07 • Queixa e história</div></header><div class="step-banner"><div class="step-badge">1</div><div class="step-title"><h2>Iniciar a entrevista</h2><p>Na aba Anamnese, clique em Nova Anamnese e registre o motivo da procura.</p></div></div>
+<div class="screen screen-short"><div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span> Paciente fictício • respostas não gravadas</div><img src="file:///home/diego/projetos/GestaoSaudeOral/docs/manuais_e_treinamentos/capturas/07_anamnese_01_queixa_historia.png"></div>
+<div class="columns"><div><div class="instruction"><strong>Queixa principal</strong><p>Registre de forma curta o motivo apresentado pelo paciente.</p></div><div class="instruction"><strong>História atual</strong><p>Descreva início, evolução, duração e fatores associados.</p></div></div><div class="tip"><strong>Texto objetivo</strong>Registre o relato clínico sem julgamentos ou informações irrelevantes.</div></div></section>
+
+<section class="page"><header class="page-header"><div><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png"></div><div class="page-label">Manual 07 • Segurança e histórico</div></header><div class="step-banner"><div class="step-badge">2</div><div class="step-title"><h2>Completar os riscos e hábitos</h2><p>Percorra saúde geral, histórico odontológico e antecedentes.</p></div></div>
+<div class="screen-pair"><div class="screen"><div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span> Alergia e medicamento</div><img src="file:///home/diego/projetos/GestaoSaudeOral/docs/manuais_e_treinamentos/capturas/07_anamnese_02_historico_medico.png"></div><div class="screen"><div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span> Odontologia e hábitos</div><img src="file:///home/diego/projetos/GestaoSaudeOral/docs/manuais_e_treinamentos/capturas/07_anamnese_03_odontologico_habitos.png"></div></div>
+<div class="columns"><div><div class="instruction"><strong>Alergias e medicamentos</strong><p>Registre substância, nome, dose quando conhecida e contexto relatado.</p></div><div class="instruction"><strong>Histórico e hábitos</strong><p>Complete dor, anestesia, higiene, fumo, álcool e antecedentes familiares.</p></div></div><div class="warning"><strong>Não deixe lacunas</strong>Detalhe respostas positivas e revise em voz alta antes da assinatura.</div></div></section>
+
+<section class="page"><header class="page-header"><div><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png"></div><div class="page-label">Manual 07 • Assinaturas</div></header><div class="step-banner"><div class="step-badge">3</div><div class="step-title"><h2>Assinar e finalizar</h2><p>Escolha o modo adequado somente após a revisão das respostas.</p></div></div>
+<div class="screen-pair"><div class="screen"><div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span> Assinatura em tela • ilustrativa</div><img src="file:///home/diego/projetos/GestaoSaudeOral/docs/manuais_e_treinamentos/capturas/07_anamnese_04_assinatura_em_tela.png"></div><div class="screen"><div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span> A rogo • senha protegida</div><img src="file:///home/diego/projetos/GestaoSaudeOral/docs/manuais_e_treinamentos/capturas/07_anamnese_05_assinatura_a_rogo.png"></div></div>
+<div class="columns"><div><div class="instruction"><strong>Paciente alfabetizado</strong><p>Solicite a assinatura no quadro e use Limpar se precisar repetir.</p></div><div class="instruction"><strong>Paciente não alfabetizado</strong><p>Leia e explique; obtenha consentimento verbal e autentique com as credenciais do CD.</p></div></div><div class="warning"><strong>A rogo não é conveniência</strong>É exclusiva para paciente não alfabetizado. Não são exigidas testemunhas.</div></div></section>
+
+<section class="page"><header class="page-header"><div><img src="file:///home/diego/projetos/GestaoSaudeOral/static/logo_sorriso_horizontal.png"></div><div class="page-label">Manual 07 • Consulta e atualização</div></header><div class="step-banner"><div class="step-badge">4</div><div class="step-title"><h2>Consultar a ficha concluída</h2><p>A Anamnese fica disponível no prontuário para orientar o cuidado.</p></div></div>
+<div class="screen screen-short"><div class="screen-bar"><span class="screen-dot"></span><span class="screen-dot"></span><span class="screen-dot"></span> Ficha fictícia previamente registrada</div><img src="file:///home/diego/projetos/GestaoSaudeOral/docs/manuais_e_treinamentos/capturas/07_anamnese_06_ficha_concluida.png"></div>
+<div class="columns"><div><div class="instruction"><strong>Consulte antes da conduta</strong><p>Verifique alergias, medicamentos e riscos sistêmicos relevantes.</p></div><div class="instruction"><strong>Atualize quando necessário</strong><p>Mudanças clínicas exigem revisão, nova confirmação e nova evidência de assinatura.</p></div></div><div class="success"><strong>Resultado esperado</strong>Ficha completa, assinada e disponível para apoiar os atos clínicos subsequentes.</div></div>
+<div class="closing"><h3>Anamnese concluída</h3><p>Com os riscos registrados, o fluxo segue para o <b>Plano de Tratamento e Evolução</b>.</p></div></section>
+</body></html>

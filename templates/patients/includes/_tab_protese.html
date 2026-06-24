@@ -22,7 +22,7 @@
                     Acompanhamento Prótese - {{ prosthesis_active.tipo }}</h2>
                 <div style="display: flex; gap: 2rem; margin-top: 0.5rem; font-size: 0.95rem;">
                     <span>📅 Início: <strong>{{ prosthesis_active.data }}</strong></span>
-                    <span>👨‍⚕️ Profissional: <strong>{{ prosthesis_active.aluno_nome or 'Não atribuído' }}</strong></span>
+                    <span>👨‍⚕️ Profissional: <strong>{{ prosthesis_active.professional_name or 'Não atribuído' }}</strong></span>
                 </div>
             </div>
             <div style="text-align: right;">
@@ -66,7 +66,7 @@
                 </thead>
 	                <tbody>
 	                    {% for etapa in etapas %}
-	                    {% set etapa_pending = not etapa.assinatura_paciente_base64 or not etapa.professor_id %}
+	                    {% set etapa_pending = not etapa.assinatura_paciente_base64 or not etapa.validator_id %}
 	                    <tr style="{{ 'background:#fffbeb;' if etapa_pending else 'background: hsl(var(--primary-soft));' if etapa.status == 'Concluído' }}">
                         <td><strong>{{ loop.index }}</strong></td>
                         <td>{{ etapa.nome_etapa }}</td>
@@ -95,12 +95,12 @@
                                 {% endif %}
                             </td>
                             <td style="text-align: center;">
-                                {% if etapa.professor_id %}
-                                <span title="Validado por {% if etapa.professor_role == 'admin' %}Administrador{% elif etapa.professor_role == 'clinicos' %}Clínicos{% elif etapa.professor_role == 'dentista' %}Cir.-Dentista{% elif etapa.professor_role == 'tsb' %}TSB / ASB{% else %}Profissional{% endif %} {{ etapa.professor_nome }}" style="cursor: help;">✅</span>
+                                {% if etapa.validator_id %}
+                                <span title="Validado por {% if etapa.validator_role == 'admin' %}Administrador{% elif etapa.validator_role == 'clinicos' %}Clínicos{% elif etapa.validator_role == 'dentista' %}Cir.-Dentista{% elif etapa.validator_role == 'tsb' %}TSB / ASB{% else %}Profissional{% endif %} {{ etapa.validator_name }}" style="cursor: help;">✅</span>
                                 {% else %}
                                 <button type="button" class="btn btn-outline"
                                     style="padding: 2px 8px; font-size: 0.7rem; border-style: dashed;"
-                                    onclick="openSignModal('{{ url_for('prosthesis.sign_professor', etapa_id=etapa.id) }}')">Validar</button>
+                                    onclick="openSignModal('{{ url_for('prosthesis.sign_validator', etapa_id=etapa.id) }}')">Validar</button>
                                 {% endif %}
                             </td>
                             <td>
@@ -192,10 +192,10 @@
                 
                 <div style="margin-bottom: 1.5rem;">
                     <label class="form-label">Profissional Responsável</label>
-                    <select name="aluno_id" class="form-control" required>
+                    <select name="operator_id" class="form-control" required>
                         <option value="">Selecione o profissional...</option>
-                        {% for student in students %}
-                            <option value="{{ student.id }}" {{ 'selected' if student.id == current_user.id }}>{{ student.username }}</option>
+                        {% for clinical_user in clinical_users %}
+                            <option value="{{ clinical_user.id }}" {{ 'selected' if clinical_user.id == current_user.id }}>{{ clinical_user.username }}</option>
                         {% endfor %}
                     </select>
                 </div>

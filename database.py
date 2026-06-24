@@ -113,6 +113,51 @@ def _ensure_columns_exist(table_name, columns):
             execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def}")
 
 
+def _rename_column_if_needed(table_name, old_name, new_name):
+    """Renomeia uma coluna herdada sem perder os vínculos já gravados."""
+    existing_rows = query(
+        """
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = %s
+          AND column_name IN (%s, %s)
+        """,
+        (table_name, old_name, new_name),
+    )
+    existing_columns = {row['column_name'] for row in existing_rows}
+    if old_name in existing_columns and new_name not in existing_columns:
+        execute(
+            f'ALTER TABLE "{table_name}" RENAME COLUMN "{old_name}" TO "{new_name}"'
+        )
+
+
+def _migrate_inherited_clinical_column_names():
+    """Atualiza identificadores herdados para a terminologia institucional."""
+    column_renames = (
+        ('exams', 'professor_id', 'validator_id'),
+        ('atendimentos', 'professor_id', 'validator_id'),
+        ('atendimentos', 'aluno_executor_id', 'executor_id'),
+        ('prosthesis', 'aluno_responsavel_id', 'responsible_professional_id'),
+        ('prosthesis_etapas', 'professor_id', 'validator_id'),
+        ('tratamento_procedimentos', 'professor_id', 'validator_id'),
+        ('endodontia', 'aluno_id', 'operator_id'),
+        ('endodontia_followup', 'professor_id', 'validator_id'),
+        ('patient_tcle', 'aluno_id', 'operator_id'),
+    )
+    for table_name, old_name, new_name in column_renames:
+        _rename_column_if_needed(table_name, old_name, new_name)
+
+    execute(
+        "ALTER INDEX IF EXISTS idx_atendimentos_professor_id "
+        "RENAME TO idx_atendimentos_validator_id"
+    )
+    execute(
+        "ALTER INDEX IF EXISTS idx_atendimentos_aluno_executor_id "
+        "RENAME TO idx_atendimentos_executor_id"
+    )
+
+
 def _allow_multiple_triage_tickets_per_patient():
     """Remove a unicidade legada que limitava uma senha por paciente."""
     execute("ALTER TABLE triagem_senhas DROP CONSTRAINT IF EXISTS triagem_senhas_patient_id_key")
@@ -192,6 +237,9 @@ MIGRATIONS = {
         ('assinatura_modo', "TEXT DEFAULT 'patient_canvas'"),
         ('assinatura_event_id', 'INTEGER'),
         ('assinatura_document_hash', 'TEXT'),
+        ('assinatura_a_rogo_por', 'INTEGER'),
+        ('assinatura_a_rogo_declaracao', 'TEXT'),
+        ('assinatura_a_rogo_testemunhas', 'JSONB'),
         ('assinatura_auth_method', 'TEXT'),
         ('assinatura_source_ip', 'TEXT'),
         ('assinatura_user_agent', 'TEXT')
@@ -207,8 +255,8 @@ MIGRATIONS = {
         ('assinatura_auth_method', 'TEXT'),
         ('assinatura_source_ip', 'TEXT'),
         ('assinatura_user_agent', 'TEXT'),
-        ('professor_id', 'INTEGER'),
-        ('aluno_executor_id', 'INTEGER'),
+        ('validator_id', 'INTEGER'),
+        ('executor_id', 'INTEGER'),
         ('status', "TEXT DEFAULT 'Pendente'"),
         ('created_by', 'INTEGER')
     ],
@@ -262,6 +310,14 @@ MIGRATIONS = {
         ('endereco_ibge_codigo', 'TEXT'),
         ('gdrive_folder_id', 'TEXT')
     ],
+    'atestados': [
+        ('tipo_documento', "TEXT DEFAULT 'atestado'"),
+        ('data_comparecimento', 'DATE'),
+        ('hora_inicio', 'TIME'),
+        ('hora_fim', 'TIME'),
+        ('cid_descricao', 'TEXT'),
+        ('cid_autorizado', 'BOOLEAN DEFAULT FALSE')
+    ],
     'triagem_acoes': [
         ('execution_unit', "TEXT DEFAULT 'unidade_principal'")
     ],
@@ -269,7 +325,7 @@ MIGRATIONS = {
         ('execution_unit', "TEXT DEFAULT 'unidade_principal'")
     ],
     'exams': [
-        ('professor_id', 'INTEGER'),
+        ('validator_id', 'INTEGER'),
         ('data_validacao', 'TIMESTAMP')
     ],
     'exam_imagem_arquivos': [
@@ -852,6 +908,9 @@ def _init_db_locked():
             assinatura_modo TEXT DEFAULT 'patient_canvas',
             assinatura_event_id INTEGER,
             assinatura_document_hash TEXT,
+            assinatura_a_rogo_por INTEGER,
+            assinatura_a_rogo_declaracao TEXT,
+            assinatura_a_rogo_testemunhas JSONB,
             assinatura_auth_method TEXT,
             assinatura_source_ip TEXT,
             assinatura_user_agent TEXT,
@@ -868,11 +927,11 @@ def _init_db_locked():
             tipo TEXT NOT NULL,
             data_criacao TIMESTAMP DEFAULT NOW(),
             resumo_clinico TEXT,
-            professor_id INTEGER,
+            validator_id INTEGER,
             data_validacao TIMESTAMP,
             FOREIGN KEY (anamnesis_id) REFERENCES anamnesis (id) ON DELETE CASCADE,
             FOREIGN KEY (patient_id) REFERENCES patients (id) ON DELETE CASCADE,
-            FOREIGN KEY (professor_id) REFERENCES users (id) ON DELETE SET NULL
+            FOREIGN KEY (validator_id) REFERENCES users (id) ON DELETE SET NULL
         )
     ''')
 
@@ -995,6 +1054,35 @@ def _init_db_locked():
     ''')
 
     execute('''
+        CREATE TABLE IF NOT EXISTS exam_requests (
+            id SERIAL PRIMARY KEY,
+            patient_id INTEGER NOT NULL,
+            anamnesis_id INTEGER NOT NULL,
+            tipo TEXT NOT NULL,
+            tipo_imagem TEXT,
+            detalhe_escopo TEXT,
+            categoria TEXT,
+            laboratorio TEXT,
+            data_coleta DATE,
+            observacoes TEXT,
+            status TEXT NOT NULL DEFAULT 'pendente',
+            requested_by INTEGER NOT NULL,
+            requested_at TIMESTAMP DEFAULT NOW(),
+            fulfilled_exam_id INTEGER,
+            fulfilled_by INTEGER,
+            fulfilled_at TIMESTAMP,
+            cancelled_by INTEGER,
+            cancelled_at TIMESTAMP,
+            FOREIGN KEY (patient_id) REFERENCES patients (id) ON DELETE CASCADE,
+            FOREIGN KEY (anamnesis_id) REFERENCES anamnesis (id) ON DELETE CASCADE,
+            FOREIGN KEY (requested_by) REFERENCES users (id),
+            FOREIGN KEY (fulfilled_exam_id) REFERENCES exams (id) ON DELETE SET NULL,
+            FOREIGN KEY (fulfilled_by) REFERENCES users (id),
+            FOREIGN KEY (cancelled_by) REFERENCES users (id)
+        )
+    ''')
+
+    execute('''
         CREATE TABLE IF NOT EXISTS atendimentos (
             id SERIAL PRIMARY KEY,
             patient_id INTEGER NOT NULL,
@@ -1010,13 +1098,13 @@ def _init_db_locked():
             assinatura_auth_method TEXT,
             assinatura_source_ip TEXT,
             assinatura_user_agent TEXT,
-            professor_id INTEGER,
-            aluno_executor_id INTEGER,
+            validator_id INTEGER,
+            executor_id INTEGER,
             status TEXT DEFAULT 'Pendente',
             created_by INTEGER,
             FOREIGN KEY (patient_id) REFERENCES patients (id),
-            FOREIGN KEY (professor_id) REFERENCES users (id),
-            FOREIGN KEY (aluno_executor_id) REFERENCES users (id),
+            FOREIGN KEY (validator_id) REFERENCES users (id),
+            FOREIGN KEY (executor_id) REFERENCES users (id),
             FOREIGN KEY (created_by) REFERENCES users (id)
         )
     ''')
@@ -1038,7 +1126,7 @@ def _init_db_locked():
             id SERIAL PRIMARY KEY,
             patient_id INTEGER NOT NULL,
             created_by INTEGER NOT NULL,
-            aluno_responsavel_id INTEGER,
+            responsible_professional_id INTEGER,
             data TIMESTAMP DEFAULT NOW(),
             descricao TEXT,
             tipo TEXT,
@@ -1046,7 +1134,7 @@ def _init_db_locked():
             status TEXT DEFAULT 'Ativo',
             FOREIGN KEY (patient_id) REFERENCES patients (id),
             FOREIGN KEY (created_by) REFERENCES users (id),
-            FOREIGN KEY (aluno_responsavel_id) REFERENCES users (id)
+            FOREIGN KEY (responsible_professional_id) REFERENCES users (id)
         )
     ''')
 
@@ -1066,10 +1154,10 @@ def _init_db_locked():
             assinatura_auth_method TEXT,
             assinatura_source_ip TEXT,
             assinatura_user_agent TEXT,
-            professor_id INTEGER,
+            validator_id INTEGER,
             status TEXT DEFAULT 'Pendente',
             FOREIGN KEY (prosthesis_id) REFERENCES prosthesis (id),
-            FOREIGN KEY (professor_id) REFERENCES users (id)
+            FOREIGN KEY (validator_id) REFERENCES users (id)
         )
     ''')
 
@@ -1106,11 +1194,11 @@ def _init_db_locked():
             esus_export_status TEXT DEFAULT 'pending',
             esus_exported_at TIMESTAMP,
             esus_export_batch_id INTEGER,
-            professor_id INTEGER,
+            validator_id INTEGER,
             status TEXT DEFAULT 'Pendente',
             criado_em TIMESTAMP DEFAULT NOW(),
             FOREIGN KEY (patient_id) REFERENCES patients (id),
-            FOREIGN KEY (professor_id) REFERENCES users (id)
+            FOREIGN KEY (validator_id) REFERENCES users (id)
         )
     ''')
 
@@ -1301,10 +1389,16 @@ def _init_db_locked():
             patient_id INTEGER NOT NULL,
             created_by INTEGER NOT NULL,
             data TIMESTAMP DEFAULT NOW(),
+            tipo_documento TEXT DEFAULT 'atestado',
             motivo TEXT,
             dias_repouso INTEGER,
             cid TEXT,
+            cid_descricao TEXT,
+            cid_autorizado BOOLEAN DEFAULT FALSE,
             observacao TEXT,
+            data_comparecimento DATE,
+            hora_inicio TIME,
+            hora_fim TIME,
             FOREIGN KEY (patient_id) REFERENCES patients (id),
             FOREIGN KEY (created_by) REFERENCES users (id)
         )
@@ -1315,7 +1409,7 @@ def _init_db_locked():
             id SERIAL PRIMARY KEY,
             patient_id INTEGER NOT NULL,
             elemento_dentario TEXT NOT NULL,
-            aluno_id INTEGER NOT NULL,
+            operator_id INTEGER NOT NULL,
             status TEXT DEFAULT 'Ativo',
             criado_em TIMESTAMP DEFAULT NOW(),
             coroa TEXT,
@@ -1371,7 +1465,7 @@ def _init_db_locked():
             restauracao_observacoes TEXT,
             lesao_periapical_extensa BOOLEAN DEFAULT FALSE,
             FOREIGN KEY (patient_id) REFERENCES patients (id),
-            FOREIGN KEY (aluno_id) REFERENCES users (id),
+            FOREIGN KEY (operator_id) REFERENCES users (id),
             FOREIGN KEY (cancelado_por) REFERENCES users (id)
         )
     ''')
@@ -1416,7 +1510,7 @@ def _init_db_locked():
             assinatura_auth_method TEXT,
             assinatura_source_ip TEXT,
             assinatura_user_agent TEXT,
-            professor_id INTEGER,
+            validator_id INTEGER,
             status TEXT DEFAULT 'Pendente',
             numero_sessao INTEGER,
             etapa_realizada TEXT,
@@ -1465,7 +1559,7 @@ def _init_db_locked():
             restauracao_observacoes TEXT,
             criado_em TIMESTAMP DEFAULT NOW(),
             FOREIGN KEY (endodontia_id) REFERENCES endodontia (id),
-            FOREIGN KEY (professor_id) REFERENCES users (id)
+            FOREIGN KEY (validator_id) REFERENCES users (id)
         )
     ''')
 
@@ -1570,7 +1664,7 @@ def _init_db_locked():
         CREATE TABLE IF NOT EXISTS patient_tcle (
             id SERIAL PRIMARY KEY,
             patient_id INTEGER NOT NULL,
-            aluno_id INTEGER NOT NULL,
+            operator_id INTEGER NOT NULL,
             assinatura_base64 TEXT NOT NULL,
             assinatura_modo TEXT DEFAULT 'patient_canvas',
             assinatura_event_id INTEGER,
@@ -1584,7 +1678,7 @@ def _init_db_locked():
             data_assinatura TIMESTAMP DEFAULT NOW(),
             texto_opcional TEXT,
             FOREIGN KEY (patient_id) REFERENCES patients (id),
-            FOREIGN KEY (aluno_id) REFERENCES users (id)
+            FOREIGN KEY (operator_id) REFERENCES users (id)
         )
     ''')
 
@@ -1774,6 +1868,8 @@ def _init_db_locked():
         )
     ''')
 
+    _migrate_inherited_clinical_column_names()
+
     # Colunas adicionadas em atualizações graduais (já incorporadas no DDL acima,
     # mas mantido para retrocompatibilidade caso o schema já exista)
     for table, cols in MIGRATIONS.items():
@@ -1892,8 +1988,8 @@ def _init_db_locked():
         "CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_lot_id ON inventory_adjustments(lot_id)",
         "CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_type ON inventory_adjustments(adjustment_type)",
         "CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_created_at ON inventory_adjustments(created_at)",
-        "CREATE INDEX IF NOT EXISTS idx_atendimentos_professor_id ON atendimentos(professor_id)",
-        "CREATE INDEX IF NOT EXISTS idx_atendimentos_aluno_executor_id ON atendimentos(aluno_executor_id)",
+        "CREATE INDEX IF NOT EXISTS idx_atendimentos_validator_id ON atendimentos(validator_id)",
+        "CREATE INDEX IF NOT EXISTS idx_atendimentos_executor_id ON atendimentos(executor_id)",
         "CREATE INDEX IF NOT EXISTS idx_tratamento_patient_id ON tratamento_procedimentos(patient_id)",
         "CREATE INDEX IF NOT EXISTS idx_tratamento_status ON tratamento_procedimentos(status)",
         "CREATE INDEX IF NOT EXISTS idx_tratamento_sigtap_code ON tratamento_procedimentos(sigtap_code)",

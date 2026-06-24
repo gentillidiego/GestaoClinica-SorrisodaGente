@@ -6,6 +6,7 @@ class Role:
     RECEPCAO = 'recepcao'
     CME = 'cme'
     RADIOLOGIA = 'radiologia'
+    ANALISES_CLINICAS = 'analises_clinicas'
     COMUNICACAO = 'comunicacao'
     SSA_SMS = 'ssa_sms'
     AUDITORIA = 'auditoria'
@@ -38,6 +39,7 @@ ACTIVE_ROLE_LABELS = {
     Role.RECEPCAO: 'Recepção',
     Role.CME: 'CME / Estoque',
     Role.RADIOLOGIA: 'Radiologia',
+    Role.ANALISES_CLINICAS: 'Análises Clínicas',
     Role.COMUNICACAO: 'Comunicação',
     Role.SSA_SMS: 'SSA/SMS',
     Role.AUDITORIA: 'Auditoria',
@@ -51,6 +53,7 @@ LEGACY_ROLE_MAP = {
     Role.RECEPCAO: Role.RECEPCAO,
     Role.CME: Role.CME,
     Role.RADIOLOGIA: Role.RADIOLOGIA,
+    Role.ANALISES_CLINICAS: Role.ANALISES_CLINICAS,
     Role.COMUNICACAO: Role.COMUNICACAO,
     Role.SSA_SMS: Role.SSA_SMS,
     Role.AUDITORIA: Role.AUDITORIA,
@@ -65,7 +68,7 @@ LEGACY_ROLE_MAP = {
     Role.IMPLANTES: Role.CLINICOS,
     Role.ESTOMATOLOGIA: Role.CLINICOS,
     Role.TSB: Role.CLINICOS,
-    Role.LABORATORIO: Role.CME,
+    Role.LABORATORIO: Role.ANALISES_CLINICAS,
     Role.FINANCEIRO: Role.COORDENACAO,
     Role.EPIDEMIOLOGIA: Role.COORDENACAO,
     Role.BI: Role.COORDENACAO,
@@ -85,6 +88,7 @@ PROFESSIONAL_DATA_REQUIRED_ROLES = {
     Role.CLINICOS,
     Role.CME,
     Role.RADIOLOGIA,
+    Role.ANALISES_CLINICAS,
 }
 
 
@@ -143,6 +147,8 @@ MODULE_PERMISSIONS = {
     'radiologia:write',
     'laboratorio:view',
     'laboratorio:write',
+    'analises_clinicas:view',
+    'analises_clinicas:write',
     'financeiro:view',
     'financeiro:write',
     'inventory:view',
@@ -174,6 +180,7 @@ ROLE_PERMISSIONS = {
     Role.CLINICOS: {
         'dashboard:view', 'command_center:view',
         'patients:view', 'patients:write',
+        'triage:view', 'triage:write',
         'anamnesis:view', 'anamnesis:write',
         'treatment:view', 'treatment:write',
         'attendance:view', 'attendance:write',
@@ -185,7 +192,6 @@ ROLE_PERMISSIONS = {
         'clinical_timeline:view',
         'estomatologia:view', 'estomatologia:write',
         'laboratorio:view', 'laboratorio:write',
-        'inventory:view', 'inventory:write',
     },
     Role.RECEPCAO: {
         'dashboard:view', 'command_center:view',
@@ -205,6 +211,12 @@ ROLE_PERMISSIONS = {
         'patients:view',
         'exams:view', 'exams:write',
         'radiologia:view', 'radiologia:write',
+    },
+    Role.ANALISES_CLINICAS: {
+        'dashboard:view', 'command_center:view',
+        'patients:view',
+        'laboratorio:view', 'laboratorio:write',
+        'analises_clinicas:view', 'analises_clinicas:write',
     },
     Role.COMUNICACAO: {
         'dashboard:view', 'command_center:view',

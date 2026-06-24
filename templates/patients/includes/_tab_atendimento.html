@@ -78,20 +78,20 @@
                 <tbody style="font-size: 0.95rem;">
 	                    {% if appointments %}
 	                    {% for appt in appointments %}
-	                    {% set appt_pending = not appt.assinatura_paciente_base64 or not appt.aluno_executor_id or not appt.professor_id %}
+	                    {% set appt_pending = not appt.assinatura_paciente_base64 or not appt.executor_id or not appt.validator_id %}
 	                    <tr style="border-bottom: 1px solid hsl(var(--border)); {{ 'background:#fffbeb;' if appt_pending else '' }}">
                         <td style="padding: 1rem; white-space: nowrap;">{{ (appt.data|string).split(' ')[0] if appt.data
                             else '' }}</td>
                         <td style="padding: 1rem;">{{ appt.observacoes }}</td>
                         <td style="padding: 1rem; text-align: center;">
-                            {% if appt.aluno_executor_nome %}
+                            {% if appt.executor_name %}
                             <span
                                 style="display: inline-flex; align-items: center; gap: 0.4rem; color: hsl(var(--success)); font-weight: 600; font-size: 0.9rem; background: hsl(var(--success)/0.1); padding: 0.4rem 0.8rem; border-radius: var(--radius-sm);">
-                                ✅ {{ appt.aluno_executor_nome }}
+                                ✅ {{ appt.executor_name }}
                             </span>
                             {% elif can('attendance:write') and can('documents:sign') %}
                             <button
-                                onclick="openStudentSignModal('{{ url_for('patients.sign_student_atendimento', id=patient.id, appt_id=appt.id) }}')"
+                                onclick="openExecutorSignModal('{{ url_for('patients.sign_executor_atendimento', id=patient.id, appt_id=appt.id) }}')"
                                 class="btn btn-outline"
                                 style="padding: 0.4rem 0.8rem; font-size: 0.85rem; color: hsl(var(--primary)); border-color: hsl(var(--primary));">
                                 📝 Profissional
@@ -123,16 +123,16 @@
                             {% endif %}
                         </td>
                         <td style="padding: 1rem; text-align: center;">
-                            {% if appt.professor_nome %}
+                            {% if appt.validator_name %}
                             <span
                                 style="display: inline-flex; align-items: center; gap: 0.4rem; color: hsl(var(--success)); font-weight: 600; font-size: 0.9rem; background: hsl(var(--success)/0.1); padding: 0.4rem 0.8rem; border-radius: var(--radius-sm);">
                                 ✅ 
-                                {% if appt.professor_role == 'admin' %}Adm.
-                                {% elif appt.professor_role == 'clinicos' %}Clín.
-                                {% elif appt.professor_role == 'dentista' %}Dent.
-                                {% elif appt.professor_role == 'tsb' %}TSB
+                                {% if appt.validator_role == 'admin' %}Adm.
+                                {% elif appt.validator_role == 'clinicos' %}Clín.
+                                {% elif appt.validator_role == 'dentista' %}Dent.
+                                {% elif appt.validator_role == 'tsb' %}TSB
                                 {% else %}Prof.{% endif %}
-                                {{ appt.professor_full_name or appt.professor_nome }}
+                                {{ appt.validator_full_name or appt.validator_name }}
                             </span>
                             {% elif can('attendance:write') and can('documents:sign') %}
                             <button
@@ -145,7 +145,7 @@
                         </td>
                         <td style="padding: 1rem; text-align: right; white-space: nowrap;">
                             {% if can('attendance:write') %}
-                            {% if current_user.id == appt.created_by or current_user.id == appt.professor_id or
+                            {% if current_user.id == appt.created_by or current_user.id == appt.validator_id or
                             current_user.is_admin %}
                             <button class="btn btn-outline" style="padding: 0.4rem; font-size: 0.85rem;"
                                 title="Editar" data-patient="{{ patient.id }}" data-appt="{{ appt.id }}"

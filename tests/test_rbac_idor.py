@@ -53,6 +53,8 @@ from blueprints.endodontia import endodontia_bp
 from blueprints.exams import exams_bp
 from blueprints.patients import patients_bp
 from blueprints.prosthesis import _patient_scope_matches, prosthesis_bp
+from blueprints.radiologia import radiologia_bp
+from blueprints.analises_clinicas import analises_clinicas_bp
 from constants import ACTIVE_ROLE_LABELS, Role
 from services.authorization_service import (
     TAB_ACCESS_RULES,
@@ -97,6 +99,7 @@ def _allowed_roles(endpoint, method='GET'):
                 Role.RECEPCAO,
                 Role.CME,
                 Role.RADIOLOGIA,
+                Role.ANALISES_CLINICAS,
                 Role.AUDITORIA,
             },
         ),
@@ -127,9 +130,29 @@ def _allowed_roles(endpoint, method='GET'):
         (
             'exams.clinico_laboratorial',
             'GET',
-            {Role.ADMIN, Role.CLINICOS, Role.CME},
+            {Role.ADMIN, Role.CLINICOS, Role.CME, Role.ANALISES_CLINICAS},
         ),
         ('exams.delete_exam', 'POST', {Role.ADMIN, Role.CLINICOS}),
+        (
+            'exams.solicitar_imagem',
+            'GET',
+            {Role.ADMIN, Role.CLINICOS, Role.RADIOLOGIA},
+        ),
+        (
+            'exams.solicitar_clinico_laboratorial',
+            'GET',
+            {Role.ADMIN, Role.CLINICOS, Role.CME, Role.ANALISES_CLINICAS},
+        ),
+        (
+            'radiologia.solicitacoes',
+            'GET',
+            {Role.ADMIN, Role.RADIOLOGIA},
+        ),
+        (
+            'analises_clinicas.solicitacoes',
+            'GET',
+            {Role.ADMIN, Role.ANALISES_CLINICAS},
+        ),
         (
             'documents.add_receituario',
             'POST',
@@ -157,7 +180,7 @@ def _allowed_roles(endpoint, method='GET'):
         ),
     ),
 )
-def test_route_policy_matches_the_nine_active_profiles(
+def test_route_policy_matches_the_ten_active_profiles(
     endpoint,
     method,
     expected_roles,
@@ -169,6 +192,7 @@ def test_route_policy_matches_the_nine_active_profiles(
         Role.RECEPCAO,
         Role.CME,
         Role.RADIOLOGIA,
+        Role.ANALISES_CLINICAS,
         Role.COMUNICACAO,
         Role.SSA_SMS,
         Role.AUDITORIA,
@@ -185,6 +209,8 @@ def test_every_clinical_route_has_a_backend_access_policy():
         documents_bp,
         endodontia_bp,
         prosthesis_bp,
+        radiologia_bp,
+        analises_clinicas_bp,
     ):
         app.register_blueprint(blueprint)
 
@@ -196,6 +222,8 @@ def test_every_clinical_route_has_a_backend_access_policy():
         'documents',
         'endodontia',
         'prosthesis',
+        'radiologia',
+        'analises_clinicas',
     }
     for flask_rule in app.url_map.iter_rules():
         if flask_rule.endpoint.split('.', 1)[0] not in protected_blueprints:
@@ -319,6 +347,7 @@ def test_exam_scope_uses_exam_anamnesis_and_type_together(monkeypatch):
     (
         ('receituario_31_9.pdf', (31, 9)),
         ('atestado_9_42.pdf', (9, 42)),
+        ('declaracao_comparecimento_9_42.pdf', (9, 42)),
         ('encaminhamento_18_9.pdf', (18, 9)),
     ),
 )

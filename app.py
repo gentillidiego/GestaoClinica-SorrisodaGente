@@ -17,7 +17,7 @@ from extensions import limiter
 from constants import get_role_label
 from services.security_service import can, deny_access
 from services.authorization_service import describe_rule, get_access_rule, rule_allows
-from services.sigtap_service import seed_odontology_sigtap
+from services.sigtap_service import format_sigtap_code, seed_odontology_sigtap
 from services.web_security_service import register_web_security
 from services.upload_security_service import CLINICAL_UPLOAD_MAX_REQUEST_BYTES
 from version import __version__
@@ -152,6 +152,7 @@ def create_app():
         return {
             'can': can,
             'role_label': get_role_label,
+            'format_sigtap_code': format_sigtap_code,
         }
 
     # Inicializar Banco de Dados
@@ -169,7 +170,9 @@ def create_app():
     from blueprints.endodontia import endodontia_bp
     from blueprints.reports_bp import reports_bp
     from blueprints.professional_registration import professional_registration_bp
-    
+    from blueprints.radiologia import radiologia_bp
+    from blueprints.analises_clinicas import analises_clinicas_bp
+
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(admin_bp)
@@ -183,6 +186,8 @@ def create_app():
     app.register_blueprint(triage_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(professional_registration_bp)
+    app.register_blueprint(radiologia_bp)
+    app.register_blueprint(analises_clinicas_bp)
 
     # Configura logging e hooks de monitoramento
     configure_logging(app)

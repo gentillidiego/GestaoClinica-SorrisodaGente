@@ -2,23 +2,69 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_required, current_user
 from database import execute, query
 from services.signature_evidence_service import (
+    A_ROGO_DECLARATION,
+    SIGNATURE_MARKER_A_ROGO,
+    SIGNATURE_MODE_A_ROGO,
     SIGNATURE_MODE_CANVAS,
     build_generic_signature_payload,
+    json_dumps,
     register_signature_event,
+    validate_a_rogo_signer,
+    wants_a_rogo,
 )
 from services.web_security_service import flash_internal_error
 
 anamnesis_bp = Blueprint('anamnesis', __name__, url_prefix='/anamnesis')
 
 
-def _record_anamnesis_signature(anamnesis_id, patient, form_data, action='created'):
+def _prepare_anamnesis_signature(form_data):
     assinatura = form_data.get('assinatura_base64')
-    if not assinatura:
-        return None
+    signature_mode = SIGNATURE_MODE_A_ROGO if wants_a_rogo(form_data) else SIGNATURE_MODE_CANVAS
+    signer = current_user
+    declaration_text = None
+    auth_method = 'patient_canvas_session'
+    witnesses = []
+
+    if signature_mode == SIGNATURE_MODE_A_ROGO:
+        signer = validate_a_rogo_signer(
+            form_data.get('rogo_validator_username'),
+            form_data.get('rogo_validator_password'),
+        )
+        assinatura = SIGNATURE_MARKER_A_ROGO
+        declaration_text = A_ROGO_DECLARATION
+        auth_method = 'login_senha_cd_a_rogo'
+    elif not assinatura:
+        raise ValueError('A assinatura do paciente é obrigatória.')
+
+    return {
+        'assinatura': assinatura,
+        'signature_mode': signature_mode,
+        'signer': signer,
+        'declaration_text': declaration_text,
+        'auth_method': auth_method,
+        'witnesses': witnesses,
+    }
+
+
+def _record_anamnesis_signature(
+    anamnesis_id,
+    patient,
+    form_data,
+    signature_data,
+    action='created',
+):
+    assinatura = signature_data['assinatura']
+    signature_mode = signature_data['signature_mode']
+    signer = signature_data['signer']
+    declaration_text = signature_data['declaration_text']
+    auth_method = signature_data['auth_method']
+    witnesses = signature_data['witnesses']
+    signer_id = signer['id'] if isinstance(signer, dict) else signer.id
+
     payload = build_generic_signature_payload(
         'anamnesis',
         patient,
-        SIGNATURE_MODE_CANVAS,
+        signature_mode,
         document_data={
             'anamnesis_id': anamnesis_id,
             'action': action,
@@ -27,35 +73,46 @@ def _record_anamnesis_signature(anamnesis_id, patient, form_data, action='create
             'tem_alergia': form_data.get('tem_alergia'),
             'tomando_medicamento': form_data.get('tomando_medicamento'),
         },
-        signature_capture=assinatura,
-        signer=current_user,
+        signature_capture=assinatura if signature_mode == SIGNATURE_MODE_CANVAS else None,
+        witnesses=witnesses,
+        signer=signer,
     )
     evidence = register_signature_event(
         document_type='anamnesis',
         document_id=anamnesis_id,
         patient=patient,
-        signature_mode=SIGNATURE_MODE_CANVAS,
+        signature_mode=signature_mode,
         payload=payload,
-        signed_by_user=current_user,
-        auth_method='patient_canvas_session',
+        signed_by_user=signer,
+        auth_method=auth_method,
+        declaration_text=declaration_text,
+        witnesses=witnesses,
         metadata={'anamnesis_action': action},
     )
     execute(
         """
         UPDATE anamnesis
-        SET assinatura_modo = %s,
+        SET assinatura_base64 = %s,
+            assinatura_modo = %s,
             assinatura_event_id = %s,
             assinatura_document_hash = %s,
+            assinatura_a_rogo_por = %s,
+            assinatura_a_rogo_declaracao = %s,
+            assinatura_a_rogo_testemunhas = %s::jsonb,
             assinatura_auth_method = %s,
             assinatura_source_ip = %s,
             assinatura_user_agent = %s
         WHERE id = %s
         """,
         (
-            SIGNATURE_MODE_CANVAS,
+            assinatura,
+            signature_mode,
             evidence['event_id'],
             evidence['document_hash'],
-            'patient_canvas_session',
+            signer_id if signature_mode == SIGNATURE_MODE_A_ROGO else None,
+            declaration_text,
+            json_dumps(witnesses),
+            auth_method,
             evidence['source_ip'],
             evidence['user_agent'],
             anamnesis_id,
@@ -87,6 +144,13 @@ def form(patient_id):
         return redirect(url_for('anamnesis.search'))
 
     if request.method == 'POST':
+        try:
+            signature_data = _prepare_anamnesis_signature(request.form)
+        except ValueError as exc:
+            flash(str(exc), 'danger')
+            from datetime import datetime
+            return render_template('anamnesis/form.html', patient=patient, now=datetime.now())
+
         # Coleta de dados seguindo o esquema do banco
         fields = [
             'patient_id', 'queixa_principal', 'historia_doenca_atual',
@@ -110,13 +174,22 @@ def form(patient_id):
         
         values = [patient_id]
         for field in fields[1:]:
-            values.append(request.form.get(field))
+            if field == 'assinatura_base64':
+                values.append(signature_data['assinatura'])
+            else:
+                values.append(request.form.get(field))
             
         try:
             placeholders = ', '.join(['%s'] * len(fields))
             columns = ', '.join(fields)
             anamnesis_id = execute(f'INSERT INTO anamnesis ({columns}) VALUES ({placeholders}) RETURNING id', values)
-            _record_anamnesis_signature(anamnesis_id, patient, request.form, action='created')
+            _record_anamnesis_signature(
+                anamnesis_id,
+                patient,
+                request.form,
+                signature_data,
+                action='created',
+            )
             flash('Anamnese salva com sucesso!', 'success')
             return redirect(url_for('main.dashboard'))
         except Exception as e:
@@ -146,9 +219,15 @@ def list_completed():
 def view_anamnesis(id):
     # Busca todos os campos da anamnese e o nome do paciente
     data = query("""
-        SELECT a.*, p.nome as patient_name, p.cpf as patient_cpf, p.data_nascimento as patient_birth
+        SELECT a.*, p.nome as patient_name, p.cpf as patient_cpf,
+               p.data_nascimento as patient_birth,
+               ar.full_name as rogo_signer_name,
+               ar.username as rogo_signer_username,
+               ar.cro as rogo_signer_cro,
+               ar.cro_uf as rogo_signer_cro_uf
         FROM anamnesis a
         JOIN patients p ON a.patient_id = p.id
+        LEFT JOIN users ar ON ar.id = a.assinatura_a_rogo_por
         WHERE a.id = %s
     """, (id,), one=True)
     
@@ -175,6 +254,12 @@ def edit_anamnesis(id):
             flash('Senha de confirmação incorreta.', 'danger')
             return render_template('anamnesis/edit_anamnesis.html', a=anamnesis)
 
+        try:
+            signature_data = _prepare_anamnesis_signature(request.form)
+        except ValueError as exc:
+            flash(str(exc), 'danger')
+            return render_template('anamnesis/edit_anamnesis.html', a=anamnesis)
+
         # Campos para atualização (excluindo patient_id e id)
         fields = [
             'queixa_principal', 'historia_doenca_atual',
@@ -197,7 +282,10 @@ def edit_anamnesis(id):
         ]
         
         set_clause = ', '.join([f"{f}=%s" for f in fields])
-        values = [request.form.get(f) for f in fields]
+        values = [
+            signature_data['assinatura'] if field == 'assinatura_base64' else request.form.get(field)
+            for field in fields
+        ]
         values.append(id)
         
         try:
@@ -208,7 +296,13 @@ def edit_anamnesis(id):
                 'cpf': anamnesis.get('patient_cpf'),
                 'rg': anamnesis.get('patient_rg'),
             }
-            _record_anamnesis_signature(id, patient, request.form, action='updated')
+            _record_anamnesis_signature(
+                id,
+                patient,
+                request.form,
+                signature_data,
+                action='updated',
+            )
             flash('Anamnese atualizada com sucesso!', 'success')
             return redirect(url_for('anamnesis.view_anamnesis', id=id))
         except Exception as e:

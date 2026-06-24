@@ -250,7 +250,7 @@
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
                 onclick="handleTabClick(event, 'tab-receituario')">Receituário</button>
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"
-                onclick="handleTabClick(event, 'tab-atestado')">Atestado</button>
+                onclick="handleTabClick(event, 'tab-atestado')">Atestado / Declaração</button>
             {% endif %}
             {% if can('exams:view') or can('estomatologia:view') or can('endodontia:view') %}
             <button class="tab-btn {{ 'disabled' if not tcle_signed }}" data-locked="{{ '0' if tcle_signed else '1' }}"

@@ -64,7 +64,7 @@ def _get_endodontia_case(endo_id):
                u.username as profissional_username
         FROM endodontia e
         JOIN patients p ON e.patient_id = p.id
-        LEFT JOIN users u ON e.aluno_id = u.id
+        LEFT JOIN users u ON e.operator_id = u.id
         WHERE e.id = %s
     ''', (endo_id,), one=True)
 
@@ -148,7 +148,7 @@ def add_element(patient_id):
         
     try:
         endo_id = execute('''
-            INSERT INTO endodontia (patient_id, elemento_dentario, aluno_id)
+            INSERT INTO endodontia (patient_id, elemento_dentario, operator_id)
             VALUES (%s, %s, %s)
             RETURNING id
         ''', (patient_id, elemento, current_user.id))
@@ -189,15 +189,15 @@ def followup(endo_id):
         return redirect(url_for('patients.view_patient', id=endo['patient_id']) + '#tab-endodontia')
         
     followups = query('''
-        SELECT f.*, u.username as professor_nome, u.role as professor_role
+        SELECT f.*, u.username as validator_name, u.role as validator_role
         FROM endodontia_followup f
-        LEFT JOIN users u ON f.professor_id = u.id
+        LEFT JOIN users u ON f.validator_id = u.id
         WHERE f.endodontia_id = %s
         ORDER BY COALESCE(f.numero_sessao, 0) DESC, f.data DESC, f.criado_em DESC
     ''', (endo_id,))
     pending_followups = [
         f for f in followups or []
-        if not f.get('assinatura_paciente_base64') or not f.get('professor_id')
+        if not f.get('assinatura_paciente_base64') or not f.get('validator_id')
     ]
     
     canais = query('SELECT * FROM endodontia_canais WHERE endodontia_id = %s', (endo_id,))
@@ -1144,12 +1144,12 @@ def sign_patient(followup_id):
         
     return redirect(url_for('endodontia.followup', endo_id=endo_id))
 
-@endodontia_bp.route('/followup/sign_professor/<int:followup_id>', methods=['POST'])
+@endodontia_bp.route('/followup/sign_validator/<int:followup_id>', methods=['POST'])
 @login_required
-def sign_professor(followup_id):
+def sign_validator(followup_id):
     endo_id = _as_int_or_none(request.form.get('endo_id'))
-    username = request.form.get('prof_username')
-    password = request.form.get('prof_password')
+    username = request.form.get('validator_username')
+    password = request.form.get('validator_password')
     endo = _get_endodontia_case(endo_id)
     if _case_unavailable(endo):
         flash('Acompanhamento endodôntico indisponível para validação.', 'danger')
@@ -1176,7 +1176,7 @@ def sign_professor(followup_id):
     try:
         execute('''
             UPDATE endodontia_followup 
-            SET professor_id = %s, status = 'Concluído' 
+            SET validator_id = %s, status = 'Concluído'
             WHERE id = %s AND endodontia_id = %s
         ''', (prof['id'], followup_id, endo_id))
         audit_log(
@@ -1210,8 +1210,8 @@ def sign_professor(followup_id):
 @login_required
 def delete_element(endo_id):
     requested_patient_id = _as_int_or_none(request.form.get('patient_id'))
-    username = request.form.get('prof_username')
-    password = request.form.get('prof_password')
+    username = request.form.get('validator_username')
+    password = request.form.get('validator_password')
     reason = (request.form.get('motivo_cancelamento') or '').strip()
     
     endo = _get_endodontia_case(endo_id)

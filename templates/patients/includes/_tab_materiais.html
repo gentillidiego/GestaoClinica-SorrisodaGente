@@ -78,7 +78,7 @@
                     <label class="form-label">Profissional responsável</label>
                     <select name="professional_id" class="form-control">
                         <option value="{{ current_user.id }}">Eu mesmo: {{ current_user.full_name or current_user.username }}</option>
-                        {% for user in students or [] %}
+                        {% for user in clinical_users or [] %}
                         <option value="{{ user.id }}">{{ user.full_name or user.username }}</option>
                         {% endfor %}
                     </select>

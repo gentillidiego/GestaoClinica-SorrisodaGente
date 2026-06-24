@@ -59,7 +59,7 @@ def _clear_first_access_session():
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
-@limiter.limit("5 per minute; 20 per hour")
+@limiter.limit("5 per minute; 20 per hour", methods=['POST'])
 def login():
     if request.method == 'POST':
         username = (request.form.get('username') or '').strip()
@@ -115,7 +115,7 @@ def login():
 
 
 @auth_bp.route('/primeiro-acesso', methods=['GET', 'POST'])
-@limiter.limit("5 per minute; 20 per hour")
+@limiter.limit("5 per minute; 20 per hour", methods=['POST'])
 def first_access():
     if request.method == 'POST':
         username = (request.form.get('username') or '').strip()
@@ -147,7 +147,7 @@ def first_access():
 
 
 @auth_bp.route('/primeiro-acesso/definir-senha', methods=['GET', 'POST'])
-@limiter.limit("10 per hour")
+@limiter.limit("10 per hour", methods=['POST'])
 def complete_first_access_page():
     user_id = session.get(FIRST_ACCESS_SESSION_KEY)
     verified = session.get(FIRST_ACCESS_VERIFIED_AT_KEY)
@@ -200,7 +200,7 @@ def complete_first_access_page():
 
 
 @auth_bp.route('/esqueci-senha', methods=['GET', 'POST'])
-@limiter.limit("5 per minute; 20 per hour")
+@limiter.limit("5 per minute; 20 per hour", methods=['POST'])
 def forgot_password():
     if request.method == 'POST':
         identifier = (request.form.get('identifier') or '').strip()
@@ -241,7 +241,7 @@ def forgot_password():
 
 
 @auth_bp.route('/redefinir-senha', methods=['GET', 'POST'])
-@limiter.limit("10 per hour")
+@limiter.limit("10 per hour", methods=['POST'])
 def reset_password():
     token = (request.args.get('token') or request.form.get('token') or '').strip()
     user_data = get_user_by_reset_token(token) if token else None

@@ -1,14 +1,26 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, make_response
+from flask import Blueprint, current_app, render_template, request, redirect, url_for, flash, make_response
 from flask_login import login_required, current_user
 from database import execute, query
 import os
 import re
 import weasyprint
+from pathlib import Path
 from tasks.pdf_tasks import generate_pdf_task
 from celery.result import AsyncResult
 from celery_app import celery
 from services.institutional_report_service import role_can_access_report_type
 from services.bi_report_service import BI_REPORT_TYPE
+from services.clinical_document_service import (
+    DOCUMENT_TYPE_ATESTADO,
+    DOCUMENT_TYPE_DECLARACAO,
+    document_type_label,
+    format_date_pt,
+    format_time,
+    local_now,
+    normalize_document_type,
+    normalize_time_range,
+)
+from services.dental_cid_service import get_dental_cid
 from services.security_service import audit_log, deny_access
 from services.sensitive_file_service import safe_file_in_directory, sensitive_file_response
 from services.web_security_service import flash_internal_error, flash_recorded_error
@@ -35,6 +47,18 @@ def _clinical_pdf_context(filename):
             SELECT a.id, a.patient_id
             FROM atestados a
             WHERE a.patient_id = %s AND a.id = %s
+            """,
+            lambda match: (int(match.group(1)), int(match.group(2))),
+        ),
+        (
+            'declaracao_comparecimento',
+            r'^declaracao_comparecimento_(\d+)_(\d+)\.pdf$',
+            """
+            SELECT a.id, a.patient_id
+            FROM atestados a
+            WHERE a.patient_id = %s
+              AND a.id = %s
+              AND a.tipo_documento = 'declaracao_comparecimento'
             """,
             lambda match: (int(match.group(1)), int(match.group(2))),
         ),
@@ -209,19 +233,105 @@ def delete_receituario(patient_id, doc_id):
 @documents_bp.route('/<int:patient_id>/atestado/add', methods=['POST'])
 @login_required
 def add_atestado(patient_id):
-    motivo = request.form.get('motivo')
-    dias = request.form.get('dias_repouso')
-    cid = request.form.get('cid')
-    observacao = request.form.get('observacao')
+    patient = query(
+        "SELECT id, nome FROM patients WHERE id = %s",
+        (patient_id,),
+        one=True,
+    )
+    if not patient:
+        flash('Paciente não encontrado.', 'danger')
+        return redirect(url_for('patients.list_patients'))
+
+    document_type = normalize_document_type(request.form.get('tipo_documento'))
+    if not document_type:
+        flash('Selecione um tipo de documento válido.', 'danger')
+        return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-atestado')
+
+    motivo = (request.form.get('motivo') or '').strip() or None
+    dias = request.form.get('dias_repouso', type=int)
+    cid = (request.form.get('cid') or '').strip() or None
+    cid_description = None
+    cid_authorized = False
+    observacao = (request.form.get('observacao') or '').strip() or None
+    data_comparecimento = None
+    hora_inicio = None
+    hora_fim = None
+
+    if document_type == DOCUMENT_TYPE_ATESTADO:
+        if not motivo:
+            flash('Informe o motivo do atestado.', 'danger')
+            return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-atestado')
+        if dias is not None and dias < 0:
+            flash('A quantidade de dias de repouso não pode ser negativa.', 'danger')
+            return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-atestado')
+        if cid:
+            cid_entry = get_dental_cid(cid)
+            if not cid_entry:
+                flash('Selecione um CID odontológico válido da listagem.', 'danger')
+                return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-atestado')
+            if request.form.get('cid_autorizado') != '1':
+                flash('Confirme a autorização do paciente para incluir o CID.', 'danger')
+                return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-atestado')
+            cid = cid_entry.code
+            cid_description = cid_entry.description
+            cid_authorized = True
+    else:
+        if request.form.get('confirmou_comparecimento') != '1':
+            flash('Confirme que o paciente compareceu ao atendimento hoje.', 'danger')
+            return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-atestado')
+        try:
+            hora_inicio, hora_fim = normalize_time_range(
+                request.form.get('hora_inicio'),
+                request.form.get('hora_fim'),
+            )
+        except ValueError as exc:
+            flash(str(exc), 'danger')
+            return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-atestado')
+        data_comparecimento = local_now().date()
+        motivo = None
+        dias = None
+        cid = None
+        cid_description = None
+        cid_authorized = False
     
     try:
-        execute('''
-            INSERT INTO atestados (patient_id, created_by, motivo, dias_repouso, cid, observacao)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        ''', (patient_id, current_user.id, motivo, dias, cid, observacao))
-        flash('Atestado salvo com sucesso.', 'success')
+        document_id = execute('''
+            INSERT INTO atestados (
+                patient_id, created_by, tipo_documento, motivo, dias_repouso,
+                cid, cid_descricao, cid_autorizado, observacao,
+                data_comparecimento, hora_inicio, hora_fim
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        ''', (
+            patient_id,
+            current_user.id,
+            document_type,
+            motivo,
+            dias,
+            cid,
+            cid_description,
+            cid_authorized,
+            observacao,
+            data_comparecimento,
+            hora_inicio,
+            hora_fim,
+        ))
+        audit_log(
+            action='clinical_document_created',
+            module='documents',
+            entity_type='atestado',
+            entity_id=document_id,
+            patient_id=patient_id,
+            details={
+                'document_type': document_type,
+                'attendance_date': data_comparecimento,
+                'has_time_range': bool(hora_inicio and hora_fim),
+            },
+        )
+        flash(f'{document_type_label(document_type)} salvo com sucesso.', 'success')
     except Exception as e:
-        flash_internal_error('Falha ao salvar atestado')
+        flash_internal_error('Falha ao salvar atestado ou declaração')
         
     return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-atestado')
 
@@ -238,14 +348,14 @@ def delete_atestado(patient_id, doc_id):
         one=True,
     )
     if not doc or (current_user.id != doc['created_by'] and not current_user.is_admin):
-        flash('Sem permissão para excluir este atestado.', 'danger')
+        flash('Sem permissão para excluir este documento.', 'danger')
         return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-atestado')
         
     try:
         execute('DELETE FROM atestados WHERE id = %s AND patient_id = %s', (doc_id, patient_id))
-        flash('Atestado excluído.', 'success')
+        flash('Documento excluído.', 'success')
     except Exception as e:
-        flash_internal_error('Falha ao excluir atestado')
+        flash_internal_error('Falha ao excluir atestado ou declaração')
         
     return redirect(url_for('patients.view_patient', id=patient_id) + '#tab-atestado')
 
@@ -269,7 +379,14 @@ def pdf_receituario(patient_id, doc_id):
     except:
         doc['prescricao_parsed'] = None
         
-    html = render_template('pdfs/receituario_pdf.html', doc=doc, patient=patient, prof=prof)
+    html = render_template(
+        'pdfs/receituario_pdf.html',
+        doc=doc,
+        patient=patient,
+        prof=prof,
+        attendance_date=format_date_pt(doc.get('data')),
+        logo_uri=(Path(current_app.root_path) / 'static' / 'logo_sorriso_horizontal.png').resolve().as_uri(),
+    )
     
     # Prepara caminhos
     pdf_dir = os.path.join(os.getcwd(), 'pdf_temp')
@@ -291,11 +408,32 @@ def pdf_atestado(patient_id, doc_id):
         return "Not found", 404
     prof = query("SELECT * FROM users WHERE id = %s", (doc['created_by'],), one=True)
         
-    html = render_template('pdfs/atestado_pdf.html', doc=doc, patient=patient, prof=prof)
+    document_type = doc.get('tipo_documento') or DOCUMENT_TYPE_ATESTADO
+    if document_type == DOCUMENT_TYPE_DECLARACAO:
+        html = render_template(
+            'pdfs/declaracao_comparecimento_pdf.html',
+            doc=doc,
+            patient=patient,
+            prof=prof,
+            attendance_date=format_date_pt(doc.get('data_comparecimento') or doc.get('data').date()),
+            start_time=format_time(doc.get('hora_inicio')),
+            end_time=format_time(doc.get('hora_fim')),
+            logo_uri=(Path(current_app.root_path) / 'static' / 'logo_sorriso_horizontal.png').resolve().as_uri(),
+        )
+        filename = f'declaracao_comparecimento_{patient_id}_{doc_id}.pdf'
+    else:
+        html = render_template(
+            'pdfs/atestado_pdf.html',
+            doc=doc,
+            patient=patient,
+            prof=prof,
+            attendance_date=format_date_pt(doc.get('data')),
+            logo_uri=(Path(current_app.root_path) / 'static' / 'logo_sorriso_horizontal.png').resolve().as_uri(),
+        )
+        filename = f'atestado_{patient_id}_{doc_id}.pdf'
     
     pdf_dir = os.path.join(os.getcwd(), 'pdf_temp')
     os.makedirs(pdf_dir, exist_ok=True)
-    filename = f'atestado_{patient_id}_{doc_id}.pdf'
     output_path = os.path.join(pdf_dir, filename)
     
     task = generate_pdf_task.delay(html, output_path)

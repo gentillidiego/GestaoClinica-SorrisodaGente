@@ -3,6 +3,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, render_template_string, session
 from flask_wtf.csrf import CSRFProtect
+from werkzeug.exceptions import TooManyRequests
 
 from services.web_security_service import (
     regenerate_session_after_authentication,
@@ -62,6 +63,26 @@ def test_session_cookie_and_https_headers_are_hardened():
     assert "form-action 'self'" in csp
     assert 'https://cdn.jsdelivr.net' in csp
     assert 'https://fonts.googleapis.com' in csp
+
+
+def test_local_training_can_disable_secure_cookie(monkeypatch):
+    monkeypatch.setenv('SESSION_COOKIE_SECURE', 'false')
+    app = _security_app()
+
+    @app.get('/session')
+    def create_training_session():
+        session['user_id'] = 7
+        return jsonify({'ok': True})
+
+    response = app.test_client().get(
+        '/session',
+        base_url='http://127.0.0.1:5103',
+    )
+
+    cookie = response.headers['Set-Cookie']
+    assert 'Secure' not in cookie
+    assert 'HttpOnly' in cookie
+    assert app.config['PREFERRED_URL_SCHEME'] == 'http'
 
 
 def test_internal_error_response_hides_sensitive_details():
@@ -186,3 +207,35 @@ def test_logout_route_accepts_post_only():
     assert "<form action=\"{{ url_for('auth.logout') }}\" method=\"POST\"" in base_template
     assert 'name="csrf_token"' in base_template
     assert "<a href=\"{{ url_for('auth.logout') }}\"" not in base_template
+
+
+def test_auth_rate_limits_apply_only_to_submissions():
+    auth_source = (PROJECT_ROOT / 'blueprints' / 'auth.py').read_text(
+        encoding='utf-8'
+    )
+
+    assert (
+        '@limiter.limit("5 per minute; 20 per hour", methods=[\'POST\'])'
+        in auth_source
+    )
+    assert '@limiter.limit("10 per hour", methods=[\'POST\'])' in auth_source
+
+
+def test_rate_limit_uses_safe_error_response():
+    app = _security_app()
+
+    @app.get('/limited')
+    def limited():
+        return 'ok'
+
+    with app.test_request_context(
+        '/limited',
+        base_url='https://sorrisodagentealagoas.com',
+        headers={'Accept': 'application/json'},
+    ):
+        response = app.handle_user_exception(
+            TooManyRequests()
+        )
+
+    assert response[1] == 429
+    assert 'bloqueou temporariamente' in response[0].get_json()['error']

@@ -37,6 +37,14 @@ BLUEPRINT_DEFAULTS = {
         'GET': rule('patients:view', 'prosthesis:view'),
         'POST': rule('patients:view', 'prosthesis:write'),
     },
+    'radiologia': {
+        'GET': rule('radiologia:view'),
+        'POST': rule('radiologia:write'),
+    },
+    'analises_clinicas': {
+        'GET': rule('analises_clinicas:view'),
+        'POST': rule('analises_clinicas:write'),
+    },
 }
 
 
@@ -88,7 +96,7 @@ ENDPOINT_RULES = {
     'patients.sign_patient_atendimento': {
         '*': rule('patients:view', 'attendance:write', 'documents:sign')
     },
-    'patients.sign_student_atendimento': {
+    'patients.sign_executor_atendimento': {
         '*': rule('patients:view', 'attendance:write', 'documents:sign')
     },
     'patients.sign_atendimento': {
@@ -124,6 +132,17 @@ ENDPOINT_RULES = {
         '*': rule('patients:view', 'laboratorio:view')
     },
     'exams.delete_exam': {'*': rule('patients:view', 'exams:delete')},
+    # Solicitação de exame (fila Imagem / Clínico-Laboratorial para Radiologia).
+    'exams.solicitar_tipo': {
+        '*': rule('patients:view', any_of=('exams:write', 'laboratorio:write'))
+    },
+    'exams.solicitar_imagem': {'*': rule('patients:view', 'exams:write')},
+    'exams.solicitar_clinico_laboratorial': {
+        '*': rule('patients:view', 'laboratorio:write')
+    },
+    'exams.cancelar_solicitacao': {
+        '*': rule('patients:view', any_of=('exams:write', 'laboratorio:write'))
+    },
     # Comprovantes e PDFs clínicos.
     'documents.signature_receipt': {
         '*': rule('patients:view', 'documents:sign')
@@ -159,13 +178,13 @@ ENDPOINT_RULES = {
     'endodontia.sign_patient': {
         '*': rule('patients:view', 'endodontia:write', 'documents:sign')
     },
-    'endodontia.sign_professor': {
+    'endodontia.sign_validator': {
         '*': rule('patients:view', 'endodontia:write', 'documents:sign')
     },
     'prosthesis.sign_patient': {
         '*': rule('patients:view', 'prosthesis:write', 'documents:sign')
     },
-    'prosthesis.sign_professor': {
+    'prosthesis.sign_validator': {
         '*': rule('patients:view', 'prosthesis:write', 'documents:sign')
     },
     'prosthesis.add_payment': {

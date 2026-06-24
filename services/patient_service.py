@@ -59,13 +59,23 @@ class PatientService:
         """, (patient_id,))
 
     @staticmethod
+    def get_patient_exam_requests(patient_id):
+        return query("""
+            SELECT er.*, u.full_name AS requested_by_name, u.username AS requested_by_username
+            FROM exam_requests er
+            JOIN users u ON u.id = er.requested_by
+            WHERE er.patient_id = %s
+            ORDER BY er.requested_at DESC
+        """, (patient_id,))
+
+    @staticmethod
     def get_patient_appointments(patient_id):
         return query("""
-            SELECT a.*, up.username as professor_nome, ua.username as aluno_executor_nome,
-                   up.role as professor_role, up.full_name as professor_full_name
+            SELECT a.*, up.username as validator_name, ua.username as executor_name,
+                   up.role as validator_role, up.full_name as validator_full_name
             FROM atendimentos a
-            LEFT JOIN users up ON a.professor_id = up.id
-            LEFT JOIN users ua ON a.aluno_executor_id = ua.id
+            LEFT JOIN users up ON a.validator_id = up.id
+            LEFT JOIN users ua ON a.executor_id = ua.id
             WHERE a.patient_id = %s 
             ORDER BY a.data DESC, a.id DESC
         """, (patient_id,))
@@ -74,9 +84,9 @@ class PatientService:
     def get_patient_treatments(patient_id):
         plans = query("SELECT * FROM planos_tratamento WHERE patient_id = %s ORDER BY criado_em DESC", (patient_id,))
         treatments = query("""
-            SELECT tp.*, u.username as professor_nome, u.role as professor_role, u.full_name as professor_full_name
+            SELECT tp.*, u.username as validator_name, u.role as validator_role, u.full_name as validator_full_name
             FROM tratamento_procedimentos tp
-            LEFT JOIN users u ON tp.professor_id = u.id
+            LEFT JOIN users u ON tp.validator_id = u.id
             WHERE tp.patient_id = %s
             ORDER BY tp.criado_em ASC
         """, (patient_id,))
@@ -108,9 +118,9 @@ class PatientService:
     @staticmethod
     def get_patient_prosthesis(patient_id):
         prosthesis_active = query("""
-            SELECT p.*, u.username as aluno_nome 
+            SELECT p.*, u.username as professional_name
             FROM prosthesis p
-            LEFT JOIN users u ON p.aluno_responsavel_id = u.id
+            LEFT JOIN users u ON p.responsible_professional_id = u.id
             WHERE p.patient_id = %s AND p.status = 'Ativo'
             ORDER BY p.data DESC LIMIT 1
         """, (patient_id,), one=True)
@@ -119,9 +129,9 @@ class PatientService:
         pagamentos = []
         if prosthesis_active:
             etapas = query("""
-                SELECT e.*, u.username as professor_nome, u.role as professor_role, u.full_name as professor_full_name
+                SELECT e.*, u.username as validator_name, u.role as validator_role, u.full_name as validator_full_name
                 FROM prosthesis_etapas e
-                LEFT JOIN users u ON e.professor_id = u.id
+                LEFT JOIN users u ON e.validator_id = u.id
                 WHERE e.prosthesis_id = %s
                 ORDER BY e.numero_etapa ASC
             """, (prosthesis_active['id'],))
@@ -149,7 +159,7 @@ class PatientService:
                    COALESCE(u.full_name, u.username) as profissional_nome,
                    u.username as profissional_username
             FROM endodontia e
-            LEFT JOIN users u ON e.aluno_id = u.id
+            LEFT JOIN users u ON e.operator_id = u.id
             WHERE e.patient_id = %s
               AND COALESCE(e.status, 'Ativo') != 'Cancelado'
               AND e.cancelado_em IS NULL
@@ -197,7 +207,7 @@ class PatientService:
         endodontia_elements = PatientService.get_patient_endodontia(patient_id)
         roles = tuple(sorted(CLINICAL_EXECUTOR_ROLES))
         placeholders = ', '.join(['%s'] * len(roles))
-        students = query(
+        clinical_users = query(
             f"SELECT id, username, full_name FROM users WHERE role IN ({placeholders}) ORDER BY full_name ASC",
             roles,
         )
@@ -213,5 +223,5 @@ class PatientService:
             'atestados': d_data['atestados'],
             **p_data,
             'endodontia_elements': endodontia_elements,
-            'students': students
+            'clinical_users': clinical_users
         }

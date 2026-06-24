@@ -70,7 +70,7 @@ O Prontuário é dividido em abas, carregadas sob demanda:
     *   **Endereço residencial estruturado:** A equipe informa primeiro o CEP. Quando o CEP é localizado, o sistema preenche rua, cidade, bairro e UF; a equipe completa o número.
     *   Se o CEP não for localizado, o preenchimento segue por estado, cidade, bairro, rua e número. Alagoas aparece primeiro na lista de estados.
     *   Bairro, cidade, UF, CEP e código IBGE ficam gravados em campos próprios para apoiar epidemiologia, BI e relatórios.
-*   **Anamnese:** Histórico médico e odontológico.
+*   **Anamnese:** Histórico médico e odontológico. A ficha exige assinatura do paciente ou responsável. Para paciente não alfabetizado, o CD pode registrar assinatura a rogo com login e senha, após ler a declaração, revisar as respostas em linguagem acessível e colher a confirmação verbal do paciente. O sistema registra o profissional responsável, declaração, hash SHA-256, IP, navegador/dispositivo, data/hora e evento de auditoria.
 *   **Exames / Visual (Biblioteca):** Consolida radiografias, fotos clínicas, imagens de estomatologia e imagens endodônticas. Exige legenda, data clínica e grupo comparativo quando houver acompanhamento visual.
 *   **Plano de Tratamento / Odontograma:** A aba `Plano de Tratamento` registra dente, especialidade, código SUS/SIGTAP e procedimento previsto. O código SUS/SIGTAP é filtrado conforme a especialidade escolhida, cobrindo Atenção Primária/Clínico Geral, Endodontia, Periodontia, Cirurgia Bucomaxilofacial, Prótese Dentária, Alta Complexidade/Hospitalar e Diagnóstico/Estomatologia/Radiologia. Dentes extraídos geram dados de perda dentária para o Mapa Epidemiológico.
 *   **Atendimento (Evolução Clínica):** Registro da conduta. Exige assinatura (executor, dentista, paciente). Permite vincular Procedimento SIGTAP. Quando o paciente for não alfabetizado, a confirmação do paciente pode ser registrada como `assinatura a rogo`: o CD responsável autentica com login e senha, declara que leu e explicou o procedimento ao paciente, sem necessidade de testemunhas, e o sistema grava hash SHA-256, IP, navegador/dispositivo, data/hora e trilha de auditoria.
@@ -164,7 +164,7 @@ Nesta etapa, o BI está em modo de validação do que já existe. Não entram no
     *   Diagnóstico/Suspeita oncológica ativa.
     *   Idade avançada, vulnerabilidade socioeconômica.
     *   Aguardando há muito tempo sem primeira consulta.
-2.  **Assinaturas Obrigatórias:** Documentos e evoluções aparecem na Central de Comando e no topo do Prontuário se não assinados. TCLE e confirmação do atendimento aceitam assinatura comum em tela ou, para paciente não alfabetizado, assinatura a rogo com autenticação do CD por login e senha, sem necessidade de testemunhas.
+2.  **Assinaturas Obrigatórias:** Documentos e evoluções aparecem na Central de Comando e no topo do Prontuário se não assinados. TCLE, Anamnese e confirmação do atendimento aceitam assinatura comum em tela ou, para paciente não alfabetizado, assinatura a rogo com autenticação do CD por login e senha, sem necessidade de testemunhas.
 3.  **Implantes e Pós-Operatório:** Se um "Implante" é consumido do estoque, um alerta aparecerá na Central de Comando se o pós-operatório (7 dias) não for realizado.
 4.  **Estoque Baixo / Vencimento:** Alertas ativos na Central de Comando e na tela de Estoque para lotes vencendo em 30 dias ou estoque global < mínimo.
 5.  **Endodontia com retorno vencido:** Casos endodônticos em andamento ou aguardando retorno aparecem como pendência quando a próxima sessão prevista fica anterior à data atual.
@@ -182,7 +182,7 @@ Nesta etapa, o BI está em modo de validação do que já existe. Não entram no
     uso, o profissional deve clicar em `Sair`, especialmente em equipamento
     compartilhado. Se a tela apresentar um código de referência, informe esse
     código à equipe responsável; detalhes técnicos não são exibidos ao usuário.
-*   **Assinatura a rogo:** Usada somente quando o paciente for não alfabetizado. O CD responsável deve ler e explicar o termo ou procedimento em linguagem acessível, esclarecer dúvidas, colher o consentimento verbal do paciente e autenticar o registro com seu login e senha. Não são exigidas testemunhas. O sistema grava evento probatório com modo `a_rogo`, login do CD, CPF do paciente, hash SHA-256 do conteúdo, IP, user-agent, timestamp e auditoria.
+*   **Assinatura a rogo:** Usada somente quando o paciente for não alfabetizado. No TCLE, na Anamnese ou na confirmação do atendimento, o CD responsável deve ler e explicar o documento ou procedimento em linguagem acessível, esclarecer dúvidas, colher a manifestação verbal do paciente e autenticar o registro com seu login e senha. Não são exigidas testemunhas. O sistema grava evento probatório com modo `a_rogo`, login do CD, CPF do paciente, hash SHA-256 do conteúdo, IP, user-agent, timestamp e auditoria.
 *   **Pacote probatório de assinatura:** TCLE, confirmação do atendimento, Anamnese, Prótese, Pagamentos e Endodontia geram evento técnico em `signature_events` e registro em `digital_signatures` quando há assinatura. O comprovante consolidado fica disponível pela Linha do Tempo ou por `/documents/signatures/<event_id>`.
 *   **LGPD:** Visualização de imagens só carrega se logado. Relatórios e eventos probatórios de assinatura geram Hash (SHA-256) para demonstrar integridade do conteúdo registrado.
 *   **Dados de Treinamento/Demonstração:** Os pacientes gerados por CLI para demonstração possuem `is_demo=TRUE` e não se misturam com integrações reais.
@@ -198,5 +198,5 @@ Nesta etapa, o BI está em modo de validação do que já existe. Não entram no
 > 6. Quando alterar o Resumo Operacional Diário, atualize a seção 4.1 e os manuais da Coordenação.
 > 7. Quando alterar critérios das Metas Operacionais Automáticas, atualize a seção 4.1 e os exemplos dos manuais da Coordenação.
 > 8. Quando alterar nomes ou regras das Unidades de Execução, atualize as seções 4.1 e 4.8 e os manuais de Administração, Agenda, Triagem e Coordenação.
-> 9. Quando alterar assinatura de TCLE, atendimento ou assinatura a rogo, atualize as seções 4.3, 5 e 6 e revise o treinamento de Clínicos e Recepção.
+> 9. Quando alterar assinatura de TCLE, Anamnese, atendimento ou assinatura a rogo, atualize as seções 4.3, 5 e 6 e revise o treinamento de Clínicos e Recepção.
 > 10. Quando alterar pré-cadastro, primeiro acesso, recuperação de senha ou e-mails transacionais, atualize a seção 4.8 e o manual de Administração.

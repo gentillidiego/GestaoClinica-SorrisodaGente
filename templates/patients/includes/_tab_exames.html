@@ -1,12 +1,16 @@
 
     <div class="card">
-	        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2.5rem;">
+	        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2.5rem; flex-wrap: wrap; gap: 1rem;">
 	            <h3
 	                style="font-family: var(--font-heading); font-size: 1.4rem; font-weight: 700; color: hsl(var(--primary));">
 	                Exames Complementares</h3>
 	            {% if can('exams:write') %}
-	            <a href="{{ url_for('exams.check_anamnesis', patient_id=patient.id) }}" class="btn btn-primary"
-	                style="padding: 0.8rem 1.5rem; font-weight: 700;">Novo Exame ➕</a>
+	            <div style="display: flex; gap: 0.8rem;">
+	                <a href="{{ url_for('exams.check_anamnesis_solicitar', patient_id=patient.id) }}" class="btn btn-outline"
+	                    style="padding: 0.8rem 1.5rem; font-weight: 700;">Solicitar Exame 🧾</a>
+	                <a href="{{ url_for('exams.check_anamnesis', patient_id=patient.id) }}" class="btn btn-primary"
+	                    style="padding: 0.8rem 1.5rem; font-weight: 700;">Novo Exame ➕</a>
+	            </div>
                 {% endif %}
 	        </div>
 
@@ -81,4 +85,42 @@
             </div>
             {% endif %}
         </div>
+
+	        {% if exam_requests %}
+	        <div style="margin-top: 2.5rem;">
+	            <h4 style="font-size: 1.05rem; font-weight: 700; color: hsl(var(--text-main)); margin-bottom: 1rem;">
+	                Solicitações de Exame
+	            </h4>
+	            <div style="display: flex; flex-direction: column; gap: 0.8rem;">
+	                {% for req in exam_requests %}
+	                {% set status_colors = {'pendente': 'warning', 'atendido': 'success', 'cancelado': 'text-muted'} %}
+	                {% set status_color = status_colors.get(req.status, 'text-muted') %}
+	                <div class="card" style="margin-bottom: 0; padding: 1rem 1.3rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.8rem; border-left: 4px solid hsl(var(--{{ status_color }}));">
+	                    <div>
+	                        <strong style="color: hsl(var(--text-main));">
+	                            {{ 'Imagem' if req.tipo == 'imagem' else 'Clínico / Laboratorial' }}
+	                        </strong>
+	                        <span style="color: hsl(var(--text-muted)); font-size: 0.85rem; margin-left: 0.5rem;">
+	                            {{ req.tipo_imagem or req.categoria or '' }}
+	                        </span>
+	                        <div style="font-size: 0.8rem; color: hsl(var(--text-muted)); margin-top: 0.2rem;">
+	                            Solicitado em {{ (req.requested_at|string).split('.')[0] if req.requested_at else '' }}
+	                        </div>
+	                    </div>
+	                    <div style="display: flex; align-items: center; gap: 0.8rem;">
+	                        <span style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: hsl(var(--{{ status_color }})); background: hsl(var(--{{ status_color }})/0.12); padding: 0.3rem 0.7rem; border-radius: 20px;">
+	                            {{ req.status }}
+	                        </span>
+	                        {% if req.status == 'pendente' and (current_user.id == req.requested_by or current_user.is_admin) %}
+	                        <form method="post" action="{{ url_for('exams.cancelar_solicitacao', request_id=req.id) }}" style="margin: 0;">
+	                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+	                            <button type="submit" class="btn btn-outline" style="padding: 0.4rem 0.9rem; font-size: 0.8rem;">Cancelar</button>
+	                        </form>
+	                        {% endif %}
+	                    </div>
+	                </div>
+	                {% endfor %}
+	            </div>
+	        </div>
+	        {% endif %}
     </div>

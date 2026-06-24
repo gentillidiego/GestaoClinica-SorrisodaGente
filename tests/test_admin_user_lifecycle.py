@@ -133,7 +133,7 @@ def test_delete_user_blocks_when_history_exists(monkeypatch):
             }
         if 'information_schema.table_constraints' in sql:
             return [
-                {'table_schema': 'public', 'table_name': 'atendimentos', 'column_name': 'professor_id'},
+                {'table_schema': 'public', 'table_name': 'atendimentos', 'column_name': 'validator_id'},
             ]
         if 'COUNT(*) AS total' in sql:
             return {'total': 1}

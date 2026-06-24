@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Solicitar Exame de Imagem - Gestão Clínica{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/exam-image-v2.css') }}?v=2.2">
+{% endblock %}
+
+{% block content %}
+<main class="image-exam-v2 animate-fade">
+    <a class="image-exam-back" href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}">
+        <span aria-hidden="true">←</span>
+        Voltar ao prontuário
+    </a>
+
+    <header class="image-exam-header">
+        <div>
+            <span class="image-exam-eyebrow">Prontuário · Exames</span>
+            <h1>Solicitar exame de imagem</h1>
+            <p>
+                <strong>{{ anamnesis.patient_name }}</strong>
+                <span aria-hidden="true">·</span>
+                A solicitação entra na fila da Radiologia, sem necessidade de anexar arquivos agora.
+            </p>
+        </div>
+        <div class="image-exam-security" title="Armazenamento institucional protegido">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3 5 6v5c0 4.8 2.9 8.5 7 10 4.1-1.5 7-5.2 7-10V6l-7-3Z"></path>
+                <path d="m9 12 2 2 4-4"></path>
+            </svg>
+            <span>Armazenamento seguro</span>
+        </div>
+    </header>
+
+    <form class="image-exam-card" method="post" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="image-exam-section-heading">
+            <div class="image-exam-section-number">1</div>
+            <div>
+                <h2>Identifique o exame</h2>
+                <p>Só o tipo é obrigatório. O restante pode ser informado se ajudar a Radiologia.</p>
+            </div>
+        </div>
+
+        <div class="image-exam-fields">
+            <div class="image-exam-field">
+                <label for="tipo_imagem">Tipo do exame <span aria-label="obrigatório">*</span></label>
+                <select name="tipo_imagem" id="tipo_imagem" required>
+                    <option value="">Selecione o tipo</option>
+                    <optgroup label="Radiografias intrabucais">
+                        <option value="Periapical">Radiografia periapical</option>
+                        <option value="Bite-wing">Interproximal (bite-wing)</option>
+                        <option value="Oclusal">Radiografia oclusal</option>
+                    </optgroup>
+                    <optgroup label="Radiografias extrabucais">
+                        <option value="Panorâmica">Radiografia panorâmica</option>
+                        <option value="Telerradiografia">Telerradiografia lateral</option>
+                    </optgroup>
+                    <optgroup label="Exames avançados">
+                        <option value="Tomografia">Tomografia (TC / CBCT)</option>
+                        <option value="Ultrassonografia">Ultrassonografia</option>
+                        <option value="Ressonância">Ressonância magnética</option>
+                    </optgroup>
+                    <optgroup label="Fotografia">
+                        <option value="Fotografia Clínica">Fotografia clínica</option>
+                    </optgroup>
+                    <option value="Outro">Outro exame de imagem</option>
+                </select>
+            </div>
+
+            <div class="image-exam-field">
+                <label for="detalhe_escopo">Região ou dente <span>(opcional)</span></label>
+                <input
+                    type="text"
+                    name="detalhe_escopo"
+                    id="detalhe_escopo"
+                    placeholder="Ex.: dente 21, arcada superior ou ATM direita"
+                    autocomplete="off"
+                >
+            </div>
+
+            <div class="image-exam-field image-exam-field--wide">
+                <label for="observacoes">Nota clínica <span>(opcional)</span></label>
+                <textarea
+                    name="observacoes"
+                    id="observacoes"
+                    rows="3"
+                    placeholder="Justificativa ou observação relevante para a Radiologia"
+                ></textarea>
+            </div>
+        </div>
+
+        <footer class="image-exam-actions">
+            <span class="image-exam-actions__hint">Selecione o tipo de exame para enviar a solicitação.</span>
+            <div>
+                <a href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}" class="btn btn-outline">Cancelar</a>
+                <button type="submit" class="btn btn-primary">Enviar Solicitação</button>
+            </div>
+        </footer>
+    </form>
+</main>
+{% endblock %}
