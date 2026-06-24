@@ -225,6 +225,8 @@ Variáveis essenciais:
 | `RCLONE_CONFIG_HOST_DIR` | diretório OAuth gravável montado no Docker |
 | `BACKUP_RETENTION_DAYS` | retenção local |
 | `BACKUP_OFFSITE_RETENTION_DAYS` | retenção externa |
+| `WHATSAPP_ACCESS_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` | habilitam o canal WhatsApp do módulo Comunicação (ausentes = canal desabilitado) |
+| `APPOINTMENT_REMINDERS_ENABLED` | liga os lembretes automáticos de consulta |
 
 Nunca registre `.env`, tokens, senhas, refresh tokens, JSON da Service Account,
 chaves DKIM, dumps ou dados de pacientes no Git.
@@ -281,9 +283,12 @@ Regras permanentes:
 - economia no BI permanece estimativa até homologação;
 - XML e-SUS não pode ser anunciado como homologado antes de importação aceita
   no PEC municipal;
-- TCLE, Anamnese e confirmação do atendimento aceitam assinatura a rogo
-  exclusivamente para paciente não alfabetizado e exigem autenticação do CD
-  responsável.
+- TCLE aceita assinatura a rogo exclusivamente para paciente não
+  alfabetizado e exige autenticação do CD responsável;
+- Anamnese e Atendimento/Evolução não exigem mais assinatura do paciente:
+  a confirmação é sempre do clínico responsável (login e senha), e a
+  produção/e-SUS só passam a contar depois que o Profissional Executor
+  confirma a execução no Atendimento.
 
 ## Módulos
 
@@ -330,6 +335,21 @@ Regras permanentes:
 - referências SIGTAP e custos estimados;
 - relatórios institucionais;
 - preparação de remessas e-SUS APS.
+
+### Comunicação
+
+- campanhas em massa por e-mail (ativo, reaproveita o módulo de e-mail
+  transacional) e por WhatsApp Business Cloud API (integração direta com a
+  Meta, fica desabilitada automaticamente até as credenciais serem
+  configuradas);
+- segmentação de público por município, bairro, gênero e faixa etária, com
+  contagem de destinatários antes do envio;
+- lembretes automáticos de consulta (Celery Beat, desligado por padrão via
+  `APPOINTMENT_REMINDERS_ENABLED`);
+- preferências de contato por paciente (opt-in/opt-out por canal) e webhook
+  de opt-out automático via WhatsApp (palavra-chave "PARAR"/"SAIR");
+- perfil Comunicação só acessa nome, contato e dados geográficos do
+  paciente — sem acesso ao prontuário clínico.
 
 ## Uploads clínicos
 
@@ -667,7 +687,9 @@ ou pacientes fictícios. O ambiente pode ser recriado com
 | 22/06/2026 | assinatura da Anamnese | assinatura a rogo incorporada ao fluxo de produção com autenticação do CD, hash e comprovante probatório; ambiente de treinamento preservado |
 | 24/06/2026 | exames e novo perfil | design do atestado e receituário unificado ao padrão da declaração de comparecimento; criado fluxo de solicitação de exame (Imagem e Clínico/Laboratorial) com filas dedicadas para Radiologia e para o novo perfil Análises Clínicas; simplificado o Exame Físico removendo a seção de Exames Complementares duplicada; commit `627be7d` |
 | 24/06/2026 | produtividade SIGTAP e custos | crédito automático de produção SIGTAP/e-SUS ao atender Solicitação de Exame (imagem e laboratorial), creditado ao clínico solicitante; catálogo de tipos de exame restrito aos que têm código SIGTAP; novo grupo "Apoio Diagnóstico / Exames Laboratoriais"; tela "Custos SIGTAP" passou a cobrir os 138 códigos do catálogo (106 antes ausentes ficam como placeholder explícito, sem custo inventado) |
-| 24/06/2026 | assinatura e produção | removida a exigência de assinatura do paciente na Anamnese (substituída por confirmação do clínico) e no Atendimento/Evolução (simplificado para assinatura única do Profissional Executor); Plano de Tratamento passa a ser só planejamento — produção/e-SUS só contam após o Executor confirmar a execução no Atendimento (`status` `Pendente` → `Planejado` → `Concluído`); 317 testes aprovados |
+| 24/06/2026 | assinatura e produção | removida a exigência de assinatura do paciente na Anamnese (substituída por confirmação do clínico) e no Atendimento/Evolução (simplificado para assinatura única do Profissional Executor); Plano de Tratamento passa a ser só planejamento — produção/e-SUS só contam após o Executor confirmar a execução no Atendimento (`status` `Pendente` → `Planejado` → `Concluído`); 317 testes aprovados; commit `370c7b0` |
+| 24/06/2026 | despersonalização do ambiente | removidos o paciente de teste e os procedimentos associados criados para validar as mudanças de assinatura/produção; ambiente de produção zerado (0 pacientes); usuários já cadastrados preservados; evidências de assinatura/auditoria mantidas (FK `ON DELETE SET NULL`), conforme a política de retenção de 20 anos |
+| 24/06/2026 | módulo Comunicação | criado módulo administrativo de campanhas em massa por e-mail e WhatsApp Business Cloud API (integração direta com a Meta) e lembretes automáticos de consulta; novas tabelas `communication_templates/campaigns/messages/preferences`; permissões `comunicacao:view`/`write` restritas a contato e geografia do paciente (sem acesso a prontuário); canal WhatsApp desabilitado por padrão até credenciais serem configuradas; canal e-mail e lembretes operacionais desde já (lembretes desligados por padrão); 25 testes novos, suíte completa com 342 testes aprovados |
 
 ## Git e publicação
 
@@ -692,10 +714,10 @@ git push
 Tags de produção devem ser criadas somente depois de decisão **GO**. A tag
 `v4.0.0-rc.1`, quando publicada, identifica apenas esta candidata técnica.
 
-Pendência aberta em 24/06/2026: as mudanças de exames/RBAC descritas no
-registro consolidado estão validadas localmente (testes e rebuild Docker),
-mas o commit e o push para o remoto oficial ficaram para a próxima sessão de
-trabalho.
+Estado em 24/06/2026: as mudanças de exames/RBAC, assinatura/produção e o
+módulo Comunicação estão validadas localmente (testes e rebuild Docker) e
+commitadas. O push para o remoto oficial só ocorre quando solicitado
+explicitamente.
 
 ---
 

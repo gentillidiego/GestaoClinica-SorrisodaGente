@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Editar Template' if template else 'Novo Template' }}{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <h1 class="page-title">{{ 'Editar Template' if template else 'Novo Template' }}</h1>
+    <p class="page-subtitle">
+        Para WhatsApp, o conteúdo enviado é o template já aprovado pela Meta —
+        informe aqui apenas o nome e idioma exatos cadastrados no Business Manager.
+    </p>
+
+    <section class="card" style="padding:1.5rem; max-width:760px;">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            {% if not template %}
+            <div style="margin-bottom:1rem;">
+                <label class="form-label" for="channel">Canal</label>
+                <select class="form-control" id="channel" name="channel" required>
+                    <option value="email">E-mail</option>
+                    <option value="whatsapp" {% if not whatsapp_configured %}disabled{% endif %}>
+                        WhatsApp{% if not whatsapp_configured %} (não configurado){% endif %}
+                    </option>
+                </select>
+            </div>
+            <div style="margin-bottom:1rem;">
+                <label class="form-label" for="category">Categoria</label>
+                <select class="form-control" id="category" name="category" required>
+                    <option value="campanha">Campanha</option>
+                    <option value="lembrete_consulta">Lembrete de consulta</option>
+                </select>
+            </div>
+            {% endif %}
+
+            <div style="margin-bottom:1rem;">
+                <label class="form-label" for="name">Nome interno</label>
+                <input class="form-control" id="name" name="name" required
+                       value="{{ template.name if template else '' }}">
+            </div>
+
+            <div style="margin-bottom:1rem;">
+                <label class="form-label" for="subject">Assunto (somente e-mail)</label>
+                <input class="form-control" id="subject" name="subject"
+                       value="{{ template.subject if template else '' }}">
+            </div>
+
+            <div style="margin-bottom:1rem;">
+                <label class="form-label" for="body">Corpo da mensagem (e-mail) / documentação de variáveis (WhatsApp)</label>
+                <textarea class="form-control" id="body" name="body" rows="6" required
+                          placeholder="Use {{ '{{nome}}' }} para o nome do paciente.">{{ template.body if template else '' }}</textarea>
+            </div>
+
+            <div style="margin-bottom:1rem;">
+                <label class="form-label" for="whatsapp_template_name">Nome do template aprovado na Meta</label>
+                <input class="form-control" id="whatsapp_template_name" name="whatsapp_template_name"
+                       value="{{ template.whatsapp_template_name if template else '' }}">
+            </div>
+
+            <div style="margin-bottom:1rem;">
+                <label class="form-label" for="whatsapp_template_lang">Idioma do template (ex.: pt_BR)</label>
+                <input class="form-control" id="whatsapp_template_lang" name="whatsapp_template_lang"
+                       value="{{ template.whatsapp_template_lang if template else 'pt_BR' }}">
+            </div>
+
+            {% if template %}
+            <div style="margin-bottom:1rem;">
+                <label class="form-label">
+                    <input type="checkbox" name="active" {% if template.active %}checked{% endif %}>
+                    Template ativo
+                </label>
+            </div>
+            {% endif %}
+
+            <button class="btn btn-primary" type="submit">Salvar</button>
+            <a class="btn btn-outline" href="{{ url_for('comunicacao.templates_list') }}">Cancelar</a>
+        </form>
+    </section>
+</div>
+{% endblock %}

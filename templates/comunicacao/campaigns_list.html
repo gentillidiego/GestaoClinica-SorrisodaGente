@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Campanhas{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; flex-wrap:wrap; margin-bottom:2rem;">
+        <div>
+            <h1 class="page-title">Campanhas</h1>
+            <p class="page-subtitle">Histórico de campanhas de comunicação em massa.</p>
+        </div>
+        {% if current_user.can('comunicacao:write') %}
+        <a class="btn btn-primary" href="{{ url_for('comunicacao.campaign_new') }}">Nova Campanha</a>
+        {% endif %}
+    </div>
+
+    <section class="card" style="padding:0; overflow:hidden;">
+        <div class="table-container">
+            <table style="width:100%; border-collapse:collapse; background:white;">
+                <thead>
+                    <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                        <th style="padding:0.85rem;">Nome</th>
+                        <th style="padding:0.85rem;">Canal</th>
+                        <th style="padding:0.85rem;">Status</th>
+                        <th style="padding:0.85rem;">Criada por</th>
+                        <th style="padding:0.85rem;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for campaign in campaigns %}
+                    <tr style="border-bottom:1px solid hsl(var(--border));">
+                        <td style="padding:0.85rem;">{{ campaign.name }}</td>
+                        <td style="padding:0.85rem;">{{ 'WhatsApp' if campaign.channel == 'whatsapp' else 'E-mail' }}</td>
+                        <td style="padding:0.85rem;">{{ campaign.status }}</td>
+                        <td style="padding:0.85rem;">{{ campaign.created_by_name or '—' }}</td>
+                        <td style="padding:0.85rem;">
+                            <a class="btn btn-outline" href="{{ url_for('comunicacao.campaign_detail', campaign_id=campaign.id) }}">Detalhes</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">
+                            Nenhuma campanha criada ainda.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}

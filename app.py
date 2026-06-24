@@ -7,13 +7,12 @@ import redis
 from flask import Flask, render_template, g, request, redirect, url_for
 from flask_session import Session
 from flask_login import LoginManager, current_user
-from flask_wtf.csrf import CSRFProtect
 from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
 
 from database import init_db
 from utils import User
-from extensions import limiter
+from extensions import limiter, csrf
 from constants import get_role_label
 from services.security_service import can, deny_access
 from services.authorization_service import describe_rule, get_access_rule, rule_allows
@@ -29,6 +28,7 @@ from blueprints.exams import exams_bp
 from blueprints.prosthesis import prosthesis_bp
 from blueprints.agenda import agenda_bp
 from blueprints.triage import triage_bp
+from blueprints.comunicacao import comunicacao_bp
 
 load_dotenv()
 
@@ -117,7 +117,7 @@ def create_app():
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
     # Inicializações
-    csrf = CSRFProtect(app)
+    csrf.init_app(app)
     limiter.init_app(app)
     
     # Configuração do Cache (Redis)
@@ -190,6 +190,7 @@ def create_app():
     app.register_blueprint(professional_registration_bp)
     app.register_blueprint(radiologia_bp)
     app.register_blueprint(analises_clinicas_bp)
+    app.register_blueprint(comunicacao_bp)
 
     # Configura logging e hooks de monitoramento
     configure_logging(app)

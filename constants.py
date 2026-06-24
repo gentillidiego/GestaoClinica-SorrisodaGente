@@ -162,6 +162,8 @@ MODULE_PERMISSIONS = {
     'users:view',
     'users:write',
     'command_center:view',
+    'comunicacao:view',
+    'comunicacao:write',
 }
 
 
@@ -176,6 +178,7 @@ ROLE_PERMISSIONS = {
         'reports:view', 'bi:view', 'epidemiologia:view',
         'financeiro:view', 'financeiro:write',
         'integrations:view', 'integrations:write',
+        'comunicacao:view', 'comunicacao:write',
     },
     Role.CLINICOS: {
         'dashboard:view', 'command_center:view',
@@ -221,6 +224,7 @@ ROLE_PERMISSIONS = {
     Role.COMUNICACAO: {
         'dashboard:view', 'command_center:view',
         'reports:view', 'bi:view',
+        'comunicacao:view', 'comunicacao:write',
     },
     Role.SSA_SMS: {
         'dashboard:view', 'command_center:view',

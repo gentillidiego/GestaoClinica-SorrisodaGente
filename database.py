@@ -2112,6 +2112,77 @@ def _init_db_locked():
     for idx_sql in agenda_indexes:
         execute(idx_sql)
 
+    # === MÓDULO COMUNICAÇÃO (CAMPANHAS E LEMBRETES) ===
+    execute('''
+        CREATE TABLE IF NOT EXISTS communication_templates (
+            id SERIAL PRIMARY KEY,
+            channel TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT 'campanha',
+            name TEXT NOT NULL,
+            subject TEXT,
+            body TEXT NOT NULL,
+            whatsapp_template_name TEXT,
+            whatsapp_template_lang TEXT DEFAULT 'pt_BR',
+            active BOOLEAN DEFAULT TRUE,
+            created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    ''')
+    execute('''
+        CREATE TABLE IF NOT EXISTS communication_campaigns (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            channel TEXT NOT NULL,
+            template_id INTEGER REFERENCES communication_templates(id) ON DELETE SET NULL,
+            audience_filter JSONB NOT NULL DEFAULT '{}'::jsonb,
+            status TEXT NOT NULL DEFAULT 'rascunho',
+            scheduled_at TIMESTAMP,
+            created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            created_at TIMESTAMP DEFAULT NOW(),
+            sent_at TIMESTAMP,
+            total_recipients INTEGER DEFAULT 0,
+            total_sent INTEGER DEFAULT 0,
+            total_failed INTEGER DEFAULT 0
+        )
+    ''')
+    execute('''
+        CREATE TABLE IF NOT EXISTS communication_messages (
+            id SERIAL PRIMARY KEY,
+            campaign_id INTEGER REFERENCES communication_campaigns(id) ON DELETE SET NULL,
+            consulta_id INTEGER REFERENCES consultas(id) ON DELETE SET NULL,
+            patient_id INTEGER REFERENCES patients(id) ON DELETE SET NULL,
+            channel TEXT NOT NULL,
+            destination TEXT NOT NULL,
+            template_id INTEGER REFERENCES communication_templates(id) ON DELETE SET NULL,
+            status TEXT NOT NULL DEFAULT 'fila',
+            provider_message_id TEXT,
+            error_message TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            sent_at TIMESTAMP,
+            delivered_at TIMESTAMP,
+            failed_at TIMESTAMP
+        )
+    ''')
+    execute('''
+        CREATE TABLE IF NOT EXISTS communication_preferences (
+            patient_id INTEGER PRIMARY KEY REFERENCES patients(id) ON DELETE CASCADE,
+            email_opt_in BOOLEAN DEFAULT TRUE,
+            whatsapp_opt_in BOOLEAN DEFAULT FALSE,
+            marketing_opt_in BOOLEAN DEFAULT FALSE,
+            updated_at TIMESTAMP DEFAULT NOW(),
+            source TEXT
+        )
+    ''')
+    communication_indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_communication_messages_campaign ON communication_messages(campaign_id)",
+        "CREATE INDEX IF NOT EXISTS idx_communication_messages_consulta ON communication_messages(consulta_id)",
+        "CREATE INDEX IF NOT EXISTS idx_communication_messages_patient ON communication_messages(patient_id)",
+        "CREATE INDEX IF NOT EXISTS idx_communication_messages_status ON communication_messages(status)",
+        "CREATE INDEX IF NOT EXISTS idx_communication_campaigns_status ON communication_campaigns(status)",
+    ]
+    for idx_sql in communication_indexes:
+        execute(idx_sql)
+
     seed_reference_data()
     print("Banco de dados PostgreSQL inicializado/verificado com sucesso!")
 
