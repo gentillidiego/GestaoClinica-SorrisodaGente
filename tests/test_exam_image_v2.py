@@ -54,8 +54,8 @@ def make_image(filename='imagem.jpg', content=None, mimetype='image/jpeg', conte
         ('Oclusal', 'Arcada', 'radiografia'),
         ('Panorâmica', 'Complexo Maxilomandibular', 'radiografia'),
         ('Tomografia', 'Complexo Maxilomandibular', 'cbct'),
-        ('Fotografia Clínica', 'Outro', 'intraoral'),
         ('Outro', 'Outro', 'documento_complementar'),
+        ('Tipo Inexistente', 'Outro', 'documento_complementar'),
     ],
 )
 def test_image_exam_v2_infers_hidden_clinical_metadata(exam_type, scope, category):

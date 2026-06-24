@@ -583,7 +583,7 @@ def test_unsigned_document_alert_summary_uses_clinical_document_sources(monkeypa
             'patient_name': 'Paciente Assinatura',
             'document_type': 'atendimento',
             'document_label': 'Evolução clínica',
-            'missing_signatures': 'paciente, dentista responsável',
+            'missing_signatures': 'executor',
         }]
 
     monkeypatch.setattr(command_center_service, 'query', fake_query)
@@ -595,9 +595,12 @@ def test_unsigned_document_alert_summary_uses_clinical_document_sources(monkeypa
     assert 'FROM prosthesis_etapas' in sql
     assert 'FROM endodontia_followup' in sql
     assert 'UNION ALL' in sql
+    assert "a.executor_id IS NULL" in sql
+    assert 'a.assinatura_paciente_base64' not in sql
+    assert 'a.validator_id' not in sql
     assert summary['total'] == 3
     assert summary['patient_count'] == 2
-    assert summary['items'][0]['missing_signatures'] == 'paciente, dentista responsável'
+    assert summary['items'][0]['missing_signatures'] == 'executor'
 
 
 def test_patient_clinical_alert_summary_ignores_exam_validation(monkeypatch):

@@ -18,6 +18,7 @@ from constants import get_role_label
 from services.security_service import can, deny_access
 from services.authorization_service import describe_rule, get_access_rule, rule_allows
 from services.sigtap_service import format_sigtap_code, seed_odontology_sigtap
+from services.cost_reference_service import seed_missing_cost_reference_placeholders
 from services.web_security_service import register_web_security
 from services.upload_security_service import CLINICAL_UPLOAD_MAX_REQUEST_BYTES
 from version import __version__
@@ -159,6 +160,7 @@ def create_app():
     with app.app_context():
         init_db()
         seed_odontology_sigtap()
+        seed_missing_cost_reference_placeholders()
 
     # Criação dos diretórios de upload
     os.makedirs('uploads/exames', exist_ok=True)

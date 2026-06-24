@@ -28,7 +28,6 @@ from services.signature_evidence_service import (
     SIGNATURE_MARKER_A_ROGO,
     SIGNATURE_MODE_A_ROGO,
     SIGNATURE_MODE_CANVAS,
-    build_atendimento_payload,
     build_tcle_payload,
     json_dumps,
     register_signature_event,
@@ -1104,31 +1103,38 @@ def sign_treatment(id, proc_id):
     
     try:
         execute('''
-            UPDATE tratamento_procedimentos 
+            UPDATE tratamento_procedimentos
             SET validator_id = %s,
-                status = 'Concluído',
-                esus_export_status = CASE
-                    WHEN sigtap_code IS NULL THEN 'missing_sigtap'
-                    ELSE 'pending'
-                END
+                status = 'Planejado'
             WHERE id = %s AND patient_id = %s
         ''', (prof['id'], proc_id, id))
-        
+
         obs = f"Dente {proc['dente']}: {proc['descricao']}" if proc['dente'] else proc['descricao']
         if proc.get('sigtap_code'):
             obs = f"{obs}\nSIGTAP {proc['sigtap_code']} - {proc.get('sigtap_name') or ''}".strip()
-        
-        # Importa automaticamente para a aba Atendimento (Evolução)
-        # Data fica em branco até que paciente também assine
-        execute('''
-            INSERT INTO atendimentos (patient_id, data, observacoes, created_by, validator_id, status)
-            VALUES (%s, NULL, %s, %s, %s, 'Concluído')
-        ''', (id, obs, current_user.id, prof['id']))
-        
-        flash('Procedimento assinado e importado para evolução!', 'success')
+
+        # Importa para a aba Atendimento (Evolução) só se ainda não existir
+        # uma evolução vinculada a este procedimento (evita duplicar em
+        # caso de reassinatura). A produção só é confirmada quando o
+        # Profissional Executor assinar essa evolução.
+        existing_appt = query(
+            'SELECT id FROM atendimentos WHERE tratamento_procedimento_id = %s',
+            (proc_id,),
+            one=True,
+        )
+        if not existing_appt:
+            execute('''
+                INSERT INTO atendimentos (
+                    patient_id, data, observacoes, created_by,
+                    tratamento_procedimento_id, status
+                )
+                VALUES (%s, NULL, %s, %s, %s, 'Pendente')
+            ''', (id, obs, current_user.id, proc_id))
+
+        flash('Procedimento planejado! Aguardando confirmação de execução na aba Atendimento.', 'success')
     except Exception as e:
         flash_internal_error('Falha ao assinar procedimento')
-        
+
     return redirect(url_for('patients.view_patient', id=id) + '#tab-tratamento')
 
 @patients_bp.route('/<int:id>/atendimento/add', methods=['POST'])
@@ -1152,127 +1158,19 @@ def add_atendimento(id):
         
     return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
 
-@patients_bp.route('/<int:id>/atendimento/<int:appt_id>/sign_patient', methods=['POST'])
-@login_required
-def sign_patient_atendimento(id, appt_id):
-    assinatura_base64 = request.form.get('assinatura_base64')
-    signature_mode = SIGNATURE_MODE_A_ROGO if wants_a_rogo(request.form) else SIGNATURE_MODE_CANVAS
-    patient = query("SELECT * FROM patients WHERE id = %s", (id,), one=True)
-    appt = query("SELECT * FROM atendimentos WHERE id = %s AND patient_id = %s", (appt_id, id), one=True)
-
-    if not patient or not appt:
-        flash('Atendimento não encontrado para assinatura.', 'danger')
-        return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
-
-    signer = current_user
-    witnesses = []
-    declaration_text = None
-    auth_method = 'patient_canvas_session'
-
-    if signature_mode == SIGNATURE_MODE_A_ROGO:
-        try:
-            signer = validate_a_rogo_signer(
-                request.form.get('rogo_validator_username'),
-                request.form.get('rogo_validator_password'),
-            )
-            declaration_text = A_ROGO_DECLARATION
-            assinatura_base64 = SIGNATURE_MARKER_A_ROGO
-            auth_method = 'login_senha_cd_a_rogo'
-        except ValueError as exc:
-            flash('Credenciais inválidas ou profissional sem permissão para assinatura a rogo.', 'danger')
-            return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
-    elif not assinatura_base64:
-        flash('Nenhuma assinatura fornecida.', 'danger')
-        return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
-        
-    try:
-        signer_id = signer['id'] if isinstance(signer, dict) else getattr(signer, 'id', None)
-        payload = build_atendimento_payload(
-            patient,
-            appt,
-            signature_mode,
-            signature_capture=assinatura_base64 if signature_mode == SIGNATURE_MODE_CANVAS else None,
-            witnesses=witnesses,
-            signer=signer,
-        )
-        evidence = register_signature_event(
-            document_type='atendimento_patient_confirmation',
-            document_id=appt_id,
-            patient=patient,
-            signature_mode=signature_mode,
-            payload=payload,
-            signed_by_user=signer,
-            auth_method=auth_method,
-            declaration_text=declaration_text,
-            witnesses=witnesses,
-            metadata={'atendimento_id': appt_id},
-        )
-        execute('''
-            UPDATE atendimentos 
-            SET assinatura_paciente_base64 = %s,
-                assinatura_modo = %s,
-                assinatura_event_id = %s,
-                assinatura_document_hash = %s,
-                assinatura_a_rogo_por = %s,
-                assinatura_a_rogo_declaracao = %s,
-                assinatura_a_rogo_testemunhas = %s::jsonb,
-                assinatura_auth_method = %s,
-                assinatura_source_ip = %s,
-                assinatura_user_agent = %s
-            WHERE id = %s AND patient_id = %s
-        ''', (
-            assinatura_base64,
-            signature_mode,
-            evidence['event_id'],
-            evidence['document_hash'],
-            signer_id if signature_mode == SIGNATURE_MODE_A_ROGO else None,
-            declaration_text,
-            json_dumps(witnesses),
-            auth_method,
-            evidence['source_ip'],
-            evidence['user_agent'],
-            appt_id,
-            id,
-        ))
-        
-        # Gera a data quando paciente, executor e validador já confirmaram.
-        appt = query(
-            """
-            SELECT data, validator_id, executor_id
-            FROM atendimentos
-            WHERE id = %s AND patient_id = %s
-            """,
-            (appt_id, id),
-            one=True,
-        )
-        if appt['validator_id'] and appt['executor_id'] and (not appt['data'] or appt['data'] == ''):
-            execute(
-                "UPDATE atendimentos SET data = %s WHERE id = %s AND patient_id = %s",
-                (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), appt_id, id),
-            )
-            
-        if signature_mode == SIGNATURE_MODE_A_ROGO:
-            flash('Assinatura a rogo registrada com autenticação do CD e evidência de leitura e consentimento.', 'success')
-        else:
-            flash('Assinatura do paciente registrada com sucesso!', 'success')
-    except Exception as e:
-        flash_internal_error('Falha ao registrar assinatura do paciente')
-        
-    return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
-
 @patients_bp.route('/<int:id>/atendimento/<int:appt_id>/sign_executor', methods=['POST'])
 @login_required
 def sign_executor_atendimento(id, appt_id):
     username = request.form.get('executor_username')
     password = request.form.get('executor_password')
-    
+
     if not username or not password:
         flash('Usuário e senha são obrigatórios para assinar.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
-        
+
     appt = query(
         """
-        SELECT id, data, validator_id, assinatura_paciente_base64
+        SELECT id, data, tratamento_procedimento_id
         FROM atendimentos
         WHERE id = %s AND patient_id = %s
         """,
@@ -1285,7 +1183,7 @@ def sign_executor_atendimento(id, appt_id):
 
     # Verifica as credenciais do profissional executor.
     user = query("SELECT id, password, role FROM users WHERE username = %s", (username,), one=True)
-    
+
     if (
         not user
         or not check_password_hash(user['password'], password)
@@ -1293,34 +1191,49 @@ def sign_executor_atendimento(id, appt_id):
     ):
         flash('Credenciais inválidas. Assinatura não realizada.', 'danger')
         return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
-        
+
     try:
         execute('''
-            UPDATE atendimentos 
-            SET executor_id = %s
+            UPDATE atendimentos
+            SET executor_id = %s,
+                validator_id = %s,
+                status = 'Concluído',
+                data = COALESCE(data, %s)
             WHERE id = %s AND patient_id = %s
-        ''', (user['id'], appt_id, id))
-        
-        # Gera a data quando paciente e validador já confirmaram.
-        appt = query(
-            """
-            SELECT data, validator_id, assinatura_paciente_base64
-            FROM atendimentos
-            WHERE id = %s AND patient_id = %s
-            """,
-            (appt_id, id),
-            one=True,
-        )
-        if appt['validator_id'] and appt['assinatura_paciente_base64'] and (not appt['data'] or appt['data'] == ''):
-            execute(
-                "UPDATE atendimentos SET data = %s WHERE id = %s AND patient_id = %s",
-                (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), appt_id, id),
+        ''', (
+            user['id'],
+            user['id'],
+            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            appt_id,
+            id,
+        ))
+
+        # A execução agora está confirmada: o procedimento do Plano de
+        # Tratamento que originou esta evolução passa a contar como
+        # produção real (alimenta Central de Comando, BI e remessa e-SUS).
+        if appt['tratamento_procedimento_id']:
+            execute('''
+                UPDATE tratamento_procedimentos
+                SET status = 'Concluído',
+                    esus_export_status = CASE
+                        WHEN sigtap_code IS NULL THEN 'missing_sigtap'
+                        ELSE 'pending'
+                    END
+                WHERE id = %s
+            ''', (appt['tratamento_procedimento_id'],))
+            audit_log(
+                action='treatment_production_confirmed',
+                module='treatment',
+                entity_type='tratamento_procedimentos',
+                entity_id=appt['tratamento_procedimento_id'],
+                patient_id=id,
+                details={'atendimento_id': appt_id, 'executor_id': user['id']},
             )
-            
+
         flash('Assinatura do profissional executor registrada com sucesso!', 'success')
     except Exception as e:
         flash_internal_error('Falha ao registrar assinatura do profissional')
-        
+
     return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
 
 @patients_bp.route('/<int:id>/atendimento/<int:appt_id>/edit', methods=['POST'])
@@ -1381,69 +1294,6 @@ def delete_atendimento(id, appt_id):
         flash('Evolução clínica excluída com sucesso!', 'success')
     except Exception as e:
         flash_internal_error('Falha ao excluir evolução clínica')
-        
-    return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
-
-@patients_bp.route('/<int:id>/atendimento/<int:appt_id>/sign', methods=['POST'])
-@login_required
-def sign_atendimento(id, appt_id):
-    username = request.form.get('validator_username')
-    password = request.form.get('validator_password')
-    
-    if not username or not password:
-        flash('Usuário e senha são obrigatórios para assinar.', 'danger')
-        return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
-        
-    appt = query(
-        """
-        SELECT id, data, assinatura_paciente_base64, executor_id
-        FROM atendimentos
-        WHERE id = %s AND patient_id = %s
-        """,
-        (appt_id, id),
-        one=True,
-    )
-    if not appt:
-        flash('Atendimento não encontrado para este paciente.', 'danger')
-        return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
-
-    # Verifica as credenciais do dentista responsável.
-    prof = query("SELECT id, password, role FROM users WHERE username = %s", (username,), one=True)
-    
-    if (
-        not prof
-        or not check_password_hash(prof['password'], password)
-        or not can_sign_clinical_document(prof['role'])
-    ):
-        flash('Credenciais inválidas. Assinatura não realizada.', 'danger')
-        return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
-        
-    try:
-        execute('''
-            UPDATE atendimentos 
-            SET validator_id = %s, status = 'Concluído'
-            WHERE id = %s AND patient_id = %s
-        ''', (prof['id'], appt_id, id))
-        
-        # Gera a data quando paciente e executor já confirmaram.
-        appt = query(
-            """
-            SELECT data, assinatura_paciente_base64, executor_id
-            FROM atendimentos
-            WHERE id = %s AND patient_id = %s
-            """,
-            (appt_id, id),
-            one=True,
-        )
-        if appt['assinatura_paciente_base64'] and appt['executor_id'] and (not appt['data'] or appt['data'] == ''):
-            execute(
-                "UPDATE atendimentos SET data = %s WHERE id = %s AND patient_id = %s",
-                (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), appt_id, id),
-            )
-            
-        flash('Evolução clínica validada pelo dentista com sucesso!', 'success')
-    except Exception as e:
-        flash_internal_error('Falha ao validar evolução clínica')
         
     return redirect(url_for('patients.view_patient', id=id) + '#tab-atendimento')
 

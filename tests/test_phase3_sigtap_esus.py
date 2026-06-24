@@ -141,11 +141,13 @@ def test_sigtap_specialty_catalog_matches_the_approved_table():
         'Alta Complexidade / Hospitalar / Implantodontia',
         'Diagnóstico / Estomatologia / Radiologia',
         'Urgências Odontológicas',
+        'Apoio Diagnóstico / Exames Laboratoriais',
     ]
-    assert len(SIGTAP_PROCEDURE_INDEX) == 133
-    assert sum(len(group['procedures']) for group in SIGTAP_SPECIALTY_GROUPS) == 133
+    assert len(SIGTAP_PROCEDURE_INDEX) == 138
+    assert sum(len(group['procedures']) for group in SIGTAP_SPECIALTY_GROUPS) == 138
     assert SIGTAP_PROCEDURE_INDEX['0414020421']['name'] == 'Implante Dentário Osteointegrado'
     assert SIGTAP_PROCEDURE_INDEX['0301060061']['specialty'] == 'urgencias_odontologicas'
+    assert SIGTAP_PROCEDURE_INDEX['0202010503']['specialty'] == 'apoio_diagnostico_laboratorial'
 
 
 def test_upsert_sigtap_procedure_persists_group_fields(monkeypatch):

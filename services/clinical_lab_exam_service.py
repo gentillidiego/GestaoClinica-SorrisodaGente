@@ -8,10 +8,6 @@ from services.upload_security_service import (
 
 
 CLINICAL_LAB_EXAM_TYPES = {
-    'painel_laboratorial': {
-        'label': 'Painel laboratorial / múltiplos exames',
-        'tests': 'Use quando o mesmo laudo reunir exames de mais de uma categoria.',
-    },
     'hemograma_completo': {
         'label': 'Hemograma completo',
         'tests': (
@@ -19,40 +15,13 @@ CLINICAL_LAB_EXAM_TYPES = {
             'plaquetas, VCM, HCM e RDW.'
         ),
     },
-    'coagulacao_hemostasia': {
-        'label': 'Coagulação e hemostasia',
-        'tests': 'TP/INR, TTPa, fibrinogênio e tempo de sangramento (TS).',
-    },
     'glicemia_diabetes': {
         'label': 'Glicemia e diabetes',
         'tests': 'Glicemia de jejum, HbA1c e glicemia pós-prandial.',
     },
-    'marcadores_inflamatorios': {
-        'label': 'Marcadores inflamatórios',
-        'tests': 'PCR ultrassensível, VHS e ferritina.',
-    },
     'funcao_renal': {
         'label': 'Função renal',
         'tests': 'Creatinina, ureia e TFG estimada.',
-    },
-    'funcao_hepatica': {
-        'label': 'Função hepática',
-        'tests': 'TGO, TGP, GGT, bilirrubinas e fosfatase alcalina.',
-    },
-    'doencas_transmissiveis': {
-        'label': 'Doenças transmissíveis',
-        'tests': 'Anti-HIV, HBsAg, Anti-HBs, Anti-HCV e VDRL/FTA-ABS.',
-    },
-    'tireoide': {
-        'label': 'Tireoide',
-        'tests': 'TSH, T3, T4 livre e Anti-TPO.',
-    },
-    'ferro_vitaminas': {
-        'label': 'Ferro e vitaminas',
-        'tests': (
-            'Ferro sérico, ferritina, CTLF, vitamina B12, ácido fólico, '
-            'vitamina D.'
-        ),
     },
     'perfil_lipidico_cardiovascular': {
         'label': 'Perfil lipídico / cardiovascular',
@@ -60,6 +29,18 @@ CLINICAL_LAB_EXAM_TYPES = {
             'Colesterol total, LDL, HDL, triglicerídeos, troponina e BNP.'
         ),
     },
+}
+
+# Código(s) SIGTAP por categoria — usado para creditar automaticamente a
+# produtividade do clínico solicitante ao atender a solicitação de exame
+# (services/exam_productivity_service.py). O SIGTAP fatura por teste
+# individual, não por "painel"; por isso algumas categorias mapeiam para
+# mais de um código (ex.: Função renal = creatinina + ureia).
+CLINICAL_LAB_SIGTAP_CODES = {
+    'hemograma_completo': ('0202010503',),
+    'glicemia_diabetes': ('0202010473',),
+    'funcao_renal': ('0202010317', '0202010694'),
+    'perfil_lipidico_cardiovascular': ('0202010295', '0202010643'),
 }
 
 CLINICAL_LAB_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}

@@ -6,8 +6,10 @@ from constants import Role, role_has_permission
 from services.cost_reference_service import (
     import_cost_references_csv,
     parse_money,
+    seed_missing_cost_reference_placeholders,
     update_cost_reference,
 )
+from services.sigtap_service import SIGTAP_PROCEDURE_INDEX
 
 
 def test_financial_cost_reference_permissions_are_restricted():
@@ -161,3 +163,18 @@ def test_import_cost_references_csv_upserts_valid_rows(monkeypatch):
     assert captured['params'][0] == '0307030040'
     assert captured['params'][2] == Decimal('45.50')
     assert captured['params'][6] == 'pending_public_validation'
+
+
+def test_seed_missing_cost_reference_placeholders_inserts_every_catalog_code(monkeypatch):
+    captured_codes = []
+
+    def fake_execute(sql, params=()):
+        assert 'ON CONFLICT (sigtap_code) DO NOTHING' in sql
+        assert 'VALUES (%s, %s, 0, 0, %s, ' in sql  # public_cost e private_reference fixos em zero
+        captured_codes.append(params[0])
+
+    monkeypatch.setattr(cost_reference_service, 'execute', fake_execute)
+
+    seed_missing_cost_reference_placeholders()
+
+    assert set(captured_codes) == set(SIGTAP_PROCEDURE_INDEX.keys())

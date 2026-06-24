@@ -2,15 +2,13 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_required, current_user
 from database import execute, query
 from services.signature_evidence_service import (
-    A_ROGO_DECLARATION,
+    ANAMNESIS_CLINICIAN_DECLARATION,
     SIGNATURE_MARKER_A_ROGO,
     SIGNATURE_MODE_A_ROGO,
-    SIGNATURE_MODE_CANVAS,
     build_generic_signature_payload,
     json_dumps,
     register_signature_event,
     validate_a_rogo_signer,
-    wants_a_rogo,
 )
 from services.web_security_service import flash_internal_error
 
@@ -18,31 +16,18 @@ anamnesis_bp = Blueprint('anamnesis', __name__, url_prefix='/anamnesis')
 
 
 def _prepare_anamnesis_signature(form_data):
-    assinatura = form_data.get('assinatura_base64')
-    signature_mode = SIGNATURE_MODE_A_ROGO if wants_a_rogo(form_data) else SIGNATURE_MODE_CANVAS
-    signer = current_user
-    declaration_text = None
-    auth_method = 'patient_canvas_session'
-    witnesses = []
-
-    if signature_mode == SIGNATURE_MODE_A_ROGO:
-        signer = validate_a_rogo_signer(
-            form_data.get('rogo_validator_username'),
-            form_data.get('rogo_validator_password'),
-        )
-        assinatura = SIGNATURE_MARKER_A_ROGO
-        declaration_text = A_ROGO_DECLARATION
-        auth_method = 'login_senha_cd_a_rogo'
-    elif not assinatura:
-        raise ValueError('A assinatura do paciente é obrigatória.')
+    signer = validate_a_rogo_signer(
+        form_data.get('clinico_username'),
+        form_data.get('clinico_password'),
+    )
 
     return {
-        'assinatura': assinatura,
-        'signature_mode': signature_mode,
+        'assinatura': SIGNATURE_MARKER_A_ROGO,
+        'signature_mode': SIGNATURE_MODE_A_ROGO,
         'signer': signer,
-        'declaration_text': declaration_text,
-        'auth_method': auth_method,
-        'witnesses': witnesses,
+        'declaration_text': ANAMNESIS_CLINICIAN_DECLARATION,
+        'auth_method': 'login_senha_clinico',
+        'witnesses': [],
     }
 
 
@@ -73,7 +58,7 @@ def _record_anamnesis_signature(
             'tem_alergia': form_data.get('tem_alergia'),
             'tomando_medicamento': form_data.get('tomando_medicamento'),
         },
-        signature_capture=assinatura if signature_mode == SIGNATURE_MODE_CANVAS else None,
+        signature_capture=None,
         witnesses=witnesses,
         signer=signer,
     )
@@ -109,7 +94,7 @@ def _record_anamnesis_signature(
             signature_mode,
             evidence['event_id'],
             evidence['document_hash'],
-            signer_id if signature_mode == SIGNATURE_MODE_A_ROGO else None,
+            signer_id,
             declaration_text,
             json_dumps(witnesses),
             auth_method,

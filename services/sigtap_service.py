@@ -173,7 +173,6 @@ SIGTAP_SPECIALTY_GROUPS = [
             ('0201010232', 'Biópsia de Glândula Salivar'),
             ('0201010348', 'Biópsia de Osso do Crânio e da Face'),
             ('0307050017', 'Fotobiomodulação a Laser de Baixa Potência para o Tratamento da Mucosite Oral'),
-            ('0204010187', 'Radiografia Periapical / Interproximal'),
             ('0204010217', 'Radiografia Interproximal (Bite Wing)'),
             ('0204010225', 'Radiografia Periapical'),
             ('0204010160', 'Radiografia Oclusal'),
@@ -188,6 +187,18 @@ SIGTAP_SPECIALTY_GROUPS = [
         'label': 'Urgências Odontológicas',
         'procedures': [
             ('0301060061', 'Atendimento de Urgência em Atenção Especializada'),
+        ],
+    },
+    {
+        'value': 'apoio_diagnostico_laboratorial',
+        'label': 'Apoio Diagnóstico / Exames Laboratoriais',
+        'procedures': [
+            ('0202010503', 'Hemograma Completo'),
+            ('0202010473', 'Dosagem de Glicose'),
+            ('0202010295', 'Dosagem de Colesterol Total'),
+            ('0202010643', 'Dosagem de Triglicerídeos'),
+            ('0202010317', 'Dosagem de Creatinina'),
+            ('0202010694', 'Dosagem de Ureia'),
         ],
     },
 ]

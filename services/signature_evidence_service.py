@@ -22,6 +22,12 @@ A_ROGO_DECLARATION = (
     'consentimento livre e informado para este ato.'
 )
 
+ANAMNESIS_CLINICIAN_DECLARATION = (
+    'Declaro, sob minha responsabilidade profissional, que revisei esta '
+    'anamnese com o paciente, expliquei seu conteúdo e registrei fielmente '
+    'as informações relatadas.'
+)
+
 
 def wants_a_rogo(form_data):
     return form_data.get('patient_not_literate') in {'1', 'true', 'on', 'yes'}
@@ -132,33 +138,6 @@ def build_tcle_payload(patient, signature_mode, signature_capture=None, witnesse
             'natureza da atividade odontologica, deveres do paciente, alteracoes no plano, '
             'LGPD e disposicoes finais.'
         ),
-    }
-    if signature_capture:
-        payload['signature_capture_sha256'] = hash_text(signature_capture)
-    return payload
-
-
-def build_atendimento_payload(patient, atendimento, signature_mode, signature_capture=None, witnesses=None, signer=None):
-    payload = {
-        'document_type': 'atendimento_patient_confirmation',
-        'patient': {
-            'id': patient.get('id'),
-            'nome': patient.get('nome'),
-            'cpf': patient.get('cpf'),
-            'rg': patient.get('rg'),
-        },
-        'atendimento': {
-            'id': atendimento.get('id'),
-            'data': atendimento.get('data'),
-            'observacoes': atendimento.get('observacoes'),
-            'status': atendimento.get('status'),
-            'validator_id': atendimento.get('validator_id'),
-            'executor_id': atendimento.get('executor_id'),
-        },
-        'signature_mode': signature_mode,
-        'declaration': A_ROGO_DECLARATION if signature_mode == SIGNATURE_MODE_A_ROGO else None,
-        'witnesses': witnesses or [],
-        'signer': user_public_data(signer),
     }
     if signature_capture:
         payload['signature_capture_sha256'] = hash_text(signature_capture)

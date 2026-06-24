@@ -28,6 +28,7 @@ from services.clinical_lab_exam_service import (
     is_clinical_lab_image,
     prepare_clinical_lab_uploads,
 )
+from services.exam_productivity_service import credit_exam_request_productivity
 from services.google_drive_service import get_drive_service
 from services.exam_file_sync_service import (
     enqueue_exam_file_sync,
@@ -58,12 +59,22 @@ IMAGE_EXAM_TYPE_RULES = {
     'Panorâmica': {'scope': 'Complexo Maxilomandibular', 'category': 'radiografia'},
     'Telerradiografia': {'scope': 'Complexo Maxilomandibular', 'category': 'radiografia'},
     'Tomografia': {'scope': 'Complexo Maxilomandibular', 'category': 'cbct'},
-    'Ultrassonografia': {'scope': 'Outro', 'category': 'documento_complementar'},
-    'Ressonância': {'scope': 'Outro', 'category': 'documento_complementar'},
-    'Fotografia Clínica': {'scope': 'Outro', 'category': 'intraoral'},
     'Outro': {'scope': 'Outro', 'category': 'documento_complementar'},
 }
 IMAGE_UPLOAD_MAX_FILES = 12
+
+# Código SIGTAP correspondente a cada tipo de imagem — usado para creditar
+# automaticamente a produtividade do clínico solicitante ao atender a
+# solicitação de exame (services/exam_productivity_service.py). Tipos sem
+# entrada aqui (ex.: 'Outro') não geram crédito automático.
+IMAGE_EXAM_SIGTAP_CODES = {
+    'Periapical': '0204010225',
+    'Bite-wing': '0204010217',
+    'Oclusal': '0204010160',
+    'Panorâmica': '0204010179',
+    'Telerradiografia': '0204010233',
+    'Tomografia': '0206010044',
+}
 
 
 def infer_image_exam_scope(tipo_imagem):
@@ -195,6 +206,22 @@ def _fulfill_exam_request(request_id, exam_id):
         """,
         (exam_id, current_user.id, request_id),
     )
+
+
+def _credit_exam_request_productivity(pending_request, exam_id):
+    """Credita a produtividade SIGTAP ao clínico solicitante sem bloquear o salvamento do exame."""
+    try:
+        credit_exam_request_productivity(pending_request, exam_id)
+    except Exception:
+        current_app.logger.exception(
+            'Falha ao creditar produtividade da solicitação %s',
+            pending_request.get('id'),
+        )
+        flash(
+            'Exame salvo, mas não foi possível gerar a produtividade SIGTAP '
+            'automática. Lance o procedimento manualmente se necessário.',
+            'warning',
+        )
 
 
 def _get_scoped_exam(anamnesis_id, exam_id, expected_type):
@@ -877,6 +904,7 @@ def imagem(anamnesis_id, exam_id=None):
             exam_id = new_exam_id
             if pending_request:
                 _fulfill_exam_request(pending_request['id'], exam_id)
+                _credit_exam_request_productivity(pending_request, exam_id)
 
         _audit_exam_saved(
             exam_id,
@@ -1401,6 +1429,7 @@ def clinico_laboratorial(anamnesis_id, exam_id=None):
                 flash('Exame clínico/laboratorial criado com sucesso!', 'success')
             if pending_request:
                 _fulfill_exam_request(pending_request['id'], exam_id)
+                _credit_exam_request_productivity(pending_request, exam_id)
 
         _audit_exam_saved(
             exam_id,

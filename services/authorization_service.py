@@ -93,13 +93,7 @@ ENDPOINT_RULES = {
     'patients.add_atendimento': {'*': rule('patients:view', 'attendance:write')},
     'patients.edit_atendimento': {'*': rule('patients:view', 'attendance:write')},
     'patients.delete_atendimento': {'*': rule('patients:view', 'attendance:write')},
-    'patients.sign_patient_atendimento': {
-        '*': rule('patients:view', 'attendance:write', 'documents:sign')
-    },
     'patients.sign_executor_atendimento': {
-        '*': rule('patients:view', 'attendance:write', 'documents:sign')
-    },
-    'patients.sign_atendimento': {
         '*': rule('patients:view', 'attendance:write', 'documents:sign')
     },
     # Anamnese: formulários de criação/edição são atos clínicos inclusive no GET.

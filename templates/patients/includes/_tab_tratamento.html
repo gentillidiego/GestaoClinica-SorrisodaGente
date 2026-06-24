@@ -117,10 +117,16 @@
                             {% else %}
                             <span style="color:hsl(var(--warning)); font-weight:700;">Pendente</span>
                             {% endif %}
+                            {% elif proc.status == 'Planejado' %}
+                            <span
+                                style="display: inline-flex; align-items: center; gap: 0.4rem; color: hsl(var(--warning)); font-weight: 600; font-size: 0.9rem; background: hsl(var(--warning)/0.12); padding: 0.4rem 0.8rem; border-radius: var(--radius-sm);"
+                                title="Plano assinado. Produção só conta após confirmação do Profissional Executor na aba Atendimento.">
+                                📋 Planejado — aguardando execução
+                            </span>
                             {% else %}
                             <span
                                 style="display: inline-flex; align-items: center; gap: 0.4rem; color: hsl(var(--success)); font-weight: 600; font-size: 0.9rem; background: hsl(var(--success)/0.1); padding: 0.4rem 0.8rem; border-radius: var(--radius-sm);">
-                                ✅ 
+                                ✅
                                 {% if proc.validator_role == 'admin' %}Adm.
                                 {% elif proc.validator_role == 'clinicos' %}Clín.
                                 {% elif proc.validator_role == 'dentista' %}Dent.

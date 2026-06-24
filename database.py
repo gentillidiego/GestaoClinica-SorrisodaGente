@@ -258,7 +258,8 @@ MIGRATIONS = {
         ('validator_id', 'INTEGER'),
         ('executor_id', 'INTEGER'),
         ('status', "TEXT DEFAULT 'Pendente'"),
-        ('created_by', 'INTEGER')
+        ('created_by', 'INTEGER'),
+        ('tratamento_procedimento_id', 'INTEGER REFERENCES tratamento_procedimentos(id) ON DELETE SET NULL')
     ],
     'patient_tcle': [
         ('assinatura_modo', "TEXT DEFAULT 'patient_canvas'"),
@@ -368,7 +369,8 @@ MIGRATIONS = {
         ('sigtap_name', 'TEXT'),
         ('esus_export_status', "TEXT DEFAULT 'pending'"),
         ('esus_exported_at', 'TIMESTAMP'),
-        ('esus_export_batch_id', 'INTEGER')
+        ('esus_export_batch_id', 'INTEGER'),
+        ('exam_request_id', 'INTEGER REFERENCES exam_requests(id) ON DELETE SET NULL')
     ],
     'esus_integration_settings': [
         ('pec_version', 'TEXT'),
@@ -1197,8 +1199,10 @@ def _init_db_locked():
             validator_id INTEGER,
             status TEXT DEFAULT 'Pendente',
             criado_em TIMESTAMP DEFAULT NOW(),
+            exam_request_id INTEGER,
             FOREIGN KEY (patient_id) REFERENCES patients (id),
-            FOREIGN KEY (validator_id) REFERENCES users (id)
+            FOREIGN KEY (validator_id) REFERENCES users (id),
+            FOREIGN KEY (exam_request_id) REFERENCES exam_requests (id) ON DELETE SET NULL
         )
     ''')
 

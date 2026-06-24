@@ -101,11 +101,6 @@
                     </optgroup>
                     <optgroup label="Exames avançados">
                         <option value="Tomografia" {% if selected_tipo_imagem == 'Tomografia' %}selected{% endif %}>Tomografia (TC / CBCT)</option>
-                        <option value="Ultrassonografia" {% if selected_tipo_imagem == 'Ultrassonografia' %}selected{% endif %}>Ultrassonografia</option>
-                        <option value="Ressonância" {% if selected_tipo_imagem == 'Ressonância' %}selected{% endif %}>Ressonância magnética</option>
-                    </optgroup>
-                    <optgroup label="Fotografia">
-                        <option value="Fotografia Clínica" {% if selected_tipo_imagem == 'Fotografia Clínica' %}selected{% endif %}>Fotografia clínica</option>
                     </optgroup>
                     <option value="Outro" {% if selected_tipo_imagem == 'Outro' %}selected{% endif %}>Outro exame de imagem</option>
                 </select>

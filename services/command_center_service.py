@@ -632,7 +632,7 @@ def get_command_center_data(filters=None):
         one=True
     )['count']
 
-    pending_conditions = ["tp.status = 'Pendente'"]
+    pending_conditions = ["tp.status IN ('Pendente', 'Planejado')"]
     pending_params = []
     _append_date_range(pending_conditions, pending_params, 'tp.criado_em', filters)
     if filters.get('professional_id'):
@@ -1346,19 +1346,11 @@ def _unsigned_documents_base_sql():
                'Evolução clínica' as document_label,
                a.id as document_id,
                a.data as created_at,
-               COALESCE(a.validator_id, a.executor_id, a.created_by) as professional_id,
-               TRIM(BOTH ', ' FROM CONCAT_WS(', ',
-                   CASE
-                       WHEN a.assinatura_paciente_base64 IS NULL OR a.assinatura_paciente_base64 = ''
-                       THEN 'paciente' END,
-                   CASE WHEN a.executor_id IS NULL THEN 'executor' END,
-                   CASE WHEN a.validator_id IS NULL THEN 'dentista responsável' END
-               )) as missing_signatures
+               COALESCE(a.executor_id, a.created_by) as professional_id,
+               'executor' as missing_signatures
         FROM atendimentos a
         JOIN patients p ON p.id = a.patient_id
-        WHERE a.assinatura_paciente_base64 IS NULL OR a.assinatura_paciente_base64 = ''
-           OR a.executor_id IS NULL
-           OR a.validator_id IS NULL
+        WHERE a.executor_id IS NULL
 
         UNION ALL
 

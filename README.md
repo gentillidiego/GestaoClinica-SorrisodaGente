@@ -665,7 +665,9 @@ ou pacientes fictícios. O ambiente pode ser recriado com
 | 22/06/2026 | treinamento | plano mestre, estrutura documental e nove roteiros iniciais criados |
 | 22/06/2026 | ambiente de treinamento | Docker isolado, usuários fictícios e cenários de gravação validados |
 | 22/06/2026 | assinatura da Anamnese | assinatura a rogo incorporada ao fluxo de produção com autenticação do CD, hash e comprovante probatório; ambiente de treinamento preservado |
-| 24/06/2026 | exames e novo perfil | design do atestado e receituário unificado ao padrão da declaração de comparecimento; criado fluxo de solicitação de exame (Imagem e Clínico/Laboratorial) com filas dedicadas para Radiologia e para o novo perfil Análises Clínicas; simplificado o Exame Físico removendo a seção de Exames Complementares duplicada; **commit e push pendentes para a próxima sessão** |
+| 24/06/2026 | exames e novo perfil | design do atestado e receituário unificado ao padrão da declaração de comparecimento; criado fluxo de solicitação de exame (Imagem e Clínico/Laboratorial) com filas dedicadas para Radiologia e para o novo perfil Análises Clínicas; simplificado o Exame Físico removendo a seção de Exames Complementares duplicada; commit `627be7d` |
+| 24/06/2026 | produtividade SIGTAP e custos | crédito automático de produção SIGTAP/e-SUS ao atender Solicitação de Exame (imagem e laboratorial), creditado ao clínico solicitante; catálogo de tipos de exame restrito aos que têm código SIGTAP; novo grupo "Apoio Diagnóstico / Exames Laboratoriais"; tela "Custos SIGTAP" passou a cobrir os 138 códigos do catálogo (106 antes ausentes ficam como placeholder explícito, sem custo inventado) |
+| 24/06/2026 | assinatura e produção | removida a exigência de assinatura do paciente na Anamnese (substituída por confirmação do clínico) e no Atendimento/Evolução (simplificado para assinatura única do Profissional Executor); Plano de Tratamento passa a ser só planejamento — produção/e-SUS só contam após o Executor confirmar a execução no Atendimento (`status` `Pendente` → `Planejado` → `Concluído`); 317 testes aprovados |
 
 ## Git e publicação
 

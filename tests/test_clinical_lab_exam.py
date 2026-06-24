@@ -61,19 +61,13 @@ def make_file(
 def test_clinical_lab_catalog_contains_requested_odontology_groups():
     expected = {
         'hemograma_completo',
-        'coagulacao_hemostasia',
         'glicemia_diabetes',
-        'marcadores_inflamatorios',
         'funcao_renal',
-        'funcao_hepatica',
-        'doencas_transmissiveis',
-        'tireoide',
-        'ferro_vitaminas',
         'perfil_lipidico_cardiovascular',
     }
 
-    assert expected.issubset(CLINICAL_LAB_EXAM_TYPES)
-    assert 'TP/INR' in CLINICAL_LAB_EXAM_TYPES['coagulacao_hemostasia']['tests']
+    assert expected == set(CLINICAL_LAB_EXAM_TYPES)
+    assert 'Creatinina' in CLINICAL_LAB_EXAM_TYPES['funcao_renal']['tests']
     assert 'HbA1c' in CLINICAL_LAB_EXAM_TYPES['glicemia_diabetes']['tests']
 
 

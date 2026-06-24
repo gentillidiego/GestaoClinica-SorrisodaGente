@@ -66,6 +66,7 @@
                 <select name="status_procedimento" class="form-input">
                     <option value="">Todos</option>
                     <option value="Concluído" {% if status_procedimento == 'Concluído' %}selected{% endif %}>Concluído</option>
+                    <option value="Planejado" {% if status_procedimento == 'Planejado' %}selected{% endif %}>Planejado</option>
                     <option value="Pendente" {% if status_procedimento == 'Pendente' %}selected{% endif %}>Pendente</option>
                     <option value="Cancelado" {% if status_procedimento == 'Cancelado' %}selected{% endif %}>Cancelado</option>
                 </select>
