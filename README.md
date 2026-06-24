@@ -624,6 +624,7 @@ Evidências e políticas atuais:
 - [e-SUS XML LEDI](docs/esus_xml_ledi_2026-06-18.md);
 - [preparação SIGTAP/e-SUS](docs/esus_sigtap_preparacao_2026-06-08.md);
 - [referência clínica de especialidades e procedimentos SUS/SIGTAP](docs/referencia_clinica_especialidades_procedimentos_sigtap.pdf);
+- [guia de configuração da WhatsApp Business Cloud API](docs/guia_configuracao_whatsapp_business_api.pdf) (roteiro passo a passo para habilitar o canal WhatsApp do módulo Comunicação);
 - [manual base por perfil](docs/base_documentacao_manuais_usuarios.md);
 - [plano mestre de manuais e treinamentos](docs/manuais_e_treinamentos/plano_mestre.md);
 - [roteiros de videoaulas](docs/manuais_e_treinamentos/roteiros/README.md);
