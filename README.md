@@ -2,7 +2,7 @@
 
 Versão candidata: **4.0.0-rc.1**
 
-Atualização: **21/06/2026**
+Atualização: **25/06/2026**
 
 Status: **tecnicamente validada; produção plena ainda não aprovada**
 
@@ -33,20 +33,53 @@ A aplicação e a infraestrutura passaram pelo QA técnico de 21/06/2026:
 
 Decisão atual: **NO-GO para produção plena com ampliação de pacientes reais**.
 
-Bloqueadores restantes:
+Bloqueador restante:
 
-1. revogar no hPanel o token temporário da API Hostinger e remover o arquivo
-   local;
-2. confirmar 2FA, recuperação, custodiantes e revisão de sessões/apps da conta
-   Google institucional;
-3. obter o aceite formal da política de governança pela Dra. Cibely e indicar
-   o responsável clínico/jurídico;
-4. registrar a aprovação da coordenação para entrada assistida.
+1. indicar o responsável clínico/jurídico — **ainda não estabelecido**;
+2. registrar a aprovação da coordenação para entrada assistida (ver detalhe em
+   [Aprovação da coordenação](#aprovação-da-coordenação-para-entrada-assistida),
+   abaixo).
+
+Resolvido em 25/06/2026:
+
+- token temporário da API Hostinger **revogado no hPanel e arquivo local
+  removido** (`secrets/hostinger-api-token` não existe mais);
+- aceite formal da política de governança pela Dra. Cibely **registrado como
+  concluído**.
+
+Despriorizado em 25/06/2026 (deixou de ser bloqueador de entrada, mas
+continua como pendência documentada — ver
+[Google Drive](#google-drive) abaixo): confirmação de 2FA, recuperação e
+custodiantes da conta Google institucional.
 
 A versão `4.0.0-rc.1` identifica uma candidata técnica. Ela não representa
 homologação municipal, aceite jurídico ou autorização para produção plena.
 
 Evidência: [`docs/auditoria_go_no_go_2026-06-21.md`](docs/auditoria_go_no_go_2026-06-21.md).
+
+### Aprovação da coordenação para entrada assistida
+
+"Entrada assistida" é a fase em que o sistema passa a ser usado com pacientes
+e equipe reais, mas sob acompanhamento ativo (P1 do roadmap, ver
+[Evolução durante a produção](#p1--entrada-e-operação-assistida)) — não é um
+corte único e definitivo, é uma rampa supervisionada.
+
+A "aprovação da coordenação" é o registro formal de que o perfil Coordenação
+efetivamente testou o fluxo ponta a ponta que vai usar no dia a dia (agenda,
+triagem, recepção, relatórios) e está de acordo em operar assim. Hoje isso
+ainda não foi feito porque:
+
+- a homologação de Recepção, Clínicos e Coordenação (item do P1) ainda não
+  foi executada e registrada;
+- não existe, neste repositório, nenhuma evidência escrita de que a
+  Coordenação validou o fluxo e aprovou a entrada.
+
+Enquanto isso não for registrado, a decisão de "ir ao ar" depende de alguém
+assumir esse risco sem o sinal formal de quem vai operar o sistema todos os
+dias. Para resolver: a Coordenação percorre o fluxo real (criar paciente,
+triar, agendar, atender, gerar relatório) no ambiente de produção ou no
+[ambiente de treinamento](#manuais-roteiros-e-videoaulas), e essa aprovação é
+registrada aqui no README (data, responsável, resultado).
 
 ## Escopo congelado da candidata
 
@@ -328,7 +361,18 @@ Regras permanentes:
 
 ### Gestão
 
-- estoque, materiais e implantes;
+- estoque por abas (Visão Geral, Entrada de Mercadoria, Materiais, Lotes e
+  Saldo, Ajustes e Perdas, Notas Fiscais, Fornecedores), materiais e
+  implantes;
+- entrada de mercadoria com três caminhos para a mesma tela de conciliação:
+  importação automática de XML da NF-e (leitura `lxml`, com chave de acesso e
+  proteção contra reimportação duplicada), importação de melhor esforço de
+  PDF/DANFE (`pdfplumber`, chave de acesso decodificada quando o dígito
+  verificador confere) e lançamento manual de nota ou compra avulsa
+  (digitando todos os dados) — nenhum dos três afeta o saldo sem confirmação
+  explícita do material, quantidade, custo e validade de cada lote;
+- cadastro de fornecedor com CNPJ validado (dígito verificador) para
+  rastreabilidade fiscal, sem apuração de impostos;
 - Central de Comando;
 - Epidemiologia;
 - BI executivo;
@@ -395,7 +439,9 @@ docker compose exec -T gestaoclinica \
   python scripts/check_rclone_oauth.py
 ```
 
-Pendente antes de produção plena:
+Pendência de segurança da conta (despriorizada em 25/06/2026 — deixou de
+bloquear a entrada em operação, mas continua como lembrete a fazer, sem data
+definida ainda):
 
 - confirmar 2FA;
 - confirmar dois meios/custodiantes de recuperação;
@@ -483,6 +529,12 @@ Responsáveis definidos:
 | Custodiante técnico | Diego |
 | Backup e restauração | Diego |
 | Revisão independente | Perfil Auditoria ou pessoa indicada |
+| Responsável clínico/jurídico | **ainda não estabelecido** — lembrete pendente |
+
+Aceite formal da política de governança pela Dra. Cibely: **registrado como
+concluído em 25/06/2026**. O responsável clínico/jurídico continua sem
+indicação — sem isso, não há um nome formalmente atribuído por decisões
+clínicas/jurídicas em caso de incidente.
 
 Retenção:
 
@@ -519,19 +571,23 @@ Concluído:
 - [x] RBAC/IDOR;
 - [x] dependências auditadas;
 - [x] testes, rebuild, health e smoke;
-- [x] Endodontia e Prótese identificadas como ocultas.
+- [x] Endodontia e Prótese identificadas como ocultas;
+- [x] revogar e remover o token temporário Hostinger (25/06/2026);
+- [x] obter aceite institucional da governança (25/06/2026).
 
 Pendente:
 
-- [ ] revogar e remover o token temporário Hostinger;
-- [ ] confirmar 2FA/recuperação/custódias Google;
-- [ ] obter aceite institucional da governança;
 - [ ] indicar responsável clínico/jurídico;
 - [ ] validar e-mails críticos em caixas Gmail e Outlook;
 - [ ] entregar manuais e realizar treinamento por perfil;
 - [ ] homologar fluxo ponta a ponta;
 - [ ] registrar aprovação da coordenação;
 - [ ] criar tag de produção somente após decisão **GO**.
+
+Lembrete sem data definida (não bloqueia mais a entrada em operação):
+
+- [ ] confirmar 2FA/recuperação/custódias da conta Google institucional (ver
+  [Google Drive](#google-drive)).
 
 ## Evolução durante a produção
 
@@ -691,6 +747,7 @@ ou pacientes fictícios. O ambiente pode ser recriado com
 | 24/06/2026 | assinatura e produção | removida a exigência de assinatura do paciente na Anamnese (substituída por confirmação do clínico) e no Atendimento/Evolução (simplificado para assinatura única do Profissional Executor); Plano de Tratamento passa a ser só planejamento — produção/e-SUS só contam após o Executor confirmar a execução no Atendimento (`status` `Pendente` → `Planejado` → `Concluído`); 317 testes aprovados; commit `370c7b0` |
 | 24/06/2026 | despersonalização do ambiente | removidos o paciente de teste e os procedimentos associados criados para validar as mudanças de assinatura/produção; ambiente de produção zerado (0 pacientes); usuários já cadastrados preservados; evidências de assinatura/auditoria mantidas (FK `ON DELETE SET NULL`), conforme a política de retenção de 20 anos |
 | 24/06/2026 | módulo Comunicação | criado módulo administrativo de campanhas em massa por e-mail e WhatsApp Business Cloud API (integração direta com a Meta) e lembretes automáticos de consulta; novas tabelas `communication_templates/campaigns/messages/preferences`; permissões `comunicacao:view`/`write` restritas a contato e geografia do paciente (sem acesso a prontuário); canal WhatsApp desabilitado por padrão até credenciais serem configuradas; canal e-mail e lembretes operacionais desde já (lembretes desligados por padrão); 25 testes novos, suíte completa com 342 testes aprovados |
+| 25/06/2026 | redesign do Estoque Operacional | tela reorganizada em abas (Visão Geral, Entrada de Mercadoria, Materiais, Lotes e Saldo, Ajustes e Perdas, Notas Fiscais, Fornecedores), mesmo padrão de abas com carregamento assíncrono do prontuário; corrigido bug do card "Materiais" (colisão de nome entre a chave `items` e o método `dict.items`); criado fluxo de Entrada de Mercadoria com conciliação obrigatória antes de afetar o saldo, alimentado por três origens — XML da NF-e (`lxml`, chave de acesso com proteção contra reimportação duplicada), PDF/DANFE de melhor esforço (`pdfplumber`, decodificação de CNPJ/série/número a partir da chave de acesso quando o dígito verificador confere) e lançamento manual de nota ou compra avulsa; novas tabelas `inventory_invoices`/`inventory_invoice_items`, CNPJ validado em `inventory_suppliers`, EAN em `inventory_items`, rastreabilidade de origem em `inventory_lots`; sem apuração de impostos (somente rastreabilidade/auditoria); mesmas permissões `inventory:view`/`write` de hoje; 19 testes novos, suíte completa com 361 testes aprovados |
 
 ## Git e publicação
 
@@ -715,10 +772,11 @@ git push
 Tags de produção devem ser criadas somente depois de decisão **GO**. A tag
 `v4.0.0-rc.1`, quando publicada, identifica apenas esta candidata técnica.
 
-Estado em 24/06/2026: as mudanças de exames/RBAC, assinatura/produção e o
-módulo Comunicação estão validadas localmente (testes e rebuild Docker) e
-commitadas. O push para o remoto oficial só ocorre quando solicitado
-explicitamente.
+Estado em 25/06/2026: as mudanças de exames/RBAC, assinatura/produção, o
+módulo Comunicação e o redesign do Estoque Operacional (entrada de mercadoria
+com importação de XML/PDF e lançamento manual) estão validadas localmente
+(testes e rebuild Docker). O push para o remoto oficial só ocorre quando
+solicitado explicitamente.
 
 ---
 

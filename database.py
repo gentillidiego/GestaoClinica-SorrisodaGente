@@ -1830,6 +1830,88 @@ def _init_db_locked():
         )
     ''')
 
+    # Migração: código de barras (EAN/GTIN) para conciliação automática de NF (idempotente)
+    execute('''
+        ALTER TABLE inventory_items
+        ADD COLUMN IF NOT EXISTS ean TEXT
+    ''')
+    execute('''
+        CREATE INDEX IF NOT EXISTS idx_inventory_items_ean
+        ON inventory_items (ean) WHERE ean IS NOT NULL
+    ''')
+
+    # Migração: CNPJ validado do fornecedor (idempotente)
+    execute('''
+        ALTER TABLE inventory_suppliers
+        ADD COLUMN IF NOT EXISTS cnpj TEXT
+    ''')
+    execute('''
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_suppliers_cnpj
+        ON inventory_suppliers (cnpj) WHERE cnpj IS NOT NULL
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS inventory_invoices (
+            id SERIAL PRIMARY KEY,
+            supplier_id INTEGER,
+            source_type TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'rascunho',
+            access_key TEXT,
+            invoice_number TEXT,
+            invoice_series TEXT,
+            issue_date DATE,
+            total_value NUMERIC(12, 2) DEFAULT 0,
+            raw_file_path TEXT,
+            raw_file_type TEXT,
+            notes TEXT,
+            created_by INTEGER,
+            created_at TIMESTAMP DEFAULT NOW(),
+            confirmed_by INTEGER,
+            confirmed_at TIMESTAMP,
+            FOREIGN KEY (supplier_id) REFERENCES inventory_suppliers(id) ON DELETE SET NULL,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY (confirmed_by) REFERENCES users(id) ON DELETE SET NULL
+        )
+    ''')
+    execute('''
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_invoices_access_key
+        ON inventory_invoices (access_key) WHERE access_key IS NOT NULL
+    ''')
+
+    execute('''
+        CREATE TABLE IF NOT EXISTS inventory_invoice_items (
+            id SERIAL PRIMARY KEY,
+            invoice_id INTEGER NOT NULL,
+            item_id INTEGER,
+            lot_id INTEGER,
+            description_raw TEXT NOT NULL,
+            ncm TEXT,
+            cfop TEXT,
+            ean TEXT,
+            unit TEXT,
+            quantity NUMERIC(12, 3) NOT NULL DEFAULT 0,
+            unit_value NUMERIC(12, 2) DEFAULT 0,
+            total_value NUMERIC(12, 2) DEFAULT 0,
+            match_confidence TEXT,
+            expiration_date DATE,
+            manufacturer_lot_number TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (invoice_id) REFERENCES inventory_invoices(id) ON DELETE CASCADE,
+            FOREIGN KEY (item_id) REFERENCES inventory_items(id) ON DELETE SET NULL,
+            FOREIGN KEY (lot_id) REFERENCES inventory_lots(id) ON DELETE SET NULL
+        )
+    ''')
+
+    # Migração: rastreabilidade do lote até a nota/compra que o originou (idempotente)
+    execute('''
+        ALTER TABLE inventory_lots
+        ADD COLUMN IF NOT EXISTS invoice_id INTEGER REFERENCES inventory_invoices(id) ON DELETE SET NULL
+    ''')
+    execute('''
+        ALTER TABLE inventory_lots
+        ADD COLUMN IF NOT EXISTS invoice_item_id INTEGER REFERENCES inventory_invoice_items(id) ON DELETE SET NULL
+    ''')
+
     execute('''
         CREATE TABLE IF NOT EXISTS generated_reports (
             id SERIAL PRIMARY KEY,

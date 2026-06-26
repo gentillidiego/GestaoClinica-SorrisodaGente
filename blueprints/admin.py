@@ -1,9 +1,13 @@
+import csv
+import datetime as dt
+import io
 import json
 import os
 import re
 import secrets
 
 from flask import Blueprint, Response, render_template, redirect, url_for, request, flash
+from weasyprint import HTML
 from flask_login import login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 from database import query, execute, execute_returning
@@ -31,11 +35,30 @@ from services.esus_export_service import (
     update_treatment_sigtap,
 )
 from services.inventory_service import (
+    add_invoice_item_row,
+    confirm_invoice,
     create_inventory_item,
     create_inventory_lot,
+    create_invoice_draft,
+    create_supplier,
+    delete_invoice_item_row,
+    discard_invoice,
     get_inventory_dashboard,
+    get_invoice_detail,
+    get_invoice_source_type_options,
+    get_item_category_options,
+    get_supplier,
+    list_active_items,
+    list_confirmed_invoices_for_period,
+    list_invoices,
+    list_suppliers,
     register_inventory_adjustment,
+    update_supplier,
 )
+from services.nfe_xml_service import NFeParsingError, parse_nfe_xml
+from services.danfe_pdf_service import parse_danfe_pdf
+from services.google_drive_service import get_drive_service, get_inventory_invoices_root_folder, upload_file_in_memory
+from services.upload_security_service import UploadValidationError, inspect_uploaded_file
 from services.execution_unit_service import (
     ExecutionUnitError,
     MAX_ACTIVE_EXECUTION_UNITS,
@@ -217,11 +240,6 @@ def _clean_form_value(name):
 
 def _validate_required_professional_fields(role):
     required_fields = []
-    if role_requires_professional_data(role):
-        required_fields.extend([
-            ('cns', 'CNS do profissional'),
-            ('cbo', 'CBO'),
-        ])
     if role_requires_dental_license(role):
         required_fields.extend([
             ('cro', 'CRO'),
@@ -265,6 +283,7 @@ def _inventory_item_form_payload():
         'min_quantity': request.form.get('min_quantity'),
         'center_cost': request.form.get('center_cost'),
         'notes': request.form.get('notes'),
+        'ean': request.form.get('ean'),
         'active': request.form.get('active') or '1',
     }
 
@@ -936,15 +955,54 @@ def import_cost_references():
 @login_required
 @permission_required('inventory:view')
 def inventory():
-    dashboard = get_inventory_dashboard({
-        'q': request.args.get('q'),
-        'category': request.args.get('category'),
-    })
     return render_template(
         'admin/inventory.html',
-        dashboard=dashboard,
         can_write=current_user.can('inventory:write'),
     )
+
+
+_INVENTORY_TAB_TEMPLATES = {
+    'tab-overview': 'admin/inventory/_tab_overview.html',
+    'tab-entrada': 'admin/inventory/_tab_entrada.html',
+    'tab-materiais': 'admin/inventory/_tab_materiais.html',
+    'tab-lotes': 'admin/inventory/_tab_lotes.html',
+    'tab-ajustes': 'admin/inventory/_tab_ajustes.html',
+    'tab-notas-fiscais': 'admin/inventory/_tab_notas_fiscais.html',
+    'tab-fornecedores': 'admin/inventory/_tab_fornecedores.html',
+}
+
+
+@admin_bp.route('/inventory/tab/<tab_name>')
+@login_required
+@permission_required('inventory:view')
+def get_inventory_tab_content(tab_name):
+    template = _INVENTORY_TAB_TEMPLATES.get(tab_name)
+    if not template:
+        return '', 404
+
+    can_write = current_user.can('inventory:write')
+    if tab_name in ('tab-overview', 'tab-materiais', 'tab-lotes', 'tab-ajustes'):
+        dashboard = get_inventory_dashboard({
+            'q': request.args.get('q'),
+            'category': request.args.get('category'),
+        })
+        return render_template(template, dashboard=dashboard, can_write=can_write)
+    if tab_name == 'tab-entrada':
+        return render_template(
+            template,
+            can_write=can_write,
+            source_type_options=get_invoice_source_type_options(),
+        )
+    if tab_name == 'tab-notas-fiscais':
+        invoices = list_invoices({
+            'status': request.args.get('status'),
+            'q': request.args.get('q'),
+        })
+        return render_template(template, invoices=invoices, can_write=can_write)
+    if tab_name == 'tab-fornecedores':
+        suppliers = list_suppliers(request.args.get('q'))
+        return render_template(template, suppliers=suppliers, can_write=can_write)
+    return '', 404
 
 
 @admin_bp.route('/inventory/items', methods=['POST'])
@@ -1066,6 +1124,345 @@ def create_inventory_adjustment_route():
         )
         flash_internal_error('Falha ao registrar ajuste de estoque')
     return redirect(url_for('admin.inventory'))
+
+
+def _store_invoice_file(file, inspection):
+    service = get_drive_service()
+    folder = get_inventory_invoices_root_folder(service)
+    drive_file = upload_file_in_memory(
+        service=service,
+        file_stream=file.stream,
+        filename=inspection.safe_filename,
+        mime_type=inspection.mime_type,
+        parent_id=folder['id'],
+    )
+    return f"gdrive://{drive_file['id']}"
+
+
+def _import_invoice_from_xml():
+    file = request.files.get('file')
+    if not file or not file.filename:
+        raise ValueError('Selecione o arquivo XML da NF-e.')
+    inspection = inspect_uploaded_file(file, allowed_formats=frozenset({'XML'}))
+    file.stream.seek(0)
+    header, rows = parse_nfe_xml(file.stream.read())
+    file.stream.seek(0)
+    raw_file_path = _store_invoice_file(file, inspection)
+    return create_invoice_draft(
+        'xml_nfe', header, rows, actor_id=current_user.id,
+        raw_file_path=raw_file_path, raw_file_type='xml',
+    )
+
+
+def _import_invoice_from_pdf():
+    file = request.files.get('file')
+    if not file or not file.filename:
+        raise ValueError('Selecione o arquivo PDF da nota (DANFE).')
+    inspection = inspect_uploaded_file(file, allowed_formats=frozenset({'PDF'}))
+    file.stream.seek(0)
+    header, rows = parse_danfe_pdf(file.stream.read())
+    file.stream.seek(0)
+    raw_file_path = _store_invoice_file(file, inspection)
+    return create_invoice_draft(
+        'pdf_danfe', header, rows, actor_id=current_user.id,
+        raw_file_path=raw_file_path, raw_file_type='pdf',
+    )
+
+
+@admin_bp.route('/inventory/invoices/import', methods=['POST'])
+@login_required
+@permission_required('inventory:write')
+def import_inventory_invoice():
+    source_type = request.form.get('source_type')
+    try:
+        if source_type == 'xml_nfe':
+            invoice_id = _import_invoice_from_xml()
+        elif source_type == 'pdf_danfe':
+            invoice_id = _import_invoice_from_pdf()
+        elif source_type in ('manual', 'avulsa'):
+            invoice_id = create_invoice_draft(source_type, {}, [], actor_id=current_user.id)
+        else:
+            raise ValueError('Origem de entrada inválida.')
+        audit_log(
+            action='inventory_invoice_imported',
+            module='inventory',
+            entity_type='inventory_invoices',
+            entity_id=invoice_id,
+            details={'source_type': source_type},
+        )
+    except (UploadValidationError, NFeParsingError, ValueError) as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('admin.inventory', _anchor='tab-entrada'))
+    except Exception as exc:
+        audit_log(
+            action='inventory_invoice_import_failed',
+            module='inventory',
+            status='failed',
+            details={'error': str(exc), 'source_type': source_type},
+        )
+        flash_internal_error('Falha ao importar nota/compra')
+        return redirect(url_for('admin.inventory', _anchor='tab-entrada'))
+    return redirect(url_for('admin.view_inventory_invoice', invoice_id=invoice_id))
+
+
+@admin_bp.route('/inventory/invoices/<int:invoice_id>')
+@login_required
+@permission_required('inventory:view')
+def view_inventory_invoice(invoice_id):
+    try:
+        invoice = get_invoice_detail(invoice_id)
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('admin.inventory', _anchor='tab-notas-fiscais'))
+    return render_template(
+        'admin/inventory/invoice_review.html',
+        invoice=invoice,
+        can_write=current_user.can('inventory:write'),
+        category_options=get_item_category_options(),
+        active_items=list_active_items(),
+    )
+
+
+@admin_bp.route('/inventory/invoices/<int:invoice_id>/items', methods=['POST'])
+@login_required
+@permission_required('inventory:write')
+def add_inventory_invoice_item(invoice_id):
+    try:
+        add_invoice_item_row(invoice_id)
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+    return redirect(url_for('admin.view_inventory_invoice', invoice_id=invoice_id))
+
+
+@admin_bp.route('/inventory/invoices/<int:invoice_id>/items/<int:item_row_id>/delete', methods=['POST'])
+@login_required
+@permission_required('inventory:write')
+def delete_inventory_invoice_item(invoice_id, item_row_id):
+    try:
+        delete_invoice_item_row(invoice_id, item_row_id)
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+    return redirect(url_for('admin.view_inventory_invoice', invoice_id=invoice_id))
+
+
+@admin_bp.route('/inventory/invoices/<int:invoice_id>/confirm', methods=['POST'])
+@login_required
+@permission_required('inventory:write')
+def confirm_inventory_invoice(invoice_id):
+    header = {
+        'supplier_name': request.form.get('supplier_name'),
+        'supplier_cnpj': request.form.get('supplier_cnpj'),
+        'invoice_number': request.form.get('invoice_number'),
+        'invoice_series': request.form.get('invoice_series'),
+        'issue_date': request.form.get('issue_date'),
+        'total_value': request.form.get('total_value'),
+        'notes': request.form.get('notes'),
+    }
+
+    try:
+        invoice = get_invoice_detail(invoice_id)
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('admin.inventory', _anchor='tab-notas-fiscais'))
+
+    rows_updates = {}
+    for item in invoice['lines']:
+        row_id = str(item['id'])
+        rows_updates[row_id] = {
+            'item_id': request.form.get(f'item_id_{row_id}') or None,
+            'new_item_name': request.form.get(f'new_item_name_{row_id}'),
+            'new_item_category': request.form.get(f'new_item_category_{row_id}'),
+            'unit': request.form.get(f'unit_{row_id}'),
+            'quantity': request.form.get(f'quantity_{row_id}'),
+            'unit_value': request.form.get(f'unit_value_{row_id}'),
+            'expiration_date': request.form.get(f'expiration_date_{row_id}'),
+            'manufacturer_lot_number': request.form.get(f'manufacturer_lot_number_{row_id}'),
+        }
+
+    try:
+        result = confirm_invoice(invoice_id, header, rows_updates, actor_id=current_user.id)
+        audit_log(
+            action='inventory_invoice_confirmed',
+            module='inventory',
+            entity_type='inventory_invoices',
+            entity_id=invoice_id,
+            details={'lot_ids': result['lot_ids']},
+        )
+        flash('Entrada confirmada e lançada no estoque.', 'success')
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('admin.view_inventory_invoice', invoice_id=invoice_id))
+    except Exception as exc:
+        audit_log(
+            action='inventory_invoice_confirm_failed',
+            module='inventory',
+            entity_type='inventory_invoices',
+            entity_id=invoice_id,
+            status='failed',
+            details={'error': str(exc)},
+        )
+        flash_internal_error('Falha ao confirmar entrada de estoque')
+        return redirect(url_for('admin.view_inventory_invoice', invoice_id=invoice_id))
+    return redirect(url_for('admin.inventory', _anchor='tab-lotes'))
+
+
+@admin_bp.route('/inventory/invoices/<int:invoice_id>/discard', methods=['POST'])
+@login_required
+@permission_required('inventory:write')
+def discard_inventory_invoice(invoice_id):
+    try:
+        discard_invoice(invoice_id)
+        audit_log(
+            action='inventory_invoice_discarded',
+            module='inventory',
+            entity_type='inventory_invoices',
+            entity_id=invoice_id,
+        )
+        flash('Rascunho descartado.', 'success')
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+    return redirect(url_for('admin.inventory', _anchor='tab-notas-fiscais'))
+
+
+@admin_bp.route('/inventory/suppliers', methods=['POST'])
+@login_required
+@permission_required('inventory:write')
+def create_inventory_supplier():
+    try:
+        supplier_id = create_supplier({
+            'name': request.form.get('name'),
+            'cnpj': request.form.get('cnpj'),
+            'phone': request.form.get('phone'),
+            'email': request.form.get('email'),
+        })
+        audit_log(
+            action='inventory_supplier_created',
+            module='inventory',
+            entity_type='inventory_suppliers',
+            entity_id=supplier_id,
+            details={'name': request.form.get('name')},
+        )
+        flash('Fornecedor cadastrado.', 'success')
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+    except Exception as exc:
+        audit_log(
+            action='inventory_supplier_create_failed',
+            module='inventory',
+            status='failed',
+            details={'error': str(exc)},
+        )
+        flash_internal_error('Falha ao cadastrar fornecedor')
+    return redirect(url_for('admin.inventory', _anchor='tab-fornecedores'))
+
+
+@admin_bp.route('/inventory/suppliers/<int:supplier_id>/edit')
+@login_required
+@permission_required('inventory:write')
+def edit_inventory_supplier(supplier_id):
+    try:
+        supplier = get_supplier(supplier_id)
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('admin.inventory', _anchor='tab-fornecedores'))
+    return render_template('admin/inventory/edit_supplier.html', supplier=supplier)
+
+
+@admin_bp.route('/inventory/suppliers/<int:supplier_id>', methods=['POST'])
+@login_required
+@permission_required('inventory:write')
+def update_inventory_supplier(supplier_id):
+    try:
+        update_supplier(supplier_id, {
+            'name': request.form.get('name'),
+            'cnpj': request.form.get('cnpj'),
+            'phone': request.form.get('phone'),
+            'email': request.form.get('email'),
+            'active': request.form.get('active', '1'),
+        })
+        audit_log(
+            action='inventory_supplier_updated',
+            module='inventory',
+            entity_type='inventory_suppliers',
+            entity_id=supplier_id,
+        )
+        flash('Fornecedor atualizado.', 'success')
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+    except Exception as exc:
+        audit_log(
+            action='inventory_supplier_update_failed',
+            module='inventory',
+            entity_type='inventory_suppliers',
+            entity_id=supplier_id,
+            status='failed',
+            details={'error': str(exc)},
+        )
+        flash_internal_error('Falha ao atualizar fornecedor')
+    return redirect(url_for('admin.inventory', _anchor='tab-fornecedores'))
+
+
+@admin_bp.route('/inventory/invoices/export')
+@login_required
+@permission_required('inventory:view')
+def export_inventory_invoices_report():
+    start_raw = request.args.get('start')
+    end_raw = request.args.get('end')
+    export_format = request.args.get('format')
+
+    if not start_raw or not end_raw or not export_format:
+        return render_template('admin/inventory/export_invoices.html')
+
+    try:
+        start = dt.date.fromisoformat(start_raw)
+        end = dt.date.fromisoformat(end_raw)
+    except ValueError:
+        flash('Período inválido para exportação.', 'danger')
+        return redirect(url_for('admin.export_inventory_invoices_report'))
+
+    invoices = list_confirmed_invoices_for_period(start, end)
+    total_value = sum(float(invoice.get('total_value') or 0) for invoice in invoices)
+
+    audit_log(
+        action='inventory_invoices_exported',
+        module='inventory',
+        details={'start': start_raw, 'end': end_raw, 'format': export_format, 'count': len(invoices)},
+    )
+
+    if export_format == 'csv':
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(['Fornecedor', 'CNPJ', 'Número', 'Série', 'Emissão', 'Itens', 'Valor Total'])
+        for invoice in invoices:
+            writer.writerow([
+                invoice.get('supplier_name') or '',
+                invoice.get('supplier_cnpj') or '',
+                invoice.get('invoice_number') or '',
+                invoice.get('invoice_series') or '',
+                invoice['issue_date'].strftime('%d/%m/%Y') if invoice.get('issue_date') else '',
+                invoice.get('item_count') or 0,
+                f"{float(invoice.get('total_value') or 0):.2f}",
+            ])
+        return Response(
+            buffer.getvalue(),
+            mimetype='text/csv',
+            headers={'Content-Disposition': f'attachment; filename=notas_fiscais_{start_raw}_a_{end_raw}.csv'},
+        )
+
+    html = render_template(
+        'pdfs/relatorio_notas_fiscais_pdf.html',
+        invoices=invoices,
+        total_value=total_value,
+        start=start,
+        end=end,
+        generated_at=dt.datetime.now(),
+    )
+    pdf_bytes = HTML(string=html).write_pdf()
+    return Response(
+        pdf_bytes,
+        mimetype='application/pdf',
+        headers={'Content-Disposition': f'attachment; filename=notas_fiscais_{start_raw}_a_{end_raw}.pdf'},
+    )
 
 
 @admin_bp.route('/integrations/esus')

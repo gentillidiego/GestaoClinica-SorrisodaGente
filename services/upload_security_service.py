@@ -4,6 +4,7 @@ import warnings
 from dataclasses import dataclass
 from pathlib import Path
 
+from lxml import etree
 from PIL import Image, UnidentifiedImageError
 from pydicom import dcmread
 from pydicom.errors import InvalidDicomError
@@ -101,6 +102,11 @@ FORMAT_POLICIES = {
         'canonical_extension': '.pdf',
         'mime_type': 'application/pdf',
     },
+    'XML': {
+        'extensions': {'.xml'},
+        'canonical_extension': '.xml',
+        'mime_type': 'application/xml',
+    },
 }
 
 STANDARD_IMAGE_FORMATS = frozenset({'JPEG', 'PNG', 'WEBP'})
@@ -110,6 +116,7 @@ ENDODONTIA_IMAGE_FORMATS = frozenset(
 CLINICAL_LAB_FORMATS = frozenset(
     {'JPEG', 'PNG', 'WEBP', 'PDF'}
 )
+INVOICE_DOCUMENT_FORMATS = frozenset({'XML', 'PDF'})
 
 
 class UploadValidationError(ValueError):
@@ -184,6 +191,9 @@ def _detect_format(stream):
         return 'DICOM'
     if head.lstrip(b'\x00\t\r\n ').startswith(b'%PDF-'):
         return 'PDF'
+    stripped = head.lstrip(b'\xef\xbb\xbf\x00\t\r\n ')
+    if stripped.startswith(b'<?xml') or stripped.startswith(b'<'):
+        return 'XML'
     return None
 
 
@@ -411,6 +421,22 @@ def _inspect_pdf(stream, filename, size_bytes):
         stream.seek(0)
 
 
+def _inspect_xml(stream, filename):
+    stream.seek(0)
+    raw = stream.read()
+    stream.seek(0)
+    # resolve_entities=False e no_network=True bloqueiam XXE/SSRF via DTD
+    # externa; huge_tree=False mantém os limites padrão contra expansão
+    # exponencial de entidades (billion laughs).
+    parser = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
+    try:
+        etree.fromstring(raw, parser=parser)
+    except etree.XMLSyntaxError as exc:
+        raise UploadValidationError(
+            f'O arquivo “{filename}” não é um XML bem formado.'
+        ) from exc
+
+
 def inspect_uploaded_file(file, *, allowed_formats):
     """
     Inspeciona os bytes reais e devolve metadados confiáveis.
@@ -469,6 +495,8 @@ def inspect_uploaded_file(file, *, allowed_formats):
         )
     elif detected_format == 'PDF':
         pages, encrypted = _inspect_pdf(stream, safe_name, size_bytes)
+    elif detected_format == 'XML':
+        _inspect_xml(stream, safe_name)
 
     stream.seek(0)
     return UploadInspection(

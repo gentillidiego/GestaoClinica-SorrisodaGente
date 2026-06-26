@@ -1,0 +1,104 @@
+<form onsubmit="event.preventDefault(); reloadInventoryTab('tab-lotes', new URLSearchParams(new FormData(this)).toString()); return false;"
+      class="card" style="padding:1rem; margin-bottom:1.5rem;">
+    <div style="display:grid; grid-template-columns:1.5fr 1fr auto; gap:1rem; align-items:end;">
+        <div>
+            <label class="form-label">Busca</label>
+            <input class="form-control" name="q" value="{{ dashboard.filters.q or '' }}" placeholder="Material, lote ou fornecedor">
+        </div>
+        <div>
+            <label class="form-label">Categoria</label>
+            <select class="form-control" name="category">
+                <option value="">Todas</option>
+                {% for value, label in dashboard.category_options %}
+                <option value="{{ value }}" {% if dashboard.filters.category == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button class="btn btn-primary" type="submit" style="height:48px;">Filtrar</button>
+    </div>
+</form>
+
+<p style="color:hsl(var(--text-muted)); font-size:0.86rem; margin-bottom:1rem;">
+    Novas entradas de lote agora passam pela aba <strong>Entrada de Mercadoria</strong>
+    (importação de XML/PDF ou lançamento manual de nota/compra avulsa).
+</p>
+
+<section class="card" style="padding:0; overflow:hidden; margin-bottom:1.5rem;">
+    <div class="table-container">
+        <table style="width:100%; border-collapse:collapse; background:white;">
+            <thead>
+                <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                    <th style="padding:0.85rem; min-width:230px;">Material</th>
+                    <th style="padding:0.85rem;">Lote</th>
+                    <th style="padding:0.85rem;">Fornecedor</th>
+                    <th style="padding:0.85rem;">Origem</th>
+                    <th style="padding:0.85rem;">Validade</th>
+                    <th style="padding:0.85rem;">Saldo</th>
+                    <th style="padding:0.85rem;">Custo Unit.</th>
+                    <th style="padding:0.85rem;">Valor Atual</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lot in dashboard.lots %}
+                <tr style="border-bottom:1px solid hsl(var(--border));">
+                    <td style="padding:0.85rem;">
+                        <strong>{{ lot.item_name }}</strong><br>
+                        <small style="color:hsl(var(--text-muted));">{{ lot.category }} · {{ lot.center_cost or 'sem centro' }}</small>
+                    </td>
+                    <td style="padding:0.85rem; font-weight:800;">{{ lot.lot_number }}</td>
+                    <td style="padding:0.85rem;">{{ lot.supplier_name or 'Não informado' }}</td>
+                    <td style="padding:0.85rem;">
+                        {% if lot.invoice_number %}NF {{ lot.invoice_number }}{% elif lot.invoice_source_type %}{{ lot.invoice_source_type }}{% else %}—{% endif %}
+                    </td>
+                    <td style="padding:0.85rem;">{{ lot.expiration_date.strftime('%d/%m/%Y') if lot.expiration_date else 'Sem validade' }}</td>
+                    <td style="padding:0.85rem;">{{ lot.quantity_current }} {{ lot.unit }}</td>
+                    <td style="padding:0.85rem;">R$ {{ '%.2f'|format(lot.unit_cost or 0) }}</td>
+                    <td style="padding:0.85rem; font-weight:900; color:#0f766e;">R$ {{ '%.2f'|format(lot.current_value or 0) }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">Nenhum lote encontrado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:1rem 1rem 0;">
+        <h2 class="section-header">Consumo Recente</h2>
+    </div>
+    <div class="table-container">
+        <table style="width:100%; border-collapse:collapse; background:white;">
+            <thead>
+                <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                    <th style="padding:0.85rem;">Data</th>
+                    <th style="padding:0.85rem;">Paciente</th>
+                    <th style="padding:0.85rem;">Material</th>
+                    <th style="padding:0.85rem;">Lote</th>
+                    <th style="padding:0.85rem;">Quantidade</th>
+                    <th style="padding:0.85rem;">Custo</th>
+                    <th style="padding:0.85rem;">Profissional</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in dashboard.recent_usage %}
+                <tr style="border-bottom:1px solid hsl(var(--border));">
+                    <td style="padding:0.85rem;">{{ row.used_at.strftime('%d/%m/%Y %H:%M') if row.used_at else 'Sem data' }}</td>
+                    <td style="padding:0.85rem;"><a href="{{ url_for('patients.view_patient', id=row.patient_id) }}">{{ row.patient_name }}</a></td>
+                    <td style="padding:0.85rem;">{{ row.item_name }}</td>
+                    <td style="padding:0.85rem;">{{ row.lot_number }}</td>
+                    <td style="padding:0.85rem;">{{ row.quantity }} {{ row.unit }}</td>
+                    <td style="padding:0.85rem;">R$ {{ '%.2f'|format(row.total_cost or 0) }}</td>
+                    <td style="padding:0.85rem;">{{ row.professional_name or row.professional_username or 'Não informado' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">Nenhum consumo registrado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>

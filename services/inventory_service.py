@@ -1,4 +1,7 @@
 import datetime as dt
+import difflib
+import re
+import unicodedata
 from decimal import Decimal, InvalidOperation
 
 from database import execute, get_db_connection, put_db_connection, query
@@ -30,6 +33,14 @@ ADJUSTMENT_TYPES = [
     ('inventario_positivo', 'Inventário físico positivo'),
 ]
 
+INVOICE_SOURCE_TYPES = [
+    ('xml_nfe', 'XML da NF-e'),
+    ('pdf_danfe', 'PDF (DANFE)'),
+    ('manual', 'Lançamento manual de nota'),
+    ('avulsa', 'Compra avulsa (sem nota)'),
+]
+
+_ITEM_MATCH_MIN_SCORE = 0.72
 _CATEGORY_SLUGS = {value for value, _label in ITEM_CATEGORIES}
 _USAGE_TYPE_SLUGS = {value for value, _label in USAGE_TYPES}
 _ADJUSTMENT_TYPE_SLUGS = {value for value, _label in ADJUSTMENT_TYPES}
@@ -131,9 +142,9 @@ def create_inventory_item(form_data, actor_id=None):
     item_id = execute(
         """
         INSERT INTO inventory_items (
-            name, category, unit, min_quantity, center_cost, notes, active, created_by
+            name, category, unit, min_quantity, center_cost, notes, ean, active, created_by
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
         """,
         (
@@ -143,6 +154,7 @@ def create_inventory_item(form_data, actor_id=None):
             _parse_decimal(form_data.get('min_quantity')),
             _clean(form_data.get('center_cost')),
             _clean(form_data.get('notes')),
+            _clean(form_data.get('ean')),
             form_data.get('active', '1') != '0',
             actor_id,
         ),
@@ -240,11 +252,12 @@ def get_inventory_dashboard(filters=None):
     lots = query(
         f"""
         SELECT l.*, i.name AS item_name, i.category, i.unit, i.min_quantity,
-               s.name AS supplier_name,
+               s.name AS supplier_name, inv.invoice_number, inv.source_type AS invoice_source_type,
                (l.quantity_current * COALESCE(l.unit_cost, 0)) AS current_value
         FROM inventory_lots l
         JOIN inventory_items i ON i.id = l.item_id
         LEFT JOIN inventory_suppliers s ON s.id = l.supplier_id
+        LEFT JOIN inventory_invoices inv ON inv.id = l.invoice_id
         WHERE {where_sql.replace('i.active = TRUE', 'i.active = TRUE AND l.active = TRUE')}
         ORDER BY l.expiration_date ASC NULLS LAST, i.name ASC, l.lot_number ASC
         LIMIT 300
@@ -281,17 +294,22 @@ def get_inventory_dashboard(filters=None):
         """
     )
     alerts = get_inventory_alerts(limit=30)
+    pending_invoices = query(
+        "SELECT COUNT(*) AS total FROM inventory_invoices WHERE status = 'rascunho'",
+        one=True,
+    )
     stats = {
-        'items': len(items or []),
+        'materials_count': len(items or []),
         'lots': len(lots or []),
         'low_stock': sum(1 for alert in alerts if alert['type'] == 'low_stock'),
         'expired': sum(1 for alert in alerts if alert['type'] == 'expired_lot'),
         'expiring': sum(1 for alert in alerts if alert['type'] == 'expiring_lot'),
         'postop_pending': sum(1 for alert in alerts if alert['type'] == 'implant_postop_pending'),
         'current_value': sum(_format_money(row.get('current_value')) for row in lots or []),
+        'pending_invoices': (pending_invoices or {}).get('total', 0),
     }
     return {
-        'items': items,
+        'materials': items,
         'lots': lots,
         'recent_usage': recent_usage,
         'recent_adjustments': recent_adjustments,
@@ -688,3 +706,484 @@ def get_inventory_alerts(limit=50, today=None):
         })
 
     return alerts[:limit]
+
+
+def get_invoice_source_type_options():
+    return INVOICE_SOURCE_TYPES
+
+
+def list_active_items():
+    return query(
+        "SELECT id, name, category, unit FROM inventory_items WHERE active = TRUE ORDER BY name ASC"
+    )
+
+
+# --- CNPJ -------------------------------------------------------------
+
+def normalize_cnpj(value):
+    digits = re.sub(r'\D', '', str(value or ''))
+    return digits or None
+
+
+def _cnpj_check_digits(base_digits):
+    def calc(nums, weights):
+        total = sum(int(n) * w for n, w in zip(nums, weights))
+        remainder = total % 11
+        return '0' if remainder < 2 else str(11 - remainder)
+
+    d1 = calc(base_digits, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+    d2 = calc(base_digits + d1, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+    return d1 + d2
+
+
+def is_valid_cnpj(value):
+    digits = normalize_cnpj(value)
+    if not digits or len(digits) != 14 or len(set(digits)) == 1:
+        return False
+    return digits[12:] == _cnpj_check_digits(digits[:12])
+
+
+def format_cnpj(value):
+    digits = normalize_cnpj(value)
+    if not digits or len(digits) != 14:
+        return _clean(value)
+    return f"{digits[0:2]}.{digits[2:5]}.{digits[5:8]}/{digits[8:12]}-{digits[12:14]}"
+
+
+# --- Fornecedores -------------------------------------------------------
+
+def get_supplier(supplier_id):
+    supplier = query("SELECT * FROM inventory_suppliers WHERE id = %s", (supplier_id,), one=True)
+    if not supplier:
+        raise ValueError('Fornecedor não encontrado.')
+    return supplier
+
+
+def list_suppliers(q=None):
+    q = _clean(q)
+    if q:
+        return query(
+            "SELECT * FROM inventory_suppliers WHERE name ILIKE %s OR cnpj ILIKE %s ORDER BY name ASC",
+            (f'%{q}%', f'%{q}%'),
+        )
+    return query("SELECT * FROM inventory_suppliers ORDER BY name ASC")
+
+
+def create_supplier(form_data):
+    name = _clean(form_data.get('name'))
+    if not name:
+        raise ValueError('Nome do fornecedor é obrigatório.')
+    cnpj = normalize_cnpj(form_data.get('cnpj'))
+    if cnpj and not is_valid_cnpj(cnpj):
+        raise ValueError('CNPJ inválido.')
+    return execute(
+        """
+        INSERT INTO inventory_suppliers (name, cnpj, document, phone, email, active)
+        VALUES (%s, %s, %s, %s, %s, TRUE)
+        RETURNING id
+        """,
+        (name, cnpj, cnpj, _clean(form_data.get('phone')), _clean(form_data.get('email'))),
+    )
+
+
+def update_supplier(supplier_id, form_data):
+    name = _clean(form_data.get('name'))
+    if not name:
+        raise ValueError('Nome do fornecedor é obrigatório.')
+    cnpj = normalize_cnpj(form_data.get('cnpj'))
+    if cnpj and not is_valid_cnpj(cnpj):
+        raise ValueError('CNPJ inválido.')
+    execute(
+        """
+        UPDATE inventory_suppliers
+        SET name = %s, cnpj = %s, document = %s, phone = %s, email = %s, active = %s
+        WHERE id = %s
+        """,
+        (
+            name, cnpj, cnpj, _clean(form_data.get('phone')), _clean(form_data.get('email')),
+            form_data.get('active', '1') != '0', supplier_id,
+        ),
+    )
+
+
+def get_or_create_supplier(name=None, cnpj=None):
+    normalized_cnpj = normalize_cnpj(cnpj)
+    if normalized_cnpj:
+        existing = query(
+            "SELECT id, name FROM inventory_suppliers WHERE cnpj = %s LIMIT 1",
+            (normalized_cnpj,),
+            one=True,
+        )
+        if existing:
+            return existing['id']
+
+    supplier_name = _clean(name)
+    if supplier_name:
+        existing = query(
+            "SELECT id, cnpj FROM inventory_suppliers WHERE LOWER(name) = LOWER(%s) LIMIT 1",
+            (supplier_name,),
+            one=True,
+        )
+        if existing:
+            if normalized_cnpj and not existing.get('cnpj'):
+                execute(
+                    "UPDATE inventory_suppliers SET cnpj = %s, document = %s WHERE id = %s",
+                    (normalized_cnpj, normalized_cnpj, existing['id']),
+                )
+            return existing['id']
+
+    if not supplier_name and not normalized_cnpj:
+        return None
+
+    return execute(
+        "INSERT INTO inventory_suppliers (name, cnpj, document) VALUES (%s, %s, %s) RETURNING id",
+        (supplier_name or normalized_cnpj, normalized_cnpj, normalized_cnpj),
+    )
+
+
+# --- Conciliação de itens (matching) ------------------------------------
+
+def _normalize_text(value):
+    text = _clean(value) or ''
+    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
+    return re.sub(r'[^a-z0-9]+', ' ', text.lower()).strip()
+
+
+def suggest_item_match(description_raw, ean=None):
+    ean = _clean(ean)
+    if ean:
+        match = query(
+            "SELECT id FROM inventory_items WHERE ean = %s AND active = TRUE LIMIT 1",
+            (ean,),
+            one=True,
+        )
+        if match:
+            return match['id'], 'exact'
+
+    normalized = _normalize_text(description_raw)
+    if not normalized:
+        return None, 'new'
+
+    candidates = query("SELECT id, name FROM inventory_items WHERE active = TRUE")
+    best_id, best_score = None, 0.0
+    for candidate in candidates or []:
+        score = difflib.SequenceMatcher(None, normalized, _normalize_text(candidate['name'])).ratio()
+        if score > best_score:
+            best_score, best_id = score, candidate['id']
+    if best_id and best_score >= _ITEM_MATCH_MIN_SCORE:
+        return best_id, 'suggested'
+    return None, 'new'
+
+
+# --- Notas fiscais / compras --------------------------------------------
+
+def _insert_invoice_item(invoice_id, row):
+    description_raw = _clean(row.get('description_raw')) or 'Item sem descrição'
+    ean = _clean(row.get('ean'))
+    item_id, confidence = suggest_item_match(description_raw, ean)
+    return execute(
+        """
+        INSERT INTO inventory_invoice_items (
+            invoice_id, item_id, description_raw, ncm, cfop, ean, unit, quantity,
+            unit_value, total_value, match_confidence, expiration_date,
+            manufacturer_lot_number
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
+        """,
+        (
+            invoice_id, item_id, description_raw, _clean(row.get('ncm')), _clean(row.get('cfop')),
+            ean, _clean(row.get('unit')) or 'unidade',
+            _parse_decimal(row.get('quantity')), _parse_decimal(row.get('unit_value')),
+            _parse_decimal(row.get('total_value')), confidence,
+            _parse_date(row.get('expiration_date')), _clean(row.get('manufacturer_lot_number')),
+        ),
+    )
+
+
+def create_invoice_draft(source_type, header, rows, actor_id=None, raw_file_path=None, raw_file_type=None):
+    valid_types = {value for value, _label in INVOICE_SOURCE_TYPES}
+    if source_type not in valid_types:
+        raise ValueError('Origem da entrada de mercadoria inválida.')
+
+    header = header or {}
+    access_key = None
+    raw_access_key = _clean(header.get('access_key'))
+    if raw_access_key:
+        access_key = re.sub(r'\D', '', raw_access_key)
+        if len(access_key) != 44:
+            raise ValueError('Chave de acesso da NF-e deve ter 44 dígitos.')
+        existing = query(
+            "SELECT id, invoice_number FROM inventory_invoices WHERE access_key = %s",
+            (access_key,),
+            one=True,
+        )
+        if existing:
+            raise ValueError(
+                f"Esta NF-e já foi importada (nota nº {existing['invoice_number'] or existing['id']})."
+            )
+
+    supplier_id = get_or_create_supplier(header.get('supplier_name'), header.get('supplier_cnpj'))
+
+    invoice_id = execute(
+        """
+        INSERT INTO inventory_invoices (
+            supplier_id, source_type, status, access_key, invoice_number, invoice_series,
+            issue_date, total_value, raw_file_path, raw_file_type, notes, created_by
+        )
+        VALUES (%s, %s, 'rascunho', %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
+        """,
+        (
+            supplier_id, source_type, access_key,
+            _clean(header.get('invoice_number')), _clean(header.get('invoice_series')),
+            _parse_date(header.get('issue_date')), _parse_decimal(header.get('total_value')),
+            raw_file_path, raw_file_type, _clean(header.get('notes')), actor_id,
+        ),
+    )
+
+    rows = rows or [{}]
+    for row in rows:
+        _insert_invoice_item(invoice_id, row)
+    return invoice_id
+
+
+def list_invoices(filters=None):
+    filters = filters or {}
+    clauses, params = ["1=1"], []
+    status = _clean(filters.get('status'))
+    if status:
+        clauses.append("inv.status = %s")
+        params.append(status)
+    q = _clean(filters.get('q'))
+    if q:
+        clauses.append("(s.name ILIKE %s OR inv.invoice_number ILIKE %s)")
+        params.extend([f'%{q}%', f'%{q}%'])
+    where_sql = " AND ".join(clauses)
+    return query(
+        f"""
+        SELECT inv.*, s.name AS supplier_name, s.cnpj AS supplier_cnpj,
+               COUNT(ii.id) AS item_count
+        FROM inventory_invoices inv
+        LEFT JOIN inventory_suppliers s ON s.id = inv.supplier_id
+        LEFT JOIN inventory_invoice_items ii ON ii.invoice_id = inv.id
+        WHERE {where_sql}
+        GROUP BY inv.id, s.name, s.cnpj
+        ORDER BY inv.created_at DESC
+        LIMIT 200
+        """,
+        tuple(params),
+    )
+
+
+def list_confirmed_invoices_for_period(start_date, end_date):
+    return query(
+        """
+        SELECT inv.*, s.name AS supplier_name, s.cnpj AS supplier_cnpj,
+               COUNT(ii.id) AS item_count
+        FROM inventory_invoices inv
+        LEFT JOIN inventory_suppliers s ON s.id = inv.supplier_id
+        LEFT JOIN inventory_invoice_items ii ON ii.invoice_id = inv.id
+        WHERE inv.status = 'confirmada'
+          AND COALESCE(inv.issue_date, inv.confirmed_at::date) BETWEEN %s AND %s
+        GROUP BY inv.id, s.name, s.cnpj
+        ORDER BY COALESCE(inv.issue_date, inv.confirmed_at::date) ASC, inv.id ASC
+        """,
+        (start_date, end_date),
+    )
+
+
+def get_invoice_detail(invoice_id):
+    invoice = query(
+        """
+        SELECT inv.*, s.name AS supplier_name, s.cnpj AS supplier_cnpj,
+               creator.username AS created_by_username,
+               confirmer.username AS confirmed_by_username
+        FROM inventory_invoices inv
+        LEFT JOIN inventory_suppliers s ON s.id = inv.supplier_id
+        LEFT JOIN users creator ON creator.id = inv.created_by
+        LEFT JOIN users confirmer ON confirmer.id = inv.confirmed_by
+        WHERE inv.id = %s
+        """,
+        (invoice_id,),
+        one=True,
+    )
+    if not invoice:
+        raise ValueError('Nota fiscal/compra não encontrada.')
+    invoice['lines'] = query(
+        """
+        SELECT ii.*, i.name AS item_name, i.category AS item_category
+        FROM inventory_invoice_items ii
+        LEFT JOIN inventory_items i ON i.id = ii.item_id
+        WHERE ii.invoice_id = %s
+        ORDER BY ii.id ASC
+        """,
+        (invoice_id,),
+    )
+    return invoice
+
+
+def _require_draft_invoice(invoice_id):
+    invoice = query(
+        "SELECT id, status FROM inventory_invoices WHERE id = %s",
+        (invoice_id,),
+        one=True,
+    )
+    if not invoice:
+        raise ValueError('Nota fiscal/compra não encontrada.')
+    if invoice['status'] != 'rascunho':
+        raise ValueError('Esta nota/compra já foi confirmada ou descartada.')
+    return invoice
+
+
+def add_invoice_item_row(invoice_id):
+    _require_draft_invoice(invoice_id)
+    return _insert_invoice_item(invoice_id, {})
+
+
+def delete_invoice_item_row(invoice_id, invoice_item_id):
+    _require_draft_invoice(invoice_id)
+    remaining = query(
+        "SELECT COUNT(*) AS total FROM inventory_invoice_items WHERE invoice_id = %s",
+        (invoice_id,),
+        one=True,
+    )
+    if remaining and remaining['total'] <= 1:
+        raise ValueError('A nota/compra precisa ter ao menos um item.')
+    execute(
+        "DELETE FROM inventory_invoice_items WHERE id = %s AND invoice_id = %s",
+        (invoice_item_id, invoice_id),
+    )
+
+
+def discard_invoice(invoice_id):
+    _require_draft_invoice(invoice_id)
+    execute("UPDATE inventory_invoices SET status = 'descartada' WHERE id = %s", (invoice_id,))
+
+
+def confirm_invoice(invoice_id, header, rows_updates, actor_id=None):
+    """Concilia e confirma uma nota/compra em rascunho, gerando um lote de
+    estoque por item (mesma semântica de create_inventory_lot, mas dentro de
+    uma única transação para garantir atomicidade entre todos os itens)."""
+    header = header or {}
+    rows_updates = rows_updates or {}
+
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, status FROM inventory_invoices WHERE id = %s FOR UPDATE",
+            (invoice_id,),
+        )
+        invoice = cur.fetchone()
+        if not invoice:
+            raise ValueError('Nota fiscal/compra não encontrada.')
+        if invoice['status'] != 'rascunho':
+            raise ValueError('Esta nota/compra já foi confirmada ou descartada.')
+
+        supplier_id = get_or_create_supplier(header.get('supplier_name'), header.get('supplier_cnpj'))
+
+        cur.execute(
+            """
+            UPDATE inventory_invoices
+            SET supplier_id = %s, invoice_number = %s, invoice_series = %s,
+                issue_date = %s, total_value = %s, notes = %s
+            WHERE id = %s
+            """,
+            (
+                supplier_id, _clean(header.get('invoice_number')), _clean(header.get('invoice_series')),
+                _parse_date(header.get('issue_date')), _parse_decimal(header.get('total_value')),
+                _clean(header.get('notes')), invoice_id,
+            ),
+        )
+
+        cur.execute(
+            "SELECT id FROM inventory_invoice_items WHERE invoice_id = %s ORDER BY id ASC",
+            (invoice_id,),
+        )
+        row_ids = [row['id'] for row in cur.fetchall()]
+        if not row_ids:
+            raise ValueError('A nota/compra não possui itens para confirmar.')
+
+        created_lots = []
+        missing_rows = []
+        for row_id in row_ids:
+            update = rows_updates.get(str(row_id)) or {}
+            item_id = update.get('item_id') or None
+            new_item_name = _clean(update.get('new_item_name'))
+            if not item_id and new_item_name:
+                cur.execute(
+                    """
+                    INSERT INTO inventory_items (name, category, unit, active, created_by)
+                    VALUES (%s, %s, %s, TRUE, %s)
+                    RETURNING id
+                    """,
+                    (
+                        new_item_name,
+                        _normalize_category(update.get('new_item_category')),
+                        _clean(update.get('unit')) or 'unidade',
+                        actor_id,
+                    ),
+                )
+                item_id = cur.fetchone()['id']
+
+            expiration_date = _parse_date(update.get('expiration_date'))
+            try:
+                quantity = _parse_decimal(update.get('quantity'))
+            except ValueError:
+                quantity = Decimal('0')
+
+            if not item_id or not expiration_date or quantity <= 0:
+                missing_rows.append(row_id)
+                continue
+
+            unit_cost = _parse_decimal(update.get('unit_value'))
+            lot_number = _clean(update.get('manufacturer_lot_number')) or f"NF-{invoice_id}-{row_id}"
+
+            cur.execute(
+                """
+                UPDATE inventory_invoice_items
+                SET item_id = %s, quantity = %s, unit_value = %s, total_value = %s,
+                    expiration_date = %s, manufacturer_lot_number = %s
+                WHERE id = %s
+                """,
+                (item_id, quantity, unit_cost, quantity * unit_cost, expiration_date, lot_number, row_id),
+            )
+            cur.execute(
+                """
+                INSERT INTO inventory_lots (
+                    item_id, supplier_id, lot_number, expiration_date, quantity_initial,
+                    quantity_current, unit_cost, received_at, active, created_by,
+                    invoice_id, invoice_item_id
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    item_id, supplier_id, lot_number, expiration_date, quantity, quantity,
+                    unit_cost, dt.date.today(), actor_id, invoice_id, row_id,
+                ),
+            )
+            lot_id = cur.fetchone()['id']
+            cur.execute(
+                "UPDATE inventory_invoice_items SET lot_id = %s WHERE id = %s",
+                (lot_id, row_id),
+            )
+            created_lots.append(lot_id)
+
+        if missing_rows:
+            raise ValueError(
+                f"Preencha material e validade para {len(missing_rows)} item(ns) antes de confirmar."
+            )
+
+        cur.execute(
+            "UPDATE inventory_invoices SET status = 'confirmada', confirmed_by = %s, confirmed_at = NOW() WHERE id = %s",
+            (actor_id, invoice_id),
+        )
+        conn.commit()
+        return {'invoice_id': invoice_id, 'lot_ids': created_lots}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        put_db_connection(conn)

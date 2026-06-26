@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Relatório de Notas Fiscais de Estoque</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 16mm 14mm 20mm;
+            @bottom-left {
+                content: "Programa Sorriso da Gente • Gestão Saúde Oral";
+                font-family: Arial, sans-serif;
+                font-size: 7.5pt;
+                color: #64748b;
+            }
+            @bottom-right {
+                content: "Página " counter(page) " de " counter(pages);
+                font-family: Arial, sans-serif;
+                font-size: 7.5pt;
+                color: #64748b;
+            }
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            color: #172033;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 9.5pt;
+            line-height: 1.4;
+        }
+        h1 {
+            color: #0d47a1;
+            font-size: 16pt;
+            margin: 0 0 2mm;
+        }
+        .subtitle {
+            color: #64748b;
+            font-size: 9pt;
+            margin: 0 0 6mm;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #dbe7f6;
+            padding: 1.6mm 2mm;
+            text-align: left;
+        }
+        th {
+            background: #f1f6fd;
+            color: #0d47a1;
+            font-size: 8.5pt;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+        tfoot td {
+            font-weight: 800;
+            background: #f8fbff;
+        }
+        .text-right { text-align: right; }
+    </style>
+</head>
+<body>
+    <h1>Relatório de Notas Fiscais de Estoque</h1>
+    <p class="subtitle">
+        Período: {{ start.strftime('%d/%m/%Y') }} a {{ end.strftime('%d/%m/%Y') }} ·
+        Gerado em {{ generated_at.strftime('%d/%m/%Y %H:%M') }} ·
+        Apenas entradas confirmadas
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Fornecedor</th>
+                <th>CNPJ</th>
+                <th>Nº / Série</th>
+                <th>Emissão</th>
+                <th>Itens</th>
+                <th class="text-right">Valor Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for invoice in invoices %}
+            <tr>
+                <td>{{ invoice.supplier_name or 'Não informado' }}</td>
+                <td>{{ invoice.supplier_cnpj or '—' }}</td>
+                <td>{{ invoice.invoice_number or '—' }}{% if invoice.invoice_series %} / {{ invoice.invoice_series }}{% endif %}</td>
+                <td>{{ invoice.issue_date.strftime('%d/%m/%Y') if invoice.issue_date else '—' }}</td>
+                <td>{{ invoice.item_count }}</td>
+                <td class="text-right">R$ {{ '%.2f'|format(invoice.total_value or 0) }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" style="text-align:center; color:#64748b;">Nenhuma nota confirmada no período.</td></tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="5">Total do período</td>
+                <td class="text-right">R$ {{ '%.2f'|format(total_value or 0) }}</td>
+            </tr>
+        </tfoot>
+    </table>
+</body>
+</html>

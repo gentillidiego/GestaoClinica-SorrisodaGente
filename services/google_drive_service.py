@@ -316,6 +316,17 @@ def ensure_user_permission(service, file_id, email, role='writer'):
         raise GoogleDriveOperationError(f'Falha ao compartilhar pasta no Google Drive: {exc}') from exc
 
 
+DEFAULT_INVENTORY_INVOICES_FOLDER_NAME = 'Notas Fiscais de Estoque'
+
+
+def get_inventory_invoices_root_folder(service=None):
+    service = service or get_drive_service()
+    folder_name = os.getenv(
+        'GDRIVE_INVENTORY_FOLDER_NAME', DEFAULT_INVENTORY_INVOICES_FOLDER_NAME
+    ).strip() or DEFAULT_INVENTORY_INVOICES_FOLDER_NAME
+    return ensure_folder(service, folder_name)
+
+
 def get_patients_root_folder(service=None):
     service = service or get_drive_service()
     configured_folder_id = os.getenv('GDRIVE_ROOT_FOLDER_ID', '').strip()
