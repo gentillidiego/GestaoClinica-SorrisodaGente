@@ -47,6 +47,12 @@ deploy/mail/dkim/*
 gdrive-key*.json
 secrets/
 
+# Documentos comerciais com dados pessoais/CNPJ — nunca vão para o repositório público
+docs/Comercial ok/
+docs/Comercial/
+scripts/generate_revised_commercial_documents.py
+scripts/generate_simple_saas_contract.py
+
 # Diretórios restaurados (artefato de ferramentas de backup)
 *.restored1/
 __pycache__.restored1/

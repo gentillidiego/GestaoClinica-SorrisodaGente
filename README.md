@@ -19,7 +19,7 @@ detalhados.
 
 A aplicação e a infraestrutura passaram pelo QA técnico de 21/06/2026:
 
-- `285` testes aprovados localmente e na imagem Docker com PostgreSQL isolado;
+- `361` testes aprovados localmente e na imagem Docker com PostgreSQL isolado;
 - dependências diretas, transitivas e instaladas sem vulnerabilidades
   conhecidas;
 - rebuild Docker, `/health`, Celery e smoke tests aprovados;
@@ -503,8 +503,8 @@ Para uma validação de release, use PostgreSQL temporário e isolado. Não herd
 
 Validações da candidata:
 
-- suíte local: `285 passed`;
-- suíte na imagem com banco isolado: `285 passed`;
+- suíte local: `361 passed`;
+- suíte na imagem com banco isolado: `361 passed`;
 - `pip-audit` direto, transitivo e da imagem: sem vulnerabilidades conhecidas;
 - `pip check`: nenhuma dependência quebrada;
 - rebuild Docker aprovado;
