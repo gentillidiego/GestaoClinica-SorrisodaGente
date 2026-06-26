@@ -32,8 +32,8 @@ A aplicação e a infraestrutura passaram pelo QA técnico de 21/06/2026:
 - base operacional com `0` pacientes, `0` atendimentos e dois administradores.
 
 Decisão atual: **NO-GO para produção plena com ampliação de pacientes reais**
-(pendências residuais em [Checklist Go/No-Go](#checklist-go-no-go): e-mails
-críticos e manuais/treinamento por perfil).
+— todos os itens do [Checklist Go/No-Go](#checklist-go-no-go) estão
+concluídos; falta apenas a decisão formal **GO**, que cria a tag de produção.
 
 Resolvido em 25/06/2026:
 
@@ -46,6 +46,10 @@ Resolvido em 25/06/2026:
 - homologação do fluxo ponta a ponta e aprovação da entrada assistida
   **registradas como concluídas** (ver detalhe em
   [Aprovação da coordenação](#aprovação-da-coordenação-para-entrada-assistida),
+  abaixo);
+- e-mails críticos validados em Gmail e Outlook, e manuais/treinamento por
+  perfil entregues (ver detalhe em
+  [Validação de e-mails críticos](#validação-de-e-mails-críticos-25062026),
   abaixo).
 
 Despriorizado em 25/06/2026 (deixou de ser bloqueador de entrada, mas
@@ -579,18 +583,40 @@ Concluído:
   10160 PB (25/06/2026);
 - [x] homologar fluxo ponta a ponta (Diego, Administrador, produção e
   desenvolvimento, 25/06/2026);
-- [x] registrar aprovação da coordenação para entrada assistida (25/06/2026).
+- [x] registrar aprovação da coordenação para entrada assistida (25/06/2026);
+- [x] validar e-mails críticos em caixas Gmail e Outlook (25/06/2026 — ver
+  detalhe abaixo);
+- [x] entregar manuais e realizar treinamento por perfil (25/06/2026).
 
 Pendente:
 
-- [ ] validar e-mails críticos em caixas Gmail e Outlook;
-- [ ] entregar manuais e realizar treinamento por perfil;
 - [ ] criar tag de produção somente após decisão **GO**.
 
 Lembrete sem data definida (não bloqueia mais a entrada em operação):
 
 - [ ] confirmar 2FA/recuperação/custódias da conta Google institucional (ver
   [Google Drive](#google-drive)).
+
+### Validação de e-mails críticos (25/06/2026)
+
+Teste real de entregabilidade via `services/mail_service.send_email`, mesmo
+caminho transacional documentado em
+[docs/email_producao_sorrisodagente_2026-06-16.md](docs/email_producao_sorrisodagente_2026-06-16.md):
+
+- `gentillidiego@gmail.com` — aceito por `gmail-smtp-in.l.google.com` (`250
+  2.0.0 OK`) e **entregue na caixa de entrada**;
+- `gentillidiego@outlook.com` — aceito por
+  `outlook-com.olc.protection.outlook.com` (`250 2.6.0`) e **entregue, porém
+  classificado como spam**.
+
+O envio em si funciona nos dois provedores (DKIM válido, DNS correto). A
+classificação como spam pelo Outlook é uma questão de reputação de
+remetente novo, não de configuração quebrada — o DMARC do domínio está em
+`p=none` (modo observação) propositalmente até essa validação. Ação
+recomendada, sem bloquear a operação: marcar o remetente
+`nao-responda@sorrisodagentealagoas.com` como "não é spam"/seguro no
+Outlook, e reavaliar depois de mais alguns envios reais se evolui o DMARC
+para `p=quarantine`.
 
 ## Evolução durante a produção
 
