@@ -1,10 +1,10 @@
 # Gestão Saúde Oral — Programa Sorriso da Gente
 
-Versão candidata: **4.0.0-rc.1**
+Versão de produção: **4.0.0**
 
 Atualização: **25/06/2026**
 
-Status: **tecnicamente validada; produção plena ainda não aprovada**
+Status: **GO — produção plena aprovada**
 
 Plataforma clínica, operacional e institucional de saúde bucal. Reúne triagem
 municipal, agenda, prontuário odontológico, exames, Estomatologia, estoque,
@@ -31,9 +31,10 @@ A aplicação e a infraestrutura passaram pelo QA técnico de 21/06/2026:
 - OAuth/rclone renovado e persistido por substituição atômica;
 - base operacional com `0` pacientes, `0` atendimentos e dois administradores.
 
-Decisão atual: **NO-GO para produção plena com ampliação de pacientes reais**
-— todos os itens do [Checklist Go/No-Go](#checklist-go-no-go) estão
-concluídos; falta apenas a decisão formal **GO**, que cria a tag de produção.
+Decisão atual: **GO para produção plena com ampliação de pacientes reais**,
+registrada em 25/06/2026 por **Diego (perfil Administrador)** — todos os
+itens do [Checklist Go/No-Go](#checklist-go-no-go) foram concluídos antes da
+decisão. Tag de produção: `v4.0.0`.
 
 Resolvido em 25/06/2026:
 
@@ -57,8 +58,9 @@ continua como pendência documentada — ver
 [Google Drive](#google-drive) abaixo): confirmação de 2FA, recuperação e
 custodiantes da conta Google institucional.
 
-A versão `4.0.0-rc.1` identifica uma candidata técnica. Ela não representa
-homologação municipal, aceite jurídico ou autorização para produção plena.
+A versão `v4.0.0` é a primeira tag de produção plena, após decisão **GO** de
+25/06/2026. Ela não substitui homologação municipal nem aceite jurídico, que
+seguem como responsabilidades institucionais separadas.
 
 Evidência: [`docs/auditoria_go_no_go_2026-06-21.md`](docs/auditoria_go_no_go_2026-06-21.md).
 
@@ -586,11 +588,11 @@ Concluído:
 - [x] registrar aprovação da coordenação para entrada assistida (25/06/2026);
 - [x] validar e-mails críticos em caixas Gmail e Outlook (25/06/2026 — ver
   detalhe abaixo);
-- [x] entregar manuais e realizar treinamento por perfil (25/06/2026).
+- [x] entregar manuais e realizar treinamento por perfil (25/06/2026);
+- [x] decisão **GO** registrada (Diego, Administrador, 25/06/2026) e tag de
+  produção `v4.0.0` criada.
 
-Pendente:
-
-- [ ] criar tag de produção somente após decisão **GO**.
+Pendente: nenhum item bloqueador — checklist Go/No-Go concluído.
 
 Lembrete sem data definida (não bloqueia mais a entrada em operação):
 
@@ -798,14 +800,13 @@ git commit -m "Consolida versão 4.0.0-rc.1"
 git push
 ```
 
-Tags de produção devem ser criadas somente depois de decisão **GO**. A tag
-`v4.0.0-rc.1`, quando publicada, identifica apenas esta candidata técnica.
+Decisão **GO** registrada em 25/06/2026 (Diego, Administrador). Tag de
+produção `v4.0.0` criada e publicada no remoto oficial.
 
 Estado em 25/06/2026: as mudanças de exames/RBAC, assinatura/produção, o
-módulo Comunicação e o redesign do Estoque Operacional (entrada de mercadoria
-com importação de XML/PDF e lançamento manual) estão validadas localmente
-(testes e rebuild Docker). O push para o remoto oficial só ocorre quando
-solicitado explicitamente.
+módulo Comunicação, o redesign do Estoque Operacional (entrada de mercadoria
+com importação de XML/PDF e lançamento manual) e a conclusão do checklist
+Go/No-Go estão publicados no remoto oficial, sob a tag `v4.0.0`.
 
 ---
 
