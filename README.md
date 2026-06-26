@@ -31,21 +31,22 @@ A aplicação e a infraestrutura passaram pelo QA técnico de 21/06/2026:
 - OAuth/rclone renovado e persistido por substituição atômica;
 - base operacional com `0` pacientes, `0` atendimentos e dois administradores.
 
-Decisão atual: **NO-GO para produção plena com ampliação de pacientes reais**.
-
-Bloqueador restante:
-
-1. indicar o responsável clínico/jurídico — **ainda não estabelecido**;
-2. registrar a aprovação da coordenação para entrada assistida (ver detalhe em
-   [Aprovação da coordenação](#aprovação-da-coordenação-para-entrada-assistida),
-   abaixo).
+Decisão atual: **NO-GO para produção plena com ampliação de pacientes reais**
+(pendências residuais em [Checklist Go/No-Go](#checklist-go-no-go): e-mails
+críticos e manuais/treinamento por perfil).
 
 Resolvido em 25/06/2026:
 
 - token temporário da API Hostinger **revogado no hPanel e arquivo local
   removido** (`secrets/hostinger-api-token` não existe mais);
 - aceite formal da política de governança pela Dra. Cibely **registrado como
-  concluído**.
+  concluído**;
+- responsável técnica/clínica indicada: **Vanessa Mikaene Silva e Lima — CRO
+  10160 PB** (o aspecto jurídico não se aplica a esta indicação);
+- homologação do fluxo ponta a ponta e aprovação da entrada assistida
+  **registradas como concluídas** (ver detalhe em
+  [Aprovação da coordenação](#aprovação-da-coordenação-para-entrada-assistida),
+  abaixo).
 
 Despriorizado em 25/06/2026 (deixou de ser bloqueador de entrada, mas
 continua como pendência documentada — ver
@@ -64,22 +65,22 @@ e equipe reais, mas sob acompanhamento ativo (P1 do roadmap, ver
 [Evolução durante a produção](#p1--entrada-e-operação-assistida)) — não é um
 corte único e definitivo, é uma rampa supervisionada.
 
-A "aprovação da coordenação" é o registro formal de que o perfil Coordenação
-efetivamente testou o fluxo ponta a ponta que vai usar no dia a dia (agenda,
-triagem, recepção, relatórios) e está de acordo em operar assim. Hoje isso
-ainda não foi feito porque:
+A "aprovação da coordenação" é o registro formal de que o fluxo ponta a ponta
+que vai ser usado no dia a dia (agenda, triagem, recepção, relatórios) foi
+efetivamente testado e está de acordo para operar assim.
 
-- a homologação de Recepção, Clínicos e Coordenação (item do P1) ainda não
-  foi executada e registrada;
-- não existe, neste repositório, nenhuma evidência escrita de que a
-  Coordenação validou o fluxo e aprovou a entrada.
+Registro de homologação — **concluído em 25/06/2026**:
 
-Enquanto isso não for registrado, a decisão de "ir ao ar" depende de alguém
-assumir esse risco sem o sinal formal de quem vai operar o sistema todos os
-dias. Para resolver: a Coordenação percorre o fluxo real (criar paciente,
-triar, agendar, atender, gerar relatório) no ambiente de produção ou no
-[ambiente de treinamento](#manuais-roteiros-e-videoaulas), e essa aprovação é
-registrada aqui no README (data, responsável, resultado).
+- responsável pelo teste: **Diego, perfil Administrador**;
+- ambientes: produção e desenvolvimento;
+- fluxo percorrido: criar paciente, triar, agendar, atender, gerar relatório;
+- resultado: fluxo aprovado, sem bloqueios encontrados.
+
+Observação: o teste foi realizado pelo perfil Administrador, não pelo perfil
+Coordenação propriamente. Se a Coordenação operacional (Recepção/Clínicos)
+quiser fazer sua própria homologação por perfil mais adiante, durante o P1
+(ver [Evolução durante a produção](#p1--entrada-e-operação-assistida)), o
+resultado pode ser registrado aqui como complemento.
 
 ## Escopo congelado da candidata
 
@@ -529,12 +530,12 @@ Responsáveis definidos:
 | Custodiante técnico | Diego |
 | Backup e restauração | Diego |
 | Revisão independente | Perfil Auditoria ou pessoa indicada |
-| Responsável clínico/jurídico | **ainda não estabelecido** — lembrete pendente |
+| Responsável técnica/clínica | Vanessa Mikaene Silva e Lima — CRO 10160 PB |
 
 Aceite formal da política de governança pela Dra. Cibely: **registrado como
-concluído em 25/06/2026**. O responsável clínico/jurídico continua sem
-indicação — sem isso, não há um nome formalmente atribuído por decisões
-clínicas/jurídicas em caso de incidente.
+concluído em 25/06/2026**. Responsável técnica/clínica indicada em
+25/06/2026: Vanessa Mikaene Silva e Lima (CRO 10160 PB) — o aspecto jurídico
+não se aplica a esta indicação.
 
 Retenção:
 
@@ -573,15 +574,17 @@ Concluído:
 - [x] testes, rebuild, health e smoke;
 - [x] Endodontia e Prótese identificadas como ocultas;
 - [x] revogar e remover o token temporário Hostinger (25/06/2026);
-- [x] obter aceite institucional da governança (25/06/2026).
+- [x] obter aceite institucional da governança (25/06/2026);
+- [x] indicar responsável técnica/clínica — Vanessa Mikaene Silva e Lima, CRO
+  10160 PB (25/06/2026);
+- [x] homologar fluxo ponta a ponta (Diego, Administrador, produção e
+  desenvolvimento, 25/06/2026);
+- [x] registrar aprovação da coordenação para entrada assistida (25/06/2026).
 
 Pendente:
 
-- [ ] indicar responsável clínico/jurídico;
 - [ ] validar e-mails críticos em caixas Gmail e Outlook;
 - [ ] entregar manuais e realizar treinamento por perfil;
-- [ ] homologar fluxo ponta a ponta;
-- [ ] registrar aprovação da coordenação;
 - [ ] criar tag de produção somente após decisão **GO**.
 
 Lembrete sem data definida (não bloqueia mais a entrada em operação):
