@@ -21,9 +21,11 @@
                 Vinculados à Anamnese de {{ anamnesis.data_anamnese }}
             </p>
         </div>
+        {% if can('exams:write') %}
         <a href="{{ url_for('exams.select_type', anamnesis_id=anamnesis.id) }}" class="btn btn-primary">
             <span>➕</span> Novo Exame
         </a>
+        {% endif %}
     </div>
 
     <div class="card" style="padding: 0; overflow: hidden;">
@@ -73,11 +75,13 @@
                                     class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
                                     Visualizar 👁️
                                 </a>
+                                {% if can('exams:delete') %}
                                 <button onclick="openDeleteExamModal('{{ url_for('exams.delete_exam', exam_id=exam.id) }}')" 
                                     class="btn btn-outline btn-danger-soft" 
                                     style="padding: 0.4rem 0.8rem; font-size: 0.8rem; color: hsl(var(--danger)); border-color: hsl(var(--danger)/0.2); background: hsl(var(--danger)/0.05);">
                                     Excluir 🗑️
                                 </button>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -89,10 +93,12 @@
         <div style="padding: 4rem; text-align: center; color: hsl(var(--text-muted));">
             <div style="font-size: 3rem; margin-bottom: 1rem;">📂</div>
             <p>Nenhum exame complementar registrado para esta anamnese.</p>
+            {% if can('exams:write') %}
             <a href="{{ url_for('exams.select_type', anamnesis_id=anamnesis.id) }}" class="btn btn-primary"
                 style="margin-top: 1.5rem;">
                 Criar Primeiro Exame
             </a>
+            {% endif %}
         </div>
         {% endif %}
     </div>

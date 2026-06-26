@@ -1,0 +1,77 @@
+<form onsubmit="event.preventDefault(); reloadInventoryTab('tab-fornecedores', new URLSearchParams(new FormData(this)).toString()); return false;"
+      class="card" style="padding:1rem; margin-bottom:1.5rem;">
+    <div style="display:grid; grid-template-columns:1fr auto; gap:1rem; align-items:end;">
+        <div>
+            <label class="form-label">Busca</label>
+            <input class="form-control" name="q" placeholder="Nome ou CNPJ do fornecedor">
+        </div>
+        <button class="btn btn-primary" type="submit" style="height:48px;">Filtrar</button>
+    </div>
+</form>
+
+{% if can_write %}
+<section class="card" style="margin-bottom:1.5rem;">
+    <h2 class="section-header">Cadastrar Fornecedor</h2>
+    <form method="POST" action="{{ url_for('admin.create_inventory_supplier') }}" style="display:grid; gap:1rem;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="display:grid; grid-template-columns:1.4fr 1fr; gap:1rem;">
+            <div>
+                <label class="form-label">Nome / Razão social</label>
+                <input class="form-control" name="name" required>
+            </div>
+            <div>
+                <label class="form-label">CNPJ</label>
+                <input class="form-control" name="cnpj" placeholder="00.000.000/0000-00">
+            </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+            <div>
+                <label class="form-label">Telefone</label>
+                <input class="form-control" name="phone">
+            </div>
+            <div>
+                <label class="form-label">E-mail</label>
+                <input class="form-control" name="email" type="email">
+            </div>
+        </div>
+        <button class="btn btn-primary" type="submit">Salvar Fornecedor</button>
+    </form>
+</section>
+{% endif %}
+
+<section class="card" style="padding:0; overflow:hidden;">
+    <div class="table-container">
+        <table style="width:100%; border-collapse:collapse; background:white;">
+            <thead>
+                <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                    <th style="padding:0.85rem;">Nome</th>
+                    <th style="padding:0.85rem;">CNPJ</th>
+                    <th style="padding:0.85rem;">Telefone</th>
+                    <th style="padding:0.85rem;">E-mail</th>
+                    <th style="padding:0.85rem;">Status</th>
+                    <th style="padding:0.85rem;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for supplier in suppliers %}
+                <tr style="border-bottom:1px solid hsl(var(--border));">
+                    <td style="padding:0.85rem; font-weight:700;">{{ supplier.name }}</td>
+                    <td style="padding:0.85rem;">{{ supplier.cnpj or '—' }}</td>
+                    <td style="padding:0.85rem;">{{ supplier.phone or '—' }}</td>
+                    <td style="padding:0.85rem;">{{ supplier.email or '—' }}</td>
+                    <td style="padding:0.85rem;">{{ 'Ativo' if supplier.active else 'Inativo' }}</td>
+                    <td style="padding:0.85rem;">
+                        {% if can_write %}
+                        <a class="btn btn-outline" style="padding:0.35rem 0.8rem; font-size:0.82rem;" href="{{ url_for('admin.edit_inventory_supplier', supplier_id=supplier.id) }}">Editar</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">Nenhum fornecedor cadastrado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>

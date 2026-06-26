@@ -90,11 +90,11 @@
             <div id="professional_container" style="display:none; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:1rem; margin-bottom:1.5rem;">
                 <div>
                     <label for="cns" class="form-label">CNS do Profissional</label>
-                    <input type="text" name="cns" id="cns" class="form-control professional-required" placeholder="Cartão Nacional de Saúde">
+                    <input type="text" name="cns" id="cns" class="form-control" placeholder="Cartão Nacional de Saúde">
                 </div>
                 <div>
                     <label for="cbo" class="form-label">CBO</label>
-                    <input type="text" name="cbo" id="cbo" class="form-control professional-required" placeholder="Ex: 223208">
+                    <input type="text" name="cbo" id="cbo" class="form-control" placeholder="Ex: 223208">
                 </div>
                 <div>
                     <label for="cnes" class="form-label">CNES</label>
@@ -130,7 +130,7 @@
 </div>
 
 <script>
-    const professionalRoles = ['clinicos', 'cme', 'radiologia'];
+    const professionalRoles = ['clinicos', 'cme', 'radiologia', 'analises_clinicas'];
     const dentalRoles = ['clinicos'];
 
     function setRequired(selector, required) {
@@ -146,10 +146,8 @@
 
         if (professionalRoles.includes(role)) {
             professionalContainer.style.display = 'grid';
-            setRequired('.professional-required', true);
         } else {
             professionalContainer.style.display = 'none';
-            setRequired('.professional-required', false);
         }
 
         if (dentalRoles.includes(role)) {

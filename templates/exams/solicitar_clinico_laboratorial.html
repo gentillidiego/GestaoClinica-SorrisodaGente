@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Solicitar Exame Clínico / Laboratorial{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/exam-image-v2.css') }}?v=2.1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/clinical-lab-exam.css') }}?v=1.2">
+{% endblock %}
+
+{% block content %}
+<main class="image-exam-v2 lab-exam-v1 animate-fade">
+    <a class="image-exam-back" href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}">
+        <span aria-hidden="true">←</span>
+        Voltar ao prontuário
+    </a>
+
+    <header class="image-exam-header">
+        <div>
+            <span class="image-exam-eyebrow">Prontuário · Exames complementares</span>
+            <h1>Solicitar exame clínico / laboratorial</h1>
+            <p>
+                <strong>{{ anamnesis.patient_name }}</strong>
+                <span aria-hidden="true">·</span>
+                A solicitação entra na fila da Radiologia, sem necessidade de anexar o laudo agora.
+            </p>
+        </div>
+        <div class="image-exam-security" title="Prontuário protegido">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3 5 6v5c0 4.8 2.9 8.5 7 10 4.1-1.5 7-5.2 7-10V6l-7-3Z"></path>
+                <path d="m9 12 2 2 4-4"></path>
+            </svg>
+            <span>Prontuário protegido</span>
+        </div>
+    </header>
+
+    <form class="image-exam-card" method="post" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="image-exam-section-heading">
+            <div class="image-exam-section-number">1</div>
+            <div>
+                <h2>Identifique o exame</h2>
+                <p>Selecione apenas a categoria principal do laudo.</p>
+            </div>
+        </div>
+
+        <div class="image-exam-fields lab-exam-identification">
+            <div class="image-exam-field">
+                <label for="categoria">Tipo do exame <span aria-label="obrigatório">*</span></label>
+                <select name="categoria" id="categoria" required>
+                    <option value="">Selecione o tipo</option>
+                    {% for value, config in exam_types.items() %}
+                    <option value="{{ value }}" data-tests="{{ config.tests }}">{{ config.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="image-exam-field">
+                <label for="laboratorio">Laboratório <span>(opcional)</span></label>
+                <input type="text" id="laboratorio" name="laboratorio" placeholder="Ex.: Laboratório Central">
+            </div>
+
+            <div class="image-exam-field">
+                <label for="data_coleta">Data da coleta <span>(opcional)</span></label>
+                <input type="date" id="data_coleta" name="data_coleta">
+            </div>
+
+            <div class="image-exam-field image-exam-field--wide">
+                <label for="observacoes">Observação clínica <span>(opcional)</span></label>
+                <textarea
+                    id="observacoes"
+                    name="observacoes"
+                    rows="3"
+                    placeholder="Registre apenas uma informação relevante para a conduta odontológica"
+                ></textarea>
+            </div>
+        </div>
+
+        <footer class="image-exam-actions">
+            <span class="image-exam-actions__hint">Selecione o tipo de exame para enviar a solicitação.</span>
+            <div>
+                <a href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}" class="btn btn-outline">Cancelar</a>
+                <button type="submit" class="btn btn-primary">Enviar Solicitação</button>
+            </div>
+        </footer>
+    </form>
+</main>
+{% endblock %}

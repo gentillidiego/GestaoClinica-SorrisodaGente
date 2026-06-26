@@ -18,6 +18,7 @@ SOURCE_OPTIONS = [
     ('manual', 'Cadastro manual'),
     ('csv_import', 'Importação CSV'),
     ('official_public_table', 'Tabela oficial homologada'),
+    ('pending_seed', 'Placeholder automático — sem custo cadastrado'),
 ]
 
 STATUS_ALIASES = {
@@ -50,6 +51,8 @@ SOURCE_ALIASES = {
     'official_public_table': 'official_public_table',
     'oficial': 'official_public_table',
     'tabela_oficial': 'official_public_table',
+    'pending_seed': 'pending_seed',
+    'placeholder': 'pending_seed',
 }
 
 CSV_ALIASES = {
@@ -64,6 +67,34 @@ CSV_ALIASES = {
     'active': ('active', 'ativo', 'status_ativo'),
     'validation_notes': ('validation_notes', 'notas_validacao', 'observacao_validacao'),
 }
+
+
+def seed_missing_cost_reference_placeholders():
+    """Garante que todo código do catálogo SIGTAP apareça na tela de Custos.
+
+    Não inventa valor de custo: cria a linha com R$ 0,00 e
+    methodology_status='draft'/source='pending_seed', deixando explícito que
+    falta cadastrar o custo real. Nunca sobrescreve linhas já existentes.
+    """
+    from services.sigtap_service import SIGTAP_PROCEDURE_INDEX
+
+    for code, item in SIGTAP_PROCEDURE_INDEX.items():
+        execute(
+            """
+            INSERT INTO procedure_cost_references (
+                sigtap_code, sigtap_name, public_cost, private_reference,
+                reference_label, source, methodology_status, notes, active
+            )
+            VALUES (%s, %s, 0, 0, %s, 'pending_seed', 'draft', %s, TRUE)
+            ON CONFLICT (sigtap_code) DO NOTHING
+            """,
+            (
+                code,
+                item['name'],
+                'Sem referência cadastrada',
+                'Placeholder gerado automaticamente — custo público e referência privada ainda não informados.',
+            ),
+        )
 
 
 def get_methodology_status_options():

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Fornecedor{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <h1 class="page-title">Editar Fornecedor</h1>
+    <p class="page-subtitle">{{ supplier.name }}</p>
+
+    <form method="POST" action="{{ url_for('admin.update_inventory_supplier', supplier_id=supplier.id) }}"
+          class="card" style="max-width:560px; display:grid; gap:1rem;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div>
+            <label class="form-label">Nome / Razão social</label>
+            <input class="form-control" name="name" value="{{ supplier.name }}" required>
+        </div>
+        <div>
+            <label class="form-label">CNPJ</label>
+            <input class="form-control" name="cnpj" value="{{ supplier.cnpj or '' }}" placeholder="00.000.000/0000-00">
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+            <div>
+                <label class="form-label">Telefone</label>
+                <input class="form-control" name="phone" value="{{ supplier.phone or '' }}">
+            </div>
+            <div>
+                <label class="form-label">E-mail</label>
+                <input class="form-control" name="email" type="email" value="{{ supplier.email or '' }}">
+            </div>
+        </div>
+        <div>
+            <label class="form-label">Status</label>
+            <select class="form-control" name="active">
+                <option value="1" {% if supplier.active %}selected{% endif %}>Ativo</option>
+                <option value="0" {% if not supplier.active %}selected{% endif %}>Inativo</option>
+            </select>
+        </div>
+        <div style="display:flex; gap:1rem; justify-content:flex-end;">
+            <a class="btn btn-outline" href="{{ url_for('admin.inventory', _anchor='tab-fornecedores') }}">Cancelar</a>
+            <button class="btn btn-primary" type="submit">Salvar Alterações</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

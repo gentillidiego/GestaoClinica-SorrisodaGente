@@ -4,9 +4,11 @@ from types import SimpleNamespace
 
 import pytest
 from flask import Flask
+from PIL import Image
 from werkzeug.datastructures import FileStorage
 
 import blueprints.exams as exams_module
+import services.upload_security_service as upload_security
 from blueprints.exams import (
     build_image_upload_caption,
     exams_bp,
@@ -23,7 +25,19 @@ def make_app():
     return app
 
 
-def make_image(filename='imagem.jpg', content=b'image', mimetype='image/jpeg', content_length=None):
+def make_image(filename='imagem.jpg', content=None, mimetype='image/jpeg', content_length=None):
+    if content is None:
+        extension = Path(filename).suffix.lower()
+        image_format = {
+            '.png': 'PNG',
+            '.webp': 'WEBP',
+        }.get(extension, 'JPEG')
+        stream = io.BytesIO()
+        Image.new('RGB', (16, 12), color=(20, 80, 140)).save(
+            stream,
+            format=image_format,
+        )
+        content = stream.getvalue()
     return FileStorage(
         stream=io.BytesIO(content),
         filename=filename,
@@ -40,8 +54,8 @@ def make_image(filename='imagem.jpg', content=b'image', mimetype='image/jpeg', c
         ('Oclusal', 'Arcada', 'radiografia'),
         ('Panorâmica', 'Complexo Maxilomandibular', 'radiografia'),
         ('Tomografia', 'Complexo Maxilomandibular', 'cbct'),
-        ('Fotografia Clínica', 'Outro', 'intraoral'),
         ('Outro', 'Outro', 'documento_complementar'),
+        ('Tipo Inexistente', 'Outro', 'documento_complementar'),
     ],
 )
 def test_image_exam_v2_infers_hidden_clinical_metadata(exam_type, scope, category):
@@ -60,20 +74,31 @@ def test_image_exam_v2_generates_caption_only_when_user_leaves_it_empty():
     )
 
 
-def test_image_exam_v2_validates_batch_before_upload():
+def test_image_exam_v2_validates_batch_before_upload(monkeypatch):
     prepared = prepare_image_uploads([
         make_image('foto clínica.JPG'),
         make_image('tomografia.webp', mimetype='image/webp'),
     ])
 
-    assert [item[1] for item in prepared] == ['foto_clinica.JPG', 'tomografia.webp']
+    assert [item[1] for item in prepared] == ['foto_clinica.jpg', 'tomografia.webp']
 
-    with pytest.raises(ValueError, match='não é compatível'):
-        prepare_image_uploads([make_image('laudo.pdf', mimetype='application/pdf')])
-
-    with pytest.raises(ValueError, match='ultrapassa o limite'):
+    with pytest.raises(ValueError, match='formato permitido'):
         prepare_image_uploads([
-            make_image('grande.png', mimetype='image/png', content_length=25 * 1024 * 1024 + 1),
+            make_image(
+                'laudo.pdf',
+                content=b'%PDF-1.7 falso',
+                mimetype='application/pdf',
+            )
+        ])
+
+    monkeypatch.setattr(upload_security, 'CLINICAL_UPLOAD_MAX_FILE_BYTES', 32)
+    with pytest.raises(ValueError, match='limite operacional'):
+        prepare_image_uploads([
+            make_image(
+                'grande.png',
+                content=b'\x89PNG\r\n\x1a\n' + (b'x' * 40),
+                mimetype='image/png',
+            ),
         ])
 
 
@@ -226,6 +251,11 @@ def test_image_exam_viewer_builds_media_only_context(monkeypatch):
 
     monkeypatch.setattr(exams_module, 'query', fake_query)
     monkeypatch.setattr(exams_module, 'audit_log', lambda **kwargs: None)
+    monkeypatch.setattr(
+        exams_module,
+        'current_user',
+        SimpleNamespace(can=lambda permission: permission == 'exams:view'),
+    )
     monkeypatch.setattr(
         exams_module,
         'url_for',

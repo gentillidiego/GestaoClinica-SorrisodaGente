@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Preferências e Opt-out{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <h1 class="page-title">Preferências de Comunicação</h1>
+    <p class="page-subtitle">Pacientes com opt-out registrado (e-mail e/ou WhatsApp).</p>
+
+    <section class="card" style="padding:0; overflow:hidden;">
+        <div class="table-container">
+            <table style="width:100%; border-collapse:collapse; background:white;">
+                <thead>
+                    <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                        <th style="padding:0.85rem;">Paciente</th>
+                        <th style="padding:0.85rem;">E-mail</th>
+                        <th style="padding:0.85rem;">WhatsApp</th>
+                        <th style="padding:0.85rem;">Marketing</th>
+                        <th style="padding:0.85rem;">Origem</th>
+                        <th style="padding:0.85rem;">Atualizado em</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in opt_outs %}
+                    <tr style="border-bottom:1px solid hsl(var(--border));">
+                        <td style="padding:0.85rem;">{{ p.nome }}</td>
+                        <td style="padding:0.85rem;">{{ 'Permitido' if p.email_opt_in else 'Opt-out' }}</td>
+                        <td style="padding:0.85rem;">{{ 'Permitido' if p.whatsapp_opt_in else 'Opt-out' }}</td>
+                        <td style="padding:0.85rem;">{{ 'Permitido' if p.marketing_opt_in else 'Opt-out' }}</td>
+                        <td style="padding:0.85rem;">{{ p.source or '—' }}</td>
+                        <td style="padding:0.85rem;">{{ p.updated_at.strftime('%d/%m/%Y %H:%M') if p.updated_at else '—' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">
+                            Nenhum opt-out registrado.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}

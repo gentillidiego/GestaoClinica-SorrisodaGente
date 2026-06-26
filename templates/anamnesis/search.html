@@ -69,11 +69,13 @@
                         <td style="padding: 1.25rem; color: hsl(var(--text-muted));">{{ patient.cpf }}</td>
                         <td
                             style="padding: 1.25rem; text-align: right; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                            {% if can('anamnesis:write') %}
                             <a href="{{ url_for('anamnesis.form', patient_id=patient.id) }}" class="btn btn-primary"
                                 style="padding: 0.5rem 1.25rem; font-size: 0.85rem;">
                                 Nova Anamnese
                             </a>
-                            {% if patient.last_anamnesis_id %}
+                            {% endif %}
+                            {% if patient.last_anamnesis_id and can('exams:view') %}
                             <a href="{{ url_for('exams.list_exams', anamnesis_id=patient.last_anamnesis_id) }}"
                                 class="btn btn-outline"
                                 style="padding: 0.5rem 1.25rem; font-size: 0.85rem; background: white;">

@@ -57,7 +57,7 @@
             </a>
             {% endif %}
 
-            {% if can('patients:write') or can('triage:view') or can('agenda:view') or can('patients:view') or can('inventory:view') %}
+            {% if can('patients:write') or can('triage:view') or can('agenda:view') or can('patients:view') or can('inventory:view') or can('radiologia:view') or can('analises_clinicas:view') %}
             <div class="nav-divider">OPERAÇÃO CLÍNICA</div>
                 {% if can('patients:write') %}
                 <a href="{{ url_for('patients.register') }}"
@@ -88,9 +88,19 @@
                     <span class="nav-icon">📦</span><span class="nav-label">Materiais e Estoque</span>
                 </a>
                 {% endif %}
+                {% if can('radiologia:view') %}
+                <a href="{{ url_for('radiologia.solicitacoes') }}" class="nav-item {% if request.endpoint and request.endpoint.startswith('radiologia.') %}active{% endif %}">
+                    <span class="nav-icon">🧾</span><span class="nav-label">Solicitações de Imagem</span>
+                </a>
+                {% endif %}
+                {% if can('analises_clinicas:view') %}
+                <a href="{{ url_for('analises_clinicas.solicitacoes') }}" class="nav-item {% if request.endpoint and request.endpoint.startswith('analises_clinicas.') %}active{% endif %}">
+                    <span class="nav-icon">🧪</span><span class="nav-label">Solicitações Clínico/Lab.</span>
+                </a>
+                {% endif %}
             {% endif %}
 
-            {% if can('epidemiologia:view') or can('bi:view') or can('reports:view') %}
+            {% if can('epidemiologia:view') or can('bi:view') or can('reports:view') or can('comunicacao:view') %}
             <div class="nav-divider">GESTÃO E INDICADORES</div>
                 {% if can('epidemiologia:view') %}
                 <a href="{{ url_for('main.epidemiologia_dashboard') }}"
@@ -107,6 +117,11 @@
                 {% if can('reports:view') %}
                 <a href="{{ url_for('reports.index') }}" class="nav-item {% if request.endpoint and 'reports' in request.endpoint %}active{% endif %}">
                     <span class="nav-icon">📋</span><span class="nav-label">Relatórios Gerenciais</span>
+                </a>
+                {% endif %}
+                {% if can('comunicacao:view') %}
+                <a href="{{ url_for('comunicacao.dashboard') }}" class="nav-item {% if request.endpoint and request.endpoint.startswith('comunicacao.') %}active{% endif %}">
+                    <span class="nav-icon">📣</span><span class="nav-label">Comunicação</span>
                 </a>
                 {% endif %}
             {% endif %}
@@ -158,9 +173,10 @@
                 </span>
                 </div>
             </div>
-            <a href="{{ url_for('auth.logout') }}" class="logout-btn">
-                Sair 🚪
-            </a>
+            <form action="{{ url_for('auth.logout') }}" method="POST" class="logout-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="logout-btn">Sair 🚪</button>
+            </form>
         </div>
     </aside>
     <div class="sidebar-overlay" id="sidebar-overlay"></div>

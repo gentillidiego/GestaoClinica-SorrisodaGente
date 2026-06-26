@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Templates de Comunicação{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; flex-wrap:wrap; margin-bottom:2rem;">
+        <div>
+            <h1 class="page-title">Templates</h1>
+            <p class="page-subtitle">Modelos de mensagem para campanhas e lembretes.</p>
+        </div>
+        {% if current_user.can('comunicacao:write') %}
+        <a class="btn btn-primary" href="{{ url_for('comunicacao.template_new') }}">Novo Template</a>
+        {% endif %}
+    </div>
+
+    <section class="card" style="padding:0; overflow:hidden;">
+        <div class="table-container">
+            <table style="width:100%; border-collapse:collapse; background:white;">
+                <thead>
+                    <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                        <th style="padding:0.85rem;">Nome</th>
+                        <th style="padding:0.85rem;">Canal</th>
+                        <th style="padding:0.85rem;">Categoria</th>
+                        <th style="padding:0.85rem;">Status</th>
+                        <th style="padding:0.85rem;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in templates %}
+                    <tr style="border-bottom:1px solid hsl(var(--border));">
+                        <td style="padding:0.85rem;">{{ t.name }}</td>
+                        <td style="padding:0.85rem;">{{ 'WhatsApp' if t.channel == 'whatsapp' else 'E-mail' }}</td>
+                        <td style="padding:0.85rem;">{{ 'Lembrete de consulta' if t.category == 'lembrete_consulta' else 'Campanha' }}</td>
+                        <td style="padding:0.85rem;">{{ 'Ativo' if t.active else 'Inativo' }}</td>
+                        <td style="padding:0.85rem;">
+                            <a class="btn btn-outline" href="{{ url_for('comunicacao.template_edit', template_id=t.id) }}">Editar</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">
+                            Nenhum template cadastrado ainda.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}

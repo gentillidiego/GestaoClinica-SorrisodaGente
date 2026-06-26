@@ -4,11 +4,11 @@ Serviço centralizado para invalidação de cache.
 from extensions import cache
 
 class CacheService:
-    STUDENTS_KEY = 'students_list'
+    CLINICAL_USERS_KEY = 'clinical_users_list'
     
     @staticmethod
-    def invalidate_students():
-        cache.delete(CacheService.STUDENTS_KEY)
+    def invalidate_clinical_users():
+        cache.delete(CacheService.CLINICAL_USERS_KEY)
     
     @staticmethod
     def invalidate_patient(patient_id):

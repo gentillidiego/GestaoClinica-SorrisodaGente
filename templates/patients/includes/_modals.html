@@ -8,12 +8,12 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="margin-bottom: 1.5rem;">
                 <label class="form-label" style="font-size: 0.9rem;">Usuário do Dentista</label>
-                <input type="text" name="prof_username" class="form-control" placeholder="Usuário do dentista..."
+                <input type="text" name="validator_username" class="form-control" placeholder="Usuário do dentista..."
                     required autofocus>
             </div>
             <div style="margin-bottom: 1.5rem;">
                 <label class="form-label" style="font-size: 0.9rem;">Senha</label>
-                <input type="password" name="prof_password" class="form-control" placeholder="Senha..." required>
+                <input type="password" name="validator_password" class="form-control" placeholder="Senha..." required>
             </div>
             <div style="display: flex; gap: 1rem;">
                 <button type="button" class="btn btn-outline" style="flex: 1;"
@@ -24,27 +24,27 @@
     </div>
 </div>
 
-<!-- Modal Assinatura Aluno (Para Atendimento) -->
-<div id="studentSignModal" class="modal">
+<!-- Modal de confirmação do profissional executor -->
+<div id="executorSignModal" class="modal">
     <div class="modal-content" style="max-width: 400px;">
         <h3
             style="font-family: var(--font-heading); color: hsl(var(--primary)); margin-bottom: 1.5rem; text-align: center;">
             Confirmação do Profissional Executor</h3>
         <p style="text-align: center; font-size: 0.85rem; color: hsl(var(--text-muted)); margin-bottom: 1.5rem;">
             Confirme suas credenciais para registrar-se como o <strong>profissional executor</strong> deste atendimento.</p>
-        <form id="studentSignForm" method="POST">
+        <form id="executorSignForm" method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div style="margin-bottom: 1.5rem;">
                 <label class="form-label">Usuário</label>
-                <input type="text" name="student_username" class="form-control" placeholder="Seu usuário de acesso..." required>
+                <input type="text" name="executor_username" class="form-control" placeholder="Seu usuário de acesso..." required>
             </div>
             <div style="margin-bottom: 1.5rem;">
                 <label class="form-label">Senha</label>
-                <input type="password" name="student_password" class="form-control" placeholder="Sua senha..." required>
+                <input type="password" name="executor_password" class="form-control" placeholder="Sua senha..." required>
             </div>
             <div style="display: flex; gap: 1rem;">
                 <button type="button" class="btn btn-outline" style="flex: 1;"
-                    onclick="closeStudentSignModal()">Sair</button>
+                    onclick="closeExecutorSignModal()">Sair</button>
                 <button type="submit" class="btn btn-primary" style="flex: 1;">Registrar-se</button>
             </div>
         </form>
@@ -95,12 +95,12 @@
                     <div style="display: grid; grid-template-columns: 1fr; gap: 0.85rem;">
                         <div>
                             <label class="form-label" style="font-size: 0.8rem;">Usuário do CD responsável</label>
-                            <input type="text" name="rogo_prof_username" class="form-control patient-proxy-required"
+                            <input type="text" name="rogo_validator_username" class="form-control patient-proxy-required"
                                 autocomplete="username">
                         </div>
                         <div>
                             <label class="form-label" style="font-size: 0.8rem;">Senha do CD responsável</label>
-                            <input type="password" name="rogo_prof_password" class="form-control patient-proxy-required"
+                            <input type="password" name="rogo_validator_password" class="form-control patient-proxy-required"
                                 autocomplete="current-password">
                         </div>
                     </div>
@@ -245,7 +245,7 @@
                     <option value="">Selecionar código</option>
                     {% for group in sigtap_specialty_groups or [] %}
                     {% for item in group.procedures %}
-                    <option value="{{ item.code }}" data-specialty="{{ group.value }}" data-name="{{ item.name }}">{{ item.code }} - {{ item.name }}</option>
+                    <option value="{{ item.code }}" data-specialty="{{ group.value }}" data-name="{{ item.name }}">{{ item.display_code }} — {{ item.name }}</option>
                     {% endfor %}
                     {% endfor %}
                 </select>
@@ -309,40 +309,108 @@
     </div>
 </div>
 
-<!-- Modal Novo Atestado -->
+<!-- Modal Novo Atestado / Declaração -->
 <div id="novoAtestadoModal" class="modal">
-    <div class="modal-content" style="max-width: 600px;">
+    <div class="modal-content" style="max-width: 680px;">
         <h3 style="font-family: var(--font-heading); color: hsl(var(--primary)); margin-bottom: 1.5rem; text-align: center;">
-            ➕ Novo Atestado
+            ➕ Novo Atestado / Declaração
         </h3>
         <form id="novoAtestadoForm" method="POST" action="{{ url_for('documents.add_atestado', patient_id=patient.id) if patient else '#' }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            
+
+            <div style="margin-bottom: 1.5rem;">
+                <label class="form-label">Tipo de documento</label>
+                <select name="tipo_documento" id="clinicalDocumentType" class="form-control" required>
+                    <option value="atestado">Atestado Odontológico</option>
+                    <option value="declaracao_comparecimento">Declaração de Comparecimento</option>
+                </select>
+            </div>
+
+            <div id="atestadoDocumentFields">
             <div style="margin-bottom: 1.5rem;">
                 <label class="form-label">Motivo do Atestado</label>
-                <input type="text" name="motivo" class="form-control" placeholder="Ex: Comparecimento à consulta odontológica, Repouso por extração..." required>
+                <input type="text" name="motivo" id="atestadoMotivo" class="form-control"
+                    placeholder="Ex: tratamento odontológico realizado, recuperação pós-operatória..." required>
             </div>
             
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
                 <div>
                     <label class="form-label">Dias de Repouso</label>
                     <input type="number" name="dias_repouso" class="form-control" min="0" placeholder="Ex: 2 (opcional)">
-                    <span style="font-size: 0.75rem; color: hsl(var(--text-muted));">Deixe em branco se for apenas comparecimento.</span>
+                    <span style="font-size: 0.75rem; color: hsl(var(--text-muted));">Informe somente quando houver indicação clínica.</span>
                 </div>
                 <div>
-                    <label class="form-label">CID (Opcional)</label>
-                    <input type="text" name="cid" class="form-control" placeholder="Ex: K04.0">
+                    <label class="form-label">CID-10 odontológico (Opcional)</label>
+                    <select name="cid" id="atestadoCid" class="form-control">
+                        <option value="">Não incluir CID</option>
+                        {% for cid_group in dental_cid_groups or [] %}
+                        <optgroup label="{{ cid_group.label }}">
+                            {% for cid_item in cid_group['items'] %}
+                            <option value="{{ cid_item.code }}"
+                                data-description="{{ cid_item.description }}">
+                                {{ cid_item.code }} — {{ cid_item.description }}
+                            </option>
+                            {% endfor %}
+                        </optgroup>
+                        {% endfor %}
+                    </select>
                 </div>
+            </div>
+
+            <div id="cidDescriptionBox"
+                style="display:none; margin:-0.5rem 0 1rem; padding:0.85rem 1rem; border-radius:var(--radius-sm); background:hsl(var(--primary-soft)); color:hsl(var(--text-main)); font-size:0.86rem;">
+                <strong style="color:hsl(var(--primary));">Descrição:</strong>
+                <span id="cidDescriptionText"></span>
+            </div>
+
+            <label id="cidAuthorizationRow"
+                style="display:none; align-items:flex-start; gap:0.7rem; margin-bottom:1.5rem; cursor:pointer;">
+                <input type="checkbox" name="cid_autorizado" id="cidAutorizado" value="1"
+                    style="margin-top:0.2rem;">
+                <span style="font-size:0.88rem; color:hsl(var(--text-main));">
+                    Confirmo que o paciente solicitou e autorizou a inclusão deste CID no atestado.
+                </span>
+            </label>
+            </div>
+
+            <div id="declaracaoDocumentFields" style="display:none;">
+                <div style="padding:1rem; margin-bottom:1.25rem; border:1px solid hsl(var(--border)); border-radius:var(--radius-md); background:hsl(var(--bg-main));">
+                    <strong style="display:block; color:hsl(var(--primary)); margin-bottom:0.4rem;">Declaração automática</strong>
+                    <span style="color:hsl(var(--text-muted)); font-size:0.9rem;">
+                        O PDF utilizará o nome, CPF/RG disponíveis no cadastro e a data de hoje.
+                        Este documento comprova somente o comparecimento, sem recomendar repouso.
+                    </span>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.25rem;">
+                    <div>
+                        <label class="form-label">Horário de início (opcional)</label>
+                        <input type="time" name="hora_inicio" class="form-control">
+                    </div>
+                    <div>
+                        <label class="form-label">Horário de término (opcional)</label>
+                        <input type="time" name="hora_fim" class="form-control">
+                    </div>
+                </div>
+
+                <label style="display:flex; align-items:flex-start; gap:0.7rem; margin-bottom:1.5rem; cursor:pointer;">
+                    <input type="checkbox" name="confirmou_comparecimento" id="confirmouComparecimento" value="1"
+                        style="margin-top:0.2rem;">
+                    <span style="font-size:0.9rem; color:hsl(var(--text-main));">
+                        Confirmo que este paciente compareceu ao atendimento odontológico hoje.
+                    </span>
+                </label>
             </div>
             
             <div style="margin-bottom: 1.5rem;">
-                <label class="form-label">Observações Adicionais (Opcional)</label>
-                <textarea name="observacao" class="form-control" rows="3" placeholder="Informações extras a constarem no atestado..."></textarea>
+                <label class="form-label">Observações adicionais (opcional)</label>
+                <textarea name="observacao" class="form-control" rows="3"
+                    placeholder="Informações adicionais que devam constar no documento..."></textarea>
             </div>
 
             <div style="display: flex; gap: 1rem;">
                 <button type="button" class="btn btn-outline" style="flex: 1;" onclick="closeNovoAtestadoModal()">Cancelar</button>
-                <button type="submit" class="btn btn-primary" style="flex: 1;">Salvar Atestado</button>
+                <button type="submit" id="clinicalDocumentSubmit" class="btn btn-primary" style="flex: 1;">Salvar Atestado</button>
             </div>
         </form>
     </div>

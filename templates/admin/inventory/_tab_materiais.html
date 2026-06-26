@@ -1,0 +1,106 @@
+<form onsubmit="event.preventDefault(); reloadInventoryTab('tab-materiais', new URLSearchParams(new FormData(this)).toString()); return false;"
+      class="card" style="padding:1rem; margin-bottom:1.5rem;">
+    <div style="display:grid; grid-template-columns:1.5fr 1fr auto; gap:1rem; align-items:end;">
+        <div>
+            <label class="form-label">Busca</label>
+            <input class="form-control" name="q" value="{{ dashboard.filters.q or '' }}" placeholder="Material, lote ou fornecedor">
+        </div>
+        <div>
+            <label class="form-label">Categoria</label>
+            <select class="form-control" name="category">
+                <option value="">Todas</option>
+                {% for value, label in dashboard.category_options %}
+                <option value="{{ value }}" {% if dashboard.filters.category == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button class="btn btn-primary" type="submit" style="height:48px;">Filtrar</button>
+    </div>
+</form>
+
+<section class="card" style="margin-bottom:1.5rem;">
+    <h2 class="section-header">Cadastrar Material</h2>
+    <form method="POST" action="{{ url_for('admin.create_inventory_item_route') }}" style="display:grid; gap:1rem;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="display:grid; grid-template-columns:1.3fr 0.8fr; gap:1rem;">
+            <div>
+                <label class="form-label">Nome</label>
+                <input class="form-control" name="name" required placeholder="Ex: Implante Cone Morse 3.5">
+            </div>
+            <div>
+                <label class="form-label">Categoria</label>
+                <select class="form-control" name="category">
+                    {% for value, label in dashboard.category_options %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem;">
+            <div>
+                <label class="form-label">Unidade</label>
+                <input class="form-control" name="unit" value="unidade">
+            </div>
+            <div>
+                <label class="form-label">Estoque mínimo</label>
+                <input class="form-control" name="min_quantity" type="number" step="0.001" min="0" value="0">
+            </div>
+            <div>
+                <label class="form-label">Código de barras (EAN)</label>
+                <input class="form-control" name="ean" placeholder="Opcional — agiliza a conciliação de notas">
+            </div>
+        </div>
+        <div>
+            <label class="form-label">Centro de custo</label>
+            <input class="form-control" name="center_cost" placeholder="Ex: Implantodontia">
+        </div>
+        <div>
+            <label class="form-label">Observações</label>
+            <textarea class="form-control" name="notes" rows="2"></textarea>
+        </div>
+        {% if can_write %}
+        <button class="btn btn-primary" type="submit">Salvar Material</button>
+        {% else %}
+        <span style="color:hsl(var(--text-muted)); font-weight:700;">Somente visualização</span>
+        {% endif %}
+    </form>
+</section>
+
+<section class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:1rem 1rem 0;">
+        <h2 class="section-header">Materiais Cadastrados</h2>
+    </div>
+    <div class="table-container">
+        <table style="width:100%; border-collapse:collapse; background:white;">
+            <thead>
+                <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                    <th style="padding:0.85rem;">Material</th>
+                    <th style="padding:0.85rem;">Categoria</th>
+                    <th style="padding:0.85rem;">Estoque mínimo</th>
+                    <th style="padding:0.85rem;">Saldo total</th>
+                    <th style="padding:0.85rem;">Lotes ativos</th>
+                    <th style="padding:0.85rem;">EAN</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in dashboard.materials %}
+                <tr style="border-bottom:1px solid hsl(var(--border));">
+                    <td style="padding:0.85rem;">
+                        <strong>{{ item.name }}</strong><br>
+                        <small style="color:hsl(var(--text-muted));">{{ item.center_cost or 'sem centro de custo' }}</small>
+                    </td>
+                    <td style="padding:0.85rem;">{{ item.category }}</td>
+                    <td style="padding:0.85rem;">{{ item.min_quantity }} {{ item.unit }}</td>
+                    <td style="padding:0.85rem;">{{ item.total_quantity }} {{ item.unit }}</td>
+                    <td style="padding:0.85rem;">{{ item.lot_count }}</td>
+                    <td style="padding:0.85rem;">{{ item.ean or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">Nenhum material encontrado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>

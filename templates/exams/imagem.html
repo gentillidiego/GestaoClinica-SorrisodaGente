@@ -15,6 +15,8 @@
     data-upload-url="{{ url_for('exams.upload_imagem', exam_id=exam_data.exam_id) if exam_data else '' }}"
     data-view-url="{{ url_for('exams.imagem', anamnesis_id=anamnesis.id, exam_id=exam_data.exam_id) if exam_data else '' }}"
     data-return-url="{{ url_for('patients.view_patient', id=anamnesis.patient_id, _anchor='tab-exames') }}"
+    data-max-file-bytes="{{ upload_max_file_mb * 1024 * 1024 }}"
+    data-max-request-bytes="{{ upload_max_request_mb * 1024 * 1024 }}"
 >
     <a class="image-exam-back" href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}">
         <span aria-hidden="true">←</span>
@@ -57,9 +59,22 @@
         <button type="button" class="image-exam-status__close" id="closeStatus" aria-label="Fechar aviso">×</button>
     </section>
 
+    {% if request_prefill %}
+    <div class="image-exam-status" data-state="success">
+        <div class="image-exam-status__icon" aria-hidden="true">i</div>
+        <div class="image-exam-status__content">
+            <strong>Atendendo solicitação de exame</strong>
+            <span>Os campos abaixo foram pré-preenchidos a partir da solicitação enviada para a Radiologia.</span>
+        </div>
+    </div>
+    {% endif %}
+
     <form class="image-exam-card" id="imageExamForm" method="post" enctype="multipart/form-data" data-async-submit="true" novalidate>
         <input type="hidden" name="csrf_token" id="csrfToken" value="{{ csrf_token() }}">
         <input type="hidden" name="escopo" value="{{ exam_data.escopo if exam_data else '' }}">
+        {% if request_prefill %}
+        <input type="hidden" name="request_id" value="{{ request_prefill.id }}">
+        {% endif %}
 
         <div class="image-exam-section-heading">
             <div class="image-exam-section-number">1</div>
@@ -72,26 +87,22 @@
         <div class="image-exam-fields">
             <div class="image-exam-field">
                 <label for="tipo_imagem">Tipo do exame <span aria-label="obrigatório">*</span></label>
+                {% set selected_tipo_imagem = exam_data.tipo_imagem if exam_data else (request_prefill.tipo_imagem if request_prefill else '') %}
                 <select name="tipo_imagem" id="tipo_imagem" required>
                     <option value="">Selecione o tipo</option>
                     <optgroup label="Radiografias intrabucais">
-                        <option value="Periapical" {% if exam_data and exam_data.tipo_imagem == 'Periapical' %}selected{% endif %}>Radiografia periapical</option>
-                        <option value="Bite-wing" {% if exam_data and exam_data.tipo_imagem == 'Bite-wing' %}selected{% endif %}>Interproximal (bite-wing)</option>
-                        <option value="Oclusal" {% if exam_data and exam_data.tipo_imagem == 'Oclusal' %}selected{% endif %}>Radiografia oclusal</option>
+                        <option value="Periapical" {% if selected_tipo_imagem == 'Periapical' %}selected{% endif %}>Radiografia periapical</option>
+                        <option value="Bite-wing" {% if selected_tipo_imagem == 'Bite-wing' %}selected{% endif %}>Interproximal (bite-wing)</option>
+                        <option value="Oclusal" {% if selected_tipo_imagem == 'Oclusal' %}selected{% endif %}>Radiografia oclusal</option>
                     </optgroup>
                     <optgroup label="Radiografias extrabucais">
-                        <option value="Panorâmica" {% if exam_data and exam_data.tipo_imagem == 'Panorâmica' %}selected{% endif %}>Radiografia panorâmica</option>
-                        <option value="Telerradiografia" {% if exam_data and exam_data.tipo_imagem == 'Telerradiografia' %}selected{% endif %}>Telerradiografia lateral</option>
+                        <option value="Panorâmica" {% if selected_tipo_imagem == 'Panorâmica' %}selected{% endif %}>Radiografia panorâmica</option>
+                        <option value="Telerradiografia" {% if selected_tipo_imagem == 'Telerradiografia' %}selected{% endif %}>Telerradiografia lateral</option>
                     </optgroup>
                     <optgroup label="Exames avançados">
-                        <option value="Tomografia" {% if exam_data and exam_data.tipo_imagem == 'Tomografia' %}selected{% endif %}>Tomografia (TC / CBCT)</option>
-                        <option value="Ultrassonografia" {% if exam_data and exam_data.tipo_imagem == 'Ultrassonografia' %}selected{% endif %}>Ultrassonografia</option>
-                        <option value="Ressonância" {% if exam_data and exam_data.tipo_imagem == 'Ressonância' %}selected{% endif %}>Ressonância magnética</option>
+                        <option value="Tomografia" {% if selected_tipo_imagem == 'Tomografia' %}selected{% endif %}>Tomografia (TC / CBCT)</option>
                     </optgroup>
-                    <optgroup label="Fotografia">
-                        <option value="Fotografia Clínica" {% if exam_data and exam_data.tipo_imagem == 'Fotografia Clínica' %}selected{% endif %}>Fotografia clínica</option>
-                    </optgroup>
-                    <option value="Outro" {% if exam_data and exam_data.tipo_imagem == 'Outro' %}selected{% endif %}>Outro exame de imagem</option>
+                    <option value="Outro" {% if selected_tipo_imagem == 'Outro' %}selected{% endif %}>Outro exame de imagem</option>
                 </select>
                 <span class="image-exam-field-error" id="typeError"></span>
             </div>
@@ -102,7 +113,7 @@
                     type="text"
                     name="detalhe_escopo"
                     id="detalhe_escopo"
-                    value="{{ exam_data.detalhe_escopo if exam_data else '' }}"
+                    value="{{ exam_data.detalhe_escopo if exam_data else (request_prefill.detalhe_escopo if request_prefill else '') }}"
                     placeholder="Ex.: dente 21, arcada superior ou ATM direita"
                     autocomplete="off"
                 >
@@ -141,7 +152,9 @@
                 <strong>Escolher imagens</strong>
                 <span>ou arraste os arquivos para cá</span>
             </span>
-            <span class="image-dropzone__rules">JPG, PNG ou WEBP · até 25 MB cada · máximo de 12</span>
+            <span class="image-dropzone__rules">
+                JPG, PNG ou WEBP · originais de até {{ upload_max_file_mb }} MB · máximo de 12 por envio
+            </span>
         </button>
         <span class="image-exam-field-error image-exam-file-error" id="fileError"></span>
 
@@ -169,7 +182,7 @@
                         id="observacoes"
                         rows="3"
                         placeholder="Laudo prévio, justificativa ou observação relevante"
-                    >{{ exam_data.observacoes if exam_data else '' }}</textarea>
+                    >{{ exam_data.observacoes if exam_data else (request_prefill.observacoes if request_prefill else '') }}</textarea>
                 </div>
 
                 <div class="image-exam-fields image-exam-fields--advanced">

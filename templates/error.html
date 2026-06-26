@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}{{ status_code }} — {{ error_title }}{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 680px; margin: 4rem auto; padding: 2.5rem; text-align: center;">
+    <div style="font-size: 3rem; margin-bottom: 1rem;">🛡️</div>
+    <p style="font-size: 0.85rem; font-weight: 800; color: hsl(var(--text-muted)); margin-bottom: 0.5rem;">
+        ERRO {{ status_code }}
+    </p>
+    <h1 style="font-family: var(--font-heading); color: hsl(var(--primary)); margin-bottom: 1rem;">
+        {{ error_title }}
+    </h1>
+    <p style="color: hsl(var(--text-muted)); line-height: 1.6;">
+        {{ error_message }}
+    </p>
+    {% if error_reference %}
+    <p style="margin-top: 1.25rem; font-family: monospace; font-weight: 700;">
+        Referência: {{ error_reference }}
+    </p>
+    {% endif %}
+    <a href="{{ url_for('main.dashboard') if current_user.is_authenticated else url_for('auth.login') }}"
+       class="btn btn-primary" style="margin-top: 1.5rem;">
+        Voltar
+    </a>
+</section>
+{% endblock %}

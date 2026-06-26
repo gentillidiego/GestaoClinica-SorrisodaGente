@@ -1,0 +1,72 @@
+<section class="card" style="margin-bottom:1.5rem;">
+    <h2 class="section-header">Como esta mercadoria chegou?</h2>
+    <p style="color:hsl(var(--text-muted)); font-size:0.9rem; margin-top:-0.5rem; margin-bottom:1.25rem;">
+        Notas com XML são conferidas e lançadas automaticamente. PDFs (DANFE) têm
+        os dados aproveitados quando possível, mas sempre passam por
+        confirmação antes de entrar no estoque. Compras sem nota também podem
+        ser digitadas manualmente.
+    </p>
+
+    {% if not can_write %}
+    <p style="color:hsl(var(--text-muted)); font-weight:700;">Somente visualização — sem permissão para lançar entradas.</p>
+    {% else %}
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:1.25rem;">
+        <form method="POST" action="{{ url_for('admin.import_inventory_invoice') }}" enctype="multipart/form-data"
+              style="display:flex; flex-direction:column; gap:0.75rem; border:1px solid hsl(var(--border)); border-radius:var(--radius-md); padding:1.25rem;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="source_type" value="xml_nfe">
+            <strong>📄 Importar XML da NF-e</strong>
+            <span style="font-size:0.85rem; color:hsl(var(--text-muted));">
+                Caminho mais confiável: os itens, CNPJ, número e chave de acesso são lidos
+                automaticamente direto do XML.
+            </span>
+            <input class="form-control" type="file" name="file" accept=".xml" required>
+            <button class="btn btn-primary" type="submit">Importar XML</button>
+        </form>
+
+        <form method="POST" action="{{ url_for('admin.import_inventory_invoice') }}" enctype="multipart/form-data"
+              style="display:flex; flex-direction:column; gap:0.75rem; border:1px solid hsl(var(--border)); border-radius:var(--radius-md); padding:1.25rem;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="source_type" value="pdf_danfe">
+            <strong>🧾 Importar PDF (DANFE)</strong>
+            <span style="font-size:0.85rem; color:hsl(var(--text-muted));">
+                Melhor esforço: chave de acesso, CNPJ, número/série e valor total costumam
+                ser lidos. Os itens podem precisar de conferência manual na tela seguinte.
+            </span>
+            <input class="form-control" type="file" name="file" accept=".pdf" required>
+            <button class="btn btn-primary" type="submit">Importar PDF</button>
+        </form>
+
+        <form method="POST" action="{{ url_for('admin.import_inventory_invoice') }}"
+              style="display:flex; flex-direction:column; gap:0.75rem; border:1px solid hsl(var(--border)); border-radius:var(--radius-md); padding:1.25rem;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="source_type" value="manual">
+            <strong>✍️ Lançar nota fiscal manualmente</strong>
+            <span style="font-size:0.85rem; color:hsl(var(--text-muted));">
+                Quando você tem os dados da nota (número, fornecedor, itens) mas não tem
+                o arquivo XML/PDF em mãos. Digite tudo na tela seguinte.
+            </span>
+            <button class="btn btn-outline" type="submit" style="margin-top:auto;">Começar lançamento manual</button>
+        </form>
+
+        <form method="POST" action="{{ url_for('admin.import_inventory_invoice') }}"
+              style="display:flex; flex-direction:column; gap:0.75rem; border:1px solid hsl(var(--border)); border-radius:var(--radius-md); padding:1.25rem;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="source_type" value="avulsa">
+            <strong>🛒 Lançar compra avulsa (sem nota)</strong>
+            <span style="font-size:0.85rem; color:hsl(var(--text-muted));">
+                Para compras de mercadinho/avulsas sem nota fiscal nenhuma. Digite o que
+                foi comprado na tela seguinte.
+            </span>
+            <button class="btn btn-outline" type="submit" style="margin-top:auto;">Começar compra avulsa</button>
+        </form>
+    </div>
+    {% endif %}
+</section>
+
+<section class="card" style="color:hsl(var(--text-muted)); font-size:0.86rem;">
+    Em qualquer um dos quatro caminhos, a próxima tela mostra os itens para você
+    confirmar (ou corrigir) o material do estoque, quantidade, custo e validade
+    de cada lote antes de afetar o saldo. Nada entra no estoque sem essa
+    confirmação. Notas em rascunho aparecem na aba <strong>Notas Fiscais</strong>.
+</section>

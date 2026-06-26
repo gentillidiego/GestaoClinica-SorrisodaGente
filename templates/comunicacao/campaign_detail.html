@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Campanha — {{ campaign.name }}{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <h1 class="page-title">{{ campaign.name }}</h1>
+    <p class="page-subtitle">
+        Canal: {{ 'WhatsApp' if campaign.channel == 'whatsapp' else 'E-mail' }} ·
+        Status: {{ campaign.status }} ·
+        Destinatários: {{ campaign.total_recipients }} ·
+        Enviados: {{ campaign.total_sent }} ·
+        Falhas: {{ campaign.total_failed }}
+    </p>
+
+    <section class="card" style="padding:0; overflow:hidden;">
+        <div class="table-container">
+            <table style="width:100%; border-collapse:collapse; background:white;">
+                <thead>
+                    <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                        <th style="padding:0.85rem;">Paciente</th>
+                        <th style="padding:0.85rem;">Destino</th>
+                        <th style="padding:0.85rem;">Status</th>
+                        <th style="padding:0.85rem;">Erro</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in messages %}
+                    <tr style="border-bottom:1px solid hsl(var(--border));">
+                        <td style="padding:0.85rem;">{{ m.patient_name or '—' }}</td>
+                        <td style="padding:0.85rem;">{{ m.destination }}</td>
+                        <td style="padding:0.85rem;">{{ m.status }}</td>
+                        <td style="padding:0.85rem; color:#b91c1c;">{{ m.error_message or '' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">
+                            Nenhum destinatário enfileirado ainda.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}

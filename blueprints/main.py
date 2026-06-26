@@ -2,7 +2,7 @@ import csv
 import os
 from io import StringIO
 
-from flask import Blueprint, Response, render_template, jsonify, request, redirect, url_for, flash
+from flask import Blueprint, Response, current_app, render_template, jsonify, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from database import query
 import datetime
@@ -52,6 +52,7 @@ def health_check():
     status_code = 200 if db_ok else 503
     return jsonify({
         "status": "healthy" if db_ok else "degraded",
+        "version": current_app.config.get("APP_VERSION", "unknown"),
         "database": "ok" if db_ok else "error",
         "db_latency_ms": db_latency,
         "timestamp": time.time()

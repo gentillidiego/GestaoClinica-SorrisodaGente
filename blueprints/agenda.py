@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from constants import CLINICAL_EXECUTOR_ROLES, Role, canonical_role
 from services.execution_unit_service import get_default_execution_unit, get_execution_unit_choices, normalize_execution_unit
 from services.security_service import audit_log, permission_required
+from services.web_security_service import flash_internal_error
 
 agenda_bp = Blueprint('agenda', __name__, url_prefix='/agenda')
 FULL_AGENDA_SCOPE_ROLES = {Role.ADMIN, Role.COORDENACAO, Role.RECEPCAO}
@@ -263,7 +264,7 @@ def nova_consulta():
         )
         flash('Consulta agendada com sucesso! ✅', 'success')
     except Exception as e:
-        flash(f'Erro ao agendar consulta: {str(e)}', 'danger')
+        flash_internal_error('Falha ao agendar consulta')
 
     # Redireciona para a semana da consulta criada
     week_start = dt.date() - timedelta(days=dt.weekday())
@@ -333,7 +334,7 @@ def editar_consulta(consulta_id):
             )
             flash('Consulta atualizada com sucesso! ✅', 'success')
         except Exception as e:
-            flash(f'Erro ao atualizar consulta: {str(e)}', 'danger')
+            flash_internal_error('Falha ao atualizar consulta')
 
         week_start = dt.date() - timedelta(days=dt.weekday())
         return redirect(url_for('agenda.agenda_index', semana=week_start.isoformat()))
@@ -374,7 +375,7 @@ def cancelar_consulta(consulta_id):
         )
         flash('Consulta cancelada.', 'success')
     except Exception as e:
-        flash(f'Erro ao cancelar: {str(e)}', 'danger')
+        flash_internal_error('Falha ao cancelar consulta')
 
     dt = consulta['data_consulta']
     week_start = dt.date() - timedelta(days=dt.weekday())
@@ -412,6 +413,6 @@ def atualizar_status(consulta_id):
         )
         flash(f'Status atualizado para "{novo_status}".', 'success')
     except Exception as e:
-        flash(f'Erro ao atualizar status: {str(e)}', 'danger')
+        flash_internal_error('Falha ao atualizar status da consulta')
 
     return redirect(request.referrer or url_for('agenda.agenda_index'))

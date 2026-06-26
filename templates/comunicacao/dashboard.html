@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Comunicação{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; flex-wrap:wrap; margin-bottom:2rem;">
+        <div>
+            <h1 class="page-title">Comunicação</h1>
+            <p class="page-subtitle">Campanhas e lembretes por e-mail e WhatsApp.</p>
+        </div>
+        <div style="display:flex; gap:0.75rem;">
+            <a class="btn btn-outline" href="{{ url_for('comunicacao.templates_list') }}">Templates</a>
+            <a class="btn btn-outline" href="{{ url_for('comunicacao.preferences_list') }}">Preferências/Opt-out</a>
+            {% if current_user.can('comunicacao:write') %}
+            <a class="btn btn-primary" href="{{ url_for('comunicacao.campaign_new') }}">Nova Campanha</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if not whatsapp_configured %}
+    <div class="card" style="padding:1rem; margin-bottom:1.5rem; border-left:4px solid #f59e0b;">
+        <strong>Canal WhatsApp não configurado.</strong>
+        <p style="margin:0.35rem 0 0; color:hsl(var(--text-muted));">
+            As campanhas e lembretes por WhatsApp ficam indisponíveis até as
+            variáveis <code>WHATSAPP_ACCESS_TOKEN</code> e
+            <code>WHATSAPP_PHONE_NUMBER_ID</code> serem configuradas. O canal
+            de e-mail já funciona normalmente.
+        </p>
+    </div>
+    {% endif %}
+
+    <section class="card" style="padding:0; overflow:hidden;">
+        <h2 class="section-header" style="padding:1rem 1rem 0;">Campanhas recentes</h2>
+        <div class="table-container">
+            <table style="width:100%; border-collapse:collapse; background:white;">
+                <thead>
+                    <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                        <th style="padding:0.85rem;">Nome</th>
+                        <th style="padding:0.85rem;">Canal</th>
+                        <th style="padding:0.85rem;">Status</th>
+                        <th style="padding:0.85rem;">Destinatários</th>
+                        <th style="padding:0.85rem;">Enviados</th>
+                        <th style="padding:0.85rem;">Falhas</th>
+                        <th style="padding:0.85rem;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for campaign in campaigns %}
+                    <tr style="border-bottom:1px solid hsl(var(--border));">
+                        <td style="padding:0.85rem;">{{ campaign.name }}</td>
+                        <td style="padding:0.85rem;">{{ 'WhatsApp' if campaign.channel == 'whatsapp' else 'E-mail' }}</td>
+                        <td style="padding:0.85rem;">{{ campaign.status }}</td>
+                        <td style="padding:0.85rem;">{{ campaign.total_recipients }}</td>
+                        <td style="padding:0.85rem;">{{ campaign.total_sent }}</td>
+                        <td style="padding:0.85rem;">{{ campaign.total_failed }}</td>
+                        <td style="padding:0.85rem;">
+                            <a class="btn btn-outline" href="{{ url_for('comunicacao.campaign_detail', campaign_id=campaign.id) }}">Detalhes</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">
+                            Nenhuma campanha criada ainda.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}

@@ -194,6 +194,11 @@ def _claim_record(source, record_id):
 
 def _mark_sync_failed(source, record_id, exc):
     config = _source_config(source)
+    logger.exception(
+        'Falha ao sincronizar %s #%s com o Drive',
+        source,
+        record_id,
+    )
     execute(
         f"""
         UPDATE {config['table']}
@@ -202,7 +207,7 @@ def _mark_sync_failed(source, record_id, exc):
             storage_updated_at = NOW()
         WHERE id = %s
         """,
-        (str(exc)[-1500:], record_id),
+        ('Sincronização não concluída; nova tentativa será automática.', record_id),
     )
 
 

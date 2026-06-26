@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Solicitar Exame - {{ anamnesis.patient_name }}{% endblock %}
+
+{% block content %}
+<div class="animate-fade" style="max-width: 800px; margin: 2rem auto;">
+    <div style="margin-bottom: 2rem;">
+        <a href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}"
+            style="display: inline-flex; align-items: center; gap: 0.5rem; color: hsl(var(--text-muted)); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.2s;"
+            onmouseover="this.style.color='hsl(var(--primary))'" onmouseout="this.style.color='hsl(var(--text-muted))'">
+            <span>⬅️</span> Voltar para o Prontuário
+        </a>
+    </div>
+    <div style="margin-bottom: 3rem; text-align: center;">
+        <h1 style="font-family: var(--font-heading); font-size: 2.5rem; font-weight: 800; color: hsl(var(--primary));">
+            🧾 Solicitar Exame
+        </h1>
+        <p style="color: hsl(var(--text-muted)); font-size: 1.1rem; margin-top: 0.5rem;">
+            Escolha o tipo de exame a solicitar para: <strong>{{ anamnesis.patient_name }}</strong>.
+            A solicitação entra na fila da Radiologia, sem necessidade de anexar arquivos agora.
+        </p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; padding: 0 1rem;">
+        <!-- Solicitação de Imagem -->
+        <a href="{{ url_for('exams.solicitar_imagem', anamnesis_id=anamnesis.id) }}" class="card stat-card"
+            style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 1.5rem; border-bottom: 4px solid hsl(280, 70%, 50%); transition: all 0.3s; background: white; min-height: 280px;">
+            <div
+                style="font-size: 4rem; margin-bottom: 1.5rem; height: 80px; display: flex; align-items: center; justify-content: center;">
+                🖼️</div>
+            <h3
+                style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 800; color: hsl(280, 70%, 50%); margin: 0;">
+                Imagem</h3>
+            <p
+                style="font-size: 0.95rem; color: hsl(var(--text-muted)); margin-top: 1rem; text-align: center; font-weight: 500; line-height: 1.4;">
+                Radiografias, tomografias e fotos clínicas.</p>
+        </a>
+
+        <!-- Solicitação Clínico / Laboratorial -->
+        <a href="{{ url_for('exams.solicitar_clinico_laboratorial', anamnesis_id=anamnesis.id) }}" class="card stat-card"
+            style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 1.5rem; border-bottom: 4px solid hsl(165, 65%, 38%); transition: all 0.3s; background: white; min-height: 280px;">
+            <div
+                style="font-size: 4rem; margin-bottom: 1.5rem; height: 80px; display: flex; align-items: center; justify-content: center;">
+                🧪</div>
+            <h3
+                style="font-family: var(--font-heading); font-size: 1.5rem; font-weight: 800; color: hsl(165, 65%, 32%); margin: 0; text-align: center;">
+                Clínico / Laboratorial</h3>
+            <p
+                style="font-size: 0.95rem; color: hsl(var(--text-muted)); margin-top: 1rem; text-align: center; font-weight: 500; line-height: 1.4;">
+                Laudos de sangue, coagulação, glicemia e outros exames clínicos.</p>
+        </a>
+    </div>
+
+    <div style="margin-top: 4rem; text-align: center;">
+        <a href="{{ url_for('patients.view_patient', id=anamnesis.patient_id) }}" class="btn btn-outline">
+            ⬅️ Voltar para o Prontuário
+        </a>
+    </div>
+</div>
+{% endblock %}

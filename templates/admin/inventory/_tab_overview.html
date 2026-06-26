@@ -1,0 +1,63 @@
+<div class="stat-grid" style="margin-bottom:1.5rem;">
+    <div class="stat-card" style="border-bottom:4px solid #2563eb;">
+        <div class="stat-icon" style="background:#dbeafe;">📦</div>
+        <div class="stat-info">
+            <span class="stat-value">{{ dashboard.stats.materials_count }}</span>
+            <span class="stat-label">Materiais</span>
+        </div>
+    </div>
+    <div class="stat-card" style="border-bottom:4px solid #7c3aed;">
+        <div class="stat-icon" style="background:#ede9fe;">L</div>
+        <div class="stat-info">
+            <span class="stat-value">{{ dashboard.stats.lots }}</span>
+            <span class="stat-label">Lotes Ativos</span>
+        </div>
+    </div>
+    <div class="stat-card" style="border-bottom:4px solid #f59e0b;">
+        <div class="stat-icon" style="background:#fef3c7;">!</div>
+        <div class="stat-info">
+            <span class="stat-value">{{ dashboard.stats.low_stock + dashboard.stats.expiring }}</span>
+            <span class="stat-label">Atenção</span>
+        </div>
+    </div>
+    <div class="stat-card" style="border-bottom:4px solid #ef4444;">
+        <div class="stat-icon" style="background:#fee2e2;">🚨</div>
+        <div class="stat-info">
+            <span class="stat-value">{{ dashboard.stats.expired + dashboard.stats.postop_pending }}</span>
+            <span class="stat-label">Críticos</span>
+        </div>
+    </div>
+    <div class="stat-card" style="border-bottom:4px solid #0ea5e9;">
+        <div class="stat-icon" style="background:#e0f2fe;">📝</div>
+        <div class="stat-info">
+            <span class="stat-value">{{ dashboard.stats.pending_invoices }}</span>
+            <span class="stat-label">Notas em Revisão</span>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom:1.5rem; padding:1rem 1.25rem; display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+    <div>
+        <strong>Valor atual em estoque</strong>
+        <div style="color:hsl(var(--text-muted)); font-size:0.86rem;">Soma do saldo de todos os lotes ativos × custo unitário.</div>
+    </div>
+    <span style="font-size:1.4rem; font-weight:900; color:#0f766e;">R$ {{ '%.2f'|format(dashboard.stats.current_value or 0) }}</span>
+</div>
+
+{% if dashboard.alerts %}
+<section class="card" style="margin-bottom:1.5rem;">
+    <h2 class="section-header">Alertas de Estoque e Pós-operatório</h2>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:0.75rem;">
+        {% for alert in dashboard.alerts %}
+        <div style="border-left:5px solid {% if alert.severity == 'critical' %}#ef4444{% else %}#f59e0b{% endif %}; background:{% if alert.severity == 'critical' %}#fef2f2{% else %}#fffbeb{% endif %}; border-radius:var(--radius-md); padding:0.9rem 1rem;">
+            <strong style="display:block; margin-bottom:0.35rem;">{{ alert.title }}</strong>
+            <span style="color:hsl(var(--text-muted)); font-size:0.86rem;">{{ alert.message }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% else %}
+<section class="card" style="text-align:center; padding:2rem; color:hsl(var(--text-muted));">
+    Nenhum alerta de estoque ou pós-operatório no momento.
+</section>
+{% endif %}

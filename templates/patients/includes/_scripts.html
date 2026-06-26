@@ -563,17 +563,17 @@
         modal.style.display = 'flex';
     }
 
-    function openStudentSignModal(actionUrl) {
-        const modal = document.getElementById('studentSignModal');
-        const form = document.getElementById('studentSignForm');
+    function openExecutorSignModal(actionUrl) {
+        const modal = document.getElementById('executorSignModal');
+        const form = document.getElementById('executorSignForm');
         form.action = actionUrl;
         modal.style.display = 'flex';
     }
 
-    function closeStudentSignModal() {
-        const modal = document.getElementById('studentSignModal');
+    function closeExecutorSignModal() {
+        const modal = document.getElementById('executorSignModal');
         modal.style.display = 'none';
-        document.getElementById('studentSignForm').reset();
+        document.getElementById('executorSignForm').reset();
     }
 
     function openNovaReceitaModal(evt) {
@@ -629,14 +629,78 @@
 
     function openNovoAtestadoModal(evt) {
         if(evt) evt.preventDefault();
-        console.log("Abrindo modal novo atestado...");
         const modal = document.getElementById('novoAtestadoModal');
-        console.log("Modal element:", modal);
-        if (modal) modal.style.display = 'flex';
+        if (modal) {
+            modal.style.display = 'flex';
+            initClinicalDocumentType();
+        }
     }
 
     function closeNovoAtestadoModal() {
         document.getElementById('novoAtestadoModal').style.display = 'none';
         document.getElementById('novoAtestadoForm').reset();
+        initClinicalDocumentType();
+    }
+
+    function initClinicalDocumentType() {
+        const select = document.getElementById('clinicalDocumentType');
+        const atestadoFields = document.getElementById('atestadoDocumentFields');
+        const declaracaoFields = document.getElementById('declaracaoDocumentFields');
+        const motivo = document.getElementById('atestadoMotivo');
+        const confirmation = document.getElementById('confirmouComparecimento');
+        const cidSelect = document.getElementById('atestadoCid');
+        const cidAuthorization = document.getElementById('cidAutorizado');
+        const submit = document.getElementById('clinicalDocumentSubmit');
+        if (!select || !atestadoFields || !declaracaoFields) return;
+
+        const declarationSelected = select.value === 'declaracao_comparecimento';
+        atestadoFields.style.display = declarationSelected ? 'none' : 'block';
+        declaracaoFields.style.display = declarationSelected ? 'block' : 'none';
+        if (motivo) motivo.required = !declarationSelected;
+        if (confirmation) confirmation.required = declarationSelected;
+        if (cidAuthorization) {
+            cidAuthorization.required = !declarationSelected && Boolean(cidSelect && cidSelect.value);
+        }
+        if (submit) {
+            submit.textContent = declarationSelected
+                ? 'Gerar Declaração de Comparecimento'
+                : 'Salvar Atestado';
+        }
+
+        if (select.dataset.documentTypeReady !== '1') {
+            select.dataset.documentTypeReady = '1';
+            select.addEventListener('change', initClinicalDocumentType);
+        }
+        initDentalCidSelection();
+    }
+
+    function initDentalCidSelection() {
+        const select = document.getElementById('atestadoCid');
+        const descriptionBox = document.getElementById('cidDescriptionBox');
+        const descriptionText = document.getElementById('cidDescriptionText');
+        const authorizationRow = document.getElementById('cidAuthorizationRow');
+        const authorization = document.getElementById('cidAutorizado');
+        const documentType = document.getElementById('clinicalDocumentType');
+        if (!select || !descriptionBox || !authorizationRow) return;
+
+        const selected = select.selectedOptions[0];
+        const hasCid = Boolean(select.value);
+        const atestadoSelected = !documentType || documentType.value === 'atestado';
+        descriptionBox.style.display = hasCid && atestadoSelected ? 'block' : 'none';
+        authorizationRow.style.display = hasCid && atestadoSelected ? 'flex' : 'none';
+        if (descriptionText) {
+            descriptionText.textContent = selected
+                ? (selected.getAttribute('data-description') || '')
+                : '';
+        }
+        if (authorization) {
+            authorization.required = hasCid && atestadoSelected;
+            if (!hasCid || !atestadoSelected) authorization.checked = false;
+        }
+
+        if (select.dataset.cidReady !== '1') {
+            select.dataset.cidReady = '1';
+            select.addEventListener('change', initDentalCidSelection);
+        }
     }
 </script>

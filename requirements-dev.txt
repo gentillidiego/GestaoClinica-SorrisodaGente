@@ -1,3 +1,4 @@
 # Dependências apenas para desenvolvimento/testes — não instalar em produção
 pytest==9.0.3
 locust==2.32.0
+python-docx==1.2.0

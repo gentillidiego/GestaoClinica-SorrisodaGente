@@ -20,7 +20,7 @@
             </div>
             <div style="text-align: right;">
                 <div style="font-weight: 700; color: hsl(var(--primary));">Nº FICHA: #{{ a.id }}</div>
-                <div style="font-size: 0.85rem; color: hsl(var(--text-muted));">Data: {{ a.data_criacao }}</div>
+                <div style="font-size: 0.85rem; color: hsl(var(--text-muted));">Data: {{ a.data_anamnese }}</div>
             </div>
         </div>
     </div>
@@ -214,7 +214,22 @@
 
             <div
                 style="display: inline-block; text-align: center; border-bottom: 1px solid black; padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
-                {% if a.assinatura_base64 %}
+                {% if a.assinatura_modo == 'a_rogo' %}
+                <div style="max-width: 600px; padding: 1rem 1.25rem; border: 1px solid hsl(var(--primary)/0.3); border-radius: var(--radius-md); background: hsl(var(--primary)/0.06); text-align: left;">
+                    <div style="font-weight: 800; color: hsl(var(--primary)); margin-bottom: 0.5rem;">
+                        🛡️ ASSINATURA A ROGO REGISTRADA
+                    </div>
+                    <p style="margin: 0 0 0.75rem; font-size: 0.9rem;">
+                        {{ a.assinatura_a_rogo_declaracao }}
+                    </p>
+                    <div style="font-size: 0.85rem; color: hsl(var(--text-muted));">
+                        CD responsável: {{ a.rogo_signer_name or a.rogo_signer_username or 'Profissional identificado no evento probatório' }}
+                        {% if a.rogo_signer_cro %}
+                        — CRO-{{ a.rogo_signer_cro_uf or '---' }} {{ a.rogo_signer_cro }}
+                        {% endif %}
+                    </div>
+                </div>
+                {% elif a.assinatura_base64 and a.assinatura_base64.startswith('data:image/') %}
                 <img src="{{ a.assinatura_base64 }}" alt="Assinatura Digital"
                     style="max-width: 400px; max-height: 150px;">
                 {% else %}
@@ -225,7 +240,20 @@
             </div>
             <div style="font-weight: 700; font-family: var(--font-heading); text-transform: uppercase;">{{
                 a.patient_name }}</div>
-            <div style="font-size: 0.8rem; color: hsl(var(--text-muted));">Assinatura do Paciente ou Responsável</div>
+            <div style="font-size: 0.8rem; color: hsl(var(--text-muted));">
+                {% if a.assinatura_modo == 'a_rogo' %}
+                Consentimento do paciente registrado a rogo
+                {% else %}
+                Assinatura do Paciente ou Responsável
+                {% endif %}
+            </div>
+            {% if a.assinatura_event_id %}
+            <a class="btn btn-outline no-print"
+                href="{{ url_for('documents.signature_receipt', event_id=a.assinatura_event_id) }}"
+                style="margin-top: 1rem; padding: 0.65rem 1rem;">
+                Ver comprovante da assinatura
+            </a>
+            {% endif %}
         </section>
     </div>
 

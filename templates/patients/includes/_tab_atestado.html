@@ -2,9 +2,9 @@
     <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
             <h3 style="font-family: var(--font-heading); font-size: 1.25rem; color: hsl(var(--primary));">
-                📜 Atestados Emitidos</h3>
+                📜 Atestados e Declarações Emitidos</h3>
             <a href="#" class="btn btn-outline"
-                style="background: white;" onclick="openNovoAtestadoModal(event)">➕ Novo Atestado</a>
+                style="background: white;" onclick="openNovoAtestadoModal(event)">➕ Criar novo</a>
         </div>
 
         {% if atestados %}
@@ -15,6 +15,9 @@
                 <div
                     style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
                     <div>
+                        <span style="display:block; margin-bottom:0.5rem; color:hsl(var(--primary)); font-size:0.78rem; font-weight:800; text-transform:uppercase;">
+                            {{ 'Declaração de Comparecimento' if cert.tipo_documento == 'declaracao_comparecimento' else 'Atestado Odontológico' }}
+                        </span>
                         <span
                             style="display: block; font-size: 0.75rem; font-weight: 700; color: hsl(var(--text-muted));">DATA</span>
                         <span style="font-weight: 600;">{{ (cert.data|string).split(' ')[0] if cert.data else '---' }}</span>
@@ -23,7 +26,15 @@
                 <div style="flex: 1; margin-bottom: 1.5rem;">
                     <div
                         style="font-size: 0.9rem; color: hsl(var(--text-muted)); white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
-                        {{ cert.conteudo }}
+                        {% if cert.tipo_documento == 'declaracao_comparecimento' %}
+                            Comparecimento em {{ cert.data_comparecimento or (cert.data|string).split(' ')[0] }}
+                            {% if cert.hora_inicio and cert.hora_fim %}
+                                das {{ cert.hora_inicio|string|truncate(5, True, '') }} às {{ cert.hora_fim|string|truncate(5, True, '') }}.
+                            {% endif %}
+                        {% else %}
+                            {{ cert.motivo or 'Atestado odontológico' }}
+                            {% if cert.dias_repouso %} • Repouso: {{ cert.dias_repouso }} dia(s).{% endif %}
+                        {% endif %}
                     </div>
                 </div>
                 <div style="display: flex; gap: 0.5rem;">
@@ -32,7 +43,7 @@
                         Ver</a>
                     <form action="{{ url_for('documents.delete_atestado', patient_id=patient.id, doc_id=cert.id) }}" method="POST"
                         style="display:inline;"
-                        onsubmit="return confirm('Tem certeza que deseja excluir este atestado?');">
+                        onsubmit="return confirm('Tem certeza que deseja excluir este documento?');">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-danger"
                             style="padding: 0.4rem 0.8rem; font-size: 0.85rem;" title="Excluir">🗑️</button>
@@ -43,7 +54,7 @@
         </div>
         {% else %}
         <div style="padding: 2rem; background: hsl(var(--bg-main)); border-radius: var(--radius-sm); text-align: center;">
-            <p style="color: hsl(var(--text-muted)); italic;">Nenhum atestado emitido para este paciente.</p>
+            <p style="color: hsl(var(--text-muted)); italic;">Nenhum atestado ou declaração emitido para este paciente.</p>
         </div>
         {% endif %}
     </div>

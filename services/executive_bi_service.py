@@ -337,7 +337,7 @@ def get_professional_ranking(start, end, limit=10):
                COUNT(tp.id) FILTER (WHERE tp.status = 'Concluído') as completed_procedures,
                COUNT(DISTINCT tp.patient_id) FILTER (WHERE tp.status = 'Concluído') as patients
         FROM tratamento_procedimentos tp
-        LEFT JOIN users u ON u.id = tp.professor_id
+        LEFT JOIN users u ON u.id = tp.validator_id
         WHERE tp.criado_em::date BETWEEN %s AND %s
         GROUP BY professional
         HAVING COUNT(tp.id) FILTER (WHERE tp.status = 'Concluído') > 0

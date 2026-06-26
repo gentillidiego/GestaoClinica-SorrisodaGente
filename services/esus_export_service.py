@@ -2,6 +2,7 @@
 
 import datetime as dt
 import json
+import logging
 import os
 import re
 import tempfile
@@ -16,6 +17,9 @@ from services.esus_xml_service import (
     xml_sha256,
 )
 from services.sigtap_service import get_sigtap_procedure, get_sigtap_summary
+
+
+logger = logging.getLogger(__name__)
 
 
 class EsusDuplicateRemessaError(ValueError):
@@ -231,7 +235,7 @@ def list_atendimentos_para_remessa(data_inicio, data_fim):
             tp.sigtap_competence,
             tp.sigtap_name,
             tp.criado_em,
-            tp.professor_id,
+            tp.validator_id,
             CASE
                 WHEN COALESCE(tp.data_sessao, '') ~ '^\\d{4}-\\d{2}-\\d{2}'
                     THEN SUBSTRING(tp.data_sessao FROM 1 FOR 10)::date::timestamp
@@ -254,7 +258,7 @@ def list_atendimentos_para_remessa(data_inicio, data_fim):
             an.gestante
         FROM tratamento_procedimentos tp
         JOIN patients p ON p.id = tp.patient_id
-        LEFT JOIN users u ON u.id = tp.professor_id
+        LEFT JOIN users u ON u.id = tp.validator_id
         LEFT JOIN anamnesis an ON an.id = (
             SELECT MAX(a2.id) FROM anamnesis a2 WHERE a2.patient_id = p.id
         )
@@ -354,7 +358,7 @@ def classify_esus_missing_fields(row, settings=None):
         missing.append('CNS/CPF')
     elif not has_valid_patient_identifier(row):
         missing.append('CNS/CPF inválido')
-    if not row.get('professor_id'):
+    if not row.get('validator_id'):
         missing.append('profissional')
     if not row.get('professional_cns'):
         missing.append('CNS profissional')
@@ -411,7 +415,7 @@ def list_professionals_for_readiness(readiness):
         ('pending', readiness['missing_sigtap_records'] + readiness['incomplete_records']),
     ):
         for row in rows:
-            professional_id = row.get('professor_id')
+            professional_id = row.get('validator_id')
             if not professional_id:
                 continue
             item = professionals.setdefault(professional_id, {
@@ -647,11 +651,11 @@ def gerar_remessa_xml(data_inicio, data_fim, periodo_label=None, generated_by=No
 
     ready_rows = [
         row for row in readiness['ready_records']
-        if row.get('professor_id') == professional_id
+        if row.get('validator_id') == professional_id
     ]
     pending_rows = [
         row for row in readiness['missing_sigtap_records'] + readiness['incomplete_records']
-        if row.get('professor_id') == professional_id
+        if row.get('validator_id') == professional_id
     ]
     if pending_rows:
         raise ValueError(
@@ -777,7 +781,12 @@ def enviar_remessa_por_email(remessa_id, xml_path, periodo_label, email_destino,
         marcar_remessa_enviada(remessa_id, email_destino)
         return True, None
     except Exception as exc:
-        message = str(exc)
+        reference = uuid.uuid4().hex[:16].upper()
+        logger.exception(
+            'Falha ao enviar remessa e-SUS por e-mail [ref=%s]',
+            reference,
+        )
+        message = f'Falha no envio. Referência: {reference}.'
         marcar_remessa_erro(remessa_id, message)
         return False, message
 

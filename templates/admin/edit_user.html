@@ -86,15 +86,15 @@
             </div>
 
             <div id="professional_container"
-                style="{% if user.role in ['clinicos', 'cme', 'radiologia'] %}display: grid;{% else %}display: none;{% endif %} grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                style="{% if user.role in ['clinicos', 'cme', 'radiologia', 'analises_clinicas'] %}display: grid;{% else %}display: none;{% endif %} grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
                 <div>
                     <label for="cns" class="form-label">CNS do Profissional</label>
-                    <input type="text" name="cns" id="cns" class="form-control professional-required" placeholder="Cartão Nacional de Saúde"
+                    <input type="text" name="cns" id="cns" class="form-control" placeholder="Cartão Nacional de Saúde"
                         value="{{ user.cns or '' }}">
                 </div>
                 <div>
                     <label for="cbo" class="form-label">CBO</label>
-                    <input type="text" name="cbo" id="cbo" class="form-control professional-required" placeholder="Ex: 223208"
+                    <input type="text" name="cbo" id="cbo" class="form-control" placeholder="Ex: 223208"
                         value="{{ user.cbo or '' }}">
                 </div>
                 <div>
@@ -136,7 +136,7 @@
 </div>
 
 <script>
-    const professionalRoles = ['clinicos', 'cme', 'radiologia'];
+    const professionalRoles = ['clinicos', 'cme', 'radiologia', 'analises_clinicas'];
     const dentalRoles = ['clinicos'];
 
     function setRequired(selector, required) {
@@ -152,10 +152,8 @@
 
         if (professionalRoles.includes(role)) {
             professionalContainer.style.display = 'grid';
-            setRequired('.professional-required', true);
         } else {
             professionalContainer.style.display = 'none';
-            setRequired('.professional-required', false);
         }
 
         if (dentalRoles.includes(role)) {

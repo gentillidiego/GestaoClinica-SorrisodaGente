@@ -4,19 +4,23 @@ import logging
 from logging.handlers import RotatingFileHandler
 import click
 import redis
-from flask import Flask, render_template, g, request
+from flask import Flask, render_template, g, request, redirect, url_for
 from flask_session import Session
-from flask_login import LoginManager
-from flask_wtf.csrf import CSRFProtect
+from flask_login import LoginManager, current_user
 from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
 
 from database import init_db
 from utils import User
-from extensions import limiter
+from extensions import limiter, csrf
 from constants import get_role_label
-from services.security_service import can
-from services.sigtap_service import seed_odontology_sigtap
+from services.security_service import can, deny_access
+from services.authorization_service import describe_rule, get_access_rule, rule_allows
+from services.sigtap_service import format_sigtap_code, seed_odontology_sigtap
+from services.cost_reference_service import seed_missing_cost_reference_placeholders
+from services.web_security_service import register_web_security
+from services.upload_security_service import CLINICAL_UPLOAD_MAX_REQUEST_BYTES
+from version import __version__
 from blueprints.admin import admin_bp
 from blueprints.patients import patients_bp
 from blueprints.anamnesis import anamnesis_bp
@@ -24,6 +28,7 @@ from blueprints.exams import exams_bp
 from blueprints.prosthesis import prosthesis_bp
 from blueprints.agenda import agenda_bp
 from blueprints.triage import triage_bp
+from blueprints.comunicacao import comunicacao_bp
 
 load_dotenv()
 
@@ -52,6 +57,17 @@ def register_request_hooks(app):
     @app.before_request
     def start_timer():
         g.start_time = time.time()
+
+    @app.before_request
+    def enforce_route_access_policy():
+        access_rule = get_access_rule()
+        if access_rule is None:
+            return None
+        if not current_user.is_authenticated:
+            return redirect(url_for('auth.login', next=request.url))
+        if not rule_allows(current_user, access_rule):
+            return deny_access(permissions=describe_rule(access_rule))
+        return None
 
     @app.after_request
     def log_request(response):
@@ -93,12 +109,15 @@ def create_app():
             "Configure a variável de ambiente no arquivo .env antes de iniciar a aplicação."
         )
     app.config['SECRET_KEY'] = secret_key
+    app.config['APP_VERSION'] = os.getenv('APP_VERSION', __version__)
+    app.config['MAX_CONTENT_LENGTH'] = CLINICAL_UPLOAD_MAX_REQUEST_BYTES
+    register_web_security(app)
     
     # Configuração do ProxyFix para Nginx
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
     # Inicializações
-    csrf = CSRFProtect(app)
+    csrf.init_app(app)
     limiter.init_app(app)
     
     # Configuração do Cache (Redis)
@@ -134,12 +153,14 @@ def create_app():
         return {
             'can': can,
             'role_label': get_role_label,
+            'format_sigtap_code': format_sigtap_code,
         }
 
     # Inicializar Banco de Dados
     with app.app_context():
         init_db()
         seed_odontology_sigtap()
+        seed_missing_cost_reference_placeholders()
 
     # Criação dos diretórios de upload
     os.makedirs('uploads/exames', exist_ok=True)
@@ -151,7 +172,9 @@ def create_app():
     from blueprints.endodontia import endodontia_bp
     from blueprints.reports_bp import reports_bp
     from blueprints.professional_registration import professional_registration_bp
-    
+    from blueprints.radiologia import radiologia_bp
+    from blueprints.analises_clinicas import analises_clinicas_bp
+
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(admin_bp)
@@ -165,6 +188,9 @@ def create_app():
     app.register_blueprint(triage_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(professional_registration_bp)
+    app.register_blueprint(radiologia_bp)
+    app.register_blueprint(analises_clinicas_bp)
+    app.register_blueprint(comunicacao_bp)
 
     # Configura logging e hooks de monitoramento
     configure_logging(app)
@@ -176,4 +202,8 @@ def create_app():
 app = create_app()
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5002)
+    app.run(
+        debug=os.getenv('FLASK_DEBUG', '').strip().lower() in {'1', 'true', 'yes'},
+        host='0.0.0.0',
+        port=5002,
+    )

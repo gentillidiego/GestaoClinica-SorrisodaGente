@@ -1,0 +1,55 @@
+<section class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:1rem 1rem 0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
+        <h2 class="section-header">Notas Fiscais e Compras</h2>
+        <a class="btn btn-outline" href="{{ url_for('admin.export_inventory_invoices_report') }}">Exportar período (PDF/CSV)</a>
+    </div>
+    <div class="table-container">
+        <table style="width:100%; border-collapse:collapse; background:white;">
+            <thead>
+                <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                    <th style="padding:0.85rem;">Status</th>
+                    <th style="padding:0.85rem;">Origem</th>
+                    <th style="padding:0.85rem;">Fornecedor</th>
+                    <th style="padding:0.85rem;">Nº / Série</th>
+                    <th style="padding:0.85rem;">Emissão</th>
+                    <th style="padding:0.85rem;">Itens</th>
+                    <th style="padding:0.85rem;">Valor Total</th>
+                    <th style="padding:0.85rem;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for invoice in invoices %}
+                <tr style="border-bottom:1px solid hsl(var(--border));">
+                    <td style="padding:0.85rem;">
+                        {% if invoice.status == 'rascunho' %}
+                        <span style="color:#b45309; font-weight:800;">Em revisão</span>
+                        {% elif invoice.status == 'confirmada' %}
+                        <span style="color:#0f766e; font-weight:800;">Confirmada</span>
+                        {% else %}
+                        <span style="color:hsl(var(--text-muted)); font-weight:800;">Descartada</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding:0.85rem;">{{ invoice.source_type }}</td>
+                    <td style="padding:0.85rem;">
+                        {{ invoice.supplier_name or 'Não informado' }}
+                        {% if invoice.supplier_cnpj %}<br><small style="color:hsl(var(--text-muted));">{{ invoice.supplier_cnpj }}</small>{% endif %}
+                    </td>
+                    <td style="padding:0.85rem;">{{ invoice.invoice_number or '—' }}{% if invoice.invoice_series %} / {{ invoice.invoice_series }}{% endif %}</td>
+                    <td style="padding:0.85rem;">{{ invoice.issue_date.strftime('%d/%m/%Y') if invoice.issue_date else '—' }}</td>
+                    <td style="padding:0.85rem;">{{ invoice.item_count }}</td>
+                    <td style="padding:0.85rem;">R$ {{ '%.2f'|format(invoice.total_value or 0) }}</td>
+                    <td style="padding:0.85rem;">
+                        <a class="btn btn-outline" style="padding:0.4rem 0.9rem;" href="{{ url_for('admin.view_inventory_invoice', invoice_id=invoice.id) }}">
+                            {% if invoice.status == 'rascunho' %}Revisar{% else %}Ver{% endif %}
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">Nenhuma nota/compra registrada.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>

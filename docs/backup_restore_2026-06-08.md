@@ -155,3 +155,28 @@ Pacientes restaurados: 1
 
 O arquivo `/backups/LAST_SUCCESS` alimenta o healthcheck do container e impede
 uma nova execução no mesmo dia após simples restart.
+
+## Validação após correção OAuth em 20/06/2026 23:19 -03
+
+O rclone passou a receber o diretório gravável `/run/secrets/rclone`, permitindo
+persistir a renovação OAuth por troca atômica de `rclone.conf`.
+
+Backup aprovado:
+
+```text
+gestao_saude_oral_20260620_231912.dump
+uploads_20260620_231912.tar.gz
+manifest_20260620_231912.sha256
+0 differences found
+3 matching files
+```
+
+Restore isolado:
+
+```text
+Tabelas públicas restauradas: 54
+Pacientes restaurados: 0
+```
+
+A pilha completa foi reiniciada depois do teste; o backup, o Drive e o token
+renovado permaneceram válidos.

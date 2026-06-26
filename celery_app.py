@@ -9,7 +9,10 @@ celery = Celery(
     'gestaoclinica',
     backend=redis_url,
     broker=redis_url,
-    include=['tasks.pdf_tasks', 'tasks.report_tasks', 'tasks.gdrive_tasks', 'tasks.esus_tasks']
+    include=[
+        'tasks.pdf_tasks', 'tasks.report_tasks', 'tasks.gdrive_tasks', 'tasks.esus_tasks',
+        'tasks.communication_tasks',
+    ]
 )
 
 # Evita DeprecationWarning no Celery 6+ e falha silenciosa no boot
@@ -56,6 +59,15 @@ celery.conf.beat_schedule['esus-remessa-quinzenal'] = {
         minute=os.getenv('ESUS_REMESSA_MINUTO', '0'),
     ),
 }
+
+# Lembretes automáticos de consulta: verifica a cada hora se há consultas
+# próximas sem lembrete enviado ainda (a tarefa em si fica inerte se
+# APPOINTMENT_REMINDERS_ENABLED não estiver ligado).
+celery.conf.beat_schedule['comunicacao-lembretes-consulta'] = {
+    'task': 'tasks.communication_tasks.send_appointment_reminders_task',
+    'schedule': crontab(minute='30'),
+}
+
 
 def make_celery(app):
     celery.conf.update(app.config)

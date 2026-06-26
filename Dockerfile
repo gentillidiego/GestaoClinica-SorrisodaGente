@@ -14,7 +14,10 @@ WORKDIR /app
 
 # Copiar os requerimentos e instalar
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --no-cache-dir --upgrade \
+        pip==26.1.2 \
+        wheel==0.46.2 \
+    && python -m pip install --no-cache-dir -r requirements.txt
 
 # Copiar todo o resto do projeto
 COPY . .

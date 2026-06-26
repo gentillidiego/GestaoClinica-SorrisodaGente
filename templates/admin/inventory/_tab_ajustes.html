@@ -1,0 +1,92 @@
+<section class="card" style="margin-bottom:1.5rem;">
+    <h2 class="section-header">Ajuste ou Perda de Estoque</h2>
+    <form method="POST" action="{{ url_for('admin.create_inventory_adjustment_route') }}" style="display:grid; gap:1rem;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="display:grid; grid-template-columns:minmax(260px, 1.4fr) 1fr 0.6fr; gap:1rem;">
+            <div>
+                <label class="form-label">Lote</label>
+                <select class="form-control" name="lot_id" required {% if not can_write %}disabled{% endif %}>
+                    <option value="">Selecionar lote</option>
+                    {% for lot in dashboard.lots %}
+                    <option value="{{ lot.id }}">
+                        {{ lot.item_name }} · lote {{ lot.lot_number }} · saldo {{ lot.quantity_current }} {{ lot.unit }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="form-label">Tipo de ajuste</label>
+                <select class="form-control" name="adjustment_type" required {% if not can_write %}disabled{% endif %}>
+                    {% for value, label in dashboard.adjustment_type_options %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="form-label">Quantidade</label>
+                <input class="form-control" name="quantity" type="number" step="0.001" min="0.001" required {% if not can_write %}disabled{% endif %}>
+            </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+            <div>
+                <label class="form-label">Motivo</label>
+                <input class="form-control" name="reason" required placeholder="Ex: quebra, vencimento, divergência de inventário" {% if not can_write %}disabled{% endif %}>
+            </div>
+            <div>
+                <label class="form-label">Senha de autorização</label>
+                <input class="form-control" name="authorizer_password" type="password" required {% if not can_write %}disabled{% endif %}>
+            </div>
+        </div>
+        <div>
+            <label class="form-label">Observações</label>
+            <textarea class="form-control" name="notes" rows="2" {% if not can_write %}disabled{% endif %}></textarea>
+        </div>
+        {% if can_write %}
+        <div style="display:flex; justify-content:flex-end;">
+            <button class="btn btn-primary" type="submit">Registrar Ajuste</button>
+        </div>
+        {% else %}
+        <span style="color:hsl(var(--text-muted)); font-weight:700;">Somente visualização</span>
+        {% endif %}
+    </form>
+</section>
+
+<section class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:1rem 1rem 0;">
+        <h2 class="section-header">Ajustes e Perdas Recentes</h2>
+    </div>
+    <div class="table-container">
+        <table style="width:100%; border-collapse:collapse; background:white;">
+            <thead>
+                <tr style="background:hsl(var(--bg-main)); text-align:left;">
+                    <th style="padding:0.85rem;">Data</th>
+                    <th style="padding:0.85rem;">Material</th>
+                    <th style="padding:0.85rem;">Lote</th>
+                    <th style="padding:0.85rem;">Tipo</th>
+                    <th style="padding:0.85rem;">Quantidade</th>
+                    <th style="padding:0.85rem;">Saldo</th>
+                    <th style="padding:0.85rem;">Motivo</th>
+                    <th style="padding:0.85rem;">Autorização</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in dashboard.recent_adjustments %}
+                <tr style="border-bottom:1px solid hsl(var(--border));">
+                    <td style="padding:0.85rem;">{{ row.created_at.strftime('%d/%m/%Y %H:%M') if row.created_at else 'Sem data' }}</td>
+                    <td style="padding:0.85rem;">{{ row.item_name }}</td>
+                    <td style="padding:0.85rem;">{{ row.lot_number }}</td>
+                    <td style="padding:0.85rem;">{{ row.adjustment_type }}</td>
+                    <td style="padding:0.85rem;">{{ row.quantity }} {{ row.unit }}</td>
+                    <td style="padding:0.85rem;">{{ row.previous_quantity }} → {{ row.new_quantity }}</td>
+                    <td style="padding:0.85rem;">{{ row.reason }}</td>
+                    <td style="padding:0.85rem;">{{ row.authorized_by_username or row.adjusted_by_username or 'Usuário registrado' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" style="padding:2rem; text-align:center; color:hsl(var(--text-muted));">Nenhum ajuste registrado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>

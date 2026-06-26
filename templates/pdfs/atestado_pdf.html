@@ -1,86 +1,130 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
     <meta charset="UTF-8">
     <title>Atestado Odontológico - {{ patient.nome }}</title>
     <style>
         @page {
             size: A4;
-            margin: 20mm 20mm 25mm 20mm;
+            margin: 18mm 20mm 22mm;
+            @bottom-left {
+                content: "Programa Sorriso da Gente • Gestão Saúde Oral";
+                font-family: Arial, sans-serif;
+                font-size: 7.5pt;
+                color: #64748b;
+            }
+            @bottom-right {
+                content: "Documento emitido pelo prontuário odontológico";
+                font-family: Arial, sans-serif;
+                font-size: 7.5pt;
+                color: #64748b;
+            }
         }
-
+        * { box-sizing: border-box; }
         body {
-            font-family: Arial, sans-serif;
-            color: #333;
-            line-height: 1.8;
             margin: 0;
-            padding: 0;
-            font-size: 14pt;
+            color: #172033;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 11.5pt;
+            line-height: 1.65;
         }
-
         .header {
-            text-align: center;
-            border-bottom: 2px solid #0056b3;
-            padding-bottom: 20px;
-            margin-bottom: 40px;
+            display: table;
+            width: 100%;
+            padding-bottom: 6mm;
+            border-bottom: 2px solid #dbe7f6;
         }
-
-        .header h1 {
-            color: #0056b3;
-            margin: 0 0 5px 0;
-            font-size: 24pt;
+        .header > div {
+            display: table-cell;
+            vertical-align: middle;
         }
-
-        .header p {
-            margin: 0;
-            color: #666;
-            font-size: 12pt;
+        .header img {
+            width: 55mm;
+            display: block;
         }
-
-        .content {
-            text-align: justify;
-            min-height: 400px;
-        }
-
-        .footer {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            text-align: center;
-            padding-top: 20px;
-        }
-
-        .signature-line {
-            width: 300px;
-            border-top: 1px solid #333;
-            margin: 0 auto;
-            margin-bottom: 10px;
-        }
-
-        .date {
+        .header-label {
             text-align: right;
-            margin-top: 60px;
-            margin-bottom: 80px;
-            font-size: 13pt;
+            color: #0d47a1;
+            font-size: 8pt;
+            font-weight: 800;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+        }
+        h1 {
+            margin: 23mm 0 12mm;
+            color: #0d47a1;
+            font-size: 23pt;
+            text-align: center;
+            letter-spacing: .03em;
+        }
+        .patient-box {
+            margin-bottom: 12mm;
+            padding: 5mm 6mm;
+            border: 1px solid #dbe7f6;
+            border-left: 5px solid #f7941e;
+            border-radius: 9px;
+            background: #f8fbff;
+        }
+        .patient-box strong {
+            color: #0d47a1;
+        }
+        .declaration {
+            min-height: 58mm;
+            text-align: justify;
+        }
+        .declaration p {
+            margin: 0 0 6mm;
+        }
+        .note {
+            margin-top: 8mm;
+            padding: 4mm 5mm;
+            border-radius: 8px;
+            background: #fff7e8;
+            color: #7c3f00;
+            font-size: 9pt;
+        }
+        .date {
+            margin-top: 12mm;
+            text-align: right;
+        }
+        .signature {
+            margin-top: 20mm;
+            text-align: center;
+        }
+        .signature-line {
+            width: 85mm;
+            margin: 0 auto 3mm;
+            border-top: 1px solid #172033;
+        }
+        .professional-name {
+            color: #0d47a1;
+            font-weight: 800;
+        }
+        .professional-data {
+            color: #526279;
+            font-size: 9.5pt;
         }
     </style>
 </head>
-
 <body>
-    <div class="header">
-        <h1>ATESTADO ODONTOLÓGICO</h1>
-        <p>Clínica Odontológica Gestão Clínica</p>
-    </div>
+    <header class="header">
+        <div><img src="{{ logo_uri }}" alt="Sorriso da Gente"></div>
+        <div class="header-label">Documento clínico institucional</div>
+    </header>
 
-    <div class="content">
+    <h1>ATESTADO ODONTOLÓGICO</h1>
+
+    <section class="patient-box">
+        <strong>Paciente:</strong> {{ patient.nome }}<br>
+        {% if patient.cpf %}<strong>CPF:</strong> {{ patient.cpf }}{% endif %}
+        {% if patient.rg %}&nbsp;&nbsp;&nbsp; <strong>RG:</strong> {{ patient.rg }}{% endif %}
+    </section>
+
+    <section class="declaration">
         <p>
-            Atesto para os devidos fins que o(a) paciente <strong>{{ patient.nome }}</strong>
-            {% if patient.rg %}, portador(a) do RG n° {{ patient.rg }}{% endif %}
-            {% if patient.cpf %}, e CPF n° {{ patient.cpf }}{% endif %},
-            esteve sob meus cuidados profissionais na data de hoje,
-            sendo submetido(a) a {{ doc.motivo|lower }}.
+            Atesto, para os devidos fins, que o(a) paciente <strong>{{ patient.nome }}</strong>
+            esteve sob meus cuidados profissionais nesta data, sendo submetido(a) a
+            {{ doc.motivo|lower }}.
         </p>
 
         {% if doc.dias_repouso and doc.dias_repouso > 0 %}
@@ -91,29 +135,30 @@
         {% endif %}
 
         {% if doc.observacao %}
-        <p>
-            <strong>Observações adicionais:</strong><br>
-            {{ doc.observacao }}
-        </p>
+        <p><strong>Observações adicionais:</strong> {{ doc.observacao }}</p>
         {% endif %}
 
         {% if doc.cid %}
-        <p>
-            <strong>CID-10:</strong> {{ doc.cid }} (Anotação autorizada pelo paciente).
-        </p>
+        <div class="note">
+            <strong>CID-10:</strong> {{ doc.cid }}{% if doc.cid_descricao %} — {{ doc.cid_descricao }}{% endif %}.
+            Inclusão solicitada e autorizada pelo paciente.
+        </div>
         {% endif %}
-    </div>
+    </section>
 
-    <div class="date">
-        Data: {{ (doc.data|string).split(' ')[0] if doc.data else '' }}
-    </div>
+    <div class="date">Alagoas, {{ attendance_date }}.</div>
 
-    <div class="footer">
+    <footer class="signature">
         <div class="signature-line"></div>
-        <strong>{{ prof.username }}</strong><br>
-        AC Odontologia<br>
-        {% if prof.cro %}CRO: {{ prof.cro }}{% endif %}
-    </div>
+        <div class="professional-name">
+            {{ prof.full_name or prof.username }}
+        </div>
+        <div class="professional-data">
+            Cirurgião-dentista
+            {% if prof.cro %}
+                • CRO-{{ prof.cro_uf or 'AL' }} {{ prof.cro }}
+            {% endif %}
+        </div>
+    </footer>
 </body>
-
 </html>

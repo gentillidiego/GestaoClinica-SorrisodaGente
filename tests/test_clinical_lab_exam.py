@@ -4,9 +4,12 @@ from types import SimpleNamespace
 
 import pytest
 from flask import Flask
+from PIL import Image
+from pypdf import PdfWriter
 from werkzeug.datastructures import FileStorage
 
 import blueprints.exams as exams_module
+import services.upload_security_service as upload_security
 from blueprints.exams import exams_bp
 from services.clinical_lab_exam_service import (
     CLINICAL_LAB_EXAM_TYPES,
@@ -26,10 +29,27 @@ def make_app():
 
 def make_file(
     filename='laudo.pdf',
-    content=b'%PDF-1.7 test',
+    content=None,
     mimetype='application/pdf',
     content_length=None,
 ):
+    if content is None:
+        stream = io.BytesIO()
+        if str(mimetype).startswith('image/'):
+            extension = Path(filename).suffix.lower()
+            image_format = {
+                '.png': 'PNG',
+                '.webp': 'WEBP',
+            }.get(extension, 'JPEG')
+            Image.new('RGB', (16, 12), color=(40, 100, 160)).save(
+                stream,
+                format=image_format,
+            )
+        else:
+            writer = PdfWriter()
+            writer.add_blank_page(width=200, height=200)
+            writer.write(stream)
+        content = stream.getvalue()
     return FileStorage(
         stream=io.BytesIO(content),
         filename=filename,
@@ -41,38 +61,37 @@ def make_file(
 def test_clinical_lab_catalog_contains_requested_odontology_groups():
     expected = {
         'hemograma_completo',
-        'coagulacao_hemostasia',
         'glicemia_diabetes',
-        'marcadores_inflamatorios',
         'funcao_renal',
-        'funcao_hepatica',
-        'doencas_transmissiveis',
-        'tireoide',
-        'ferro_vitaminas',
         'perfil_lipidico_cardiovascular',
     }
 
-    assert expected.issubset(CLINICAL_LAB_EXAM_TYPES)
-    assert 'TP/INR' in CLINICAL_LAB_EXAM_TYPES['coagulacao_hemostasia']['tests']
+    assert expected == set(CLINICAL_LAB_EXAM_TYPES)
+    assert 'Creatinina' in CLINICAL_LAB_EXAM_TYPES['funcao_renal']['tests']
     assert 'HbA1c' in CLINICAL_LAB_EXAM_TYPES['glicemia_diabetes']['tests']
 
 
-def test_clinical_lab_upload_accepts_pdf_and_images_only():
+def test_clinical_lab_upload_accepts_pdf_and_images_only(monkeypatch):
     prepared = prepare_clinical_lab_uploads([
         make_file('laudo sangue.pdf'),
-        make_file('foto resultado.PNG', content=b'png', mimetype='image/png'),
+        make_file('foto resultado.PNG', mimetype='image/png'),
     ])
 
-    assert [item[1] for item in prepared] == ['laudo_sangue.pdf', 'foto_resultado.PNG']
+    assert [item[1] for item in prepared] == ['laudo_sangue.pdf', 'foto_resultado.png']
 
-    with pytest.raises(ValueError, match='não é compatível'):
+    with pytest.raises(ValueError, match='formato permitido'):
         prepare_clinical_lab_uploads([
-            make_file('resultado.docx', mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+            make_file(
+                'resultado.docx',
+                content=b'PK\x03\x04arquivo-office',
+                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            ),
         ])
 
-    with pytest.raises(ValueError, match='ultrapassa o limite'):
+    monkeypatch.setattr(upload_security, 'CLINICAL_UPLOAD_MAX_FILE_BYTES', 32)
+    with pytest.raises(ValueError, match='limite operacional'):
         prepare_clinical_lab_uploads([
-            make_file('grande.pdf', content_length=25 * 1024 * 1024 + 1),
+            make_file('grande.pdf', content=b'%PDF-' + (b'x' * 40)),
         ])
 
 

@@ -1,0 +1,89 @@
+services:
+  training-web:
+    build: .
+    container_name: gso-training-web
+    restart: unless-stopped
+    command:
+      - gunicorn
+      - --config
+      - gunicorn.conf.py
+      - --workers
+      - "2"
+      - app:app
+    ports:
+      - "127.0.0.1:${TRAINING_HOST_PORT:-5103}:5002"
+    env_file:
+      - .env.training
+    environment:
+      DATABASE_URL: postgresql://training_user:${TRAINING_POSTGRES_PASSWORD}@training-postgres:5432/training
+      REDIS_URL: redis://training-redis:6379/0
+      SMTP_HOST: training-mail
+      SMTP_PORT: 1025
+    volumes:
+      - training_logs:/app/logs
+      - training_uploads:/app/uploads
+      - training_pdf_temp:/app/pdf_temp
+    depends_on:
+      training-postgres:
+        condition: service_healthy
+      training-redis:
+        condition: service_healthy
+      training-mail:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5002/health', timeout=5)"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  training-postgres:
+    image: postgres:16-alpine
+    container_name: gso-training-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: training
+      POSTGRES_USER: training_user
+      POSTGRES_PASSWORD: ${TRAINING_POSTGRES_PASSWORD}
+    volumes:
+      - training_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U training_user -d training"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  training-redis:
+    image: redis:7-alpine
+    container_name: gso-training-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 64mb --maxmemory-policy allkeys-lru
+    volumes:
+      - training_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  training-mail:
+    image: axllent/mailpit:v1.27
+    container_name: gso-training-mail
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${TRAINING_MAIL_PORT:-5125}:8025"
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_DATABASE: /data/mailpit.db
+    volumes:
+      - training_mail_data:/data
+
+volumes:
+  training_postgres_data:
+  training_redis_data:
+  training_uploads:
+  training_pdf_temp:
+  training_logs:
+  training_mail_data:

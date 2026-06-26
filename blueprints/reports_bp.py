@@ -58,7 +58,7 @@ def index():
                    p.nome as patient_name, u.full_name as dentista_name
             FROM tratamento_procedimentos tp
             JOIN patients p ON tp.patient_id = p.id
-            LEFT JOIN users u ON tp.professor_id = u.id
+            LEFT JOIN users u ON tp.validator_id = u.id
             WHERE 1=1
         """
         proc_params = []
@@ -70,7 +70,7 @@ def index():
             proc_query += " AND tp.criado_em <= %s"
             proc_params.append(f"{data_fim} 23:59:59")
         if dentista_id:
-            proc_query += " AND tp.professor_id = %s"
+            proc_query += " AND tp.validator_id = %s"
             proc_params.append(dentista_id)
         if tipo_procedimento:
             proc_query += " AND tp.descricao ILIKE %s"
@@ -154,7 +154,7 @@ def export_pdf():
                p.nome as patient_name, u.full_name as dentista_name
         FROM tratamento_procedimentos tp
         JOIN patients p ON tp.patient_id = p.id
-        LEFT JOIN users u ON tp.professor_id = u.id
+        LEFT JOIN users u ON tp.validator_id = u.id
         WHERE 1=1
     """
     proc_params = []
@@ -166,7 +166,7 @@ def export_pdf():
         proc_query += " AND tp.criado_em <= %s"
         proc_params.append(f"{data_fim} 23:59:59")
     if dentista_id:
-        proc_query += " AND tp.professor_id = %s"
+        proc_query += " AND tp.validator_id = %s"
         proc_params.append(dentista_id)
     if tipo_procedimento:
         proc_query += " AND tp.descricao ILIKE %s"

@@ -3,8 +3,10 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
             <h3 style="font-family: var(--font-heading); font-size: 1.25rem; color: hsl(var(--primary));">
                 Questionário de Saúde</h3>
+            {% if can('anamnesis:write') %}
             <a href="{{ url_for('anamnesis.form', patient_id=patient.id) }}" class="btn btn-outline"
                 style="background: white;">➕ Nova Anamnese</a>
+            {% endif %}
         </div>
 
         {% if anamnesis %}

@@ -578,7 +578,7 @@ def get_command_center_data(filters=None):
         production_conditions.append("tp.data_sessao = %s")
         production_params.append(today_str)
     if filters.get('professional_id'):
-        production_conditions.append("tp.professor_id = %s")
+        production_conditions.append("tp.validator_id = %s")
         production_params.append(filters['professional_id'])
     _append_patient_triage_exists(production_conditions, production_params, filters, patient_alias='p')
 
@@ -632,11 +632,11 @@ def get_command_center_data(filters=None):
         one=True
     )['count']
 
-    pending_conditions = ["tp.status = 'Pendente'"]
+    pending_conditions = ["tp.status IN ('Pendente', 'Planejado')"]
     pending_params = []
     _append_date_range(pending_conditions, pending_params, 'tp.criado_em', filters)
     if filters.get('professional_id'):
-        pending_conditions.append("tp.professor_id = %s")
+        pending_conditions.append("tp.validator_id = %s")
         pending_params.append(filters['professional_id'])
     _append_patient_triage_exists(pending_conditions, pending_params, filters, patient_alias='p')
     pending_treatments = query(
@@ -1346,19 +1346,11 @@ def _unsigned_documents_base_sql():
                'Evolução clínica' as document_label,
                a.id as document_id,
                a.data as created_at,
-               COALESCE(a.professor_id, a.aluno_executor_id, a.created_by) as professional_id,
-               TRIM(BOTH ', ' FROM CONCAT_WS(', ',
-                   CASE
-                       WHEN a.assinatura_paciente_base64 IS NULL OR a.assinatura_paciente_base64 = ''
-                       THEN 'paciente' END,
-                   CASE WHEN a.aluno_executor_id IS NULL THEN 'executor' END,
-                   CASE WHEN a.professor_id IS NULL THEN 'dentista responsável' END
-               )) as missing_signatures
+               COALESCE(a.executor_id, a.created_by) as professional_id,
+               'executor' as missing_signatures
         FROM atendimentos a
         JOIN patients p ON p.id = a.patient_id
-        WHERE a.assinatura_paciente_base64 IS NULL OR a.assinatura_paciente_base64 = ''
-           OR a.aluno_executor_id IS NULL
-           OR a.professor_id IS NULL
+        WHERE a.executor_id IS NULL
 
         UNION ALL
 
@@ -1369,18 +1361,18 @@ def _unsigned_documents_base_sql():
                'Etapa de prótese' as document_label,
                pe.id as document_id,
                COALESCE(NULLIF(pe.data_etapa, '')::timestamp, pr.data) as created_at,
-               COALESCE(pe.professor_id, pr.aluno_responsavel_id, pr.created_by) as professional_id,
+               COALESCE(pe.validator_id, pr.responsible_professional_id, pr.created_by) as professional_id,
                TRIM(BOTH ', ' FROM CONCAT_WS(', ',
                    CASE
                        WHEN pe.assinatura_paciente_base64 IS NULL OR pe.assinatura_paciente_base64 = ''
                        THEN 'paciente' END,
-                   CASE WHEN pe.professor_id IS NULL THEN 'dentista responsável' END
+                   CASE WHEN pe.validator_id IS NULL THEN 'dentista responsável' END
                )) as missing_signatures
         FROM prosthesis_etapas pe
         JOIN prosthesis pr ON pr.id = pe.prosthesis_id
         JOIN patients p ON p.id = pr.patient_id
         WHERE pe.assinatura_paciente_base64 IS NULL OR pe.assinatura_paciente_base64 = ''
-           OR pe.professor_id IS NULL
+           OR pe.validator_id IS NULL
 
         UNION ALL
 
@@ -1391,12 +1383,12 @@ def _unsigned_documents_base_sql():
                'Evolução endodôntica' as document_label,
                ef.id as document_id,
                ef.criado_em as created_at,
-               COALESCE(ef.professor_id, e.aluno_id) as professional_id,
+               COALESCE(ef.validator_id, e.operator_id) as professional_id,
                TRIM(BOTH ', ' FROM CONCAT_WS(', ',
                    CASE
                        WHEN ef.assinatura_paciente_base64 IS NULL OR ef.assinatura_paciente_base64 = ''
                        THEN 'paciente' END,
-                   CASE WHEN ef.professor_id IS NULL THEN 'dentista responsável' END
+                   CASE WHEN ef.validator_id IS NULL THEN 'dentista responsável' END
                )) as missing_signatures
         FROM endodontia_followup ef
         JOIN endodontia e ON e.id = ef.endodontia_id
@@ -1405,7 +1397,7 @@ def _unsigned_documents_base_sql():
           AND COALESCE(e.status, 'Ativo') != 'Cancelado'
           AND (
               ef.assinatura_paciente_base64 IS NULL OR ef.assinatura_paciente_base64 = ''
-              OR ef.professor_id IS NULL
+              OR ef.validator_id IS NULL
           )
     """
 
@@ -1487,7 +1479,7 @@ def get_overdue_endodontia_return_summary(limit=8, patient_id=None, filters=None
         conditions.append("e.patient_id = %s")
         params.append(patient_id)
     if filters.get('professional_id'):
-        conditions.append("e.aluno_id = %s")
+        conditions.append("e.operator_id = %s")
         params.append(filters['professional_id'])
     _append_patient_scope_filters(conditions, params, filters, patient_alias='p')
     where = _where_clause(conditions)
@@ -1512,7 +1504,7 @@ def get_overdue_endodontia_return_summary(limit=8, patient_id=None, filters=None
                COALESCE(u.full_name, u.username) as professional_name
         FROM endodontia e
         JOIN patients p ON p.id = e.patient_id
-        LEFT JOIN users u ON u.id = e.aluno_id
+        LEFT JOIN users u ON u.id = e.operator_id
         {where}
         ORDER BY e.proxima_sessao_prevista ASC, e.id ASC
         LIMIT %s
@@ -1540,7 +1532,7 @@ def get_unrestored_endodontia_summary(limit=8, patient_id=None, filters=None):
         conditions.append("e.patient_id = %s")
         params.append(patient_id)
     if filters.get('professional_id'):
-        conditions.append("e.aluno_id = %s")
+        conditions.append("e.operator_id = %s")
         params.append(filters['professional_id'])
     _append_patient_scope_filters(conditions, params, filters, patient_alias='p')
     where = _where_clause(conditions)
@@ -1565,7 +1557,7 @@ def get_unrestored_endodontia_summary(limit=8, patient_id=None, filters=None):
                COALESCE(u.full_name, u.username) as professional_name
         FROM endodontia e
         JOIN patients p ON p.id = e.patient_id
-        LEFT JOIN users u ON u.id = e.aluno_id
+        LEFT JOIN users u ON u.id = e.operator_id
         {where}
         ORDER BY e.updated_at ASC NULLS LAST, e.id ASC
         LIMIT %s
@@ -1593,7 +1585,7 @@ def get_overdue_endodontia_proservation_summary(limit=8, patient_id=None, filter
         conditions.append("pr.patient_id = %s")
         params.append(patient_id)
     if filters.get('professional_id'):
-        conditions.append("e.aluno_id = %s")
+        conditions.append("e.operator_id = %s")
         params.append(filters['professional_id'])
     _append_patient_scope_filters(conditions, params, filters, patient_alias='p')
     where = _where_clause(conditions)
@@ -1619,7 +1611,7 @@ def get_overdue_endodontia_proservation_summary(limit=8, patient_id=None, filter
         FROM endodontia_proservacao pr
         JOIN endodontia e ON e.id = pr.endodontia_id
         JOIN patients p ON p.id = pr.patient_id
-        LEFT JOIN users u ON u.id = e.aluno_id
+        LEFT JOIN users u ON u.id = e.operator_id
         {where}
         ORDER BY pr.data_prevista ASC, pr.id ASC
         LIMIT %s

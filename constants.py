@@ -6,6 +6,7 @@ class Role:
     RECEPCAO = 'recepcao'
     CME = 'cme'
     RADIOLOGIA = 'radiologia'
+    ANALISES_CLINICAS = 'analises_clinicas'
     COMUNICACAO = 'comunicacao'
     SSA_SMS = 'ssa_sms'
     AUDITORIA = 'auditoria'
@@ -38,6 +39,7 @@ ACTIVE_ROLE_LABELS = {
     Role.RECEPCAO: 'Recepção',
     Role.CME: 'CME / Estoque',
     Role.RADIOLOGIA: 'Radiologia',
+    Role.ANALISES_CLINICAS: 'Análises Clínicas',
     Role.COMUNICACAO: 'Comunicação',
     Role.SSA_SMS: 'SSA/SMS',
     Role.AUDITORIA: 'Auditoria',
@@ -51,6 +53,7 @@ LEGACY_ROLE_MAP = {
     Role.RECEPCAO: Role.RECEPCAO,
     Role.CME: Role.CME,
     Role.RADIOLOGIA: Role.RADIOLOGIA,
+    Role.ANALISES_CLINICAS: Role.ANALISES_CLINICAS,
     Role.COMUNICACAO: Role.COMUNICACAO,
     Role.SSA_SMS: Role.SSA_SMS,
     Role.AUDITORIA: Role.AUDITORIA,
@@ -65,7 +68,7 @@ LEGACY_ROLE_MAP = {
     Role.IMPLANTES: Role.CLINICOS,
     Role.ESTOMATOLOGIA: Role.CLINICOS,
     Role.TSB: Role.CLINICOS,
-    Role.LABORATORIO: Role.CME,
+    Role.LABORATORIO: Role.ANALISES_CLINICAS,
     Role.FINANCEIRO: Role.COORDENACAO,
     Role.EPIDEMIOLOGIA: Role.COORDENACAO,
     Role.BI: Role.COORDENACAO,
@@ -85,6 +88,7 @@ PROFESSIONAL_DATA_REQUIRED_ROLES = {
     Role.CLINICOS,
     Role.CME,
     Role.RADIOLOGIA,
+    Role.ANALISES_CLINICAS,
 }
 
 
@@ -116,20 +120,35 @@ MODULE_PERMISSIONS = {
     'dashboard:view',
     'patients:view',
     'patients:write',
+    'patients:delete',
+    'anamnesis:view',
+    'anamnesis:write',
+    'treatment:view',
+    'treatment:write',
+    'attendance:view',
+    'attendance:write',
     'triage:view',
     'triage:write',
     'agenda:view',
     'agenda:write',
     'exams:view',
     'exams:write',
+    'exams:delete',
     'documents:sign',
     'documents:generate',
+    'endodontia:view',
+    'endodontia:write',
+    'prosthesis:view',
+    'prosthesis:write',
+    'clinical_timeline:view',
     'estomatologia:view',
     'estomatologia:write',
     'radiologia:view',
     'radiologia:write',
     'laboratorio:view',
     'laboratorio:write',
+    'analises_clinicas:view',
+    'analises_clinicas:write',
     'financeiro:view',
     'financeiro:write',
     'inventory:view',
@@ -143,6 +162,8 @@ MODULE_PERMISSIONS = {
     'users:view',
     'users:write',
     'command_center:view',
+    'comunicacao:view',
+    'comunicacao:write',
 }
 
 
@@ -151,19 +172,29 @@ ROLE_PERMISSIONS = {
     Role.COORDENACAO: {
         'dashboard:view', 'command_center:view',
         'patients:view', 'triage:view', 'agenda:view', 'agenda:write',
+        'anamnesis:view', 'treatment:view', 'attendance:view',
+        'clinical_timeline:view',
         'inventory:view', 'inventory:write',
         'reports:view', 'bi:view', 'epidemiologia:view',
         'financeiro:view', 'financeiro:write',
         'integrations:view', 'integrations:write',
+        'comunicacao:view', 'comunicacao:write',
     },
     Role.CLINICOS: {
         'dashboard:view', 'command_center:view',
         'patients:view', 'patients:write',
+        'triage:view', 'triage:write',
+        'anamnesis:view', 'anamnesis:write',
+        'treatment:view', 'treatment:write',
+        'attendance:view', 'attendance:write',
         'agenda:view', 'agenda:write',
-        'exams:view', 'exams:write',
+        'exams:view', 'exams:write', 'exams:delete',
         'documents:generate', 'documents:sign',
+        'endodontia:view', 'endodontia:write',
+        'prosthesis:view', 'prosthesis:write',
+        'clinical_timeline:view',
         'estomatologia:view', 'estomatologia:write',
-        'inventory:view', 'inventory:write',
+        'laboratorio:view', 'laboratorio:write',
     },
     Role.RECEPCAO: {
         'dashboard:view', 'command_center:view',
@@ -184,9 +215,16 @@ ROLE_PERMISSIONS = {
         'exams:view', 'exams:write',
         'radiologia:view', 'radiologia:write',
     },
+    Role.ANALISES_CLINICAS: {
+        'dashboard:view', 'command_center:view',
+        'patients:view',
+        'laboratorio:view', 'laboratorio:write',
+        'analises_clinicas:view', 'analises_clinicas:write',
+    },
     Role.COMUNICACAO: {
         'dashboard:view', 'command_center:view',
         'reports:view', 'bi:view',
+        'comunicacao:view', 'comunicacao:write',
     },
     Role.SSA_SMS: {
         'dashboard:view', 'command_center:view',
@@ -195,6 +233,8 @@ ROLE_PERMISSIONS = {
     Role.AUDITORIA: {
         'dashboard:view', 'command_center:view',
         'patients:view',
+        'anamnesis:view', 'treatment:view', 'attendance:view',
+        'clinical_timeline:view',
         'reports:view', 'audit:view', 'integrations:view',
     },
 }

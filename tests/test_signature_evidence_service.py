@@ -1,8 +1,10 @@
 from pathlib import Path
 
 from flask import Flask
+import pytest
 from werkzeug.security import generate_password_hash
 
+import blueprints.anamnesis as anamnesis_module
 import services.signature_evidence_service as signature_service
 from constants import Role
 
@@ -31,23 +33,24 @@ def test_a_rogo_forms_require_only_clinical_user_credentials():
     tcle_form = (PROJECT_ROOT / 'templates/patients/tcle.html').read_text(encoding='utf-8')
 
     for template in (atendimento_modal, tcle_form):
-        assert 'name="rogo_prof_username"' in template
-        assert 'name="rogo_prof_password"' in template
+        assert 'name="rogo_validator_username"' in template
+        assert 'name="rogo_validator_password"' in template
         assert 'rogo_witness' not in template
 
 
-def test_atendimento_patient_signature_button_uses_safe_data_attributes():
-    atendimento_tab = (
-        PROJECT_ROOT / 'templates/patients/includes/_tab_atendimento.html'
+def test_anamnesis_forms_always_require_clinician_credentials():
+    anamnesis_form = (
+        PROJECT_ROOT / 'templates/anamnesis/form.html'
     ).read_text(encoding='utf-8')
-    scripts = (
-        PROJECT_ROOT / 'templates/patients/includes/_scripts.html'
+    anamnesis_edit = (
+        PROJECT_ROOT / 'templates/anamnesis/edit_anamnesis.html'
     ).read_text(encoding='utf-8')
 
-    assert 'onclick="openPatientSignModalFromButton(this)"' in atendimento_tab
-    assert "data-patient-name=\"{{ patient.nome or '' }}\"" in atendimento_tab
-    assert 'patient.nome|tojson' not in atendimento_tab
-    assert 'function openPatientSignModalFromButton(button)' in scripts
+    for template in (anamnesis_form, anamnesis_edit):
+        assert 'name="clinico_username"' in template
+        assert 'name="clinico_password"' in template
+        assert 'signature-pad' not in template
+        assert 'patient_not_literate' not in template
 
 
 def test_validate_a_rogo_signer_accepts_active_clinical_user(monkeypatch):
@@ -144,3 +147,93 @@ def test_build_generic_signature_payload_hashes_canvas_capture():
     assert payload['patient']['cpf'] == '123.456.789-00'
     assert payload['document_data']['anamnesis_id'] == 5
     assert payload['signature_capture_sha256'] == signature_service.hash_text('data:image/png;base64,assinatura')
+
+
+def test_prepare_anamnesis_uses_clinician_credentials(monkeypatch):
+    signer = {
+        'id': 7,
+        'username': 'dra.cibely',
+        'role': Role.CLINICOS,
+        'full_name': 'Dra. Cibely',
+        'cro': '1234',
+        'cro_uf': 'AL',
+    }
+    monkeypatch.setattr(
+        anamnesis_module,
+        'validate_a_rogo_signer',
+        lambda username, password: signer,
+    )
+
+    signature_data = anamnesis_module._prepare_anamnesis_signature({
+        'clinico_username': 'dra.cibely',
+        'clinico_password': 'segura',
+    })
+
+    assert signature_data['assinatura'] == signature_service.SIGNATURE_MARKER_A_ROGO
+    assert signature_data['signature_mode'] == signature_service.SIGNATURE_MODE_A_ROGO
+    assert signature_data['signer'] == signer
+    assert signature_data['declaration_text'] == signature_service.ANAMNESIS_CLINICIAN_DECLARATION
+    assert signature_data['auth_method'] == 'login_senha_clinico'
+    assert signature_data['witnesses'] == []
+
+
+def test_prepare_anamnesis_requires_valid_clinician_credentials(monkeypatch):
+    def fake_validate(username, password):
+        raise ValueError('Informe usuário e senha do CD responsável pela assinatura a rogo.')
+
+    monkeypatch.setattr(anamnesis_module, 'validate_a_rogo_signer', fake_validate)
+
+    with pytest.raises(ValueError, match='usuário e senha'):
+        anamnesis_module._prepare_anamnesis_signature({})
+
+
+def test_record_anamnesis_a_rogo_persists_evidence_fields(monkeypatch):
+    calls = []
+    signer = {
+        'id': 7,
+        'username': 'dra.cibely',
+        'role': Role.CLINICOS,
+        'full_name': 'Dra. Cibely',
+        'cro': '1234',
+        'cro_uf': 'AL',
+    }
+    signature_data = {
+        'assinatura': signature_service.SIGNATURE_MARKER_A_ROGO,
+        'signature_mode': signature_service.SIGNATURE_MODE_A_ROGO,
+        'signer': signer,
+        'declaration_text': signature_service.ANAMNESIS_CLINICIAN_DECLARATION,
+        'auth_method': 'login_senha_clinico',
+        'witnesses': [],
+    }
+    monkeypatch.setattr(
+        anamnesis_module,
+        'register_signature_event',
+        lambda **kwargs: {
+            'event_id': 101,
+            'document_hash': 'a' * 64,
+            'source_ip': '203.0.113.10',
+            'user_agent': 'pytest-agent',
+        },
+    )
+    monkeypatch.setattr(
+        anamnesis_module,
+        'execute',
+        lambda sql, params=(): calls.append((sql, params)),
+    )
+
+    anamnesis_module._record_anamnesis_signature(
+        55,
+        {'id': 42, 'nome': 'Paciente Teste', 'cpf': '123.456.789-00', 'rg': '123'},
+        {'queixa_principal': 'Dor', 'tem_alergia': 'Não'},
+        signature_data,
+    )
+
+    sql, params = calls[0]
+    assert 'assinatura_a_rogo_por = %s' in sql
+    assert 'assinatura_a_rogo_declaracao = %s' in sql
+    assert params[0] == signature_service.SIGNATURE_MARKER_A_ROGO
+    assert params[1] == signature_service.SIGNATURE_MODE_A_ROGO
+    assert params[4] == signer['id']
+    assert params[5] == signature_service.ANAMNESIS_CLINICIAN_DECLARATION
+    assert params[6] == '[]'
+    assert params[7] == 'login_senha_clinico'

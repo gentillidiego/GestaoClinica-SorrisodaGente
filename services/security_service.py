@@ -1,7 +1,7 @@
 import json
 from functools import wraps
 
-from flask import flash, redirect, request, url_for
+from flask import abort, current_app, jsonify, redirect, request, url_for
 from flask_login import current_user
 
 from constants import get_role_label, role_has_permission
@@ -44,17 +44,38 @@ def permission_required(permission):
             if not current_user.is_authenticated:
                 return redirect(url_for('auth.login'))
             if not can(permission):
-                audit_log(
-                    action='access_denied',
-                    module='security',
-                    status='denied',
-                    details={'permission': permission}
+                return deny_access(
+                    permissions={'all_of': [permission], 'any_of': []},
                 )
-                flash('Acesso negado para este módulo.', 'danger')
-                return redirect(url_for('main.dashboard'))
             return view_func(*args, **kwargs)
         return wrapped
     return decorator
+
+
+def deny_access(*, permissions=None, reason='permission_denied', patient_id=None):
+    details = {
+        'reason': reason,
+        'endpoint': request.endpoint,
+        'permissions': permissions or {},
+    }
+    try:
+        audit_log(
+            action='access_denied',
+            module='security',
+            patient_id=patient_id,
+            status='denied',
+            details=details,
+        )
+    except Exception:
+        current_app.logger.exception('Falha ao registrar negação de acesso')
+
+    wants_json = (
+        request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        or request.accept_mimetypes.best == 'application/json'
+    )
+    if wants_json:
+        return jsonify({'error': 'Acesso negado.'}), 403
+    abort(403, description='Acesso negado.')
 
 
 def _safe_json(details):

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Exportar Notas Fiscais{% endblock %}
+
+{% block content %}
+<div class="animate-fade">
+    <h1 class="page-title">Exportar Notas Fiscais (período)</h1>
+    <p class="page-subtitle">Apenas notas/compras confirmadas — uso para conferência e envio ao contador.</p>
+
+    <form method="GET" action="{{ url_for('admin.export_inventory_invoices_report') }}" class="card" style="max-width:520px; display:grid; gap:1rem;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+            <div>
+                <label class="form-label">Início</label>
+                <input class="form-control" type="date" name="start" required>
+            </div>
+            <div>
+                <label class="form-label">Fim</label>
+                <input class="form-control" type="date" name="end" required>
+            </div>
+        </div>
+        <div style="display:flex; gap:1rem;">
+            <button class="btn btn-primary" type="submit" name="format" value="pdf">Gerar PDF</button>
+            <button class="btn btn-outline" type="submit" name="format" value="csv">Gerar CSV</button>
+        </div>
+    </form>
+
+    <p style="margin-top:1.5rem;">
+        <a href="{{ url_for('admin.inventory', _anchor='tab-notas-fiscais') }}">Voltar para Notas Fiscais</a>
+    </p>
+</div>
+{% endblock %}

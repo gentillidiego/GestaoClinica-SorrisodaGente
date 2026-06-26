@@ -18,6 +18,7 @@ from services.auth_flow_service import (
     verify_first_access_user,
 )
 from services.security_service import audit_log, get_client_ip
+from services.web_security_service import regenerate_session_after_authentication
 from utils import User
 
 
@@ -58,7 +59,7 @@ def _clear_first_access_session():
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
-@limiter.limit("5 per minute; 20 per hour")
+@limiter.limit("5 per minute; 20 per hour", methods=['POST'])
 def login():
     if request.method == 'POST':
         username = (request.form.get('username') or '').strip()
@@ -90,6 +91,7 @@ def login():
                 return render_template('login.html')
 
             user = _build_user(user_data)
+            regenerate_session_after_authentication()
             login_user(user)
             _mark_login(user_data['id'])
             audit_log(
@@ -113,7 +115,7 @@ def login():
 
 
 @auth_bp.route('/primeiro-acesso', methods=['GET', 'POST'])
-@limiter.limit("5 per minute; 20 per hour")
+@limiter.limit("5 per minute; 20 per hour", methods=['POST'])
 def first_access():
     if request.method == 'POST':
         username = (request.form.get('username') or '').strip()
@@ -145,7 +147,7 @@ def first_access():
 
 
 @auth_bp.route('/primeiro-acesso/definir-senha', methods=['GET', 'POST'])
-@limiter.limit("10 per hour")
+@limiter.limit("10 per hour", methods=['POST'])
 def complete_first_access_page():
     user_id = session.get(FIRST_ACCESS_SESSION_KEY)
     verified = session.get(FIRST_ACCESS_VERIFIED_AT_KEY)
@@ -181,9 +183,9 @@ def complete_first_access_page():
         complete_first_access_record(user_id, email, password)
         fresh_user_data = get_user_for_login(user_data.username)
         user = _build_user(fresh_user_data)
+        regenerate_session_after_authentication()
         login_user(user)
         _mark_login(user_id)
-        _clear_first_access_session()
         audit_log(
             action='first_access_completed',
             module='auth',
@@ -198,7 +200,7 @@ def complete_first_access_page():
 
 
 @auth_bp.route('/esqueci-senha', methods=['GET', 'POST'])
-@limiter.limit("5 per minute; 20 per hour")
+@limiter.limit("5 per minute; 20 per hour", methods=['POST'])
 def forgot_password():
     if request.method == 'POST':
         identifier = (request.form.get('identifier') or '').strip()
@@ -239,7 +241,7 @@ def forgot_password():
 
 
 @auth_bp.route('/redefinir-senha', methods=['GET', 'POST'])
-@limiter.limit("10 per hour")
+@limiter.limit("10 per hour", methods=['POST'])
 def reset_password():
     token = (request.args.get('token') or request.form.get('token') or '').strip()
     user_data = get_user_by_reset_token(token) if token else None
@@ -283,10 +285,10 @@ def reset_password():
     return render_template('auth/reset_password.html', token=token, user=user_data)
 
 
-@auth_bp.route('/logout')
+@auth_bp.route('/logout', methods=['POST'])
 @login_required
 def logout():
-    _clear_first_access_session()
     audit_log(action='logout', module='auth')
     logout_user()
+    session.clear()
     return redirect(url_for('auth.login'))
