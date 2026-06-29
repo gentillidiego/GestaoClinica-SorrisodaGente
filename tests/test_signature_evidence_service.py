@@ -1,7 +1,10 @@
 from pathlib import Path
+from datetime import datetime
 
-from flask import Flask
+from flask import Blueprint, Flask, render_template
+from flask_login import LoginManager
 import pytest
+from werkzeug.datastructures import MultiDict
 from werkzeug.security import generate_password_hash
 
 import blueprints.anamnesis as anamnesis_module
@@ -51,6 +54,107 @@ def test_anamnesis_forms_always_require_clinician_credentials():
         assert 'name="clinico_password"' in template
         assert 'signature-pad' not in template
         assert 'patient_not_literate' not in template
+
+
+def test_new_anamnesis_form_preserves_posted_fields_after_signature_error():
+    app = Flask(
+        __name__,
+        template_folder=str(PROJECT_ROOT / 'templates'),
+        static_folder=str(PROJECT_ROOT / 'static'),
+    )
+    app.secret_key = 'test'
+    login_manager = LoginManager(app)
+    app.jinja_env.globals['csrf_token'] = lambda: 'csrf-token'
+
+    @login_manager.user_loader
+    def load_user(user_id):
+        return None
+
+    patients_bp = Blueprint('patients', __name__)
+
+    @patients_bp.route('/patients/<int:id>')
+    def view_patient(id):
+        return ''
+
+    app.register_blueprint(patients_bp)
+
+    with app.test_request_context(
+        '/anamnesis/form/92',
+        method='POST',
+        data={
+            'queixa_principal': 'Dor ao mastigar',
+            'historia_doenca_atual': 'Historico <sensivel>',
+            'tem_alergia': 'Sim',
+            'tem_alergia_explica': 'Dipirona',
+            'pressao_arterial': 'Baixa',
+            'gestante': 'Não Sei',
+            'causas_obitos_familiares': 'Cardiopatia',
+            'clinico_username': 'dra.teste',
+            'clinico_password': 'senha-errada',
+        },
+    ):
+        html = render_template(
+            'anamnesis/form.html',
+            patient={'id': 92, 'nome': 'Jose Maria'},
+            now=datetime(2026, 6, 29),
+            signature_error='Usuário ou senha do clínico inválidos. Confira os dados e tente novamente.',
+        )
+
+    assert 'Dor ao mastigar' in html
+    assert 'Historico &lt;sensivel&gt;' in html
+    assert 'signature-error-panel' in html
+    assert 'scrollIntoView' in html
+    assert 'Usuário ou senha do clínico inválidos' in html
+    assert 'name="tem_alergia" value="Sim" checked' in html
+    assert 'value="Dipirona"' in html
+    assert 'value="Baixa" selected' in html
+    assert 'name="gestante" value="Não Sei" checked' in html
+    assert 'Cardiopatia' in html
+    assert 'value="dra.teste"' in html
+    assert 'senha-errada' not in html
+
+
+def test_anamnesis_signature_error_message_is_clinician_friendly():
+    assert anamnesis_module._signature_error_message(
+        ValueError('Credenciais do CD inválidas.')
+    ) == 'Usuário ou senha do clínico inválidos. Confira os dados e tente novamente.'
+    assert anamnesis_module._signature_error_message(
+        ValueError('Informe usuário e senha do CD responsável pela assinatura a rogo.')
+    ) == 'Informe usuário e senha do clínico responsável para confirmar a assinatura.'
+
+
+def test_base_template_renders_global_alert_stack():
+    base_template = (PROJECT_ROOT / 'templates/base.html').read_text(encoding='utf-8')
+
+    assert 'app-alert-stack' in base_template
+    assert 'window.showAppAlert' in base_template
+    assert 'data-auto-dismiss' in base_template
+    assert 'flash flash-' not in base_template
+
+
+def test_edit_anamnesis_postback_preserves_submitted_values_without_passwords():
+    original = {
+        'id': 55,
+        'patient_id': 92,
+        'patient_name': 'Jose Maria',
+        'queixa_principal': 'Valor antigo',
+        'tem_alergia': 'Não',
+    }
+    postback = anamnesis_module._merge_anamnesis_postback(
+        original,
+        MultiDict([
+            ('queixa_principal', 'Valor alterado antes da assinatura'),
+            ('tem_alergia', 'Sim'),
+            ('clinico_password', 'senha-errada'),
+            ('confirm_password', 'senha-confirmacao-errada'),
+        ]),
+    )
+
+    assert postback['queixa_principal'] == 'Valor alterado antes da assinatura'
+    assert postback['tem_alergia'] == 'Sim'
+    assert postback['patient_name'] == 'Jose Maria'
+    assert 'clinico_password' not in postback
+    assert 'confirm_password' not in postback
 
 
 def test_validate_a_rogo_signer_accepts_active_clinical_user(monkeypatch):

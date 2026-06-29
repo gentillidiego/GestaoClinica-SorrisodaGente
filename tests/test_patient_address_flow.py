@@ -1,6 +1,7 @@
 from flask import Flask
 import sys
 import types
+from werkzeug.datastructures import MultiDict
 
 
 class FakeCache:
@@ -48,6 +49,39 @@ def test_compose_residential_address_prefers_structured_fields():
     )
 
     assert address == 'Rua das Flores, 123, Centro, Maceió - AL, CEP 57000-000'
+
+
+def test_patient_edit_postback_preserves_form_data_without_password():
+    original = {
+        'id': 42,
+        'nome': 'Nome Antigo',
+        'cpf': '111.111.111-11',
+        'cns': '123',
+    }
+    postback = patients._merge_patient_postback(
+        original,
+        MultiDict([
+            ('nome', 'Nome Corrigido'),
+            ('cpf', '222.222.222-22'),
+            ('cns', '456'),
+            ('cep_residencial', '57000000'),
+            ('endereco_logradouro', 'Rua Nova'),
+            ('endereco_numero', '15'),
+            ('endereco_bairro', 'Centro'),
+            ('endereco_cidade', 'Maceió'),
+            ('endereco_estado', 'al'),
+            ('confirm_password', 'senha-errada'),
+        ]),
+    )
+
+    assert postback['id'] == 42
+    assert postback['nome'] == 'Nome Corrigido'
+    assert postback['cpf'] == '222.222.222-22'
+    assert postback['cns'] == '456'
+    assert postback['cep_residencial'] == '57000-000'
+    assert postback['endereco_estado'] == 'AL'
+    assert postback['endereco_residencial'] == 'Rua Nova, 15, Centro, Maceió - AL, CEP 57000-000'
+    assert 'confirm_password' not in postback
 
 
 def test_address_cep_returns_normalized_viacep_payload(monkeypatch):

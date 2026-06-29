@@ -3,6 +3,16 @@
 {% block title %}Anamnese - {{ patient.nome }}{% endblock %}
 
 {% block content %}
+{% set is_postback = request.method == 'POST' %}
+{% macro posted_value(name, default='') -%}
+{{- (request.form.get(name, default) if is_postback else default)|e -}}
+{%- endmacro %}
+{% macro checked_value(name, value) -%}
+{{- 'checked' if is_postback and request.form.get(name) == value else '' -}}
+{%- endmacro %}
+{% macro selected_value(name, value) -%}
+{{- 'selected' if is_postback and request.form.get(name) == value else '' -}}
+{%- endmacro %}
 <div class="document-container animate-fade">
     <div style="margin-bottom: 2rem;">
         <a href="{{ url_for('patients.view_patient', id=patient.id) }}"
@@ -25,12 +35,12 @@
         <div style="margin-bottom: 2rem;">
             <label for="queixa_principal" class="form-label">Queixa Principal:</label>
             <textarea name="queixa_principal" id="queixa_principal" class="form-control" rows="3"
-                placeholder="Qual o motivo da consulta?"></textarea>
+                placeholder="Qual o motivo da consulta?">{{ posted_value('queixa_principal') }}</textarea>
         </div>
         <div style="margin-bottom: 3rem;">
             <label for="historia_doenca_atual" class="form-label">História da Doença Atual:</label>
             <textarea name="historia_doenca_atual" id="historia_doenca_atual" class="form-control" rows="3"
-                placeholder="Relato cronológico e detalhado do problema..."></textarea>
+                placeholder="Relato cronológico e detalhado do problema...">{{ posted_value('historia_doenca_atual') }}</textarea>
         </div>
 
         <!-- 2. História Médica -->
@@ -55,11 +65,12 @@
                     <label class="form-label">{{ label }}</label>
                     <div style="display: flex; align-items: center; gap: 1.5rem;">
                         <div class="radio-group">
-                            <label class="radio-option"><input type="radio" name="{{ name }}" value="Sim"> Sim</label>
-                            <label class="radio-option"><input type="radio" name="{{ name }}" value="Não"> Não</label>
+                            <label class="radio-option"><input type="radio" name="{{ name }}" value="Sim" {{ checked_value(name, 'Sim') }}> Sim</label>
+                            <label class="radio-option"><input type="radio" name="{{ name }}" value="Não" {{ checked_value(name, 'Não') }}> Não</label>
                         </div>
                         <input type="text" name="{{ name }}_explica" class="form-control"
-                            placeholder="Se sim, especifique..." style="flex: 1; height: 38px; font-size: 0.85rem;">
+                            value="{{ posted_value(name ~ '_explica') }}" placeholder="Se sim, especifique..."
+                            style="flex: 1; height: 38px; font-size: 0.85rem;">
                     </div>
                 </div>
                 {% endfor %}
@@ -69,10 +80,9 @@
                 <div class="form-group-inline">
                     <label class="form-label">Pressão Arterial:</label>
                     <select name="pressao_arterial" class="form-control">
-                        <option value="Normal">Normal</option>
-                        <option value="Alta">Alta</option>
-                        <option value="Baixa">Baixa</option>
-                        <option value="Controlada com medicamento">Controlada com medicamento</option>
+                        {% for op in ['Normal', 'Alta', 'Baixa', 'Controlada com medicamento'] %}
+                        <option value="{{ op }}" {{ selected_value('pressao_arterial', op) }}>{{ op }}</option>
+                        {% endfor %}
                     </select>
                 </div>
 
@@ -81,10 +91,11 @@
                     <label class="form-label">Já fez alguma cirurgia?</label>
                     <div style="display: flex; align-items: center; gap: 1.5rem;">
                         <div class="radio-group">
-                            <label class="radio-option"><input type="radio" name="fez_cirurgia" value="Sim"> Sim</label>
-                            <label class="radio-option"><input type="radio" name="fez_cirurgia" value="Não"> Não</label>
+                            <label class="radio-option"><input type="radio" name="fez_cirurgia" value="Sim" {{ checked_value('fez_cirurgia', 'Sim') }}> Sim</label>
+                            <label class="radio-option"><input type="radio" name="fez_cirurgia" value="Não" {{ checked_value('fez_cirurgia', 'Não') }}> Não</label>
                         </div>
                         <input type="text" name="fez_cirurgia_explica" class="form-control" placeholder="Qual?"
+                            value="{{ posted_value('fez_cirurgia_explica') }}"
                             style="flex: 1; height: 38px; font-size: 0.85rem;">
                     </div>
                 </div>
@@ -92,16 +103,18 @@
                 <div class="form-group-inline" style="margin-top: 1.5rem;">
                     <label class="form-label">Sangramento ao cortar-se:</label>
                     <select name="sangramento_cortar" class="form-control">
-                        <option value="Normal">Normal</option>
-                        <option value="Excessivo">Excessivo</option>
+                        {% for op in ['Normal', 'Excessivo'] %}
+                        <option value="{{ op }}" {{ selected_value('sangramento_cortar', op) }}>{{ op }}</option>
+                        {% endfor %}
                     </select>
                 </div>
 
                 <div class="form-group-inline">
                     <label class="form-label">Cicatrização:</label>
                     <select name="cicatrizacao" class="form-control">
-                        <option value="Normal">Normal</option>
-                        <option value="Complicada">Complicada</option>
+                        {% for op in ['Normal', 'Complicada'] %}
+                        <option value="{{ op }}" {{ selected_value('cicatrizacao', op) }}>{{ op }}</option>
+                        {% endfor %}
                     </select>
                 </div>
 
@@ -110,12 +123,13 @@
                     <label class="form-label">Já foi hospitalizado?</label>
                     <div style="display: flex; align-items: center; gap: 1.5rem;">
                         <div class="radio-group">
-                            <label class="radio-option"><input type="radio" name="foi_hospitalizado" value="Sim">
+                            <label class="radio-option"><input type="radio" name="foi_hospitalizado" value="Sim" {{ checked_value('foi_hospitalizado', 'Sim') }}>
                                 Sim</label>
-                            <label class="radio-option"><input type="radio" name="foi_hospitalizado" value="Não">
+                            <label class="radio-option"><input type="radio" name="foi_hospitalizado" value="Não" {{ checked_value('foi_hospitalizado', 'Não') }}>
                                 Não</label>
                         </div>
                         <input type="text" name="foi_hospitalizado_explica" class="form-control" placeholder="Por que?"
+                            value="{{ posted_value('foi_hospitalizado_explica') }}"
                             style="flex: 1; height: 38px; font-size: 0.85rem;">
                     </div>
                 </div>
@@ -123,7 +137,7 @@
                 <div style="margin-top: 1.5rem;">
                     <label class="form-label">Alergia a medicamentos ou alimentos?</label>
                     <input type="text" name="alergia_medicamento_alimento" class="form-control"
-                        placeholder="Especifique as alergias...">
+                        value="{{ posted_value('alergia_medicamento_alimento') }}" placeholder="Especifique as alergias...">
                 </div>
 
                 <div
@@ -131,19 +145,19 @@
                     <label class="form-label" style="margin-bottom: 1rem;">Gestante?</label>
                     <div style="display: flex; align-items: center; gap: 1.5rem;">
                         <div class="radio-group">
-                            <label class="radio-option"><input type="radio" name="gestante" value="Sim"> Sim</label>
-                            <label class="radio-option"><input type="radio" name="gestante" value="Não"> Não</label>
-                            <label class="radio-option"><input type="radio" name="gestante" value="Não Sei"> ?</label>
+                            <label class="radio-option"><input type="radio" name="gestante" value="Sim" {{ checked_value('gestante', 'Sim') }}> Sim</label>
+                            <label class="radio-option"><input type="radio" name="gestante" value="Não" {{ checked_value('gestante', 'Não') }}> Não</label>
+                            <label class="radio-option"><input type="radio" name="gestante" value="Não Sei" {{ checked_value('gestante', 'Não Sei') }}> ?</label>
                         </div>
                         <input type="text" name="gestante_semanas" class="form-control" placeholder="Semanas"
-                            style="width: 100px; height: 38px;">
+                            value="{{ posted_value('gestante_semanas') }}" style="width: 100px; height: 38px;">
                     </div>
                 </div>
 
                 <div style="margin-top: 1.5rem;">
                     <label class="form-label">Outros problemas de saúde:</label>
                     <input type="text" name="problemas_saude_ja_teve" class="form-control"
-                        placeholder="Histórico adicional...">
+                        value="{{ posted_value('problemas_saude_ja_teve') }}" placeholder="Histórico adicional...">
                 </div>
             </div>
         </div>
@@ -157,26 +171,27 @@
                     <label class="form-label">Já teve alguma reação com anestesia odontológica?</label>
                     <div style="display: flex; align-items: center; gap: 1.5rem;">
                         <div class="radio-group">
-                            <label class="radio-option"><input type="radio" name="reacao_anestesia" value="Sim">
+                            <label class="radio-option"><input type="radio" name="reacao_anestesia" value="Sim" {{ checked_value('reacao_anestesia', 'Sim') }}>
                                 Sim</label>
-                            <label class="radio-option"><input type="radio" name="reacao_anestesia" value="Não">
+                            <label class="radio-option"><input type="radio" name="reacao_anestesia" value="Não" {{ checked_value('reacao_anestesia', 'Não') }}>
                                 Não</label>
                         </div>
                         <input type="text" name="reacao_anestesia_explica" class="form-control"
-                            placeholder="Se sim, como foi?" style="flex: 1; height: 38px; font-size: 0.85rem;">
+                            value="{{ posted_value('reacao_anestesia_explica') }}" placeholder="Se sim, como foi?"
+                            style="flex: 1; height: 38px; font-size: 0.85rem;">
                     </div>
                 </div>
 
                 <div class="form-group-inline">
                     <label class="form-label">Último tratamento dentário:</label>
                     <input type="text" name="ultimo_tratamento_dentario" class="form-control"
-                        placeholder="Ex: Há 6 meses">
+                        value="{{ posted_value('ultimo_tratamento_dentario') }}" placeholder="Ex: Há 6 meses">
                 </div>
 
                 <div style="margin-top: 2rem;">
                     <label class="form-label">Tem sentido alguma dor nos dentes ou na gengiva?</label>
                     <input type="text" name="dor_dentes_gengiva" class="form-control"
-                        placeholder="Especifique a dor ou desconforto...">
+                        value="{{ posted_value('dor_dentes_gengiva') }}" placeholder="Especifique a dor ou desconforto...">
                 </div>
             </div>
 
@@ -184,32 +199,31 @@
                 <div class="form-group-inline">
                     <label class="form-label">Sua gengiva sangra?</label>
                     <select name="gengiva_sangra" class="form-control">
-                        <option value="Sim">Sim</option>
-                        <option value="Não">Não</option>
-                        <option value="Durante a higiene">Durante a higiene</option>
-                        <option value="Às vezes">Às vezes</option>
+                        {% for op in ['Sim', 'Não', 'Durante a higiene', 'Às vezes'] %}
+                        <option value="{{ op }}" {{ selected_value('gengiva_sangra', op) }}>{{ op }}</option>
+                        {% endfor %}
                     </select>
                 </div>
 
                 <div class="form-group-inline" style="margin-top: 1.5rem;">
                     <label class="form-label">Usa fio dental?</label>
                     <select name="fio_dental" class="form-control">
-                        <option value="Diariamente">Diariamente</option>
-                        <option value="Às vezes">Às vezes</option>
-                        <option value="Não">Não</option>
+                        {% for op in ['Diariamente', 'Às vezes', 'Não'] %}
+                        <option value="{{ op }}" {{ selected_value('fio_dental', op) }}>{{ op }}</option>
+                        {% endfor %}
                     </select>
                 </div>
 
                 <div style="margin-top: 2rem;">
                     <label class="form-label">Sente dores ou estalos no maxilar ou no ouvido?</label>
                     <input type="text" name="dores_estalos_maxilar" class="form-control"
-                        placeholder="Especifique se houver...">
+                        value="{{ posted_value('dores_estalos_maxilar') }}" placeholder="Especifique se houver...">
                 </div>
 
                 <div style="margin-top: 1.5rem;">
                     <label class="form-label">Range os dentes de dia ou de noite?</label>
                     <input type="text" name="range_dentes" class="form-control"
-                        placeholder="Ex: Bruxismo, Apertamento...">
+                        value="{{ posted_value('range_dentes') }}" placeholder="Ex: Bruxismo, Apertamento...">
                 </div>
             </div>
         </div>
@@ -221,12 +235,12 @@
                 <div style="margin-bottom: 2rem;">
                     <label class="form-label">Antecedentes Familiares Importantes:</label>
                     <input type="text" name="antecedentes_familiares" class="form-control"
-                        placeholder="Diabetes, Cardiopatias, etc.">
+                        value="{{ posted_value('antecedentes_familiares') }}" placeholder="Diabetes, Cardiopatias, etc.">
                 </div>
                 <div style="margin-bottom: 2rem;">
                     <label class="form-label">Causas de óbitos nos familiares próximos:</label>
                     <textarea name="causas_obitos_familiares" class="form-control" rows="3"
-                        placeholder="Relate se houver ocorrências relevantes..."></textarea>
+                        placeholder="Relate se houver ocorrências relevantes...">{{ posted_value('causas_obitos_familiares') }}</textarea>
                 </div>
             </div>
 
@@ -236,10 +250,11 @@
                     <label class="form-label">Hábito de Fumar?</label>
                     <div style="display: flex; align-items: center; gap: 1.5rem;">
                         <div class="radio-group">
-                            <label class="radio-option"><input type="radio" name="fuma" value="Sim"> Sim</label>
-                            <label class="radio-option"><input type="radio" name="fuma" value="Não"> Não</label>
+                            <label class="radio-option"><input type="radio" name="fuma" value="Sim" {{ checked_value('fuma', 'Sim') }}> Sim</label>
+                            <label class="radio-option"><input type="radio" name="fuma" value="Não" {{ checked_value('fuma', 'Não') }}> Não</label>
                         </div>
                         <input type="text" name="fuma_quantidade" class="form-control" placeholder="Qtd p/ dia"
+                            value="{{ posted_value('fuma_quantidade') }}"
                             style="flex: 1; height: 38px; font-size: 0.85rem;">
                     </div>
                 </div>
@@ -249,12 +264,13 @@
                     <label class="form-label">Ingestão de Bebidas Alcoólicas?</label>
                     <div style="display: flex; align-items: center; gap: 1.5rem;">
                         <div class="radio-group">
-                            <label class="radio-option"><input type="radio" name="ingere_alcool" value="Sim">
+                            <label class="radio-option"><input type="radio" name="ingere_alcool" value="Sim" {{ checked_value('ingere_alcool', 'Sim') }}>
                                 Sim</label>
-                            <label class="radio-option"><input type="radio" name="ingere_alcool" value="Não">
+                            <label class="radio-option"><input type="radio" name="ingere_alcool" value="Não" {{ checked_value('ingere_alcool', 'Não') }}>
                                 Não</label>
                         </div>
                         <input type="text" name="ingere_alcool_frequencia" class="form-control" placeholder="Frequência"
+                            value="{{ posted_value('ingere_alcool_frequencia') }}"
                             style="flex: 1; height: 38px; font-size: 0.85rem;">
                     </div>
                 </div>
@@ -263,12 +279,13 @@
                     <label class="form-label">Pratica Exercícios Físicos?</label>
                     <div style="display: flex; align-items: center; gap: 1.5rem;">
                         <div class="radio-group">
-                            <label class="radio-option"><input type="radio" name="exercicios_fisicos" value="Sim">
+                            <label class="radio-option"><input type="radio" name="exercicios_fisicos" value="Sim" {{ checked_value('exercicios_fisicos', 'Sim') }}>
                                 Sim</label>
-                            <label class="radio-option"><input type="radio" name="exercicios_fisicos" value="Não">
+                            <label class="radio-option"><input type="radio" name="exercicios_fisicos" value="Não" {{ checked_value('exercicios_fisicos', 'Não') }}>
                                 Não</label>
                         </div>
                         <input type="text" name="exercicios_fisicos_frequencia" class="form-control"
+                            value="{{ posted_value('exercicios_fisicos_frequencia') }}"
                             placeholder="Modalidade/Frequência" style="flex: 1; height: 38px; font-size: 0.85rem;">
                     </div>
                 </div>
@@ -293,6 +310,12 @@
                     <p style="margin: 0 0 1rem; font-weight: 800; color: hsl(var(--text-main));">
                         Confirmação do Clínico Responsável
                     </p>
+                    {% if signature_error %}
+                    <div id="signature-error-panel" class="signature-error-panel" role="alert" aria-live="assertive">
+                        <strong>Não foi possível confirmar a assinatura.</strong>
+                        <span>{{ signature_error }}</span>
+                    </div>
+                    {% endif %}
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
                         <div>
                             <label class="form-label">Usuário do clínico</label>
@@ -325,6 +348,22 @@
 </div>
 
 <style>
+    .signature-error-panel {
+        display: grid;
+        gap: 0.35rem;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        border: 2px solid #dc2626;
+        border-radius: var(--radius-md);
+        background: #fef2f2;
+        color: #7f1d1d;
+        font-size: 0.95rem;
+    }
+
+    .signature-error-panel strong {
+        font-size: 1.05rem;
+    }
+
     @media (max-width: 768px) {
         .form-grid {
             gap: 2rem !important;
@@ -366,7 +405,23 @@
             width: 100%;
             text-align: center;
         }
+
     }
 </style>
+
+{% if signature_error %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const errorPanel = document.getElementById('signature-error-panel');
+        const passwordInput = document.querySelector('input[name="clinico_password"]');
+        if (errorPanel) {
+            errorPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        if (passwordInput) {
+            passwordInput.focus({ preventScroll: true });
+        }
+    });
+</script>
+{% endif %}
 
 {% endblock %}

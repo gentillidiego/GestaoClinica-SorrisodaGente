@@ -1,4 +1,12 @@
 <script>
+    function notifyUser(message, category = 'warning') {
+        if (window.showAppAlert) {
+            window.showAppAlert(message, category);
+        } else {
+            alert(message);
+        }
+    }
+
     function initPagination(container) {
         const paginatedLists = container.querySelectorAll('[data-paginate="true"]');
         paginatedLists.forEach(list => {
@@ -211,7 +219,7 @@
             form.addEventListener('submit', function (e) {
                 if (signaturePad.isEmpty()) {
                     e.preventDefault();
-                    alert('Por favor, solicite a assinatura do paciente.');
+                    notifyUser('Por favor, solicite a assinatura do paciente.');
                     return;
                 }
                 document.getElementById('assinatura_base64_payment').value = signaturePad.toDataURL();
@@ -338,7 +346,7 @@
     }
 
     function showTcleAlert() {
-        alert('Acesso Bloqueado: Este prontuário só será liberado após o paciente assinar o Termo de Consentimento (TCLE).');
+        notifyUser('Acesso bloqueado: este prontuário só será liberado após o paciente assinar o Termo de Consentimento (TCLE).', 'danger');
     }
 
     function openPatientSignModalFromButton(button) {
@@ -406,7 +414,7 @@
                 }
                 if (signaturePad.isEmpty()) {
                     e.preventDefault();
-                    alert('Por favor, assine no quadro ou clique em Cancelar.');
+                    notifyUser('Por favor, assine no quadro ou clique em Cancelar.');
                     return;
                 }
                 document.getElementById('assinatura_base64_patient').value = signaturePad.toDataURL();

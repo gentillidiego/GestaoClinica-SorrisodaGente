@@ -6,7 +6,7 @@ import os
 import re
 import secrets
 
-from flask import Blueprint, Response, render_template, redirect, url_for, request, flash
+from flask import Blueprint, Response, render_template, redirect, url_for, request, flash, session
 from weasyprint import HTML
 from flask_login import login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -311,6 +311,18 @@ def _inventory_adjustment_form_payload():
         'quantity': request.form.get('quantity'),
         'reason': request.form.get('reason'),
         'notes': request.form.get('notes'),
+    }
+
+
+def _inventory_adjustment_postback(form_data=None):
+    if form_data is None:
+        form_data = request.form
+    return {
+        'lot_id': form_data.get('lot_id') or '',
+        'adjustment_type': form_data.get('adjustment_type') or '',
+        'quantity': form_data.get('quantity') or '',
+        'reason': form_data.get('reason') or '',
+        'notes': form_data.get('notes') or '',
     }
 
 
@@ -988,7 +1000,17 @@ def get_inventory_tab_content(tab_name):
             'q': request.args.get('q'),
             'category': request.args.get('category'),
         })
-        return render_template(template, dashboard=dashboard, can_write=can_write)
+        adjustment_form = (
+            session.pop('inventory_adjustment_postback', None)
+            if tab_name == 'tab-ajustes'
+            else None
+        )
+        return render_template(
+            template,
+            dashboard=dashboard,
+            can_write=can_write,
+            adjustment_form=adjustment_form or {},
+        )
     if tab_name == 'tab-entrada':
         return render_template(
             template,
@@ -1086,7 +1108,8 @@ def create_inventory_adjustment_route():
             },
         )
         flash('Senha de autorização inválida para ajuste de estoque.', 'danger')
-        return redirect(url_for('admin.inventory'))
+        session['inventory_adjustment_postback'] = _inventory_adjustment_postback()
+        return redirect(url_for('admin.inventory') + '#tab-ajustes')
 
     try:
         result = register_inventory_adjustment(
@@ -1125,7 +1148,9 @@ def create_inventory_adjustment_route():
             },
         )
         flash_internal_error('Falha ao registrar ajuste de estoque')
-    return redirect(url_for('admin.inventory'))
+        session['inventory_adjustment_postback'] = _inventory_adjustment_postback()
+        return redirect(url_for('admin.inventory') + '#tab-ajustes')
+    return redirect(url_for('admin.inventory') + '#tab-ajustes')
 
 
 def _store_invoice_file(file, inspection):

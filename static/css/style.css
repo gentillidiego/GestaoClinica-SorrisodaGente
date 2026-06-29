@@ -400,6 +400,22 @@ body {
     font-size: 0.9rem;
 }
 
+.legal-guardian-panel {
+    margin-top: 2.5rem;
+    padding: 1.5rem 1.5rem 0.25rem;
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: var(--radius-md);
+}
+
+.legal-guardian-title {
+    margin-bottom: 1.5rem;
+    color: hsl(var(--primary));
+    font-family: var(--font-heading);
+    font-size: 1.35rem;
+    font-weight: 800;
+}
+
 /* Botões Modernos */
 .btn {
     display: inline-flex;
@@ -486,6 +502,140 @@ body {
 
 .animate-fade {
     animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.app-alert-stack {
+    position: fixed;
+    right: 1.5rem;
+    bottom: 1.5rem;
+    z-index: 2500;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    width: min(440px, calc(100vw - 2rem));
+    pointer-events: none;
+}
+
+.app-alert {
+    position: relative;
+    display: grid;
+    grid-template-columns: 2.1rem 1fr auto;
+    gap: 0.9rem;
+    align-items: start;
+    padding: 1rem;
+    border: 2px solid;
+    border-radius: var(--radius-md);
+    background: white;
+    box-shadow: var(--shadow-lg);
+    pointer-events: auto;
+    animation: appAlertIn 0.22s ease-out;
+}
+
+.app-alert-hiding {
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.app-alert-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 50%;
+    font-weight: 900;
+    font-size: 0.8rem;
+}
+
+.app-alert-body {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.app-alert-body strong {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.app-alert-body span {
+    font-size: 0.92rem;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.app-alert-close {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 900;
+    line-height: 1;
+    opacity: 0.72;
+}
+
+.app-alert-close:hover {
+    opacity: 1;
+}
+
+.app-alert-success {
+    border-color: #16a34a;
+    background: #f0fdf4;
+    color: #14532d;
+}
+
+.app-alert-success .app-alert-icon {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.app-alert-warning {
+    border-color: #f59e0b;
+    background: #fffbeb;
+    color: #78350f;
+}
+
+.app-alert-warning .app-alert-icon {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.app-alert-danger {
+    border-color: #dc2626;
+    background: #fef2f2;
+    color: #7f1d1d;
+}
+
+.app-alert-danger .app-alert-icon {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.app-alert-info {
+    border-color: #2563eb;
+    background: #eff6ff;
+    color: #1e3a8a;
+}
+
+.app-alert-info .app-alert-icon {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+@keyframes appAlertIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Responsive */
@@ -697,6 +847,22 @@ body {
 }
 
 @media (max-width: 480px) {
+    .app-alert-stack {
+        right: 1rem;
+        bottom: 1rem;
+        width: calc(100vw - 2rem);
+    }
+
+    .app-alert {
+        grid-template-columns: 1.9rem 1fr auto;
+        padding: 0.9rem;
+    }
+
+    .app-alert-icon {
+        width: 1.9rem;
+        height: 1.9rem;
+    }
+
     .top-nav-actions .date-display {
         display: none;
     }

@@ -314,6 +314,12 @@
                     <p style="margin: 0 0 1rem; font-weight: 800; color: hsl(var(--text-main));">
                         Confirmação do Clínico Responsável
                     </p>
+                    {% if signature_error %}
+                    <div id="signature-error-panel" class="signature-error-panel" role="alert" aria-live="assertive">
+                        <strong>Não foi possível confirmar a assinatura.</strong>
+                        <span>{{ signature_error }}</span>
+                    </div>
+                    {% endif %}
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
                         <div>
                             <label class="form-label">Usuário do clínico</label>
@@ -355,5 +361,39 @@
         </div>
     </form>
 </div>
+
+<style>
+    .signature-error-panel {
+        display: grid;
+        gap: 0.35rem;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        border: 2px solid #dc2626;
+        border-radius: var(--radius-md);
+        background: #fef2f2;
+        color: #7f1d1d;
+        font-size: 0.95rem;
+    }
+
+    .signature-error-panel strong {
+        font-size: 1.05rem;
+    }
+
+</style>
+
+{% if signature_error %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const errorPanel = document.getElementById('signature-error-panel');
+        const passwordInput = document.querySelector('input[name="clinico_password"]');
+        if (errorPanel) {
+            errorPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        if (passwordInput) {
+            passwordInput.focus({ preventScroll: true });
+        }
+    });
+</script>
+{% endif %}
 
 {% endblock %}

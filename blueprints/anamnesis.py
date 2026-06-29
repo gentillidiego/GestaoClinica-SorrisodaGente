@@ -15,6 +15,46 @@ from services.web_security_service import flash_internal_error
 anamnesis_bp = Blueprint('anamnesis', __name__, url_prefix='/anamnesis')
 
 
+ANAMNESIS_EDIT_POSTBACK_FIELDS = (
+    'queixa_principal', 'historia_doenca_atual',
+    'sofre_doenca', 'sofre_doenca_explica',
+    'tratamento_medico', 'tratamento_medico_explica',
+    'tomando_medicamento', 'tomando_medicamento_explica',
+    'tem_alergia', 'tem_alergia_explica',
+    'pressao_arterial', 'desmaios_convulsoes', 'tem_cancer',
+    'radioterapia_quimioterapia', 'falta_ar',
+    'fez_cirurgia', 'fez_cirurgia_explica',
+    'sangramento_cortar', 'cicatrizacao',
+    'foi_hospitalizado', 'foi_hospitalizado_explica',
+    'alergia_medicamento_alimento', 'gestante', 'gestante_semanas',
+    'problemas_saude_ja_teve', 'reacao_anestesia', 'reacao_anestesia_explica',
+    'ultimo_tratamento_dentario', 'dor_dentes_gengiva', 'gengiva_sangra',
+    'fio_dental', 'dores_estalos_maxilar', 'range_dentes',
+    'antecedentes_familiares', 'causas_obitos_familiares',
+    'fuma', 'fuma_quantidade', 'ingere_alcool', 'ingere_alcool_frequencia',
+    'exercicios_fisicos', 'exercicios_fisicos_frequencia',
+)
+
+
+def _merge_anamnesis_postback(anamnesis, form_data):
+    postback = dict(anamnesis)
+    for field in ANAMNESIS_EDIT_POSTBACK_FIELDS:
+        if field in form_data:
+            postback[field] = form_data.get(field)
+    return postback
+
+
+def _signature_error_message(error):
+    message = str(error)
+    if 'Credenciais do CD inválidas' in message:
+        return 'Usuário ou senha do clínico inválidos. Confira os dados e tente novamente.'
+    if 'Informe usuário e senha' in message:
+        return 'Informe usuário e senha do clínico responsável para confirmar a assinatura.'
+    if 'sem permissão clínica' in message:
+        return 'O usuário informado não tem permissão clínica para confirmar esta assinatura.'
+    return message
+
+
 def _prepare_anamnesis_signature(form_data):
     signer = validate_a_rogo_signer(
         form_data.get('clinico_username'),
@@ -132,9 +172,15 @@ def form(patient_id):
         try:
             signature_data = _prepare_anamnesis_signature(request.form)
         except ValueError as exc:
-            flash(str(exc), 'danger')
+            signature_error = _signature_error_message(exc)
+            flash(signature_error, 'danger')
             from datetime import datetime
-            return render_template('anamnesis/form.html', patient=patient, now=datetime.now())
+            return render_template(
+                'anamnesis/form.html',
+                patient=patient,
+                now=datetime.now(),
+                signature_error=signature_error,
+            )
 
         # Coleta de dados seguindo o esquema do banco
         fields = [
@@ -237,13 +283,22 @@ def edit_anamnesis(id):
         
         if not check_password_hash(user_data['password'], password):
             flash('Senha de confirmação incorreta.', 'danger')
-            return render_template('anamnesis/edit_anamnesis.html', a=anamnesis)
+            return render_template(
+                'anamnesis/edit_anamnesis.html',
+                a=_merge_anamnesis_postback(anamnesis, request.form),
+                signature_error='Senha de confirmação incorreta.',
+            )
 
         try:
             signature_data = _prepare_anamnesis_signature(request.form)
         except ValueError as exc:
-            flash(str(exc), 'danger')
-            return render_template('anamnesis/edit_anamnesis.html', a=anamnesis)
+            signature_error = _signature_error_message(exc)
+            flash(signature_error, 'danger')
+            return render_template(
+                'anamnesis/edit_anamnesis.html',
+                a=_merge_anamnesis_postback(anamnesis, request.form),
+                signature_error=signature_error,
+            )
 
         # Campos para atualização (excluindo patient_id e id)
         fields = [

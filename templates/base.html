@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Gestão Clínica{% endblock %}</title>
     <!-- CSS Moderno e Variáveis -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.4">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.5">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link
@@ -17,7 +17,7 @@
     <!-- IMask.js -->
     <script src="https://unpkg.com/imask"></script>
     <!-- Custom Validations -->
-    <script src="{{ url_for('static', filename='js/validation.js') }}?v=1.1"></script>
+    <script src="{{ url_for('static', filename='js/validation.js') }}?v=1.2"></script>
     <style>
         .spinner-inline {
             width: 14px;
@@ -203,22 +203,37 @@
         </header>
         {% endif %}
         <main class="content-area">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-            {% for category, message in messages %}
-            <div class="flash flash-{{ category }} animate-fade">
-                <span class="flash-icon">
-                    {% if category == 'success' %}✅{% elif category == 'error' %}❌{% else %}ℹ️{% endif %}
-                </span>
-                {{ message }}
-                <button class="flash-close" onclick="this.parentElement.remove()">✕</button>
-            </div>
-            {% endfor %}
-            {% endif %}
-            {% endwith %}
             {% block content %}{% endblock %}
         </main>
     </div>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    <div class="app-alert-stack" id="app-alert-stack" aria-live="assertive" aria-atomic="false">
+        {% if messages %}
+        {% for category, message in messages %}
+        {% set alert_type = 'danger' if category in ['danger', 'error'] else category %}
+        {% set alert_type = alert_type if alert_type in ['success', 'warning', 'danger', 'info'] else 'info' %}
+        <div class="app-alert app-alert-{{ alert_type }}"
+            role="alert"
+            data-alert-category="{{ alert_type }}"
+            data-auto-dismiss="{{ 'true' if alert_type in ['success', 'info'] else 'false' }}">
+            <span class="app-alert-icon" aria-hidden="true">
+                {% if alert_type == 'success' %}OK{% elif alert_type == 'warning' %}!{% elif alert_type == 'danger' %}!{% else %}i{% endif %}
+            </span>
+            <div class="app-alert-body">
+                <strong>
+                    {% if alert_type == 'success' %}Tudo certo
+                    {% elif alert_type == 'warning' %}Atenção
+                    {% elif alert_type == 'danger' %}Não foi possível concluir
+                    {% else %}Aviso{% endif %}
+                </strong>
+                <span>{{ message }}</span>
+            </div>
+            <button class="app-alert-close" type="button" aria-label="Fechar aviso">x</button>
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+    {% endwith %}
     <script>
         // Atualizar data no topo
         const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -244,14 +259,63 @@
             });
         }
 
-        // Auto-hide flash messages
-        setTimeout(() => {
-            const flashes = document.querySelectorAll('.flash');
-            flashes.forEach(f => {
-                f.style.opacity = '0';
-                setTimeout(() => f.remove(), 500);
-            });
-        }, 5000);
+        function removeAppAlert(alertEl) {
+            if (!alertEl) return;
+            alertEl.classList.add('app-alert-hiding');
+            setTimeout(() => alertEl.remove(), 220);
+        }
+
+        window.showAppAlert = function (message, category = 'info') {
+            const stack = document.getElementById('app-alert-stack');
+            if (!stack || !message) {
+                if (message) window.alert(message);
+                return null;
+            }
+            const normalizedType = ['danger', 'error'].includes(category) ? 'danger' : category;
+            const alertType = ['success', 'warning', 'danger', 'info'].includes(normalizedType) ? normalizedType : 'info';
+            const titles = {
+                success: 'Tudo certo',
+                warning: 'Atenção',
+                danger: 'Não foi possível concluir',
+                info: 'Aviso',
+            };
+            const icons = {
+                success: 'OK',
+                warning: '!',
+                danger: '!',
+                info: 'i',
+            };
+            const alertEl = document.createElement('div');
+            alertEl.className = `app-alert app-alert-${alertType}`;
+            alertEl.setAttribute('role', 'alert');
+            alertEl.dataset.alertCategory = alertType;
+            alertEl.dataset.autoDismiss = ['success', 'info'].includes(alertType) ? 'true' : 'false';
+            alertEl.innerHTML = `
+                <span class="app-alert-icon" aria-hidden="true">${icons[alertType] || 'i'}</span>
+                <div class="app-alert-body">
+                    <strong>${titles[alertType] || 'Aviso'}</strong>
+                    <span></span>
+                </div>
+                <button class="app-alert-close" type="button" aria-label="Fechar aviso">x</button>
+            `;
+            alertEl.querySelector('.app-alert-body span').textContent = message;
+            stack.appendChild(alertEl);
+            alertEl.querySelector('.app-alert-close').addEventListener('click', () => removeAppAlert(alertEl));
+            if (alertEl.dataset.autoDismiss === 'true') {
+                setTimeout(() => removeAppAlert(alertEl), 7000);
+            }
+            return alertEl;
+        };
+
+        document.querySelectorAll('.app-alert').forEach(alertEl => {
+            const closeButton = alertEl.querySelector('.app-alert-close');
+            if (closeButton) {
+                closeButton.addEventListener('click', () => removeAppAlert(alertEl));
+            }
+            if (alertEl.dataset.autoDismiss === 'true') {
+                setTimeout(() => removeAppAlert(alertEl), 7000);
+            }
+        });
     </script>
     {% block extra_scripts %}{% endblock %}
 </body>

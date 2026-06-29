@@ -1966,7 +1966,15 @@
             const pad = new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)' });
             document.getElementById('clear-signature-patient').addEventListener('click', () => pad.clear());
             form.addEventListener('submit', (e) => {
-                if (pad.isEmpty()) { e.preventDefault(); alert('Por favor, solicite a assinatura do paciente.'); return; }
+                if (pad.isEmpty()) {
+                    e.preventDefault();
+                    if (window.showAppAlert) {
+                        window.showAppAlert('Por favor, solicite a assinatura do paciente.', 'warning');
+                    } else {
+                        alert('Por favor, solicite a assinatura do paciente.');
+                    }
+                    return;
+                }
                 document.getElementById('assinatura_base64_patient').value = pad.toDataURL();
             });
 

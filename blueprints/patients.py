@@ -156,8 +156,10 @@ def _compose_residential_address(data):
     return ', '.join(address_parts)
 
 
-def _build_patient_form_data():
-    data = _strip_form_data({field: request.form.get(field) for field in PATIENT_FIELDS})
+def _build_patient_form_data(form_data=None):
+    if form_data is None:
+        form_data = request.form
+    data = _strip_form_data({field: form_data.get(field) for field in PATIENT_FIELDS})
     data['cep_residencial'] = _format_cep(data.get('cep_residencial'))
     data['endereco_estado'] = _normalize_uf(data.get('endereco_estado'))
     data['endereco_residencial'] = (
@@ -165,6 +167,12 @@ def _build_patient_form_data():
         or data.get('endereco_residencial')
     )
     return data
+
+
+def _merge_patient_postback(patient, form_data=None):
+    postback = dict(patient)
+    postback.update(_build_patient_form_data(form_data))
+    return postback
 
 
 def _patient_field_values(data):
@@ -440,6 +448,7 @@ def edit_patient(id):
         user_data = query("SELECT password FROM users WHERE id = %s", (current_user.id,), one=True)
         if not check_password_hash(user_data['password'], password):
             flash('Senha de confirmação incorreta.', 'danger')
+            patient = _merge_patient_postback(patient)
             return render_template('patients/edit.html', patient=patient, **_template_address_context(patient))
             
         data = _build_patient_form_data()
@@ -467,6 +476,9 @@ def edit_patient(id):
             return redirect(url_for('patients.list_patients'))
         except Exception as e:
             flash_internal_error('Falha ao atualizar paciente')
+            patient = dict(patient)
+            patient.update(data)
+            return render_template('patients/edit.html', patient=patient, **_template_address_context(patient))
             
     return render_template('patients/edit.html', patient=patient, **_template_address_context(patient))
 

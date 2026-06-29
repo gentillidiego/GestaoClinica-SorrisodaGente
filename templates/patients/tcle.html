@@ -184,7 +184,11 @@
                 return;
             }
             if (signaturePad.isEmpty()) {
-                alert('A assinatura do paciente é obrigatória para prosseguir.');
+                if (window.showAppAlert) {
+                    window.showAppAlert('A assinatura do paciente é obrigatória para prosseguir.', 'warning');
+                } else {
+                    alert('A assinatura do paciente é obrigatória para prosseguir.');
+                }
                 e.preventDefault();
                 return;
             }

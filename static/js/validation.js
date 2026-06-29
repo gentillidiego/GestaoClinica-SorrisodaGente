@@ -7,6 +7,14 @@ document.addEventListener('DOMContentLoaded', () => {
     initFormListeners();
 });
 
+function showValidationMessage(message) {
+    if (window.showAppAlert) {
+        window.showAppAlert(message, 'warning');
+    } else {
+        alert(message);
+    }
+}
+
 /**
  * Initialize Input Masks using IMask.js
  */
@@ -49,7 +57,7 @@ function initFormListeners() {
             if (cpfInput && cpfInput.value) {
                 const rawCpf = cpfInput.value.replace(/\D/g, '');
                 if (rawCpf.length > 0 && !validateCPF(rawCpf)) {
-                    alert('CPF inválido. Por favor, verifique os números digitados.');
+                    showValidationMessage('CPF inválido. Por favor, verifique os números digitados.');
                     e.preventDefault();
                     return;
                 }
@@ -62,7 +70,7 @@ function initFormListeners() {
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 if (selectedDate > today) {
-                    alert('A data de nascimento não pode estar no futuro.');
+                    showValidationMessage('A data de nascimento não pode estar no futuro.');
                     e.preventDefault();
                     return;
                 }

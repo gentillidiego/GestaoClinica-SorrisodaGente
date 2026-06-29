@@ -3,6 +3,7 @@ from io import BytesIO
 from decimal import Decimal
 
 import pytest
+from werkzeug.datastructures import MultiDict
 
 import services.inventory_service as inventory_service
 from constants import Role, role_has_permission
@@ -437,6 +438,30 @@ def test_xml_import_checks_invalid_supplier_cnpj_before_drive_upload(monkeypatch
             admin_module._import_invoice_from_xml()
 
     assert uploaded['called'] is False
+
+
+def test_inventory_adjustment_postback_excludes_authorizer_password():
+    import blueprints.admin as admin_module
+
+    postback = admin_module._inventory_adjustment_postback(
+        MultiDict([
+            ('lot_id', '7'),
+            ('adjustment_type', 'perda'),
+            ('quantity', '2.5'),
+            ('reason', 'Frasco quebrado'),
+            ('notes', 'Ocorrido durante conferência'),
+            ('authorizer_password', 'senha-errada'),
+        ]),
+    )
+
+    assert postback == {
+        'lot_id': '7',
+        'adjustment_type': 'perda',
+        'quantity': '2.5',
+        'reason': 'Frasco quebrado',
+        'notes': 'Ocorrido durante conferência',
+    }
+    assert 'authorizer_password' not in postback
 
 
 # --- RBAC: as rotas novas reaproveitam as mesmas permissões de hoje ---------
