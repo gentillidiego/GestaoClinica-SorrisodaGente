@@ -1,6 +1,8 @@
 import datetime as dt
 from decimal import Decimal
 
+import pytest
+
 import services.command_center_service as command_center_service
 import services.inventory_service as inventory_service
 import services.traceability_service as traceability_service
@@ -25,6 +27,8 @@ def test_register_patient_material_usage_decrements_lot_and_requires_implant_pos
         queries.append((sql, params, one))
         if 'FROM patients' in sql:
             return {'id': 42}
+        if 'FROM users' in sql:
+            return {'id': 8}
         if 'FROM tratamento_procedimentos' in sql:
             return {'id': 9}
         return None
@@ -86,6 +90,24 @@ def test_register_patient_material_usage_decrements_lot_and_requires_implant_pos
     assert result['post_op_due_date'] == dt.date(2026, 6, 10)
     assert fake_conn.committed is True
     assert any('UPDATE inventory_lots SET quantity_current' in sql for sql, _params in fake_conn.cursor_obj.calls)
+
+
+def test_register_patient_material_usage_rejects_non_clinical_professional(monkeypatch):
+    def fake_query(sql, params=(), one=False):
+        if 'FROM patients' in sql:
+            return {'id': 42}
+        if 'FROM users' in sql:
+            return None
+        return None
+
+    monkeypatch.setattr(inventory_service, 'query', fake_query)
+
+    with pytest.raises(ValueError, match='perfil clínico ativo'):
+        register_patient_material_usage(42, {
+            'lot_id': 3,
+            'quantity': '1',
+            'professional_id': '99',
+        }, actor_id=8)
 
 
 def test_register_inventory_adjustment_records_loss_and_updates_balance(monkeypatch):

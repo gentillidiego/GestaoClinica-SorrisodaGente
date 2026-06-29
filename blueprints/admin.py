@@ -43,6 +43,8 @@ from services.inventory_service import (
     create_supplier,
     delete_invoice_item_row,
     discard_invoice,
+    ensure_invoice_access_key_available,
+    ensure_supplier_cnpj_valid,
     get_inventory_dashboard,
     get_invoice_detail,
     get_invoice_source_type_options,
@@ -1146,6 +1148,8 @@ def _import_invoice_from_xml():
     inspection = inspect_uploaded_file(file, allowed_formats=frozenset({'XML'}))
     file.stream.seek(0)
     header, rows = parse_nfe_xml(file.stream.read())
+    ensure_supplier_cnpj_valid(header.get('supplier_cnpj'))
+    ensure_invoice_access_key_available(header.get('access_key'))
     file.stream.seek(0)
     raw_file_path = _store_invoice_file(file, inspection)
     return create_invoice_draft(
@@ -1161,6 +1165,8 @@ def _import_invoice_from_pdf():
     inspection = inspect_uploaded_file(file, allowed_formats=frozenset({'PDF'}))
     file.stream.seek(0)
     header, rows = parse_danfe_pdf(file.stream.read())
+    ensure_supplier_cnpj_valid(header.get('supplier_cnpj'))
+    ensure_invoice_access_key_available(header.get('access_key'))
     file.stream.seek(0)
     raw_file_path = _store_invoice_file(file, inspection)
     return create_invoice_draft(

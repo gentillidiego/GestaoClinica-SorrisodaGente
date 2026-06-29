@@ -1,4 +1,5 @@
 import datetime as dt
+from io import BytesIO
 from decimal import Decimal
 
 import pytest
@@ -87,6 +88,11 @@ def test_cnpj_validation_accepts_known_valid_document():
 def test_cnpj_validation_rejects_wrong_check_digit():
     assert not is_valid_cnpj('11.222.333/0001-00')
     assert not is_valid_cnpj('111111111111')
+
+
+def test_get_or_create_supplier_rejects_invalid_cnpj():
+    with pytest.raises(ValueError, match='CNPJ inválido'):
+        inventory_service.get_or_create_supplier('Fornecedor inválido', '11.222.333/0001-00')
 
 
 # --- Chave de acesso --------------------------------------------------------
@@ -247,14 +253,25 @@ class _FakeCursor:
         self._item_rows = item_rows
         self.calls = []
         self._result = None
+        self._rows = []
+        self._next_item_id = 700
 
     def execute(self, sql, params=()):
         self.calls.append((sql, params))
         if 'SELECT id, status FROM inventory_invoices' in sql:
             self._result = {'id': params[0], 'status': 'rascunho'}
+        elif 'SELECT id, name FROM inventory_suppliers WHERE cnpj' in sql:
+            self._result = None
+        elif 'SELECT id, cnpj FROM inventory_suppliers WHERE LOWER(name)' in sql:
+            self._result = None
+        elif sql.strip().startswith('INSERT INTO inventory_suppliers'):
+            self._result = {'id': 3}
         elif 'SELECT id FROM inventory_invoice_items WHERE invoice_id' in sql:
             self._result = None
             self._rows = [{'id': row_id} for row_id in self._item_rows]
+        elif sql.strip().startswith('INSERT INTO inventory_items'):
+            self._result = {'id': self._next_item_id}
+            self._next_item_id += 1
         elif sql.strip().startswith('INSERT INTO inventory_lots'):
             self._result = {'id': 900 + len(self.calls)}
         else:
@@ -287,7 +304,6 @@ def test_confirm_invoice_creates_one_lot_per_resolved_item(monkeypatch):
     fake_conn = _FakeConnection(item_rows=[1, 2])
     monkeypatch.setattr(inventory_service, 'get_db_connection', lambda: fake_conn)
     monkeypatch.setattr(inventory_service, 'put_db_connection', lambda conn: None)
-    monkeypatch.setattr(inventory_service, 'get_or_create_supplier', lambda *a, **k: 3)
 
     rows_updates = {
         '1': {'item_id': '10', 'quantity': '5', 'unit_value': '2.00', 'expiration_date': '2027-01-01'},
@@ -306,7 +322,6 @@ def test_confirm_invoice_blocks_when_expiration_date_missing(monkeypatch):
     fake_conn = _FakeConnection(item_rows=[1])
     monkeypatch.setattr(inventory_service, 'get_db_connection', lambda: fake_conn)
     monkeypatch.setattr(inventory_service, 'put_db_connection', lambda conn: None)
-    monkeypatch.setattr(inventory_service, 'get_or_create_supplier', lambda *a, **k: None)
 
     rows_updates = {
         '1': {'item_id': '10', 'quantity': '5', 'unit_value': '2.00'},  # sem expiration_date
@@ -316,6 +331,112 @@ def test_confirm_invoice_blocks_when_expiration_date_missing(monkeypatch):
 
     assert fake_conn.rolled_back is True
     assert fake_conn.committed is False
+
+
+def test_confirm_invoice_creates_new_material_when_invoice_row_uses_new_marker(monkeypatch):
+    fake_conn = _FakeConnection(item_rows=[1])
+    monkeypatch.setattr(inventory_service, 'get_db_connection', lambda: fake_conn)
+    monkeypatch.setattr(inventory_service, 'put_db_connection', lambda conn: None)
+
+    rows_updates = {
+        '1': {
+            'item_id': '__new__',
+            'new_item_name': 'Resina Bulk Fill',
+            'new_item_category': 'material',
+            'unit': 'seringa',
+            'quantity': '2',
+            'unit_value': '15.00',
+            'expiration_date': '2027-01-01',
+        },
+    }
+    result = confirm_invoice(42, {'supplier_name': 'Fornecedor X'}, rows_updates, actor_id=1)
+
+    item_insert = next(sql for sql, _ in fake_conn.cursor_obj.calls if sql.strip().startswith('INSERT INTO inventory_items'))
+    lot_insert = next(
+        params for sql, params in fake_conn.cursor_obj.calls
+        if sql.strip().startswith('INSERT INTO inventory_lots')
+    )
+
+    assert result['invoice_id'] == 42
+    assert 'INSERT INTO inventory_items' in item_insert
+    assert lot_insert[0] == 700
+    assert fake_conn.committed is True
+
+
+def test_xml_import_checks_duplicate_before_drive_upload(monkeypatch):
+    from flask import Flask
+
+    import blueprints.admin as admin_module
+
+    app = Flask(__name__)
+    app.secret_key = 'test'
+
+    class FakeInspection:
+        safe_filename = 'nfe.xml'
+        mime_type = 'application/xml'
+
+    uploaded = {'called': False}
+
+    def fake_store(*args, **kwargs):
+        uploaded['called'] = True
+        return 'gdrive://unexpected'
+
+    def raise_duplicate(access_key):
+        raise ValueError('Esta NF-e já foi importada.')
+
+    monkeypatch.setattr(admin_module, 'inspect_uploaded_file', lambda *args, **kwargs: FakeInspection())
+    monkeypatch.setattr(admin_module, 'parse_nfe_xml', lambda _data: ({'access_key': _sample_access_key()}, [{'description_raw': 'Item'}]))
+    monkeypatch.setattr(admin_module, 'ensure_invoice_access_key_available', raise_duplicate)
+    monkeypatch.setattr(admin_module, '_store_invoice_file', fake_store)
+
+    with app.test_request_context(
+        '/admin/inventory/invoices/import',
+        method='POST',
+        data={'file': (BytesIO(b'<xml/>'), 'nfe.xml')},
+        content_type='multipart/form-data',
+    ):
+        with pytest.raises(ValueError, match='já foi importada'):
+            admin_module._import_invoice_from_xml()
+
+    assert uploaded['called'] is False
+
+
+def test_xml_import_checks_invalid_supplier_cnpj_before_drive_upload(monkeypatch):
+    from flask import Flask
+
+    import blueprints.admin as admin_module
+
+    app = Flask(__name__)
+    app.secret_key = 'test'
+
+    class FakeInspection:
+        safe_filename = 'nfe.xml'
+        mime_type = 'application/xml'
+
+    uploaded = {'called': False}
+
+    def fake_store(*args, **kwargs):
+        uploaded['called'] = True
+        return 'gdrive://unexpected'
+
+    monkeypatch.setattr(admin_module, 'inspect_uploaded_file', lambda *args, **kwargs: FakeInspection())
+    monkeypatch.setattr(
+        admin_module,
+        'parse_nfe_xml',
+        lambda _data: ({'supplier_cnpj': '11.222.333/0001-00'}, [{'description_raw': 'Item'}]),
+    )
+    monkeypatch.setattr(admin_module, '_store_invoice_file', fake_store)
+
+    with app.test_request_context(
+        '/admin/inventory/invoices/import',
+        method='POST',
+        data={'file': (BytesIO(b'<xml/>'), 'nfe.xml')},
+        content_type='multipart/form-data',
+    ):
+        with pytest.raises(ValueError, match='CNPJ inválido'):
+            admin_module._import_invoice_from_xml()
+
+    assert uploaded['called'] is False
 
 
 # --- RBAC: as rotas novas reaproveitam as mesmas permissões de hoje ---------

@@ -681,6 +681,16 @@ def add_material_usage(id):
             },
         )
         flash('Material registrado no prontuário e estoque atualizado.', 'success')
+    except ValueError as exc:
+        audit_log(
+            action='inventory_usage_register_failed',
+            module='inventory',
+            entity_type='inventory_usage',
+            patient_id=id,
+            status='failed',
+            details={'error': str(exc), 'lot_id': request.form.get('lot_id')},
+        )
+        flash(str(exc), 'danger')
     except Exception as exc:
         audit_log(
             action='inventory_usage_register_failed',

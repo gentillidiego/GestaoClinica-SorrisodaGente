@@ -76,10 +76,17 @@
                 </div>
                 <div>
                     <label class="form-label">Profissional responsável</label>
-                    <select name="professional_id" class="form-control">
+                    <select name="professional_id" class="form-control" required>
+                        {% if not current_user.is_dentista %}
+                        <option value="">Selecionar clínico responsável</option>
+                        {% endif %}
+                        {% if current_user.is_dentista %}
                         <option value="{{ current_user.id }}">Eu mesmo: {{ current_user.full_name or current_user.username }}</option>
+                        {% endif %}
                         {% for user in clinical_users or [] %}
+                        {% if user.id != current_user.id %}
                         <option value="{{ user.id }}">{{ user.full_name or user.username }}</option>
+                        {% endif %}
                         {% endfor %}
                     </select>
                 </div>

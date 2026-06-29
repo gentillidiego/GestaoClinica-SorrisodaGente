@@ -8,7 +8,8 @@ from services.security_service import audit_log, permission_required
 from services.web_security_service import flash_internal_error
 
 agenda_bp = Blueprint('agenda', __name__, url_prefix='/agenda')
-FULL_AGENDA_SCOPE_ROLES = {Role.ADMIN, Role.COORDENACAO, Role.RECEPCAO}
+FULL_AGENDA_SCOPE_ROLES = {Role.ADMIN, Role.COORDENACAO, Role.RECEPCAO, Role.CLINICOS}
+AGENDA_ADMIN_PROFESSIONAL_USER_IDS = {12}
 
 
 def _get_week_range(ref_date):
@@ -31,10 +32,6 @@ def _has_full_agenda_scope():
     return _current_role() in FULL_AGENDA_SCOPE_ROLES
 
 
-def _has_own_agenda_scope():
-    return _current_role() == Role.CLINICOS
-
-
 def _agenda_scope():
     return 'full' if _has_full_agenda_scope() else 'own'
 
@@ -42,53 +39,52 @@ def _agenda_scope():
 def _consulta_scope_clause(column='c.dentista_id'):
     if _has_full_agenda_scope():
         return '', []
-    if _has_own_agenda_scope():
-        return f' AND {column} = %s', [current_user.id]
     return ' AND 1 = 0', []
 
 
 def _list_clinical_users():
-    roles = tuple(sorted(CLINICAL_EXECUTOR_ROLES | {Role.ADMIN}))
-    placeholders = ', '.join(['%s'] * len(roles))
+    roles = tuple(sorted(CLINICAL_EXECUTOR_ROLES))
+    admin_ids = tuple(sorted(AGENDA_ADMIN_PROFESSIONAL_USER_IDS))
+    role_placeholders = ', '.join(['%s'] * len(roles))
+    admin_placeholders = ', '.join(['%s'] * len(admin_ids))
     return query(
-        f"SELECT id, username, full_name FROM users WHERE role IN ({placeholders}) ORDER BY full_name ASC",
-        roles,
+        f"""
+        SELECT id, username, full_name
+        FROM users
+        WHERE role IN ({role_placeholders}) OR id IN ({admin_placeholders})
+        ORDER BY full_name ASC
+        """,
+        tuple([*roles, *admin_ids]),
     )
 
 
 def _list_visible_dentistas():
     if _has_full_agenda_scope():
         return _list_clinical_users()
-    if _has_own_agenda_scope():
-        return query(
-            "SELECT id, username, full_name FROM users WHERE id = %s ORDER BY full_name ASC",
-            (current_user.id,),
-        )
     return []
 
 
 def _is_agenda_professional(user_id):
     if not user_id:
         return False
-    roles = tuple(sorted(CLINICAL_EXECUTOR_ROLES | {Role.ADMIN}))
-    placeholders = ', '.join(['%s'] * len(roles))
+    roles = tuple(sorted(CLINICAL_EXECUTOR_ROLES))
+    admin_ids = tuple(sorted(AGENDA_ADMIN_PROFESSIONAL_USER_IDS))
+    role_placeholders = ', '.join(['%s'] * len(roles))
+    admin_placeholders = ', '.join(['%s'] * len(admin_ids))
     result = query(
-        f"SELECT id FROM users WHERE id = %s AND role IN ({placeholders})",
-        tuple([user_id, *roles]),
+        f"""
+        SELECT id
+        FROM users
+        WHERE id = %s
+          AND (role IN ({role_placeholders}) OR id IN ({admin_placeholders}))
+        """,
+        tuple([user_id, *roles, *admin_ids]),
         one=True,
     )
     return bool(result)
 
 
-def _resolve_dentista_id(requested_dentista_id):
-    if _has_own_agenda_scope():
-        return current_user.id
-    return requested_dentista_id
-
-
 def _can_use_dentista_id(dentista_id):
-    if _has_own_agenda_scope():
-        return dentista_id == current_user.id
     if _has_full_agenda_scope():
         return _is_agenda_professional(dentista_id)
     return False
@@ -220,7 +216,7 @@ def nova_consulta():
         return redirect(url_for('agenda.agenda_index'))
 
     patient_id = request.form.get('patient_id', type=int)
-    dentista_id = _resolve_dentista_id(request.form.get('dentista_id', type=int))
+    dentista_id = request.form.get('dentista_id', type=int)
     data_hora = request.form.get('data_consulta')
     duracao = request.form.get('duracao_minutos', 30, type=int)
     execution_unit = normalize_execution_unit(request.form.get('execution_unit')) or get_default_execution_unit()
@@ -285,7 +281,7 @@ def editar_consulta(consulta_id):
 
     if request.method == 'POST':
         patient_id = request.form.get('patient_id', type=int)
-        dentista_id = _resolve_dentista_id(request.form.get('dentista_id', type=int))
+        dentista_id = request.form.get('dentista_id', type=int)
         data_hora = request.form.get('data_consulta')
         duracao = request.form.get('duracao_minutos', 30, type=int)
         status = request.form.get('status', 'Pendente')

@@ -4,6 +4,7 @@ import re
 import unicodedata
 from decimal import Decimal, InvalidOperation
 
+from constants import CLINICAL_EXECUTOR_ROLES
 from database import execute, get_db_connection, put_db_connection, query
 
 
@@ -120,6 +121,32 @@ def _normalize_adjustment_type(value):
 
 def _format_money(value):
     return float(value or 0)
+
+
+def _normalize_invoice_access_key(value):
+    raw_access_key = _clean(value)
+    if not raw_access_key:
+        return None
+    access_key = re.sub(r'\D', '', raw_access_key)
+    if len(access_key) != 44:
+        raise ValueError('Chave de acesso da NF-e deve ter 44 dígitos.')
+    return access_key
+
+
+def ensure_invoice_access_key_available(access_key):
+    access_key = _normalize_invoice_access_key(access_key)
+    if not access_key:
+        return None
+    existing = query(
+        "SELECT id, invoice_number FROM inventory_invoices WHERE access_key = %s",
+        (access_key,),
+        one=True,
+    )
+    if existing:
+        raise ValueError(
+            f"Esta NF-e já foi importada (nota nº {existing['invoice_number'] or existing['id']})."
+        )
+    return access_key
 
 
 def get_item_category_options():
@@ -339,6 +366,27 @@ def list_available_lots():
     )
 
 
+def _resolve_clinical_professional_id(professional_id):
+    if not professional_id:
+        raise ValueError('Selecione um profissional clínico responsável pelo material.')
+    roles = tuple(sorted(CLINICAL_EXECUTOR_ROLES))
+    placeholders = ', '.join(['%s'] * len(roles))
+    professional = query(
+        f"""
+        SELECT id
+        FROM users
+        WHERE id = %s
+          AND role IN ({placeholders})
+          AND active = TRUE
+        """,
+        tuple([professional_id, *roles]),
+        one=True,
+    )
+    if not professional:
+        raise ValueError('Profissional responsável deve ter perfil clínico ativo.')
+    return professional['id']
+
+
 def list_patient_material_usage(patient_id):
     return query(
         """
@@ -403,7 +451,9 @@ def register_patient_material_usage(patient_id, form_data, actor_id=None):
         raise ValueError('Quantidade utilizada deve ser maior que zero.')
 
     used_at = _parse_datetime(form_data.get('used_at'))
-    professional_id = form_data.get('professional_id') or actor_id
+    professional_id = _resolve_clinical_professional_id(
+        form_data.get('professional_id') or actor_id
+    )
 
     conn = get_db_connection()
     try:
@@ -750,6 +800,13 @@ def format_cnpj(value):
     return f"{digits[0:2]}.{digits[2:5]}.{digits[5:8]}/{digits[8:12]}-{digits[12:14]}"
 
 
+def ensure_supplier_cnpj_valid(cnpj):
+    normalized_cnpj = normalize_cnpj(cnpj)
+    if normalized_cnpj and not is_valid_cnpj(normalized_cnpj):
+        raise ValueError('CNPJ inválido.')
+    return normalized_cnpj
+
+
 # --- Fornecedores -------------------------------------------------------
 
 def get_supplier(supplier_id):
@@ -773,9 +830,7 @@ def create_supplier(form_data):
     name = _clean(form_data.get('name'))
     if not name:
         raise ValueError('Nome do fornecedor é obrigatório.')
-    cnpj = normalize_cnpj(form_data.get('cnpj'))
-    if cnpj and not is_valid_cnpj(cnpj):
-        raise ValueError('CNPJ inválido.')
+    cnpj = ensure_supplier_cnpj_valid(form_data.get('cnpj'))
     return execute(
         """
         INSERT INTO inventory_suppliers (name, cnpj, document, phone, email, active)
@@ -790,9 +845,7 @@ def update_supplier(supplier_id, form_data):
     name = _clean(form_data.get('name'))
     if not name:
         raise ValueError('Nome do fornecedor é obrigatório.')
-    cnpj = normalize_cnpj(form_data.get('cnpj'))
-    if cnpj and not is_valid_cnpj(cnpj):
-        raise ValueError('CNPJ inválido.')
+    cnpj = ensure_supplier_cnpj_valid(form_data.get('cnpj'))
     execute(
         """
         UPDATE inventory_suppliers
@@ -807,7 +860,7 @@ def update_supplier(supplier_id, form_data):
 
 
 def get_or_create_supplier(name=None, cnpj=None):
-    normalized_cnpj = normalize_cnpj(cnpj)
+    normalized_cnpj = ensure_supplier_cnpj_valid(cnpj)
     if normalized_cnpj:
         existing = query(
             "SELECT id, name FROM inventory_suppliers WHERE cnpj = %s LIMIT 1",
@@ -839,6 +892,43 @@ def get_or_create_supplier(name=None, cnpj=None):
         "INSERT INTO inventory_suppliers (name, cnpj, document) VALUES (%s, %s, %s) RETURNING id",
         (supplier_name or normalized_cnpj, normalized_cnpj, normalized_cnpj),
     )
+
+
+def _get_or_create_supplier_with_cursor(cur, name=None, cnpj=None):
+    normalized_cnpj = ensure_supplier_cnpj_valid(cnpj)
+
+    if normalized_cnpj:
+        cur.execute(
+            "SELECT id, name FROM inventory_suppliers WHERE cnpj = %s LIMIT 1",
+            (normalized_cnpj,),
+        )
+        existing = cur.fetchone()
+        if existing:
+            return existing['id']
+
+    supplier_name = _clean(name)
+    if supplier_name:
+        cur.execute(
+            "SELECT id, cnpj FROM inventory_suppliers WHERE LOWER(name) = LOWER(%s) LIMIT 1",
+            (supplier_name,),
+        )
+        existing = cur.fetchone()
+        if existing:
+            if normalized_cnpj and not existing.get('cnpj'):
+                cur.execute(
+                    "UPDATE inventory_suppliers SET cnpj = %s, document = %s WHERE id = %s",
+                    (normalized_cnpj, normalized_cnpj, existing['id']),
+                )
+            return existing['id']
+
+    if not supplier_name and not normalized_cnpj:
+        return None
+
+    cur.execute(
+        "INSERT INTO inventory_suppliers (name, cnpj, document) VALUES (%s, %s, %s) RETURNING id",
+        (supplier_name or normalized_cnpj, normalized_cnpj, normalized_cnpj),
+    )
+    return cur.fetchone()['id']
 
 
 # --- Conciliação de itens (matching) ------------------------------------
@@ -907,21 +997,7 @@ def create_invoice_draft(source_type, header, rows, actor_id=None, raw_file_path
         raise ValueError('Origem da entrada de mercadoria inválida.')
 
     header = header or {}
-    access_key = None
-    raw_access_key = _clean(header.get('access_key'))
-    if raw_access_key:
-        access_key = re.sub(r'\D', '', raw_access_key)
-        if len(access_key) != 44:
-            raise ValueError('Chave de acesso da NF-e deve ter 44 dígitos.')
-        existing = query(
-            "SELECT id, invoice_number FROM inventory_invoices WHERE access_key = %s",
-            (access_key,),
-            one=True,
-        )
-        if existing:
-            raise ValueError(
-                f"Esta NF-e já foi importada (nota nº {existing['invoice_number'] or existing['id']})."
-            )
+    access_key = ensure_invoice_access_key_available(header.get('access_key'))
 
     supplier_id = get_or_create_supplier(header.get('supplier_name'), header.get('supplier_cnpj'))
 
@@ -1081,7 +1157,11 @@ def confirm_invoice(invoice_id, header, rows_updates, actor_id=None):
         if invoice['status'] != 'rascunho':
             raise ValueError('Esta nota/compra já foi confirmada ou descartada.')
 
-        supplier_id = get_or_create_supplier(header.get('supplier_name'), header.get('supplier_cnpj'))
+        supplier_id = _get_or_create_supplier_with_cursor(
+            cur,
+            header.get('supplier_name'),
+            header.get('supplier_cnpj'),
+        )
 
         cur.execute(
             """
@@ -1110,6 +1190,8 @@ def confirm_invoice(invoice_id, header, rows_updates, actor_id=None):
         for row_id in row_ids:
             update = rows_updates.get(str(row_id)) or {}
             item_id = update.get('item_id') or None
+            if item_id == '__new__':
+                item_id = None
             new_item_name = _clean(update.get('new_item_name'))
             if not item_id and new_item_name:
                 cur.execute(

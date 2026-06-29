@@ -20,7 +20,7 @@ Perfis:
 
 | Grupo / operação | Permissão exigida | Perfis autorizados |
 |---|---|---|
-| Dashboard e Central de Comando | `dashboard:view`, `command_center:view` | Todos os dez perfis |
+| Dashboard e Central de Comando | `dashboard:view`, `command_center:view` | Todos os dez perfis; CLI limitado à própria produtividade |
 | Paciente — listar e abrir cadastro básico | `patients:view` | ADM, COO, CLI, REC, CME, RAD, ANC, AUD |
 | Paciente — criar e editar | `patients:write` | ADM, CLI, REC |
 | Paciente — excluir | `patients:delete` | ADM |
@@ -52,7 +52,7 @@ Perfis:
 | Endodontia — leitura e escrita | `patients:view` + `endodontia:view/write` | ADM, CLI |
 | Prótese — leitura e escrita | `patients:view` + `prosthesis:view/write` | ADM, CLI |
 | Endodontia/Prótese — assinaturas e pagamentos | permissão de escrita + `documents:sign` | ADM, CLI |
-| Agenda | `agenda:view/write` | ADM, COO, CLI, REC; CLI limitado à própria agenda |
+| Agenda | `agenda:view/write` | ADM, COO, CLI, REC; CLI vê e gerencia a agenda de todos os profissionais clínicos; ADM gerencia, mas não é profissional agendável, exceto `@dracibelycandido#12` |
 | Triagem | `triage:write` | ADM, CLI, REC |
 | Estoque administrativo | `inventory:view/write` | ADM, COO, CME |
 | Relatórios institucionais | `reports:view` + tipo permitido | ADM, COO, COM, SSA, AUD |

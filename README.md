@@ -2,7 +2,7 @@
 
 Versão de produção: **4.0.0**
 
-Atualização: **25/06/2026**
+Atualização: **29/06/2026**
 
 Status: **GO — produção plena aprovada**
 
@@ -19,7 +19,8 @@ detalhados.
 
 A aplicação e a infraestrutura passaram pelo QA técnico de 21/06/2026:
 
-- `361` testes aprovados localmente e na imagem Docker com PostgreSQL isolado;
+- `371` testes aprovados localmente; a última validação na imagem Docker com
+  PostgreSQL isolado permanece registrada como aprovada;
 - dependências diretas, transitivas e instaladas sem vulnerabilidades
   conhecidas;
 - rebuild Docker, `/health`, Celery e smoke tests aprovados;
@@ -316,9 +317,15 @@ Matriz completa:
 Regras permanentes:
 
 - triagem não define unidade;
-- Recepção visualiza a agenda de todos os Clínicos e pode cadastrar, editar,
-  remanejar, cancelar e alterar o status das consultas;
-- Clínicos veem na Agenda apenas o próprio recorte;
+- Recepção e Clínicos visualizam a agenda de todos os profissionais e podem
+  cadastrar, editar, remanejar, cancelar e alterar o status das consultas de
+  qualquer Clínico;
+- Administradores podem gerenciar a Agenda, mas não são profissionais
+  agendáveis, exceto a conta específica `@dracibelycandido#12`; quando outra
+  pessoa acumula função clínica e administrativa, deve usar cadastros separados
+  para cada perfil;
+- o recorte por profissional permanece apenas no Dashboard e na Central de
+  Comando, onde cada Clínico continua vendo a própria produtividade;
 - estoque não pode bloquear registro clínico;
 - economia no BI permanece estimativa até homologação;
 - XML e-SUS não pode ser anunciado como homologado antes de importação aceita
@@ -336,9 +343,11 @@ Regras permanentes:
 
 - ações de triagem e geração de senhas;
 - associação de senha a paciente já cadastrado;
-- Agenda por unidade, profissional, status e duração;
+- Agenda por unidade, profissional, status e duração, com Recepção e
+  Clínicos vendo e gerenciando a agenda de todos os profissionais clínicos;
 - rastreabilidade de mudanças;
-- Central de Comando respeitando o recorte da Agenda.
+- Central de Comando com recorte próprio: cada Clínico continua vendo apenas
+  a própria produtividade, independente do acesso ampliado na Agenda.
 
 ### Prontuário
 
@@ -379,7 +388,11 @@ Regras permanentes:
   (digitando todos os dados) — nenhum dos três afeta o saldo sem confirmação
   explícita do material, quantidade, custo e validade de cada lote;
 - cadastro de fornecedor com CNPJ validado (dígito verificador) para
-  rastreabilidade fiscal, sem apuração de impostos;
+  rastreabilidade fiscal, inclusive nos caminhos automáticos de importação e
+  confirmação de nota, sem apuração de impostos;
+- materiais consumidos no prontuário exigem indicação de profissional clínico
+  ativo, ainda que o lançamento seja feito por perfil administrativo,
+  Coordenação ou CME;
 - Central de Comando;
 - Epidemiologia;
 - BI executivo;
@@ -503,8 +516,8 @@ Para uma validação de release, use PostgreSQL temporário e isolado. Não herd
 
 Validações da candidata:
 
-- suíte local: `361 passed`;
-- suíte na imagem com banco isolado: `361 passed`;
+- suíte local: `371 passed`;
+- suíte na imagem com banco isolado: última validação registrada como aprovada;
 - `pip-audit` direto, transitivo e da imagem: sem vulnerabilidades conhecidas;
 - `pip check`: nenhuma dependência quebrada;
 - rebuild Docker aprovado;
@@ -779,6 +792,9 @@ ou pacientes fictícios. O ambiente pode ser recriado com
 | 24/06/2026 | despersonalização do ambiente | removidos o paciente de teste e os procedimentos associados criados para validar as mudanças de assinatura/produção; ambiente de produção zerado (0 pacientes); usuários já cadastrados preservados; evidências de assinatura/auditoria mantidas (FK `ON DELETE SET NULL`), conforme a política de retenção de 20 anos |
 | 24/06/2026 | módulo Comunicação | criado módulo administrativo de campanhas em massa por e-mail e WhatsApp Business Cloud API (integração direta com a Meta) e lembretes automáticos de consulta; novas tabelas `communication_templates/campaigns/messages/preferences`; permissões `comunicacao:view`/`write` restritas a contato e geografia do paciente (sem acesso a prontuário); canal WhatsApp desabilitado por padrão até credenciais serem configuradas; canal e-mail e lembretes operacionais desde já (lembretes desligados por padrão); 25 testes novos, suíte completa com 342 testes aprovados |
 | 25/06/2026 | redesign do Estoque Operacional | tela reorganizada em abas (Visão Geral, Entrada de Mercadoria, Materiais, Lotes e Saldo, Ajustes e Perdas, Notas Fiscais, Fornecedores), mesmo padrão de abas com carregamento assíncrono do prontuário; corrigido bug do card "Materiais" (colisão de nome entre a chave `items` e o método `dict.items`); criado fluxo de Entrada de Mercadoria com conciliação obrigatória antes de afetar o saldo, alimentado por três origens — XML da NF-e (`lxml`, chave de acesso com proteção contra reimportação duplicada), PDF/DANFE de melhor esforço (`pdfplumber`, decodificação de CNPJ/série/número a partir da chave de acesso quando o dígito verificador confere) e lançamento manual de nota ou compra avulsa; novas tabelas `inventory_invoices`/`inventory_invoice_items`, CNPJ validado em `inventory_suppliers`, EAN em `inventory_items`, rastreabilidade de origem em `inventory_lots`; sem apuração de impostos (somente rastreabilidade/auditoria); mesmas permissões `inventory:view`/`write` de hoje; 19 testes novos, suíte completa com 361 testes aprovados |
+| 26/06/2026 | escopo da Agenda para Clínicos | Clínicos passam a ver e gerenciar (cadastrar, editar, remanejar, cancelar, alterar status) a agenda de todos os profissionais, mesmo escopo já existente para Recepção/Coordenação/Admin; removida a lógica de recorte próprio em `blueprints/agenda.py` (forçar `dentista_id` ao próprio usuário); Dashboard e Central de Comando preservam o recorte individual do Clínico, por decisão deliberada — não é a mesma regra da Agenda; 1 teste novo, suíte completa com 362 testes aprovados |
+| 29/06/2026 | ajuste de escopo profissional da Agenda | Administradores continuam podendo gerenciar a Agenda, mas não aparecem como profissionais agendáveis nem passam na validação de `dentista_id`, exceto a conta específica `@dracibelycandido#12`; pessoas com função clínica e administrativa devem usar cadastros separados; registros históricos ligados a outras contas Admin não são remanejados automaticamente; suíte local com 366 testes aprovados |
+| 29/06/2026 | hardening de Materiais e Estoque | corrigida criação de material novo na revisão de nota quando a tela envia `item_id="__new__"`; CNPJ passa a ser validado também em `get_or_create_supplier` e no fornecedor criado durante confirmação; importação XML/PDF checa CNPJ e chave de acesso duplicada antes de arquivar no Drive, mantendo nova checagem no rascunho contra corrida; confirmação de nota cria/atualiza fornecedor no mesmo cursor/transação dos lotes; consumo de material no prontuário exige profissional clínico ativo; suíte local com 371 testes aprovados |
 
 ## Git e publicação
 
