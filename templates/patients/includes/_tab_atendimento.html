@@ -78,10 +78,16 @@
                             else '' }}</td>
                         <td style="padding: 1rem;">{{ appt.observacoes }}</td>
                         <td style="padding: 1rem; text-align: center;">
-                            {% if appt.executor_name %}
+                            {% if appt.executor_full_name or appt.executor_name %}
                             <span
                                 style="display: inline-flex; align-items: center; gap: 0.4rem; color: hsl(var(--success)); font-weight: 600; font-size: 0.9rem; background: hsl(var(--success)/0.1); padding: 0.4rem 0.8rem; border-radius: var(--radius-sm);">
-                                ✅ {{ appt.executor_name }}
+                                ✅
+                                {% if appt.executor_role == 'admin' %}Adm.
+                                {% elif appt.executor_role == 'clinicos' %}Clín.
+                                {% elif appt.executor_role == 'dentista' %}Dent.
+                                {% elif appt.executor_role == 'tsb' %}TSB
+                                {% else %}Prof.{% endif %}
+                                {{ appt.executor_full_name or appt.executor_name }}
                             </span>
                             {% elif can('attendance:write') and can('documents:sign') %}
                             <button

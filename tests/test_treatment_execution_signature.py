@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from flask import Flask
 
 import blueprints.patients as patients
+import services.patient_service as patient_service
 
 
 def make_app():
@@ -146,3 +147,20 @@ def test_sign_executor_without_linked_procedure_does_not_touch_treatment(monkeyp
     assert len(executed) == 1
     assert 'UPDATE atendimentos' in executed[0][0]
     assert audited == []
+
+
+def test_patient_appointments_exposes_executor_full_name_for_display(monkeypatch):
+    captured = {}
+
+    def fake_query(sql, params=(), one=False):
+        captured['sql'] = sql
+        captured['params'] = params
+        return []
+
+    monkeypatch.setattr(patient_service, 'query', fake_query)
+
+    patient_service.PatientService.get_patient_appointments(44)
+
+    assert 'ua.full_name as executor_full_name' in captured['sql']
+    assert 'ua.role as executor_role' in captured['sql']
+    assert captured['params'] == (44,)

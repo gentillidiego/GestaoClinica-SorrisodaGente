@@ -72,7 +72,8 @@ class PatientService:
     def get_patient_appointments(patient_id):
         return query("""
             SELECT a.*, up.username as validator_name, ua.username as executor_name,
-                   up.role as validator_role, up.full_name as validator_full_name
+                   up.role as validator_role, up.full_name as validator_full_name,
+                   ua.role as executor_role, ua.full_name as executor_full_name
             FROM atendimentos a
             LEFT JOIN users up ON a.validator_id = up.id
             LEFT JOIN users ua ON a.executor_id = ua.id
